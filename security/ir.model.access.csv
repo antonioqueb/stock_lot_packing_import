@@ -1,0 +1,3 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_packing_list_import_wizard,access_packing_list_import_wizard,model_packing_list_import_wizard,stock.group_stock_user,1,1,1,1
+access_worksheet_import_wizard,access_worksheet_import_wizard,model_worksheet_import_wizard,stock.group_stock_user,1,1,1,1
