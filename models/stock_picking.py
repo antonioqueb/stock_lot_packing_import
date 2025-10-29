@@ -55,12 +55,12 @@ class StockPicking(models.Model):
             
             ws['A1'] = 'PRODUCTO:'
             ws['A1'].font = Font(bold=True)
-            ws.merge_cells('B1:F1')
+            ws.merge_cells('B1:G1')
             ws['B1'] = f'{product.name} ({product.default_code or ""})'
             ws['B1'].font = Font(bold=True, color='0000FF')
             ws['B1'].alignment = Alignment(horizontal='left', vertical='center')
             
-            headers = ['Grosor (cm)', 'Alto (m)', 'Ancho (m)', 'Bloque', 'Formato', 'Notas']
+            headers = ['Grosor (cm)', 'Alto (m)', 'Ancho (m)', 'Bloque', 'Atado', 'Formato', 'Notas']
             for col_num, header in enumerate(headers, 1):
                 cell = ws.cell(row=3, column=col_num)
                 cell.value = header
@@ -69,15 +69,16 @@ class StockPicking(models.Model):
                 cell.alignment = Alignment(horizontal='center', vertical='center')
                 cell.border = border
             
-            ws.column_dimensions['A'].width = 15
-            ws.column_dimensions['B'].width = 12
-            ws.column_dimensions['C'].width = 12
-            ws.column_dimensions['D'].width = 15
-            ws.column_dimensions['E'].width = 15
-            ws.column_dimensions['F'].width = 30
+            ws.column_dimensions['A'].width = 15  # Grosor
+            ws.column_dimensions['B'].width = 12  # Alto
+            ws.column_dimensions['C'].width = 12  # Ancho
+            ws.column_dimensions['D'].width = 15  # Bloque
+            ws.column_dimensions['E'].width = 15  # Atado
+            ws.column_dimensions['F'].width = 15  # Formato
+            ws.column_dimensions['G'].width = 30  # Notas
             
             for row in range(4, 54):
-                for col in range(1, 7):
+                for col in range(1, 8):
                     ws.cell(row=row, column=col).border = border
                     ws.cell(row=row, column=col).alignment = Alignment(horizontal='center', vertical='center')
         
@@ -141,13 +142,13 @@ class StockPicking(models.Model):
             # Encabezado del producto
             ws['A1'] = 'PRODUCTO:'
             ws['A1'].font = Font(bold=True)
-            ws.merge_cells('B1:F1')
+            ws.merge_cells('B1:G1')
             ws['B1'] = f'{product.name} ({product.default_code or ""})'
             ws['B1'].font = Font(bold=True, color='0000FF')
             ws['B1'].alignment = Alignment(horizontal='left', vertical='center')
             
             # Headers
-            headers = ['Nº Lote', 'Grosor (cm)', 'Alto (m)', 'Ancho (m)', 'Bloque', 'Formato', 'Cantidad', 'Alto Real (m)', 'Ancho Real (m)']
+            headers = ['Nº Lote', 'Grosor (cm)', 'Alto (m)', 'Ancho (m)', 'Bloque', 'Atado', 'Formato', 'Cantidad', 'Alto Real (m)', 'Ancho Real (m)']
             for col_num, header in enumerate(headers, 1):
                 cell = ws.cell(row=3, column=col_num)
                 cell.value = header
@@ -162,10 +163,11 @@ class StockPicking(models.Model):
             ws.column_dimensions['C'].width = 12  # Alto
             ws.column_dimensions['D'].width = 12  # Ancho
             ws.column_dimensions['E'].width = 15  # Bloque
-            ws.column_dimensions['F'].width = 15  # Formato
-            ws.column_dimensions['G'].width = 12  # Cantidad
-            ws.column_dimensions['H'].width = 15  # Alto Real
-            ws.column_dimensions['I'].width = 15  # Ancho Real
+            ws.column_dimensions['F'].width = 15  # Atado
+            ws.column_dimensions['G'].width = 15  # Formato
+            ws.column_dimensions['H'].width = 12  # Cantidad
+            ws.column_dimensions['I'].width = 15  # Alto Real
+            ws.column_dimensions['J'].width = 15  # Ancho Real
             
             # Obtener move lines de este producto
             move_lines = self.move_line_ids.filtered(lambda ml: ml.product_id == product and ml.lot_id)
@@ -209,29 +211,36 @@ class StockPicking(models.Model):
                 cell.alignment = Alignment(horizontal='center', vertical='center')
                 cell.border = border
                 
-                # Columna F: Formato (solo lectura)
+                # Columna F: Atado (solo lectura)
                 cell = ws.cell(row=current_row, column=6)
+                cell.value = lot.x_atado
+                cell.fill = data_fill
+                cell.alignment = Alignment(horizontal='center', vertical='center')
+                cell.border = border
+                
+                # Columna G: Formato (solo lectura)
+                cell = ws.cell(row=current_row, column=7)
                 cell.value = lot.x_formato
                 cell.fill = data_fill
                 cell.alignment = Alignment(horizontal='center', vertical='center')
                 cell.border = border
                 
-                # Columna G: Cantidad (solo lectura)
-                cell = ws.cell(row=current_row, column=7)
+                # Columna H: Cantidad (solo lectura)
+                cell = ws.cell(row=current_row, column=8)
                 cell.value = ml.qty_done
                 cell.fill = data_fill
                 cell.alignment = Alignment(horizontal='center', vertical='center')
                 cell.border = border
                 
-                # Columna H: Alto Real (editable - VACÍA)
-                cell = ws.cell(row=current_row, column=8)
+                # Columna I: Alto Real (editable - VACÍA)
+                cell = ws.cell(row=current_row, column=9)
                 cell.value = None
                 cell.fill = editable_fill
                 cell.alignment = Alignment(horizontal='center', vertical='center')
                 cell.border = border
                 
-                # Columna I: Ancho Real (editable - VACÍA)
-                cell = ws.cell(row=current_row, column=9)
+                # Columna J: Ancho Real (editable - VACÍA)
+                cell = ws.cell(row=current_row, column=10)
                 cell.value = None
                 cell.fill = editable_fill
                 cell.alignment = Alignment(horizontal='center', vertical='center')

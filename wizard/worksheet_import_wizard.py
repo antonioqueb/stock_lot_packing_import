@@ -89,9 +89,9 @@ class WorksheetImportWizard(models.TransientModel):
                 if not lot:
                     continue
                 
-                # Leer las nuevas medidas (columnas H=Alto Real, I=Ancho Real)
-                alto_real_val = ws.cell(row=row, column=8).value  # Columna H
-                ancho_real_val = ws.cell(row=row, column=9).value  # Columna I
+                # Leer las nuevas medidas (columnas I=Alto Real, J=Ancho Real)
+                alto_real_val = ws.cell(row=row, column=9).value  # Columna I
+                ancho_real_val = ws.cell(row=row, column=10).value  # Columna J
                 
                 # Si hay medidas nuevas, actualizar
                 if alto_real_val is not None or ancho_real_val is not None:

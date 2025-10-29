@@ -17,7 +17,7 @@
                             <ul>
                                 <li>Seleccione el archivo Excel que descargó previamente</li>
                                 <li>El archivo debe contener una hoja por producto</li>
-                                <li>Complete los datos de grosor, alto, ancho, bloque y formato</li>
+                                <li>Complete los datos de grosor, alto, ancho, bloque, atado y formato</li>
                                 <li>Los lotes se crearán automáticamente con numeración secuencial</li>
                             </ul>
                         </div>

@@ -123,7 +123,8 @@ class PackingListImportWizard(models.TransientModel):
                     continue
                 
                 bloque_val = ws.cell(row=row, column=4).value
-                formato_val = ws.cell(row=row, column=5).value
+                atado_val = ws.cell(row=row, column=5).value
+                formato_val = ws.cell(row=row, column=6).value
                 
                 # Convertir bloque (puede venir como float 567.0)
                 if bloque_val is not None:
@@ -133,6 +134,15 @@ class PackingListImportWizard(models.TransientModel):
                         bloque = str(bloque_val).strip()
                 else:
                     bloque = ''
+                
+                # Convertir atado
+                if atado_val is not None:
+                    if isinstance(atado_val, (int, float)):
+                        atado = str(int(atado_val))
+                    else:
+                        atado = str(atado_val).strip()
+                else:
+                    atado = ''
                 
                 # Formato
                 if formato_val is not None:
@@ -150,6 +160,7 @@ class PackingListImportWizard(models.TransientModel):
                     'x_alto': alto,
                     'x_ancho': ancho,
                     'x_bloque': bloque,
+                    'x_atado': atado,
                     'x_formato': formato,
                 })
                 
@@ -168,6 +179,7 @@ class PackingListImportWizard(models.TransientModel):
                     'x_alto_temp': alto,
                     'x_ancho_temp': ancho,
                     'x_bloque_temp': bloque,
+                    'x_atado_temp': atado,
                     'x_formato_temp': formato,
                 })
                 
