@@ -12,7 +12,7 @@ class StockPicking(models.Model):
     has_packing_list = fields.Boolean(string='Tiene Packing List', compute='_compute_has_packing_list', store=True)
     packing_list_imported = fields.Boolean(string='Packing List Importado', default=False)
     
-    # Nuevos campos para el Worksheet
+    # Campos para el Worksheet
     worksheet_file = fields.Binary(string='Worksheet', attachment=True)
     worksheet_filename = fields.Char(string='Nombre del Worksheet')
     
@@ -55,12 +55,13 @@ class StockPicking(models.Model):
             
             ws['A1'] = 'PRODUCTO:'
             ws['A1'].font = Font(bold=True)
-            ws.merge_cells('B1:G1')
+            ws.merge_cells('B1:J1')
             ws['B1'] = f'{product.name} ({product.default_code or ""})'
             ws['B1'].font = Font(bold=True, color='0000FF')
             ws['B1'].alignment = Alignment(horizontal='left', vertical='center')
             
-            headers = ['Grosor (cm)', 'Alto (m)', 'Ancho (m)', 'Bloque', 'Atado', 'Formato', 'Notas']
+            # CAMBIO: Agregados Pedimento, Contenedor y Ref. Proveedor
+            headers = ['Grosor (cm)', 'Alto (m)', 'Ancho (m)', 'Bloque', 'Atado', 'Tipo', 'Pedimento', 'Contenedor', 'Ref. Proveedor', 'Notas']
             for col_num, header in enumerate(headers, 1):
                 cell = ws.cell(row=3, column=col_num)
                 cell.value = header
@@ -74,11 +75,14 @@ class StockPicking(models.Model):
             ws.column_dimensions['C'].width = 12  # Ancho
             ws.column_dimensions['D'].width = 15  # Bloque
             ws.column_dimensions['E'].width = 15  # Atado
-            ws.column_dimensions['F'].width = 15  # Formato
-            ws.column_dimensions['G'].width = 30  # Notas
+            ws.column_dimensions['F'].width = 15  # Tipo
+            ws.column_dimensions['G'].width = 18  # Pedimento
+            ws.column_dimensions['H'].width = 18  # Contenedor
+            ws.column_dimensions['I'].width = 20  # Ref. Proveedor
+            ws.column_dimensions['J'].width = 30  # Notas
             
             for row in range(4, 54):
-                for col in range(1, 8):
+                for col in range(1, 11):
                     ws.cell(row=row, column=col).border = border
                     ws.cell(row=row, column=col).alignment = Alignment(horizontal='center', vertical='center')
         
@@ -142,13 +146,13 @@ class StockPicking(models.Model):
             # Encabezado del producto
             ws['A1'] = 'PRODUCTO:'
             ws['A1'].font = Font(bold=True)
-            ws.merge_cells('B1:G1')
+            ws.merge_cells('B1:J1')
             ws['B1'] = f'{product.name} ({product.default_code or ""})'
             ws['B1'].font = Font(bold=True, color='0000FF')
             ws['B1'].alignment = Alignment(horizontal='left', vertical='center')
             
-            # Headers
-            headers = ['Nº Lote', 'Grosor (cm)', 'Alto (m)', 'Ancho (m)', 'Bloque', 'Atado', 'Formato', 'Cantidad', 'Alto Real (m)', 'Ancho Real (m)']
+            # CAMBIO: Headers con Pedimento, Contenedor, Ref. Proveedor
+            headers = ['Nº Lote', 'Grosor (cm)', 'Alto (m)', 'Ancho (m)', 'Bloque', 'Atado', 'Tipo', 'Pedimento', 'Contenedor', 'Ref. Proveedor', 'Cantidad', 'Alto Real (m)', 'Ancho Real (m)']
             for col_num, header in enumerate(headers, 1):
                 cell = ws.cell(row=3, column=col_num)
                 cell.value = header
@@ -164,10 +168,13 @@ class StockPicking(models.Model):
             ws.column_dimensions['D'].width = 12  # Ancho
             ws.column_dimensions['E'].width = 15  # Bloque
             ws.column_dimensions['F'].width = 15  # Atado
-            ws.column_dimensions['G'].width = 15  # Formato
-            ws.column_dimensions['H'].width = 12  # Cantidad
-            ws.column_dimensions['I'].width = 15  # Alto Real
-            ws.column_dimensions['J'].width = 15  # Ancho Real
+            ws.column_dimensions['G'].width = 15  # Tipo
+            ws.column_dimensions['H'].width = 18  # Pedimento
+            ws.column_dimensions['I'].width = 18  # Contenedor
+            ws.column_dimensions['J'].width = 20  # Ref. Proveedor
+            ws.column_dimensions['K'].width = 12  # Cantidad
+            ws.column_dimensions['L'].width = 15  # Alto Real
+            ws.column_dimensions['M'].width = 15  # Ancho Real
             
             # Obtener move lines de este producto
             move_lines = self.move_line_ids.filtered(lambda ml: ml.product_id == product and ml.lot_id)
@@ -218,29 +225,50 @@ class StockPicking(models.Model):
                 cell.alignment = Alignment(horizontal='center', vertical='center')
                 cell.border = border
                 
-                # Columna G: Formato (solo lectura)
+                # Columna G: Tipo (solo lectura)
                 cell = ws.cell(row=current_row, column=7)
-                cell.value = lot.x_formato
+                cell.value = dict(lot._fields['x_tipo'].selection).get(lot.x_tipo, '')
                 cell.fill = data_fill
                 cell.alignment = Alignment(horizontal='center', vertical='center')
                 cell.border = border
                 
-                # Columna H: Cantidad (solo lectura)
+                # NUEVO: Columna H: Pedimento (solo lectura)
                 cell = ws.cell(row=current_row, column=8)
+                cell.value = lot.x_pedimento
+                cell.fill = data_fill
+                cell.alignment = Alignment(horizontal='center', vertical='center')
+                cell.border = border
+                
+                # NUEVO: Columna I: Contenedor (solo lectura)
+                cell = ws.cell(row=current_row, column=9)
+                cell.value = lot.x_contenedor
+                cell.fill = data_fill
+                cell.alignment = Alignment(horizontal='center', vertical='center')
+                cell.border = border
+                
+                # NUEVO: Columna J: Ref. Proveedor (solo lectura)
+                cell = ws.cell(row=current_row, column=10)
+                cell.value = lot.x_referencia_proveedor
+                cell.fill = data_fill
+                cell.alignment = Alignment(horizontal='center', vertical='center')
+                cell.border = border
+                
+                # Columna K: Cantidad (solo lectura)
+                cell = ws.cell(row=current_row, column=11)
                 cell.value = ml.qty_done
                 cell.fill = data_fill
                 cell.alignment = Alignment(horizontal='center', vertical='center')
                 cell.border = border
                 
-                # Columna I: Alto Real (editable - VACÍA)
-                cell = ws.cell(row=current_row, column=9)
+                # Columna L: Alto Real (editable - VACÍA)
+                cell = ws.cell(row=current_row, column=12)
                 cell.value = None
                 cell.fill = editable_fill
                 cell.alignment = Alignment(horizontal='center', vertical='center')
                 cell.border = border
                 
-                # Columna J: Ancho Real (editable - VACÍA)
-                cell = ws.cell(row=current_row, column=10)
+                # Columna M: Ancho Real (editable - VACÍA)
+                cell = ws.cell(row=current_row, column=13)
                 cell.value = None
                 cell.fill = editable_fill
                 cell.alignment = Alignment(horizontal='center', vertical='center')
@@ -248,7 +276,7 @@ class StockPicking(models.Model):
                 
                 current_row += 1
         
-        # IMPORTANTE: Guardar el archivo en el campo worksheet_file
+        # Guardar el archivo en el campo worksheet_file
         output = io.BytesIO()
         wb.save(output)
         output.seek(0)
