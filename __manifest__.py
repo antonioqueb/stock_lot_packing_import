@@ -8,6 +8,7 @@
     'website': 'https://alphaqueb.com',
     'depends': ['stock_lot_dimensions'],
     'data': [
+        'security/stock_lot_hold_security.xml',
         'security/ir.model.access.csv',
         'wizard/packing_list_import_wizard_views.xml',
         'wizard/worksheet_import_wizard_views.xml',

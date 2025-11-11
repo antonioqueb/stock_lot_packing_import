@@ -24,8 +24,25 @@ class StockPicking(models.Model):
     def action_download_packing_template(self):
         self.ensure_one()
         
-        if self.picking_type_code != 'incoming':
-            raise UserError('Solo disponible para recepciones')
+        import logging
+        _logger = logging.getLogger(__name__)
+        
+        _logger.info('='*80)
+        _logger.info('DEBUG PACKING TEMPLATE - Información del Picking:')
+        _logger.info(f'  Picking ID: {self.id}')
+        _logger.info(f'  Picking Name: {self.name}')
+        _logger.info(f'  State: {self.state}')
+        _logger.info(f'  Picking Type Code: {self.picking_type_code}')
+        _logger.info(f'  Picking Type: {self.picking_type_id.name}')
+        _logger.info(f'  Partner: {self.partner_id.name}')
+        _logger.info(f'  Partner is Company: {self.partner_id.is_company}')
+        _logger.info(f'  Company ID: {self.company_id.id} - {self.company_id.name}')
+        _logger.info(f'  Location From: {self.location_id.name}')
+        _logger.info(f'  Location To: {self.location_dest_id.name}')
+        _logger.info('='*80)
+        
+        if self.picking_type_code not in ('incoming', 'internal', 'outgoing'):
+            raise UserError('Solo disponible para recepciones, envíos y transferencias internas')
         
         try:
             from openpyxl import Workbook
@@ -38,7 +55,7 @@ class StockPicking(models.Model):
         
         products = self.move_ids.mapped('product_id')
         if not products:
-            raise UserError('No hay productos en esta recepción')
+            raise UserError('No hay productos en esta operación')
         
         header_fill = PatternFill(start_color='366092', end_color='366092', fill_type='solid')
         header_font = Font(color='FFFFFF', bold=True)
@@ -60,7 +77,6 @@ class StockPicking(models.Model):
             ws['B1'].font = Font(bold=True, color='0000FF')
             ws['B1'].alignment = Alignment(horizontal='left', vertical='center')
             
-            # CAMBIO: Agregados Pedimento, Contenedor y Ref. Proveedor
             headers = ['Grosor (cm)', 'Alto (m)', 'Ancho (m)', 'Bloque', 'Atado', 'Tipo', 'Pedimento', 'Contenedor', 'Ref. Proveedor', 'Notas']
             for col_num, header in enumerate(headers, 1):
                 cell = ws.cell(row=3, column=col_num)
@@ -107,8 +123,22 @@ class StockPicking(models.Model):
         """Generar Worksheet con los lotes ya creados y columnas para medidas reales"""
         self.ensure_one()
         
-        if self.picking_type_code != 'incoming':
-            raise UserError('Solo disponible para recepciones')
+        import logging
+        _logger = logging.getLogger(__name__)
+        
+        _logger.info('='*80)
+        _logger.info('DEBUG WORKSHEET - Información del Picking:')
+        _logger.info(f'  Picking ID: {self.id}')
+        _logger.info(f'  Picking Name: {self.name}')
+        _logger.info(f'  State: {self.state}')
+        _logger.info(f'  Picking Type Code: {self.picking_type_code}')
+        _logger.info(f'  Picking Type: {self.picking_type_id.name}')
+        _logger.info(f'  Partner: {self.partner_id.name}')
+        _logger.info(f'  Packing List Imported: {self.packing_list_imported}')
+        _logger.info('='*80)
+        
+        if self.picking_type_code not in ('incoming', 'internal', 'outgoing'):
+            raise UserError('Solo disponible para recepciones, envíos y transferencias internas')
         
         if not self.packing_list_imported:
             raise UserError('Debe importar primero un Packing List')
@@ -126,7 +156,7 @@ class StockPicking(models.Model):
         products = self.move_line_ids.mapped('product_id')
         
         if not products:
-            raise UserError('No hay lotes creados en esta recepción')
+            raise UserError('No hay lotes creados en esta operación')
         
         header_fill = PatternFill(start_color='366092', end_color='366092', fill_type='solid')
         header_font = Font(color='FFFFFF', bold=True)
@@ -151,7 +181,6 @@ class StockPicking(models.Model):
             ws['B1'].font = Font(bold=True, color='0000FF')
             ws['B1'].alignment = Alignment(horizontal='left', vertical='center')
             
-            # CAMBIO: Headers con Pedimento, Contenedor, Ref. Proveedor
             headers = ['Nº Lote', 'Grosor (cm)', 'Alto (m)', 'Ancho (m)', 'Bloque', 'Atado', 'Tipo', 'Pedimento', 'Contenedor', 'Ref. Proveedor', 'Cantidad', 'Alto Real (m)', 'Ancho Real (m)']
             for col_num, header in enumerate(headers, 1):
                 cell = ws.cell(row=3, column=col_num)
@@ -232,21 +261,21 @@ class StockPicking(models.Model):
                 cell.alignment = Alignment(horizontal='center', vertical='center')
                 cell.border = border
                 
-                # NUEVO: Columna H: Pedimento (solo lectura)
+                # Columna H: Pedimento (solo lectura)
                 cell = ws.cell(row=current_row, column=8)
                 cell.value = lot.x_pedimento
                 cell.fill = data_fill
                 cell.alignment = Alignment(horizontal='center', vertical='center')
                 cell.border = border
                 
-                # NUEVO: Columna I: Contenedor (solo lectura)
+                # Columna I: Contenedor (solo lectura)
                 cell = ws.cell(row=current_row, column=9)
                 cell.value = lot.x_contenedor
                 cell.fill = data_fill
                 cell.alignment = Alignment(horizontal='center', vertical='center')
                 cell.border = border
                 
-                # NUEVO: Columna J: Ref. Proveedor (solo lectura)
+                # Columna J: Ref. Proveedor (solo lectura)
                 cell = ws.cell(row=current_row, column=10)
                 cell.value = lot.x_referencia_proveedor
                 cell.fill = data_fill

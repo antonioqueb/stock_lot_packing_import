@@ -12,7 +12,7 @@
                         <field name="excel_file" filename="excel_filename"/>
                     </group>
                     <group>
-                        <div class="alert alert-info">
+                        <div class="alert alert-info" role="alert">
                             <p><strong>Instrucciones para Worksheet:</strong></p>
                             <ul>
                                 <li>Este archivo contiene los lotes ya creados desde el Packing List</li>

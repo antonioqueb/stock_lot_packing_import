@@ -15,10 +15,10 @@ class PackingListImportWizard(models.TransientModel):
     excel_filename = fields.Char(string='Nombre del archivo')
     
     def _get_next_global_prefix(self):
-        """Obtiene el siguiente prefijo global consecutivo (solo de recepciones VALIDADAS)"""
+        """Obtiene el siguiente prefijo global consecutivo (solo de recepciones VALIDADAS de la compañía actual)"""
         self.env['stock.lot'].flush_model()
         
-        # Buscar el último prefijo usado en recepciones validadas
+        # Buscar el último prefijo usado en recepciones validadas DE LA COMPAÑÍA ACTUAL
         self.env.cr.execute("""
             SELECT CAST(SUBSTRING(sl.name FROM '^([0-9]+)-') AS INTEGER) as prefix_num
             FROM stock_lot sl
@@ -26,9 +26,10 @@ class PackingListImportWizard(models.TransientModel):
             INNER JOIN stock_picking sp ON sp.id = sml.picking_id
             WHERE sl.name ~ '^[0-9]+-[0-9]+$'
             AND sp.state = 'done'
+            AND sp.company_id = %s
             ORDER BY prefix_num DESC
             LIMIT 1
-        """)
+        """, (self.picking_id.company_id.id,))
         
         result = self.env.cr.fetchone()
         
@@ -38,10 +39,10 @@ class PackingListImportWizard(models.TransientModel):
         return 1
     
     def _get_next_lot_number_for_prefix(self, prefix):
-        """Obtiene el siguiente número secuencial para un prefijo específico (solo VALIDADOS)"""
+        """Obtiene el siguiente número secuencial para un prefijo específico (solo VALIDADOS de la compañía actual)"""
         self.env['stock.lot'].flush_model()
         
-        # Buscar el último lote con este prefijo en RECEPCIONES VALIDADAS
+        # Buscar el último lote con este prefijo en RECEPCIONES VALIDADAS DE LA COMPAÑÍA ACTUAL
         self.env.cr.execute("""
             SELECT sl.name
             FROM stock_lot sl
@@ -49,9 +50,10 @@ class PackingListImportWizard(models.TransientModel):
             INNER JOIN stock_picking sp ON sp.id = sml.picking_id
             WHERE sl.name LIKE %s
             AND sp.state = 'done'
+            AND sp.company_id = %s
             ORDER BY CAST(SUBSTRING(sl.name FROM '-([0-9]+)$') AS INTEGER) DESC
             LIMIT 1
-        """, (f'{prefix}-%',))
+        """, (f'{prefix}-%', self.picking_id.company_id.id))
         
         result = self.env.cr.fetchone()
         
