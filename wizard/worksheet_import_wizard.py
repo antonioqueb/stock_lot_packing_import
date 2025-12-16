@@ -18,8 +18,13 @@ class WorksheetImportWizard(models.TransientModel):
         if not self.excel_file:
             raise UserError('Debe seleccionar un archivo Excel')
         
+        # VALIDACIÓN 1: Tipo de operación
         if self.picking_id.picking_type_code != 'incoming':
-            raise UserError('Solo se puede importar en recepciones')
+            raise UserError('Solo se puede importar en recepciones.')
+
+        # VALIDACIÓN 2 (CRÍTICA): Estado de la operación
+        if self.picking_id.state == 'done':
+            raise UserError('La recepción ya está validada (Hecho). No se puede procesar el Worksheet porque modificaría lotes que ya están en el inventario histórico.')
         
         try:
             from openpyxl import load_workbook
@@ -36,9 +41,7 @@ class WorksheetImportWizard(models.TransientModel):
         errors = []
         total_missing_pieces = 0
         total_missing_m2 = 0
-        missing_lots = []
         
-        # Agrupar lotes por contenedor para renumerar
         container_lots = {}
         
         for sheet_name in wb.sheetnames:
@@ -46,7 +49,7 @@ class WorksheetImportWizard(models.TransientModel):
             
             product_info = ws['B1'].value
             if not product_info:
-                errors.append(f'Hoja {sheet_name}: No se encontró información del producto en B1')
+                errors.append(f'Hoja {sheet_name}: Sin info de producto en B1')
                 continue
             
             product_code = None
@@ -55,33 +58,30 @@ class WorksheetImportWizard(models.TransientModel):
                 if code_part:
                     product_code = code_part
             
-            if not product_code:
-                product_name = str(product_info).split('(')[0].strip()
-                product = self.env['product.product'].search([
-                    ('name', 'ilike', product_name)
-                ], limit=1)
-            else:
+            product = False
+            if product_code:
                 product = self.env['product.product'].search([
                     '|', ('default_code', '=', product_code), ('barcode', '=', product_code)
                 ], limit=1)
             
             if not product:
+                product_name = str(product_info).split('(')[0].strip()
+                product = self.env['product.product'].search([('name', '=', product_name)], limit=1)
+                if not product:
+                     product = self.env['product.product'].search([('name', 'ilike', product_name)], limit=1)
+            
+            if not product:
                 errors.append(f'Hoja {sheet_name}: No se encontró el producto')
                 continue
             
-            # Primera pasada: identificar lotes que llegaron y los que no
             lots_data = []
             
             for row in range(4, ws.max_row + 1):
                 lot_name_val = ws.cell(row=row, column=1).value
-                
                 if lot_name_val is None:
                     continue
                 
-                if isinstance(lot_name_val, (int, float)):
-                    lot_name = f'{int(lot_name_val):05d}'
-                else:
-                    lot_name = str(lot_name_val).strip()
+                lot_name = f'{int(lot_name_val):05d}' if isinstance(lot_name_val, (int, float)) else str(lot_name_val).strip()
                 
                 lot = self.env['stock.lot'].search([
                     ('name', '=', lot_name),
@@ -91,24 +91,17 @@ class WorksheetImportWizard(models.TransientModel):
                 if not lot:
                     continue
                 
-                # Leer medidas reales (columnas L=12 y M=13)
                 alto_real_val = ws.cell(row=row, column=12).value
                 ancho_real_val = ws.cell(row=row, column=13).value
                 
-                # Si ambas medidas son 0 o están vacías, el lote NO llegó
                 alto_real = float(alto_real_val) if alto_real_val not in (None, '', 0) else 0.0
                 ancho_real = float(ancho_real_val) if ancho_real_val not in (None, '', 0) else 0.0
                 
                 if alto_real == 0.0 and ancho_real == 0.0:
-                    # Lote NO llegó - marcarlo para eliminación
+                    # Lote NO llegó, marcarlo para eliminación
                     m2_faltante = lot.x_alto * lot.x_ancho if lot.x_alto and lot.x_ancho else 0
                     total_missing_pieces += 1
                     total_missing_m2 += m2_faltante
-                    missing_lots.append({
-                        'name': lot.name,
-                        'product': product.name,
-                        'm2': m2_faltante
-                    })
                     
                     move_line = self.env['stock.move.line'].search([
                         ('picking_id', '=', self.picking_id.id),
@@ -119,7 +112,6 @@ class WorksheetImportWizard(models.TransientModel):
                     if move_line:
                         move_line.unlink()
                     
-                    # Verificar si el lote está en otras recepciones
                     other_moves = self.env['stock.move.line'].search([
                         ('lot_id', '=', lot.id),
                         ('picking_id', '!=', self.picking_id.id)
@@ -127,7 +119,6 @@ class WorksheetImportWizard(models.TransientModel):
                     if not other_moves:
                         lot.unlink()
                 else:
-                    # Lote SÍ llegó - guardar para renumerar
                     lots_data.append({
                         'lot': lot,
                         'alto_real': alto_real,
@@ -136,45 +127,34 @@ class WorksheetImportWizard(models.TransientModel):
                         'original_name': lot.name
                     })
             
-            # Agrupar por contenedor
             for lot_data in lots_data:
                 contenedor = lot_data['contenedor']
                 if contenedor not in container_lots:
                     container_lots[contenedor] = []
                 container_lots[contenedor].append(lot_data)
         
-        # Renumerar lotes por contenedor
+        # Renumeración
         for contenedor, lots in container_lots.items():
-            # Extraer el prefijo del primer lote
             if not lots:
                 continue
             
             original_name = lots[0]['original_name']
             prefix = original_name.split('-')[0] if '-' in original_name else '1'
-            
-            # Ordenar por nombre original para mantener el orden
             lots.sort(key=lambda x: x['original_name'])
             
-            # Renumerar secuencialmente
             for idx, lot_data in enumerate(lots, start=1):
                 lot = lot_data['lot']
                 alto_real = lot_data['alto_real']
                 ancho_real = lot_data['ancho_real']
                 
-                # Nuevo nombre secuencial
-                if idx < 10:
-                    new_name = f'{prefix}-0{idx}'
-                else:
-                    new_name = f'{prefix}-{idx}'
+                new_name = f'{prefix}-{idx:02d}' if idx < 100 else f'{prefix}-{idx}'
                 
-                # Actualizar lote
                 lot.write({
                     'name': new_name,
                     'x_alto': alto_real,
                     'x_ancho': ancho_real,
                 })
                 
-                # Actualizar move line
                 move_line = self.env['stock.move.line'].search([
                     ('picking_id', '=', self.picking_id.id),
                     ('lot_id', '=', lot.id)
@@ -191,25 +171,20 @@ class WorksheetImportWizard(models.TransientModel):
                 lines_updated += 1
         
         if lines_updated == 0 and total_missing_pieces == 0:
-            error_msg = 'No se encontraron cambios para procesar.'
+            error_msg = 'No se encontraron cambios.'
             if errors:
                 error_msg += '\n\nDetalles:\n' + '\n'.join(errors)
             raise UserError(error_msg)
         
-        # Construir mensaje
-        message = f'✓ Se actualizaron {lines_updated} lotes con medidas reales\n'
-        
+        message = f'✓ Se actualizaron {lines_updated} lotes\n'
         if total_missing_pieces > 0:
-            message += f'\n⚠️ MATERIAL FALTANTE:\n'
-            message += f'• Piezas no arribadas: {total_missing_pieces}\n'
-            message += f'• Total m² faltantes: {total_missing_m2:.2f} m²\n'
-            message += f'\nLos lotes faltantes fueron eliminados y la secuencia fue ajustada.'
+            message += f'\n⚠️ MATERIAL FALTANTE:\n• Piezas no arribadas: {total_missing_pieces}\n• Total m²: {total_missing_m2:.2f} m²\n(Lotes eliminados)'
         
         return {
             'type': 'ir.actions.client',
             'tag': 'display_notification',
             'params': {
-                'title': '¡Importación de Worksheet Completada!',
+                'title': 'Proceso Completado',
                 'message': message,
                 'type': 'warning' if total_missing_pieces > 0 else 'success',
                 'sticky': True if total_missing_pieces > 0 else False,

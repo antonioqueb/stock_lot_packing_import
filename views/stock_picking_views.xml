@@ -15,28 +15,25 @@
             </field>
             
             <xpath expr="//header/button[@name='action_assign']" position="after">
-                <!-- Descargar Plantilla: solo visible si es RECEPCIÓN y NO se ha importado el Packing List -->
+                <!-- Solo visible si es RECEPCIÓN (incoming) y no está validado -->
                 <button name="action_download_packing_template"
                         string="Descargar Plantilla Packing List"
                         type="object"
                         class="btn-secondary"
                         invisible="state in ('done', 'cancel', 'draft') or picking_type_code != 'incoming' or packing_list_imported"/>
                 
-                <!-- Cargar Packing List: solo visible si es RECEPCIÓN -->
                 <button name="action_import_packing_list"
                         string="Cargar Packing List"
                         type="object"
                         class="btn-primary"
                         invisible="state in ('done', 'cancel', 'draft') or picking_type_code != 'incoming'"/>
                 
-                <!-- Descargar Worksheet: solo visible si es RECEPCIÓN y YA se importó el Packing List -->
                 <button name="action_download_worksheet"
                         string="Descargar Worksheet"
                         type="object"
                         class="btn-info"
                         invisible="state in ('done', 'cancel', 'draft') or picking_type_code != 'incoming' or not packing_list_imported"/>
                 
-                <!-- Importar Worksheet: solo visible si es RECEPCIÓN y YA se importó el Packing List -->
                 <button name="action_import_worksheet"
                         string="Cargar Worksheet"
                         type="object"

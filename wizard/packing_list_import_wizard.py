@@ -4,7 +4,6 @@ from odoo.exceptions import UserError
 import base64
 import io
 import re
-from datetime import datetime
 
 class PackingListImportWizard(models.TransientModel):
     _name = 'packing.list.import.wizard'
@@ -15,10 +14,8 @@ class PackingListImportWizard(models.TransientModel):
     excel_filename = fields.Char(string='Nombre del archivo')
     
     def _get_next_global_prefix(self):
-        """Obtiene el siguiente prefijo global consecutivo (solo de recepciones VALIDADAS de la compañía actual)"""
+        """Obtiene el siguiente prefijo global consecutivo"""
         self.env['stock.lot'].flush_model()
-        
-        # Buscar el último prefijo usado en recepciones validadas DE LA COMPAÑÍA ACTUAL
         self.env.cr.execute("""
             SELECT CAST(SUBSTRING(sl.name FROM '^([0-9]+)-') AS INTEGER) as prefix_num
             FROM stock_lot sl
@@ -32,17 +29,13 @@ class PackingListImportWizard(models.TransientModel):
         """, (self.picking_id.company_id.id,))
         
         result = self.env.cr.fetchone()
-        
         if result and result[0]:
             return result[0] + 1
-        
         return 1
     
     def _get_next_lot_number_for_prefix(self, prefix):
-        """Obtiene el siguiente número secuencial para un prefijo específico (solo VALIDADOS de la compañía actual)"""
+        """Obtiene el siguiente número secuencial para un prefijo"""
         self.env['stock.lot'].flush_model()
-        
-        # Buscar el último lote con este prefijo en RECEPCIONES VALIDADAS DE LA COMPAÑÍA ACTUAL
         self.env.cr.execute("""
             SELECT sl.name
             FROM stock_lot sl
@@ -56,18 +49,15 @@ class PackingListImportWizard(models.TransientModel):
         """, (f'{prefix}-%', self.picking_id.company_id.id))
         
         result = self.env.cr.fetchone()
-        
         if result:
             try:
                 last_num = int(result[0].split('-')[1])
                 return last_num + 1
             except (ValueError, IndexError):
                 pass
-        
         return 1
     
     def _format_lot_name(self, prefix, number):
-        """Formato: PREFIJO-NN (ej: 1-01, 1-02, ..., 1-99, 1-100)"""
         if number < 10:
             return f'{prefix}-0{number}'
         else:
@@ -76,26 +66,28 @@ class PackingListImportWizard(models.TransientModel):
     def action_import_excel(self):
         self.ensure_one()
         
+        # VALIDACIÓN 1: Solo recepciones
+        if self.picking_id.picking_type_code != 'incoming':
+            raise UserError('Solo se puede importar en recepciones.')
+
+        # VALIDACIÓN 2: No permitir si ya está validado (evita corromper stock histórico)
+        if self.picking_id.state == 'done':
+             raise UserError('La recepción ya está validada. No se puede modificar el Packing List.')
+             
         if not self.excel_file:
             raise UserError('Debe seleccionar un archivo Excel')
         
-        if self.picking_id.picking_type_code != 'incoming':
-            raise UserError('Solo se puede importar en recepciones')
+        # Limpiar lotes previos de ESTA recepción (seguro porque state != done)
+        lots_to_delete = self.picking_id.move_line_ids.mapped('lot_id')
+        self.picking_id.move_line_ids.unlink()
         
-        # CRÍTICO: Si la recepción NO está validada, eliminar lotes anteriores de esta recepción
-        if self.picking_id.state != 'done':
-            lots_to_delete = self.picking_id.move_line_ids.mapped('lot_id')
-            self.picking_id.move_line_ids.unlink()
-            
-            for lot in lots_to_delete:
-                other_moves = self.env['stock.move.line'].search([
-                    ('lot_id', '=', lot.id),
-                    ('picking_id', '!=', self.picking_id.id)
-                ])
-                if not other_moves:
-                    lot.unlink()
-        else:
-            raise UserError('No puede reimportar el Packing List en una recepción ya validada. Cree una nueva recepción.')
+        for lot in lots_to_delete:
+            other_moves = self.env['stock.move.line'].search([
+                ('lot_id', '=', lot.id),
+                ('picking_id', '!=', self.picking_id.id)
+            ])
+            if not other_moves:
+                lot.unlink()
         
         try:
             from openpyxl import load_workbook
@@ -110,31 +102,21 @@ class PackingListImportWizard(models.TransientModel):
         
         move_lines_created = 0
         errors = []
-        
-        # Obtener el siguiente prefijo global
         next_global_prefix = self._get_next_global_prefix()
-        
-        # Mapeo de contenedor -> prefijo asignado
         container_to_prefix = {}
         container_counters = {}
         
-        # Primera pasada: identificar contenedores únicos y asignarles prefijos consecutivos
+        # FASE 1: Mapeo de Contenedores
         for sheet_name in wb.sheetnames:
             ws = wb[sheet_name]
-            
             for row in range(4, ws.max_row + 1):
                 contenedor_val = ws.cell(row=row, column=8).value
-                
                 if contenedor_val is None or str(contenedor_val).strip() == '':
                     continue
                 
-                if isinstance(contenedor_val, (int, float)):
-                    contenedor = str(int(contenedor_val))
-                else:
-                    contenedor = str(contenedor_val).strip()
+                contenedor = str(int(contenedor_val)) if isinstance(contenedor_val, (int, float)) else str(contenedor_val).strip()
                 
                 if contenedor and contenedor not in container_to_prefix:
-                    # Asignar el siguiente prefijo consecutivo
                     container_to_prefix[contenedor] = str(next_global_prefix)
                     container_counters[contenedor] = {
                         'prefix': str(next_global_prefix),
@@ -142,7 +124,7 @@ class PackingListImportWizard(models.TransientModel):
                     }
                     next_global_prefix += 1
         
-        # Segunda pasada: procesar productos y crear lotes
+        # FASE 2: Creación de Lotes
         for sheet_name in wb.sheetnames:
             ws = wb[sheet_name]
             
@@ -157,22 +139,25 @@ class PackingListImportWizard(models.TransientModel):
                 if code_part:
                     product_code = code_part
             
-            if not product_code:
-                product_name = str(product_info).split('(')[0].strip()
-                product = self.env['product.product'].search([
-                    ('name', 'ilike', product_name)
-                ], limit=1)
-                if not product:
-                    errors.append(f'Hoja {sheet_name}: No se encontró el producto "{product_name}"')
-                    continue
-            else:
+            product = False
+            if product_code:
+                # Búsqueda exacta por código
                 product = self.env['product.product'].search([
                     '|', ('default_code', '=', product_code), ('barcode', '=', product_code)
                 ], limit=1)
-                if not product:
-                    errors.append(f'Hoja {sheet_name}: No se encontró el producto con código "{product_code}"')
-                    continue
             
+            if not product:
+                # Búsqueda por nombre: PRIMERO exacta, LUEGO aproximada
+                product_name = str(product_info).split('(')[0].strip()
+                product = self.env['product.product'].search([('name', '=', product_name)], limit=1)
+                if not product:
+                     product = self.env['product.product'].search([('name', 'ilike', product_name)], limit=1)
+
+            if not product:
+                errors.append(f'Hoja {sheet_name}: No se encontró el producto "{product_name or product_code}"')
+                continue
+            
+            # Buscar o crear movimiento
             move = self.picking_id.move_ids.filtered(lambda m: m.product_id == product)
             if not move:
                 move = self.env['stock.move'].create({
@@ -192,7 +177,7 @@ class PackingListImportWizard(models.TransientModel):
                 
                 if grosor_val is None and alto_val is None and ancho_val is None:
                     continue
-                
+
                 try:
                     grosor = float(grosor_val) if grosor_val is not None else 0.0
                     alto = float(alto_val) if alto_val is not None else 0.0
@@ -206,59 +191,29 @@ class PackingListImportWizard(models.TransientModel):
                 pedimento_val = ws.cell(row=row, column=7).value
                 contenedor_val = ws.cell(row=row, column=8).value
                 ref_proveedor_val = ws.cell(row=row, column=9).value
-                
+
                 if contenedor_val is None or str(contenedor_val).strip() == '':
                     errors.append(f'Hoja {sheet_name}, Fila {row}: Falta número de contenedor')
                     continue
-                
-                if bloque_val is not None:
-                    bloque = str(int(bloque_val)) if isinstance(bloque_val, (int, float)) else str(bloque_val).strip()
-                else:
-                    bloque = ''
-                
-                if atado_val is not None:
-                    atado = str(int(atado_val)) if isinstance(atado_val, (int, float)) else str(atado_val).strip()
-                else:
-                    atado = ''
-                
-                if tipo_val is not None:
-                    tipo_str = str(tipo_val).strip().lower()
-                    tipo = 'formato' if tipo_str == 'formato' else 'placa'
-                else:
-                    tipo = 'placa'
-                
-                if pedimento_val is not None:
-                    pedimento = str(int(pedimento_val)) if isinstance(pedimento_val, (int, float)) else str(pedimento_val).strip()
-                else:
-                    pedimento = ''
-                
-                if isinstance(contenedor_val, (int, float)):
-                    contenedor = str(int(contenedor_val))
-                else:
-                    contenedor = str(contenedor_val).strip()
-                
-                if ref_proveedor_val is not None:
-                    ref_proveedor = str(ref_proveedor_val).strip()
-                else:
-                    ref_proveedor = ''
-                
-                # Obtener el prefijo asignado a este contenedor
+
+                bloque = str(int(bloque_val)) if isinstance(bloque_val, (int, float)) else (str(bloque_val).strip() if bloque_val else '')
+                atado = str(int(atado_val)) if isinstance(atado_val, (int, float)) else (str(atado_val).strip() if atado_val else '')
+                tipo_str = str(tipo_val).strip().lower() if tipo_val else ''
+                tipo = 'formato' if tipo_str == 'formato' else 'placa'
+                pedimento = str(int(pedimento_val)) if isinstance(pedimento_val, (int, float)) else (str(pedimento_val).strip() if pedimento_val else '')
+                contenedor = str(int(contenedor_val)) if isinstance(contenedor_val, (int, float)) else str(contenedor_val).strip()
+                ref_proveedor = str(ref_proveedor_val).strip() if ref_proveedor_val else ''
+
                 prefix = container_counters[contenedor]['prefix']
                 lot_number = container_counters[contenedor]['next_num']
                 lot_name = self._format_lot_name(prefix, lot_number)
                 
-                existing_lot = self.env['stock.lot'].search([
-                    ('name', '=', lot_name),
-                    ('product_id', '=', product.id)
-                ], limit=1)
-                
+                # Evitar colisiones
+                existing_lot = self.env['stock.lot'].search([('name', '=', lot_name), ('product_id', '=', product.id)], limit=1)
                 while existing_lot:
                     lot_number += 1
                     lot_name = self._format_lot_name(prefix, lot_number)
-                    existing_lot = self.env['stock.lot'].search([
-                        ('name', '=', lot_name),
-                        ('product_id', '=', product.id)
-                    ], limit=1)
+                    existing_lot = self.env['stock.lot'].search([('name', '=', lot_name), ('product_id', '=', product.id)], limit=1)
                 
                 lot = self.env['stock.lot'].create({
                     'name': lot_name,
@@ -301,18 +256,14 @@ class PackingListImportWizard(models.TransientModel):
                 move_lines_created += 1
         
         if move_lines_created == 0:
-            error_msg = 'No se encontraron datos válidos en el archivo Excel'
+            error_msg = 'No se encontraron datos válidos.'
             if errors:
                 error_msg += '\n\nDetalles:\n' + '\n'.join(errors)
             raise UserError(error_msg)
         
         self.picking_id.write({'packing_list_imported': True})
         
-        containers_summary = '\n'.join([
-            f"- Contenedor {cont}: Prefijo {data['prefix']}"
-            for cont, data in container_counters.items()
-        ])
-        
+        containers_summary = '\n'.join([f"- Contenedor {cont}: Prefijo {data['prefix']}" for cont, data in container_counters.items()])
         message = f'Se crearon {move_lines_created} lotes\n\nResumen por contenedor:\n{containers_summary}'
         
         return {
