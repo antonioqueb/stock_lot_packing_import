@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Importación Masiva de Lotes via Packing List',
-    'version': '19.0.1.0.0',
+    'version': '19.0.1.0.1',
     'category': 'Inventory/Inventory',
     'summary': 'Importación Excel de lotes con numeración automática',
     'author': 'Alphaqueb Consulting',
