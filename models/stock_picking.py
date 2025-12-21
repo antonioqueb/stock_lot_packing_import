@@ -33,7 +33,7 @@ class StockPicking(models.Model):
     def action_open_packing_list_spreadsheet(self):
         """
         Crea o abre una hoja de cálculo nativa de Odoo usando el modelo documents.document
-        Adaptado específicamente para Odoo 19.0 Enterprise.
+        Adaptado específicamente para Odoo 19.0 Enterprise (Build Nov 2025).
         """
         self.ensure_one()
         
@@ -45,8 +45,9 @@ class StockPicking(models.Model):
             if not products:
                 raise UserError('No hay productos en esta operación.')
 
-            # En Odoo 19, las carpetas son documentos con type='folder'
-            # Buscamos una carpeta para organizar el documento
+            # Buscamos una carpeta (workspace) para organizar el documento
+            # En Odoo 19 las carpetas suelen ser registros de documents.document con un flag
+            # o se siguen vinculando vía folder_id.
             folder = self.env['documents.document'].search([
                 ('type', '=', 'folder')
             ], limit=1)
@@ -91,13 +92,13 @@ class StockPicking(models.Model):
                 }
             }
 
-            # VALORES CORREGIDOS PARA ODOO 19:
-            # - type: debe ser 'file' (no 'spreadsheet')
-            # - handler: 'spreadsheet' indica que debe abrirse con el editor de hojas
-            # - mimetype: 'application/o-spreadsheet' es el estándar de Odoo
+            # VALORES TÉCNICOS ODOO 19:
+            # - type: DEBE ser 'binary' (valor interno para archivos)
+            # - handler: 'spreadsheet' (indica que se edita como hoja de cálculo)
+            # - mimetype: 'application/o-spreadsheet'
             vals = {
                 'name': f'PL: {self.name}.osheet',
-                'type': 'file', 
+                'type': 'binary', 
                 'handler': 'spreadsheet',
                 'mimetype': 'application/o-spreadsheet',
                 'spreadsheet_data': json.dumps(spreadsheet_data),
@@ -105,7 +106,7 @@ class StockPicking(models.Model):
                 'res_id': self.id,
             }
             
-            # El campo folder_id vincula el documento a su Workspace/Carpeta
+            # folder_id es el campo Many2one a la carpeta en Documents
             if folder:
                 vals['folder_id'] = folder.id
 
@@ -121,7 +122,7 @@ class StockPicking(models.Model):
             'target': 'current',
         }
 
-    # --- Los métodos de descarga (Worksheet) se mantienen intactos ---
+    # --- Mantenemos el resto del código igual para no romper nada ---
 
     def action_download_packing_template(self):
         self.ensure_one()
@@ -180,6 +181,9 @@ class StockPicking(models.Model):
         wb = Workbook()
         wb.remove(wb.active)
         products = self.move_line_ids.mapped('product_id')
+        if not products:
+            raise UserError('No hay lotes creados')
+        
         header_fill = PatternFill(start_color='366092', end_color='366092', fill_type='solid')
         header_font = Font(color='FFFFFF', bold=True)
         data_fill = PatternFill(start_color='E7E6E6', end_color='E7E6E6', fill_type='solid')
