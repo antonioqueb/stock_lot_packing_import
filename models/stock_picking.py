@@ -15,7 +15,7 @@ class StockPicking(models.Model):
     packing_list_file = fields.Binary(string='Packing List (Archivo)', attachment=True, copy=False)
     packing_list_filename = fields.Char(string='Nombre del archivo', copy=False)
     
-    # En Odoo 19, vinculamos directamente a documents.document
+    # Relación con el documento de la App de Documentos
     spreadsheet_id = fields.Many2one('documents.document', string='Spreadsheet de Packing List', copy=False)
     
     has_packing_list = fields.Boolean(string='Tiene Packing List', compute='_compute_has_packing_list', store=True)
@@ -44,18 +44,17 @@ class StockPicking(models.Model):
             if not products:
                 raise UserError('No hay productos en esta operación.')
 
-            # En Odoo 19, buscamos un documento que sea "Carpeta/Workspace" 
-            # o simplemente creamos el documento en el raíz si no hay uno específico.
-            # Nota: documents.folder ya no existe, ahora se busca documents.document con tipo folder
-            parent_folder = self.env['documents.document'].search([
+            # En Odoo 19, buscamos un registro de documents.document que sea de tipo 'folder'
+            # El campo sigue siendo folder_id para mantener compatibilidad
+            folder = self.env['documents.document'].search([
                 ('type', '=', 'folder'),
                 ('name', 'ilike', 'Internal')
             ], limit=1)
             
-            if not parent_folder:
-                parent_folder = self.env['documents.document'].search([('type', '=', 'folder')], limit=1)
+            if not folder:
+                folder = self.env['documents.document'].search([('type', '=', 'folder')], limit=1)
 
-            # Estructura de cabeceras
+            # Estructura de cabeceras para la hoja
             headers = ['Grosor (cm)', 'Alto (m)', 'Ancho (m)', 'Bloque', 'Atado', 'Tipo', 'Pedimento', 'Contenedor', 'Ref. Proveedor', 'Notas']
             
             cells = {}
@@ -96,7 +95,7 @@ class StockPicking(models.Model):
             }
 
             # Creamos el documento tipo 'spreadsheet'
-            # parent_id reemplaza a folder_id en la estructura de Odoo 19
+            # En Odoo 19, el campo de relación jerárquica es 'folder_id' (apunta a otro document)
             vals = {
                 'name': f'PL: {self.name}.osheet',
                 'handler': 'spreadsheet',
@@ -104,15 +103,18 @@ class StockPicking(models.Model):
                 'spreadsheet_data': json.dumps(spreadsheet_data),
                 'res_model': 'stock.picking',
                 'res_id': self.id,
-                'type': 'spreadsheet', # Nuevo en Odoo 19
+                'document_type': 'spreadsheet', # Algunos builds usan document_type en lugar de type
             }
             
-            if parent_folder:
-                vals['parent_id'] = parent_folder.id
+            # Intentamos asignar la carpeta si se encontró
+            if folder:
+                vals['folder_id'] = folder.id
 
+            # Creamos el registro
             new_spreadsheet = self.env['documents.document'].create(vals)
             self.spreadsheet_id = new_spreadsheet
 
+        # Abrir el documento directamente
         return {
             'type': 'ir.actions.act_window',
             'res_model': 'documents.document',
@@ -121,7 +123,7 @@ class StockPicking(models.Model):
             'target': 'current',
         }
 
-    # --- Los métodos de descarga se mantienen idénticos ---
+    # --- Los métodos de descarga y de Worksheet se mantienen sin cambios ---
 
     def action_download_packing_template(self):
         self.ensure_one()
@@ -131,7 +133,7 @@ class StockPicking(models.Model):
             from openpyxl import Workbook
             from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
         except ImportError:
-            raise UserError('Instale openpyxl')
+            raise UserError('Instale openpyxl: pip install openpyxl --break-system-packages')
         
         wb = Workbook()
         wb.remove(wb.active)
