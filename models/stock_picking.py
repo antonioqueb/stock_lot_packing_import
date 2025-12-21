@@ -32,8 +32,8 @@ class StockPicking(models.Model):
     
     def action_open_packing_list_spreadsheet(self):
         """
-        Crea o abre una hoja de cálculo nativa de Odoo usando el modelo documents.document
-        Adaptado específicamente para Odoo 19.0 Enterprise (Build Nov 2025).
+        Crea o abre la hoja de cálculo nativa de Odoo.
+        Retorna una Client Action para abrir el editor directamente.
         """
         self.ensure_one()
         
@@ -45,14 +45,12 @@ class StockPicking(models.Model):
             if not products:
                 raise UserError('No hay productos en esta operación.')
 
-            # Buscamos una carpeta (workspace) para organizar el documento
-            # En Odoo 19 las carpetas suelen ser registros de documents.document con un flag
-            # o se siguen vinculando vía folder_id.
+            # Buscamos una carpeta (Workspace) en Documents
             folder = self.env['documents.document'].search([
                 ('type', '=', 'folder')
             ], limit=1)
 
-            # Estructura de cabeceras para el JSON de la hoja
+            # Estructura de cabeceras
             headers = ['Grosor (cm)', 'Alto (m)', 'Ancho (m)', 'Bloque', 'Atado', 'Tipo', 'Pedimento', 'Contenedor', 'Ref. Proveedor', 'Notas']
             
             cells = {}
@@ -92,10 +90,7 @@ class StockPicking(models.Model):
                 }
             }
 
-            # VALORES TÉCNICOS ODOO 19:
-            # - type: DEBE ser 'binary' (valor interno para archivos)
-            # - handler: 'spreadsheet' (indica que se edita como hoja de cálculo)
-            # - mimetype: 'application/o-spreadsheet'
+            # Creamos el documento binario con el handler de spreadsheet
             vals = {
                 'name': f'PL: {self.name}.osheet',
                 'type': 'binary', 
@@ -106,23 +101,22 @@ class StockPicking(models.Model):
                 'res_id': self.id,
             }
             
-            # folder_id es el campo Many2one a la carpeta en Documents
             if folder:
                 vals['folder_id'] = folder.id
 
-            new_spreadsheet = self.env['documents.document'].create(vals)
-            self.spreadsheet_id = new_spreadsheet
+            self.spreadsheet_id = self.env['documents.document'].create(vals)
 
-        # Abrir el documento directamente
+        # RETORNO CRÍTICO: Usamos la Client Action nativa para abrir el editor
         return {
-            'type': 'ir.actions.act_window',
-            'res_model': 'documents.document',
-            'res_id': self.spreadsheet_id.id,
-            'view_mode': 'form',
-            'target': 'current',
+            'type': 'ir.actions.client',
+            'tag': 'spreadsheet.open_spreadsheet', # Tag nativo de Odoo 19 para abrir el editor
+            'params': {
+                'active_id': self.spreadsheet_id.id, # ID del documento
+                'res_model': 'documents.document',
+            },
         }
 
-    # --- Mantenemos el resto del código igual para no romper nada ---
+    # --- Los métodos de descarga (Worksheet) se mantienen intactos ---
 
     def action_download_packing_template(self):
         self.ensure_one()
