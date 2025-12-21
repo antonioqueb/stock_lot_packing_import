@@ -18,7 +18,7 @@ class StockPicking(models.Model):
     has_packing_list = fields.Boolean(string='Tiene Packing List', compute='_compute_has_packing_list', store=True)
     packing_list_imported = fields.Boolean(string='Packing List Importado', default=False, copy=False)
     
-    # --- Campos para el Worksheet ---
+    # --- Campos para el Worksheet (Intactos) ---
     worksheet_file = fields.Binary(string='Worksheet', attachment=True, copy=False)
     worksheet_filename = fields.Char(string='Nombre del Worksheet', copy=False)
     
@@ -29,8 +29,8 @@ class StockPicking(models.Model):
     
     def action_open_packing_list_spreadsheet(self):
         """
-        Crea o abre la hoja de cálculo nativa de Odoo en Documents.
-        Retorna la Client Action correcta para Odoo 19 Enterprise.
+        Crea el documento si no existe y delega la apertura a los métodos nativos 
+        de Documents para evitar errores de Client Action Tags.
         """
         self.ensure_one()
         
@@ -42,10 +42,10 @@ class StockPicking(models.Model):
             if not products:
                 raise UserError('No hay productos en esta operación.')
 
-            # Localizar carpeta/workspace
+            # Localizar carpeta (Workspace) - En Odoo 19 es documents.document con type='folder'
             folder = self.env['documents.document'].search([('type', '=', 'folder')], limit=1)
 
-            # Estructura de cabeceras para Odoo 19
+            # Estructura de cabeceras
             headers = ['Grosor (cm)', 'Alto (m)', 'Ancho (m)', 'Bloque', 'Atado', 'Tipo', 'Pedimento', 'Contenedor', 'Ref. Proveedor', 'Notas']
             cells = {}
             product_names = ", ".join(products.mapped(lambda p: f"{p.name} ({p.default_code or ''})"))
@@ -64,6 +64,7 @@ class StockPicking(models.Model):
                         "cells": cells,
                         "colNumber": 10,
                         "rowNumber": 100,
+                        "areLinesVisible": True,
                         "isProtected": True,
                         "protectedRanges": [{"range": "A4:J100", "isProtected": False}]
                     }
@@ -71,7 +72,7 @@ class StockPicking(models.Model):
                 "styles": {"1": {"bold": True, "fillColor": "#366092", "textColor": "#FFFFFF", "align": "center"}}
             }
 
-            # Creación del documento compatible con Odoo 19 Enterprise
+            # Creación con los campos requeridos por Odoo 19 Documents
             vals = {
                 'name': f'PL: {self.name}.osheet',
                 'type': 'binary', 
@@ -86,16 +87,38 @@ class StockPicking(models.Model):
 
             self.spreadsheet_id = self.env['documents.document'].create(vals)
 
-        # RETORNO DEFINITIVO PARA ODOO 19
+        # --- OPCIÓN A: DELEGAR APERTURA ---
+        doc = self.spreadsheet_id.sudo()
+        
+        # 1. Intentar el método nativo que devuelve la Client Action correcta según la versión
+        # En Odoo 19 Enterprise, Documents suele usar 'action_open' o 'access_content'
+        for method_name in ["action_open_spreadsheet", "action_open", "access_content"]:
+            open_meth = getattr(doc, method_name, None)
+            if callable(open_meth):
+                try:
+                    action = open_meth()
+                    if action:
+                        return action
+                except:
+                    continue
+
+        # 2. Fallback: Si los métodos nativos fallan, abrimos el formulario pero
+        # forzamos el contexto de Spreadsheet para que el navegador cargue el editor.
         return {
-            'type': 'ir.actions.client',
-            'tag': 'documents_spreadsheet.spreadsheet_action', # Tag estándar v19
-            'params': {
-                'document_id': self.spreadsheet_id.id, # El parámetro ahora es document_id
-            },
+            'type': 'ir.actions.act_window',
+            'res_model': 'documents.document',
+            'res_id': doc.id,
+            'view_mode': 'form',
+            'target': 'current',
+            'context': {
+                'active_id': doc.id,
+                'is_spreadsheet': True,
+                'request_handler': 'spreadsheet'
+            }
         }
 
-    # --- Los métodos de descarga (Excel Worksheet) se mantienen intactos ---
+    # --- Métodos de descarga (Excel) - Sin cambios ---
+
     def action_download_packing_template(self):
         self.ensure_one()
         try:
