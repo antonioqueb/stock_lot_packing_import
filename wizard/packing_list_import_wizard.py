@@ -13,7 +13,6 @@ class PackingListImportWizard(models.TransientModel):
     _description = 'Importar Packing List'
     
     picking_id = fields.Many2one('stock.picking', string='Recepción', required=True, readonly=True)
-    # Importante: spreadsheet_id para usarlo en la vista XML
     spreadsheet_id = fields.Many2one('documents.document', related='picking_id.spreadsheet_id', readonly=True)
     excel_file = fields.Binary(string='Archivo Excel', required=False, attachment=False)
     excel_filename = fields.Char(string='Nombre del archivo')
@@ -62,7 +61,6 @@ class PackingListImportWizard(models.TransientModel):
              raise UserError('La recepción ya está validada.')
              
         rows_to_process = []
-        # Si hay spreadsheet en el picking, tiene prioridad
         if self.picking_id.spreadsheet_id:
             rows_to_process = self._get_data_from_spreadsheet()
         elif self.excel_file:
@@ -71,7 +69,7 @@ class PackingListImportWizard(models.TransientModel):
             raise UserError('No hay datos. Llene la plantilla Spreadsheet o suba un archivo Excel.')
 
         if not rows_to_process:
-            raise UserError('No se encontraron datos válidos para procesar.')
+            raise UserError('No se encontraron datos válidos para procesar. Asegúrese de haber llenado al menos Grosor, Alto o Ancho en la hoja de cálculo.')
 
         # 1. Limpieza
         lots_to_delete = self.picking_id.move_line_ids.mapped('lot_id')
@@ -95,7 +93,7 @@ class PackingListImportWizard(models.TransientModel):
                     'location_id': self.picking_id.location_id.id, 'location_dest_id': self.picking_id.location_dest_id.id,
                 })
 
-            cont = data['contenedor']
+            cont = data['contenedor'] or 'SN'
             if cont not in container_counters:
                 container_counters[cont] = {
                     'prefix': str(next_global_prefix),
@@ -130,65 +128,70 @@ class PackingListImportWizard(models.TransientModel):
         return {'type': 'ir.actions.client', 'tag': 'display_notification', 'params': {'title': 'Éxito', 'message': f'Se crearon {move_lines_created} lotes.', 'type': 'success', 'next': {'type': 'ir.actions.act_window_close'}}}
 
     def _get_data_from_spreadsheet(self):
-        """Lee datos de Odoo Spreadsheet soportando coordenadas técnicas (0,3) y etiquetas (A4)"""
+        """Lectura ultra-robusta de Odoo Spreadsheet para Odoo 19"""
         doc = self.picking_id.spreadsheet_id
         if not doc or not doc.spreadsheet_data:
+            _logger.warning("No hay datos en el spreadsheet del documento.")
             return []
             
         try:
             data = json.loads(doc.spreadsheet_data)
         except Exception as e:
-            _logger.error(f"Error al parsear JSON del spreadsheet: {e}")
+            _logger.error(f"Error parseando JSON: {e}")
             return []
 
         sheets = data.get('sheets', [])
-        if not sheets:
-            return []
-            
+        if not sheets: return []
         cells = sheets[0].get('cells', {})
+        _logger.info(f"DEBUG: Spreadsheet tiene {len(cells)} celdas con datos.")
+
         default_product = self.picking_id.move_ids.mapped('product_id')[:1]
+        if not default_product:
+             raise UserError("El picking no tiene productos definidos.")
         
         rows = []
-        # Mapa de columnas para Odoo 19: A=0, B=1, C=2, etc.
         col_map = {'A': 0, 'B': 1, 'C': 2, 'D': 3, 'E': 4, 'F': 5, 'G': 6, 'H': 7, 'I': 8}
 
-        for r in range(4, 151): # Leemos hasta 150 filas por seguridad
-            row_idx = r - 1  # Índice 0-based para coordenadas
+        # Buscamos desde fila 4 hasta 200
+        for r in range(4, 201):
+            row_idx = r - 1
             
             def gv(col_letter):
                 col_idx = col_map.get(col_letter)
-                # Odoo puede guardar como "A4" o como "0,3"
-                key_a1 = f"{col_letter}{r}"
-                key_coord = f"{col_idx},{row_idx}"
+                # Odoo 19 puede usar f"{col},{row}" o "A1"
+                k1 = f"{col_letter}{r}"
+                k2 = f"{col_idx},{row_idx}"
+                cell = cells.get(k2) or cells.get(k1) or {}
                 
-                cell_data = cells.get(key_coord) or cells.get(key_a1) or {}
-                # Priorizar 'content' (lo que escribe el usuario) y luego 'value' (resultado de fórmula)
-                val = cell_data.get('content')
-                if val is None:
-                    val = cell_data.get('value', '')
-                return val
+                # Odoo guarda el valor en 'content' o 'value'
+                # Si es un número escrito a mano suele estar en 'content'
+                res = cell.get('content')
+                if res is None:
+                    res = cell.get('value')
+                return res
 
-            grosor = gv('A')
-            alto = gv('B')
-            ancho = gv('C')
-            
-            # Si las celdas críticas están vacías, ignoramos la fila
-            if not grosor and not alto and not ancho:
+            grosor_val = gv('A')
+            alto_val = gv('B')
+            ancho_val = gv('C')
+
+            # Si las 3 medidas están vacías, ignoramos la fila
+            if grosor_val is None and alto_val is None and ancho_val is None:
                 continue
-                
+
             try:
                 def to_f(v):
-                    if not v or str(v).strip() == '': return 0.0
-                    # Limpiar si viene con "=" (fórmula no procesada)
-                    val_str = str(v).replace('=', '').strip()
-                    try: return float(val_str)
+                    if v is None or str(v).strip() == '': return 0.0
+                    try:
+                        # Limpiar posibles carácteres de fórmulas '='
+                        clean_v = str(v).replace('=', '').replace(',', '.').strip()
+                        return float(clean_v)
                     except: return 0.0
 
                 rows.append({
                     'product': default_product,
-                    'grosor': to_f(grosor),
-                    'alto': to_f(alto),
-                    'ancho': to_f(ancho),
+                    'grosor': to_f(grosor_val),
+                    'alto': to_f(alto_val),
+                    'ancho': to_f(ancho_val),
                     'bloque': str(gv('D') or '').strip(),
                     'atado': str(gv('E') or '').strip(),
                     'tipo': 'formato' if str(gv('F') or '').lower() == 'formato' else 'placa',
@@ -197,8 +200,9 @@ class PackingListImportWizard(models.TransientModel):
                     'ref_proveedor': str(gv('I') or '').strip(),
                 })
             except Exception as e:
-                _logger.warning(f"Error procesando fila {r}: {e}")
-                continue
+                _logger.error(f"Error procesando fila {r}: {e}")
+
+        _logger.info(f"DEBUG: Se extrajeron {len(rows)} filas válidas del Spreadsheet.")
         return rows
 
     def _get_data_from_excel_file(self):
@@ -220,6 +224,7 @@ class PackingListImportWizard(models.TransientModel):
                 product = self.env['product.product'].search([('name', 'ilike', name)], limit=1)
             if not product: continue
             for r in range(4, ws.max_row + 1):
+                # Verificar que haya datos en la fila
                 if not ws.cell(row=r, column=1).value and not ws.cell(row=r, column=2).value: continue
                 rows.append({
                     'product': product,
