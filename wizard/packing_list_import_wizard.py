@@ -130,36 +130,75 @@ class PackingListImportWizard(models.TransientModel):
         return {'type': 'ir.actions.client', 'tag': 'display_notification', 'params': {'title': 'Éxito', 'message': f'Se crearon {move_lines_created} lotes.', 'type': 'success', 'next': {'type': 'ir.actions.act_window_close'}}}
 
     def _get_data_from_spreadsheet(self):
-        """Lee el formato A1 de Odoo 19"""
+        """Lee datos de Odoo Spreadsheet soportando coordenadas técnicas (0,3) y etiquetas (A4)"""
         doc = self.picking_id.spreadsheet_id
-        data = json.loads(doc.spreadsheet_data)
-        cells = data.get('sheets', [{}])[0].get('cells', {})
+        if not doc or not doc.spreadsheet_data:
+            return []
+            
+        try:
+            data = json.loads(doc.spreadsheet_data)
+        except Exception as e:
+            _logger.error(f"Error al parsear JSON del spreadsheet: {e}")
+            return []
+
+        sheets = data.get('sheets', [])
+        if not sheets:
+            return []
+            
+        cells = sheets[0].get('cells', {})
         default_product = self.picking_id.move_ids.mapped('product_id')[:1]
         
         rows = []
-        for r in range(4, 101): # Leer hasta fila 100
-            def gv(col): return cells.get(f"{col}{r}", {}).get('content', '')
+        # Mapa de columnas para Odoo 19: A=0, B=1, C=2, etc.
+        col_map = {'A': 0, 'B': 1, 'C': 2, 'D': 3, 'E': 4, 'F': 5, 'G': 6, 'H': 7, 'I': 8}
+
+        for r in range(4, 151): # Leemos hasta 150 filas por seguridad
+            row_idx = r - 1  # Índice 0-based para coordenadas
             
+            def gv(col_letter):
+                col_idx = col_map.get(col_letter)
+                # Odoo puede guardar como "A4" o como "0,3"
+                key_a1 = f"{col_letter}{r}"
+                key_coord = f"{col_idx},{row_idx}"
+                
+                cell_data = cells.get(key_coord) or cells.get(key_a1) or {}
+                # Priorizar 'content' (lo que escribe el usuario) y luego 'value' (resultado de fórmula)
+                val = cell_data.get('content')
+                if val is None:
+                    val = cell_data.get('value', '')
+                return val
+
             grosor = gv('A')
             alto = gv('B')
             ancho = gv('C')
             
-            if not grosor and not alto and not ancho: continue
+            # Si las celdas críticas están vacías, ignoramos la fila
+            if not grosor and not alto and not ancho:
+                continue
                 
             try:
+                def to_f(v):
+                    if not v or str(v).strip() == '': return 0.0
+                    # Limpiar si viene con "=" (fórmula no procesada)
+                    val_str = str(v).replace('=', '').strip()
+                    try: return float(val_str)
+                    except: return 0.0
+
                 rows.append({
                     'product': default_product,
-                    'grosor': float(grosor or 0),
-                    'alto': float(alto or 0),
-                    'ancho': float(ancho or 0),
-                    'bloque': str(gv('D')),
-                    'atado': str(gv('E')),
-                    'tipo': 'formato' if str(gv('F')).lower() == 'formato' else 'placa',
-                    'pedimento': str(gv('G')),
+                    'grosor': to_f(grosor),
+                    'alto': to_f(alto),
+                    'ancho': to_f(ancho),
+                    'bloque': str(gv('D') or '').strip(),
+                    'atado': str(gv('E') or '').strip(),
+                    'tipo': 'formato' if str(gv('F') or '').lower() == 'formato' else 'placa',
+                    'pedimento': str(gv('G') or '').strip(),
                     'contenedor': str(gv('H') or 'SN').strip(),
-                    'ref_proveedor': str(gv('I')),
+                    'ref_proveedor': str(gv('I') or '').strip(),
                 })
-            except: continue
+            except Exception as e:
+                _logger.warning(f"Error procesando fila {r}: {e}")
+                continue
         return rows
 
     def _get_data_from_excel_file(self):
@@ -181,7 +220,7 @@ class PackingListImportWizard(models.TransientModel):
                 product = self.env['product.product'].search([('name', 'ilike', name)], limit=1)
             if not product: continue
             for r in range(4, ws.max_row + 1):
-                if not ws.cell(row=r, column=1).value: continue
+                if not ws.cell(row=r, column=1).value and not ws.cell(row=r, column=2).value: continue
                 rows.append({
                     'product': product,
                     'grosor': float(ws.cell(row=r, column=1).value or 0),
