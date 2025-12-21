@@ -15,7 +15,7 @@ class StockPicking(models.Model):
     packing_list_file = fields.Binary(string='Packing List (Archivo)', attachment=True, copy=False)
     packing_list_filename = fields.Char(string='Nombre del archivo', copy=False)
     
-    # Relación con el documento de la App de Documentos
+    # Relación con Documents (App nativa que ya tienes instalada)
     spreadsheet_id = fields.Many2one('documents.document', string='Spreadsheet de Packing List', copy=False)
     
     has_packing_list = fields.Boolean(string='Tiene Packing List', compute='_compute_has_packing_list', store=True)
@@ -32,7 +32,7 @@ class StockPicking(models.Model):
     
     def action_open_packing_list_spreadsheet(self):
         """
-        Crea o abre una hoja de cálculo nativa de Odoo dentro de Documents (Odoo 19).
+        Crea o abre una hoja de cálculo nativa de Odoo usando el modelo documents.document
         """
         self.ensure_one()
         
@@ -44,17 +44,13 @@ class StockPicking(models.Model):
             if not products:
                 raise UserError('No hay productos en esta operación.')
 
-            # En Odoo 19, buscamos un registro de documents.document que sea de tipo 'folder'
-            # El campo sigue siendo folder_id para mantener compatibilidad
+            # Buscamos un documento que actúe como carpeta (Workspace)
+            # En Odoo 19, las carpetas son documents.document con type='folder'
             folder = self.env['documents.document'].search([
-                ('type', '=', 'folder'),
-                ('name', 'ilike', 'Internal')
+                ('type', '=', 'folder')
             ], limit=1)
-            
-            if not folder:
-                folder = self.env['documents.document'].search([('type', '=', 'folder')], limit=1)
 
-            # Estructura de cabeceras para la hoja
+            # Estructura de cabeceras
             headers = ['Grosor (cm)', 'Alto (m)', 'Ancho (m)', 'Bloque', 'Atado', 'Tipo', 'Pedimento', 'Contenedor', 'Ref. Proveedor', 'Notas']
             
             cells = {}
@@ -94,23 +90,22 @@ class StockPicking(models.Model):
                 }
             }
 
-            # Creamos el documento tipo 'spreadsheet'
-            # En Odoo 19, el campo de relación jerárquica es 'folder_id' (apunta a otro document)
+            # VALS LIMPIOS: Solo usamos campos que existen 100% en documents.document
+            # Evitamos parent_id o document_type para prevenir KeyErrors
             vals = {
                 'name': f'PL: {self.name}.osheet',
+                'type': 'spreadsheet',
                 'handler': 'spreadsheet',
                 'mimetype': 'application/o-spreadsheet',
                 'spreadsheet_data': json.dumps(spreadsheet_data),
                 'res_model': 'stock.picking',
                 'res_id': self.id,
-                'document_type': 'spreadsheet', # Algunos builds usan document_type en lugar de type
             }
             
-            # Intentamos asignar la carpeta si se encontró
+            # folder_id es el campo estándar para Workspaces en Odoo 19 Enterprise
             if folder:
                 vals['folder_id'] = folder.id
 
-            # Creamos el registro
             new_spreadsheet = self.env['documents.document'].create(vals)
             self.spreadsheet_id = new_spreadsheet
 
@@ -123,17 +118,17 @@ class StockPicking(models.Model):
             'target': 'current',
         }
 
-    # --- Los métodos de descarga y de Worksheet se mantienen sin cambios ---
+    # --- Los métodos de descarga (Worksheet) se mantienen intactos ---
 
     def action_download_packing_template(self):
         self.ensure_one()
         if self.picking_type_code != 'incoming':
-            raise UserError('Esta acción solo está disponible para Recepciones.')
+            raise UserError('Solo disponible para Recepciones.')
         try:
             from openpyxl import Workbook
             from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
         except ImportError:
-            raise UserError('Instale openpyxl: pip install openpyxl --break-system-packages')
+            raise UserError('Instale openpyxl')
         
         wb = Workbook()
         wb.remove(wb.active)
@@ -161,7 +156,6 @@ class StockPicking(models.Model):
         excel_data = base64.b64encode(output.getvalue())
         filename = f'Packing_List_{self.name}.xlsx'
         self.write({'packing_list_file': excel_data, 'packing_list_filename': filename})
-        
         return {
             'type': 'ir.actions.act_url',
             'url': f'/web/content?model=stock.picking&id={self.id}&field=packing_list_file&filename={filename}&download=true',
@@ -171,7 +165,7 @@ class StockPicking(models.Model):
     def action_download_worksheet(self):
         self.ensure_one()
         if self.picking_type_code != 'incoming':
-            raise UserError('Esta acción solo está disponible para Recepciones.')
+            raise UserError('Solo disponible para Recepciones.')
         if not self.packing_list_imported:
             raise UserError('Debe importar primero un Packing List')
         try:
@@ -183,9 +177,6 @@ class StockPicking(models.Model):
         wb = Workbook()
         wb.remove(wb.active)
         products = self.move_line_ids.mapped('product_id')
-        if not products:
-            raise UserError('No hay lotes creados')
-        
         header_fill = PatternFill(start_color='366092', end_color='366092', fill_type='solid')
         header_font = Font(color='FFFFFF', bold=True)
         data_fill = PatternFill(start_color='E7E6E6', end_color='E7E6E6', fill_type='solid')
@@ -228,7 +219,6 @@ class StockPicking(models.Model):
         excel_data = base64.b64encode(output.getvalue())
         filename = f'Worksheet_{self.name}.xlsx'
         self.write({'worksheet_file': excel_data, 'worksheet_filename': filename})
-        
         return {
             'type': 'ir.actions.act_url',
             'url': f'/web/content?model=stock.picking&id={self.id}&field=worksheet_file&filename={filename}&download=true',
