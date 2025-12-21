@@ -57,7 +57,7 @@ class PackingListImportWizard(models.TransientModel):
 
     def action_import_excel(self):
         self.ensure_one()
-        _logger.info("=== PROCESANDO IMPORTACIÓN ODOO 19 ===")
+        _logger.info("=== INICIO PROCESO DE IMPORTACIÓN (DEBUG TOTAL) ===")
         
         if self.picking_id.state == 'done':
              raise UserError('La recepción ya está validada.')
@@ -71,16 +71,16 @@ class PackingListImportWizard(models.TransientModel):
             raise UserError('No hay datos. Llene la plantilla Spreadsheet o suba un archivo Excel.')
 
         if not rows_to_process:
-            raise UserError('No se encontraron datos válidos. Asegúrese de haber llenado Grosor, Alto o Ancho.')
+            raise UserError('No se encontraron datos. Verifique que la nube esté verde, salga de la celda actual y espere 2 segundos antes de procesar.')
 
-        # 1. Limpieza de líneas previas
+        # 1. Limpieza
         lots_to_delete = self.picking_id.move_line_ids.mapped('lot_id')
         self.picking_id.move_line_ids.unlink()
         for lot in lots_to_delete:
             if not self.env['stock.move.line'].search_count([('lot_id', '=', lot.id), ('picking_id', '!=', self.picking_id.id)]):
                 lot.unlink()
 
-        # 2. Creación de Lotes
+        # 2. Creación
         move_lines_created = 0
         next_global_prefix = self._get_next_global_prefix()
         container_counters = {}
@@ -130,11 +130,16 @@ class PackingListImportWizard(models.TransientModel):
         return {'type': 'ir.actions.client', 'tag': 'display_notification', 'params': {'title': 'Éxito', 'message': f'Se crearon {move_lines_created} lotes.', 'type': 'success', 'next': {'type': 'ir.actions.act_window_close'}}}
 
     def _get_data_from_spreadsheet(self):
-        """Lectura de Spreadsheet Odoo 19 con búsqueda de revisiones multimodelo"""
+        """Lectura forense de Spreadsheet Odoo 19 (Fusión manual de revisiones)"""
         doc = self.picking_id.spreadsheet_id
         if not doc: return []
 
-        # 1. Cargar JSON base
+        # 1. Forzar a Odoo a consolidar si el método existe
+        if hasattr(doc.sudo(), 'join_revisions'):
+            try: doc.sudo().join_revisions()
+            except: pass
+
+        # 2. Cargar datos base
         try:
             data = json.loads(doc.spreadsheet_data or '{}')
         except:
@@ -144,47 +149,47 @@ class PackingListImportWizard(models.TransientModel):
         if not sheets: return []
         cells = sheets[0].get('cells', {})
 
-        # 2. BÚSQUEDA DE REVISIONES (FUSIÓN DE EDICIONES EN VIVO)
-        # IMPORTANTE: Odoo 19 puede asociarlas al Documento o a la Recepción vinculada
-        revision_domain = [
-            '|',
-            '&', ('res_model', '=', 'documents.document'), ('res_id', '=', doc.id),
-            '&', ('res_model', '=', 'stock.picking'), ('res_id', '=', self.picking_id.id)
-        ]
-        revisions = self.env['spreadsheet.revision'].sudo().search(revision_domain, order='id asc')
+        # 3. BÚSQUEDA AGRESIVA DE REVISIONES
+        # Buscamos por ID de recurso ignorando el nombre del modelo, ya que Odoo 19 puede variar
+        rev_domain = [('res_id', '=', doc.id)]
+        revisions = self.env['spreadsheet.revision'].sudo().search(rev_domain, order='id asc')
         
-        _logger.info(f"FUSIONANDO {len(revisions)} REVISIONES ENCONTRADAS")
+        _logger.info(f"DEBUG: Se encontraron {len(revisions)} revisiones para el doc {doc.id}")
 
         for rev in revisions:
             try:
-                cmds = json.loads(rev.commands)
-                for c in cmds:
-                    # UPDATE_CELL es el comando cuando se escribe un valor
-                    if c.get('type') in ('UPDATE_CELL', 'SET_CELL_CONTENT'):
-                        col = c.get('col')
-                        row = c.get('row')
-                        content = c.get('content')
-                        # Si no hay content, buscamos dentro del objeto cell si existe
-                        if content is None and 'cell' in c:
-                            content = c.get('cell', {}).get('content')
+                _logger.info(f"DEBUG: Procesando revisión {rev.id} del modelo {rev.res_model}")
+                commands = json.loads(rev.commands)
+                for cmd in commands:
+                    # Odoo 19 usa varios tipos de comando para escribir datos
+                    if cmd.get('type') in ('UPDATE_CELL', 'SET_CELL_CONTENT', 'EDIT_CELL'):
+                        col = cmd.get('col')
+                        row = cmd.get('row')
+                        content = cmd.get('content')
+                        # Si es EDIT_CELL el valor suele venir dentro de un objeto 'cell'
+                        if content is None and 'cell' in cmd:
+                            content = cmd.get('cell', {}).get('content')
                         
                         if col is not None and row is not None:
-                            # Actualizamos el mapa de celdas en memoria para la extracción
+                            # Inyectamos el dato en el mapa de celdas
                             cells[f"{col},{row}"] = {'content': content}
-            except: continue
+                            _logger.info(f"DEBUG: Inyectada Celda ({col},{row}) = {content}")
+            except Exception as e:
+                _logger.error(f"Error en revisión {rev.id}: {e}")
 
-        _logger.info(f"CELDAS TOTALES TRAS FUSIÓN: {len(cells)}")
+        _logger.info(f"DEBUG: Celdas totales listas para lectura: {len(cells)}")
         
         default_product = self.picking_id.move_ids.mapped('product_id')[:1]
         rows = []
         col_map = {'A': 0, 'B': 1, 'C': 2, 'D': 3, 'E': 4, 'F': 5, 'G': 6, 'H': 7, 'I': 8}
 
+        # Escaneamos de la fila 4 a la 500
         for r in range(4, 501):
             row_idx = r - 1
             
             def gv(col_letter):
                 c_idx = col_map[col_letter]
-                # Probamos formatos de Odoo 19 (técnico y A1)
+                # Probamos todos los formatos de llave que usa Odoo 19
                 keys = [f"{c_idx},{row_idx}", f"{col_letter}{r}", f"{row_idx},{c_idx}"]
                 cell = None
                 for k in keys:
@@ -193,7 +198,7 @@ class PackingListImportWizard(models.TransientModel):
                         break
                 
                 if not cell:
-                    # Intento de lectura anidada
+                    # Formato anidado cells["3"]["0"]
                     row_data = cells.get(str(row_idx)) or cells.get(row_idx)
                     if isinstance(row_data, dict):
                         cell = row_data.get(str(c_idx)) or row_data.get(c_idx)
@@ -208,12 +213,12 @@ class PackingListImportWizard(models.TransientModel):
             if grosor is None and alto is None and ancho is None:
                 continue
 
+            _logger.info(f"DEBUG: Fila {r} capturada -> G:{grosor} Al:{alto} An:{ancho}")
+
             try:
                 def to_f(v):
                     if v is None or str(v).strip() == '': return 0.0
-                    try: 
-                        clean_v = str(v).replace('=', '').replace(',', '.').strip()
-                        return float(clean_v)
+                    try: return float(str(v).replace('=', '').replace(',', '.').strip())
                     except: return 0.0
 
                 rows.append({
@@ -230,7 +235,7 @@ class PackingListImportWizard(models.TransientModel):
                 })
             except: continue
 
-        _logger.info(f"LECTURA FINALIZADA: {len(rows)} FILAS EXTRAÍDAS")
+        _logger.info(f"DEBUG: Total filas extraídas: {len(rows)}")
         return rows
 
     def _get_data_from_excel_file(self):
