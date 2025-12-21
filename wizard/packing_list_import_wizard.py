@@ -69,7 +69,7 @@ class PackingListImportWizard(models.TransientModel):
             raise UserError('No hay datos. Llene la plantilla Spreadsheet o suba un archivo Excel.')
 
         if not rows_to_process:
-            raise UserError('No se encontraron datos de productos. Revise que haya llenado las medidas en la fila 4 en adelante.')
+            raise UserError('No se encontraron datos de productos en la hoja. Verifique que los datos se hayan guardado correctamente en la Hoja de Cálculo.')
 
         # 1. Limpieza
         lots_to_delete = self.picking_id.move_line_ids.mapped('lot_id')
@@ -128,52 +128,75 @@ class PackingListImportWizard(models.TransientModel):
         return {'type': 'ir.actions.client', 'tag': 'display_notification', 'params': {'title': 'Éxito', 'message': f'Se crearon {move_lines_created} lotes.', 'type': 'success', 'next': {'type': 'ir.actions.act_window_close'}}}
 
     def _get_data_from_spreadsheet(self):
-        """Lectura exhaustiva para Odoo 19 (Soporta todos los formatos de celdas internos)"""
+        """Lectura compatible con Odoo 19: Combina el blob base con las revisiones pendientes"""
         doc = self.picking_id.spreadsheet_id
-        if not doc or not doc.spreadsheet_data: return []
-            
+        if not doc: return []
+
+        # LOGICA CRITICA: En Odoo 19, los cambios estan en la tabla de revisiones.
+        # Intentamos obtener el snapshot "colapsado" que incluye lo que el usuario acaba de escribir.
         try:
-            data = json.loads(doc.spreadsheet_data)
-        except: return []
+            # Buscamos el método snapshot que une las revisiones con el archivo base
+            if hasattr(doc, 'get_spreadsheet_snapshot'):
+                data = doc.get_spreadsheet_snapshot()
+            elif hasattr(self.env['documents.document'], 'get_spreadsheet_snapshot'):
+                data = self.env['documents.document'].get_spreadsheet_snapshot(doc.id)
+            else:
+                # Fallback: leemos el data directo (pero podria estar desactualizado si no se ha guardado/cerrado la sesion)
+                data = json.loads(doc.spreadsheet_data or '{}')
+        except Exception as e:
+            _logger.error(f"Error al obtener snapshot del spreadsheet: {e}")
+            return []
 
         sheets = data.get('sheets', [])
         if not sheets: return []
         cells = sheets[0].get('cells', {})
         
+        _logger.info(f"DEBUG FINAL: Celdas detectadas en el JSON procesado: {len(cells)}")
+        
         default_product = self.picking_id.move_ids.mapped('product_id')[:1]
         rows = []
         col_map = {'A': 0, 'B': 1, 'C': 2, 'D': 3, 'E': 4, 'F': 5, 'G': 6, 'H': 7, 'I': 8}
 
-        for r in range(4, 500):
+        # Escaneamos desde la fila 4 hasta la 500
+        for r in range(4, 501):
             row_idx = r - 1
             
             def gv(col_letter):
                 c_idx = col_map[col_letter]
-                # --- BUSQUEDA MULTI-FORMATO ---
-                # 1. Formato A1 (A4, B4...)
-                # 2. Formato técnico "col,row" (0,3)
-                # 3. Formato técnico "row,col" (3,0)
-                # 4. Formato anidado cells["3"]["0"]
-                cell = (
-                    cells.get(f"{col_letter}{r}") or 
-                    cells.get(f"{c_idx},{row_idx}") or 
-                    cells.get(f"{row_idx},{c_idx}") or 
-                    cells.get(str(row_idx), {}).get(str(c_idx))
-                )
+                # Probamos todas las combinaciones posibles de llaves que usa Odoo Spreadsheet
+                keys_to_try = [
+                    f"{col_letter}{r}",     # "A4"
+                    f"{c_idx},{row_idx}",   # "0,3"
+                    f"{row_idx},{c_idx}",   # "3,0"
+                    str(f"{c_idx},{row_idx}")
+                ]
+                
+                cell = None
+                for k in keys_to_try:
+                    if k in cells:
+                        cell = cells[k]
+                        break
+                
+                # Si no se encontro por llave string, buscar por indice anidado
+                if not cell:
+                    row_data = cells.get(str(row_idx)) or cells.get(row_idx)
+                    if isinstance(row_data, dict):
+                        cell = row_data.get(str(c_idx)) or row_data.get(c_idx)
+
                 if not cell: return None
-                return cell.get('content') or cell.get('value')
+                # Odoo guarda en 'content' (texto plano) o 'value' (procesado)
+                return cell.get('content') if cell.get('content') is not None else cell.get('value')
 
             grosor = gv('A')
             alto = gv('B')
             ancho = gv('C')
 
-            # Si no hay medidas, saltamos
             if grosor is None and alto is None and ancho is None:
                 continue
 
             try:
                 def to_f(v):
-                    if v is None: return 0.0
+                    if v is None or str(v).strip() == '': return 0.0
                     try: return float(str(v).replace('=', '').replace(',', '.').strip())
                     except: return 0.0
 
@@ -191,7 +214,7 @@ class PackingListImportWizard(models.TransientModel):
                 })
             except: continue
 
-        _logger.info(f"IMPORTACIÓN: Se detectaron {len(rows)} filas de datos en el Spreadsheet.")
+        _logger.info(f"IMPORTACIÓN: Se extrajeron {len(rows)} filas de datos.")
         return rows
 
     def _get_data_from_excel_file(self):
