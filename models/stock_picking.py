@@ -15,7 +15,7 @@ class StockPicking(models.Model):
     packing_list_file = fields.Binary(string='Packing List (Archivo)', attachment=True, copy=False)
     packing_list_filename = fields.Char(string='Nombre del archivo', copy=False)
     
-    # Ajustado a 'documents.document' para usar la App de Documentos Enterprise
+    # En Odoo 19, vinculamos directamente a documents.document
     spreadsheet_id = fields.Many2one('documents.document', string='Spreadsheet de Packing List', copy=False)
     
     has_packing_list = fields.Boolean(string='Tiene Packing List', compute='_compute_has_packing_list', store=True)
@@ -32,7 +32,7 @@ class StockPicking(models.Model):
     
     def action_open_packing_list_spreadsheet(self):
         """
-        Crea o abre una hoja de cálculo nativa de Odoo dentro de la App de Documentos.
+        Crea o abre una hoja de cálculo nativa de Odoo dentro de Documents (Odoo 19).
         """
         self.ensure_one()
         
@@ -42,17 +42,20 @@ class StockPicking(models.Model):
         if not self.spreadsheet_id:
             products = self.move_ids.mapped('product_id')
             if not products:
-                raise UserError('No hay productos en esta operación para generar la plantilla.')
+                raise UserError('No hay productos en esta operación.')
 
-            # Buscamos una carpeta para guardar la hoja (buscamos por nombre o la primera disponible)
-            folder = self.env['documents.folder'].search([('name', 'ilike', 'Internal')], limit=1)
-            if not folder:
-                folder = self.env['documents.folder'].search([], limit=1)
+            # En Odoo 19, buscamos un documento que sea "Carpeta/Workspace" 
+            # o simplemente creamos el documento en el raíz si no hay uno específico.
+            # Nota: documents.folder ya no existe, ahora se busca documents.document con tipo folder
+            parent_folder = self.env['documents.document'].search([
+                ('type', '=', 'folder'),
+                ('name', 'ilike', 'Internal')
+            ], limit=1)
             
-            if not folder:
-                raise UserError('No se encontró ninguna carpeta en la App de Documentos para guardar la hoja.')
+            if not parent_folder:
+                parent_folder = self.env['documents.document'].search([('type', '=', 'folder')], limit=1)
 
-            # Títulos de columnas
+            # Estructura de cabeceras
             headers = ['Grosor (cm)', 'Alto (m)', 'Ancho (m)', 'Bloque', 'Atado', 'Tipo', 'Pedimento', 'Contenedor', 'Ref. Proveedor', 'Notas']
             
             cells = {}
@@ -92,19 +95,24 @@ class StockPicking(models.Model):
                 }
             }
 
-            # Creamos el documento en Documents usando el handler 'spreadsheet'
-            new_spreadsheet = self.env['documents.document'].create({
+            # Creamos el documento tipo 'spreadsheet'
+            # parent_id reemplaza a folder_id en la estructura de Odoo 19
+            vals = {
                 'name': f'PL: {self.name}.osheet',
-                'folder_id': folder.id,
                 'handler': 'spreadsheet',
                 'mimetype': 'application/o-spreadsheet',
                 'spreadsheet_data': json.dumps(spreadsheet_data),
                 'res_model': 'stock.picking',
-                'res_id': self.id
-            })
+                'res_id': self.id,
+                'type': 'spreadsheet', # Nuevo en Odoo 19
+            }
+            
+            if parent_folder:
+                vals['parent_id'] = parent_folder.id
+
+            new_spreadsheet = self.env['documents.document'].create(vals)
             self.spreadsheet_id = new_spreadsheet
 
-        # Abrir el documento directamente en la vista de edición de hoja de cálculo
         return {
             'type': 'ir.actions.act_window',
             'res_model': 'documents.document',
@@ -113,21 +121,21 @@ class StockPicking(models.Model):
             'target': 'current',
         }
 
+    # --- Los métodos de descarga se mantienen idénticos ---
+
     def action_download_packing_template(self):
         self.ensure_one()
         if self.picking_type_code != 'incoming':
             raise UserError('Esta acción solo está disponible para Recepciones.')
-        
         try:
             from openpyxl import Workbook
             from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
         except ImportError:
-            raise UserError('Instale openpyxl: pip install openpyxl --break-system-packages')
+            raise UserError('Instale openpyxl')
         
         wb = Workbook()
         wb.remove(wb.active)
         products = self.move_ids.mapped('product_id')
-        
         header_fill = PatternFill(start_color='366092', end_color='366092', fill_type='solid')
         header_font = Font(color='FFFFFF', bold=True)
         border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
@@ -138,13 +146,10 @@ class StockPicking(models.Model):
             ws['A1'] = 'PRODUCTO:'; ws['A1'].font = Font(bold=True)
             ws.merge_cells('B1:J1')
             ws['B1'] = f'{product.name} ({product.default_code or ""})'
-            ws['B1'].font = Font(bold=True, color='0000FF')
-            
             headers = ['Grosor (cm)', 'Alto (m)', 'Ancho (m)', 'Bloque', 'Atado', 'Tipo', 'Pedimento', 'Contenedor', 'Ref. Proveedor', 'Notas']
             for col_num, header in enumerate(headers, 1):
                 cell = ws.cell(row=3, column=col_num)
                 cell.value = header; cell.fill = header_fill; cell.font = header_font; cell.border = border
-            
             for row in range(4, 54):
                 for col in range(1, 11):
                     ws.cell(row=row, column=col).border = border
@@ -167,7 +172,6 @@ class StockPicking(models.Model):
             raise UserError('Esta acción solo está disponible para Recepciones.')
         if not self.packing_list_imported:
             raise UserError('Debe importar primero un Packing List')
-        
         try:
             from openpyxl import Workbook
             from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
@@ -178,7 +182,7 @@ class StockPicking(models.Model):
         wb.remove(wb.active)
         products = self.move_line_ids.mapped('product_id')
         if not products:
-            raise UserError('No hay lotes creados en esta operación')
+            raise UserError('No hay lotes creados')
         
         header_fill = PatternFill(start_color='366092', end_color='366092', fill_type='solid')
         header_font = Font(color='FFFFFF', bold=True)
@@ -191,12 +195,10 @@ class StockPicking(models.Model):
             ws = wb.create_sheet(title=sheet_name)
             ws['A1'] = 'PRODUCTO:'; ws.merge_cells('B1:J1')
             ws['B1'] = f'{product.name} ({product.default_code or ""})'
-            
             headers = ['Nº Lote', 'Grosor (cm)', 'Alto (m)', 'Ancho (m)', 'Bloque', 'Atado', 'Tipo', 'Pedimento', 'Contenedor', 'Ref. Proveedor', 'Cantidad', 'Alto Real (m)', 'Ancho Real (m)']
             for col_num, header in enumerate(headers, 1):
                 cell = ws.cell(row=3, column=col_num)
                 cell.value = header; cell.fill = header_fill; cell.font = header_font; cell.border = border
-            
             move_lines = self.move_line_ids.filtered(lambda ml: ml.product_id == product and ml.lot_id)
             current_row = 4
             for ml in move_lines:
@@ -212,7 +214,6 @@ class StockPicking(models.Model):
                 ws.cell(row=current_row, column=9, value=lot.x_contenedor).fill = data_fill
                 ws.cell(row=current_row, column=10, value=lot.x_referencia_proveedor).fill = data_fill
                 ws.cell(row=current_row, column=11, value=ml.qty_done).fill = data_fill
-                
                 for col in range(1, 12):
                     ws.cell(row=current_row, column=col).border = border
                 for col in range(12, 14):
