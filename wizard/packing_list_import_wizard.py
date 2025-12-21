@@ -69,16 +69,16 @@ class PackingListImportWizard(models.TransientModel):
             raise UserError('No hay datos. Llene la plantilla Spreadsheet o suba un archivo Excel.')
 
         if not rows_to_process:
-            raise UserError('No se encontraron datos válidos para procesar. Asegúrese de haber llenado al menos Grosor, Alto o Ancho en la hoja de cálculo.')
+            raise UserError('No se encontraron datos válidos. Asegúrese de que el Spreadsheet se haya guardado (icono de nube en verde).')
 
-        # 1. Limpieza
+        # 1. Limpieza de líneas previas
         lots_to_delete = self.picking_id.move_line_ids.mapped('lot_id')
         self.picking_id.move_line_ids.unlink()
         for lot in lots_to_delete:
             if not self.env['stock.move.line'].search_count([('lot_id', '=', lot.id), ('picking_id', '!=', self.picking_id.id)]):
                 lot.unlink()
 
-        # 2. Procesamiento
+        # 2. Creación de Lotes y Movimientos
         move_lines_created = 0
         next_global_prefix = self._get_next_global_prefix()
         container_counters = {}
@@ -128,70 +128,70 @@ class PackingListImportWizard(models.TransientModel):
         return {'type': 'ir.actions.client', 'tag': 'display_notification', 'params': {'title': 'Éxito', 'message': f'Se crearon {move_lines_created} lotes.', 'type': 'success', 'next': {'type': 'ir.actions.act_window_close'}}}
 
     def _get_data_from_spreadsheet(self):
-        """Lectura ultra-robusta de Odoo Spreadsheet para Odoo 19"""
+        """Lectura compatible con Odoo 19 Spreadsheet (Revisions & Multi-format)"""
         doc = self.picking_id.spreadsheet_id
-        if not doc or not doc.spreadsheet_data:
-            _logger.warning("No hay datos en el spreadsheet del documento.")
-            return []
-            
+        if not doc: return []
+
+        # Intentar obtener el snapshot real (fusión de revisiones)
+        # En Odoo 19, documents.document tiene métodos para obtener la data actualizada
         try:
-            data = json.loads(doc.spreadsheet_data)
+            # Este método es el estándar en Odoo 19 para obtener el JSON final
+            if hasattr(doc, 'get_spreadsheet_snapshot'):
+                data = doc.get_spreadsheet_snapshot()
+            else:
+                data = json.loads(doc.spreadsheet_data)
         except Exception as e:
-            _logger.error(f"Error parseando JSON: {e}")
+            _logger.error(f"Error cargando datos del Spreadsheet: {e}")
             return []
 
         sheets = data.get('sheets', [])
         if not sheets: return []
-        cells = sheets[0].get('cells', {})
-        _logger.info(f"DEBUG: Spreadsheet tiene {len(cells)} celdas con datos.")
-
-        default_product = self.picking_id.move_ids.mapped('product_id')[:1]
-        if not default_product:
-             raise UserError("El picking no tiene productos definidos.")
         
+        cells = sheets[0].get('cells', {})
+        _logger.info(f"DEBUG: Spreadsheet leído. Celdas encontradas: {len(cells)}")
+        
+        default_product = self.picking_id.move_ids.mapped('product_id')[:1]
         rows = []
         col_map = {'A': 0, 'B': 1, 'C': 2, 'D': 3, 'E': 4, 'F': 5, 'G': 6, 'H': 7, 'I': 8}
 
-        # Buscamos desde fila 4 hasta 200
-        for r in range(4, 201):
+        for r in range(4, 500): # Soporte hasta 500 líneas
             row_idx = r - 1
             
             def gv(col_letter):
-                col_idx = col_map.get(col_letter)
-                # Odoo 19 puede usar f"{col},{row}" o "A1"
-                k1 = f"{col_letter}{r}"
-                k2 = f"{col_idx},{row_idx}"
-                cell = cells.get(k2) or cells.get(k1) or {}
+                c_idx = col_map[col_letter]
+                # Probamos formatos de llave de Odoo 19: "col,row", "A1" y el nuevo formato anidado
+                k_coord = f"{c_idx},{row_idx}"
+                k_a1 = f"{col_letter}{r}"
                 
-                # Odoo guarda el valor en 'content' o 'value'
-                # Si es un número escrito a mano suele estar en 'content'
-                res = cell.get('content')
-                if res is None:
-                    res = cell.get('value')
-                return res
+                # Buscar en el diccionario plano
+                cell = cells.get(k_coord) or cells.get(k_a1)
+                
+                # Si no está, buscar en formato anidado (algunas versiones de Odoo 19)
+                if not cell and str(row_idx) in cells:
+                    row_data = cells.get(str(row_idx), {})
+                    cell = row_data.get(str(c_idx))
 
-            grosor_val = gv('A')
-            alto_val = gv('B')
-            ancho_val = gv('C')
+                if not cell: return None
+                return cell.get('content') or cell.get('value')
 
-            # Si las 3 medidas están vacías, ignoramos la fila
-            if grosor_val is None and alto_val is None and ancho_val is None:
+            grosor = gv('A')
+            alto = gv('B')
+            ancho = gv('C')
+
+            if grosor is None and alto is None and ancho is None:
                 continue
 
             try:
-                def to_f(v):
-                    if v is None or str(v).strip() == '': return 0.0
-                    try:
-                        # Limpiar posibles carácteres de fórmulas '='
-                        clean_v = str(v).replace('=', '').replace(',', '.').strip()
-                        return float(clean_v)
+                def clean_float(v):
+                    if v is None: return 0.0
+                    try: return float(str(v).replace('=', '').replace(',', '.').strip())
                     except: return 0.0
 
                 rows.append({
                     'product': default_product,
-                    'grosor': to_f(grosor_val),
-                    'alto': to_f(alto_val),
-                    'ancho': to_f(ancho_val),
+                    'grosor': clean_float(grosor),
+                    'alto': clean_float(alto),
+                    'ancho': clean_float(ancho),
                     'bloque': str(gv('D') or '').strip(),
                     'atado': str(gv('E') or '').strip(),
                     'tipo': 'formato' if str(gv('F') or '').lower() == 'formato' else 'placa',
@@ -199,10 +199,9 @@ class PackingListImportWizard(models.TransientModel):
                     'contenedor': str(gv('H') or 'SN').strip(),
                     'ref_proveedor': str(gv('I') or '').strip(),
                 })
-            except Exception as e:
-                _logger.error(f"Error procesando fila {r}: {e}")
+            except: continue
 
-        _logger.info(f"DEBUG: Se extrajeron {len(rows)} filas válidas del Spreadsheet.")
+        _logger.info(f"DEBUG: Se extrajeron {len(rows)} filas del Spreadsheet.")
         return rows
 
     def _get_data_from_excel_file(self):
@@ -224,7 +223,6 @@ class PackingListImportWizard(models.TransientModel):
                 product = self.env['product.product'].search([('name', 'ilike', name)], limit=1)
             if not product: continue
             for r in range(4, ws.max_row + 1):
-                # Verificar que haya datos en la fila
                 if not ws.cell(row=r, column=1).value and not ws.cell(row=r, column=2).value: continue
                 rows.append({
                     'product': product,
