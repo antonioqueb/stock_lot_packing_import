@@ -6,25 +6,38 @@
         <field name="arch" type="xml">
             <form>
                 <sheet>
+                    <!-- Campo invisible para controlar la lógica visual -->
+                    <field name="spreadsheet_id" invisible="1"/>
+                    
                     <group>
                         <field name="picking_id" readonly="1"/>
+                        
+                        <!-- Mostramos el cargador de archivos SOLO si NO hay Spreadsheet -->
                         <field name="excel_filename" invisible="1"/>
-                        <field name="excel_file" filename="excel_filename"/>
+                        <field name="excel_file" filename="excel_filename" 
+                               invisible="spreadsheet_id != False" 
+                               required="spreadsheet_id == False"/>
                     </group>
+
                     <group>
-                        <div class="alert alert-info" role="alert">
+                        <!-- Mensaje informativo cuando se usa Spreadsheet -->
+                        <div class="alert alert-success" role="alert" invisible="spreadsheet_id == False">
+                            <p><strong><i class="fa fa-table"></i> Hoja de Cálculo detectada:</strong></p>
+                            <p>El sistema procesará los datos que ingresaste en la plantilla nativa de Odoo. No es necesario subir ningún archivo.</p>
+                        </div>
+
+                        <!-- Instrucciones cuando se usa Archivo Excel -->
+                        <div class="alert alert-info" role="alert" invisible="spreadsheet_id != False">
                             <p><strong>Instrucciones:</strong></p>
                             <ul>
-                                <li>Seleccione el archivo Excel que descargó previamente</li>
-                                <li>El archivo debe contener una hoja por producto</li>
-                                <li>Complete los datos de grosor, alto, ancho, bloque, atado, tipo, pedimento, contenedor y referencia de proveedor</li>
-                                <li>Los lotes se crearán automáticamente con numeración secuencial</li>
+                                <li>Suba el archivo Excel del Packing List.</li>
+                                <li>Los lotes se crearán automáticamente con numeración secuencial.</li>
                             </ul>
                         </div>
                     </group>
                 </sheet>
                 <footer>
-                    <button string="Importar" name="action_import_excel" type="object" class="btn-primary"/>
+                    <button string="Procesar e Importar" name="action_import_excel" type="object" class="btn-primary"/>
                     <button string="Cancelar" class="btn-secondary" special="cancel"/>
                 </footer>
             </form>
