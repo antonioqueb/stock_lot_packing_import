@@ -69,7 +69,7 @@ class PackingListImportWizard(models.TransientModel):
             raise UserError('No hay datos. Llene la plantilla Spreadsheet o suba un archivo Excel.')
 
         if not rows_to_process:
-            raise UserError('No se encontraron datos de productos en la hoja. Verifique que los datos se hayan guardado correctamente en la Hoja de Cálculo.')
+            raise UserError('No se encontraron filas con datos de productos (Grosor, Alto o Ancho).')
 
         # 1. Limpieza
         lots_to_delete = self.picking_id.move_line_ids.mapped('lot_id')
@@ -128,75 +128,72 @@ class PackingListImportWizard(models.TransientModel):
         return {'type': 'ir.actions.client', 'tag': 'display_notification', 'params': {'title': 'Éxito', 'message': f'Se crearon {move_lines_created} lotes.', 'type': 'success', 'next': {'type': 'ir.actions.act_window_close'}}}
 
     def _get_data_from_spreadsheet(self):
-        """Lectura compatible con Odoo 19: Combina el blob base con las revisiones pendientes"""
+        """Lectura exhaustiva para Odoo 19: Procesa el JSON y fuerza la captura de datos nuevos"""
         doc = self.picking_id.spreadsheet_id
         if not doc: return []
 
-        # LOGICA CRITICA: En Odoo 19, los cambios estan en la tabla de revisiones.
-        # Intentamos obtener el snapshot "colapsado" que incluye lo que el usuario acaba de escribir.
+        # Intentamos obtener los datos fusionados (snapshot)
+        data_json = {}
         try:
-            # Buscamos el método snapshot que une las revisiones con el archivo base
+            # En Odoo 19, documents.document suele tener este método para unir revisiones
+            if hasattr(doc, 'join_revisions'):
+                doc.join_revisions() # Fuerza el colapso de ediciones a spreadsheet_data
+            
             if hasattr(doc, 'get_spreadsheet_snapshot'):
-                data = doc.get_spreadsheet_snapshot()
-            elif hasattr(self.env['documents.document'], 'get_spreadsheet_snapshot'):
-                data = self.env['documents.document'].get_spreadsheet_snapshot(doc.id)
+                data_json = doc.get_spreadsheet_snapshot()
             else:
-                # Fallback: leemos el data directo (pero podria estar desactualizado si no se ha guardado/cerrado la sesion)
-                data = json.loads(doc.spreadsheet_data or '{}')
+                data_json = json.loads(doc.spreadsheet_data or '{}')
         except Exception as e:
-            _logger.error(f"Error al obtener snapshot del spreadsheet: {e}")
+            _logger.error(f"Error cargando JSON: {e}")
             return []
 
-        sheets = data.get('sheets', [])
+        sheets = data_json.get('sheets', [])
         if not sheets: return []
         cells = sheets[0].get('cells', {})
         
-        _logger.info(f"DEBUG FINAL: Celdas detectadas en el JSON procesado: {len(cells)}")
-        
+        # LOG DE DEBUG CRITICO: Vamos a ver qué llaves hay realmente en el JSON
+        _logger.info(f"DEBUG: Total celdas detectadas: {len(cells)}")
+        if len(cells) > 0:
+            sample_keys = list(cells.keys())[:15]
+            _logger.info(f"DEBUG: Muestra de llaves encontradas: {sample_keys}")
+
         default_product = self.picking_id.move_ids.mapped('product_id')[:1]
         rows = []
         col_map = {'A': 0, 'B': 1, 'C': 2, 'D': 3, 'E': 4, 'F': 5, 'G': 6, 'H': 7, 'I': 8}
 
-        # Escaneamos desde la fila 4 hasta la 500
-        for r in range(4, 501):
+        for r in range(4, 500):
             row_idx = r - 1
             
             def gv(col_letter):
                 c_idx = col_map[col_letter]
-                # Probamos todas las combinaciones posibles de llaves que usa Odoo Spreadsheet
-                keys_to_try = [
-                    f"{col_letter}{r}",     # "A4"
-                    f"{c_idx},{row_idx}",   # "0,3"
-                    f"{row_idx},{c_idx}",   # "3,0"
-                    str(f"{c_idx},{row_idx}")
-                ]
+                # Probamos todas las variaciones de llaves de Odoo 19
+                # 1. "0,3" (técnico)
+                # 2. "A4" (etiqueta)
+                # 3. anidado cells["3"]["0"]
+                k_coord = f"{c_idx},{row_idx}"
+                k_a1 = f"{col_letter}{r}"
                 
-                cell = None
-                for k in keys_to_try:
-                    if k in cells:
-                        cell = cells[k]
-                        break
-                
-                # Si no se encontro por llave string, buscar por indice anidado
+                cell = cells.get(k_coord) or cells.get(k_a1)
                 if not cell:
                     row_data = cells.get(str(row_idx)) or cells.get(row_idx)
                     if isinstance(row_data, dict):
                         cell = row_data.get(str(c_idx)) or row_data.get(c_idx)
 
                 if not cell: return None
-                # Odoo guarda en 'content' (texto plano) o 'value' (procesado)
+                # Tomamos content (lo que escribió el usuario) o value (valor calculado)
                 return cell.get('content') if cell.get('content') is not None else cell.get('value')
 
             grosor = gv('A')
             alto = gv('B')
             ancho = gv('C')
 
+            # Si no hay medidas, no es una fila de datos válida
             if grosor is None and alto is None and ancho is None:
                 continue
 
             try:
                 def to_f(v):
-                    if v is None or str(v).strip() == '': return 0.0
+                    if v is None: return 0.0
                     try: return float(str(v).replace('=', '').replace(',', '.').strip())
                     except: return 0.0
 
