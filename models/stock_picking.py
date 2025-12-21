@@ -11,11 +11,14 @@ _logger = logging.getLogger(__name__)
 class StockPicking(models.Model):
     _inherit = 'stock.picking'
     
+    # --- Campos de Packing List ---
     packing_list_file = fields.Binary(string='Packing List (Archivo)', attachment=True, copy=False)
     packing_list_filename = fields.Char(string='Nombre del archivo', copy=False)
     spreadsheet_id = fields.Many2one('documents.document', string='Spreadsheet de Packing List', copy=False)
     has_packing_list = fields.Boolean(string='Tiene Packing List', compute='_compute_has_packing_list', store=True)
     packing_list_imported = fields.Boolean(string='Packing List Importado', default=False, copy=False)
+    
+    # --- Campos para el Worksheet ---
     worksheet_file = fields.Binary(string='Worksheet', attachment=True, copy=False)
     worksheet_filename = fields.Char(string='Nombre del Worksheet', copy=False)
     
@@ -26,8 +29,8 @@ class StockPicking(models.Model):
     
     def action_open_packing_list_spreadsheet(self):
         """
-        Crea o abre la hoja de cálculo nativa de Odoo.
-        Retorna la Client Action específica de Documents Spreadsheet.
+        Crea o abre la hoja de cálculo nativa de Odoo en Documents.
+        Retorna la Client Action correcta para Odoo 19 Enterprise.
         """
         self.ensure_one()
         
@@ -39,10 +42,10 @@ class StockPicking(models.Model):
             if not products:
                 raise UserError('No hay productos en esta operación.')
 
-            # Carpeta raíz de documentos
+            # Localizar carpeta/workspace
             folder = self.env['documents.document'].search([('type', '=', 'folder')], limit=1)
 
-            # Estructura de cabeceras
+            # Estructura de cabeceras para Odoo 19
             headers = ['Grosor (cm)', 'Alto (m)', 'Ancho (m)', 'Bloque', 'Atado', 'Tipo', 'Pedimento', 'Contenedor', 'Ref. Proveedor', 'Notas']
             cells = {}
             product_names = ", ".join(products.mapped(lambda p: f"{p.name} ({p.default_code or ''})"))
@@ -68,6 +71,7 @@ class StockPicking(models.Model):
                 "styles": {"1": {"bold": True, "fillColor": "#366092", "textColor": "#FFFFFF", "align": "center"}}
             }
 
+            # Creación del documento compatible con Odoo 19 Enterprise
             vals = {
                 'name': f'PL: {self.name}.osheet',
                 'type': 'binary', 
@@ -82,16 +86,16 @@ class StockPicking(models.Model):
 
             self.spreadsheet_id = self.env['documents.document'].create(vals)
 
-        # RETORNO PARA ODOO 19 ENTERPRISE
+        # RETORNO DEFINITIVO PARA ODOO 19
         return {
             'type': 'ir.actions.client',
-            'tag': 'documents_spreadsheet.open_spreadsheet', # Tag correcto para Documents + Spreadsheet
+            'tag': 'documents_spreadsheet.spreadsheet_action', # Tag estándar v19
             'params': {
-                'active_id': self.spreadsheet_id.id,
+                'document_id': self.spreadsheet_id.id, # El parámetro ahora es document_id
             },
         }
 
-    # --- Métodos de descarga (Excel Worksheet) - Intactos ---
+    # --- Los métodos de descarga (Excel Worksheet) se mantienen intactos ---
     def action_download_packing_template(self):
         self.ensure_one()
         try:
