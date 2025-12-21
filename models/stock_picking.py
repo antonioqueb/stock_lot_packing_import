@@ -12,46 +12,49 @@ class StockPicking(models.Model):
     _inherit = 'stock.picking'
     
     # --- Campos de Packing List ---
-    # Mantenemos los campos binarios por compatibilidad, pero añadimos el vínculo a Spreadsheet
     packing_list_file = fields.Binary(string='Packing List (Archivo)', attachment=True, copy=False)
     packing_list_filename = fields.Char(string='Nombre del archivo', copy=False)
     
-    # Campo clave para Odoo 19 Enterprise Spreadsheet
-    spreadsheet_id = fields.Many2one('spreadsheet.document', string='Spreadsheet de Packing List', copy=False)
+    # Ajustado a 'documents.document' para usar la App de Documentos Enterprise
+    spreadsheet_id = fields.Many2one('documents.document', string='Spreadsheet de Packing List', copy=False)
     
     has_packing_list = fields.Boolean(string='Tiene Packing List', compute='_compute_has_packing_list', store=True)
     packing_list_imported = fields.Boolean(string='Packing List Importado', default=False, copy=False)
     
-    # --- Campos para el Worksheet (Se mantienen intactos) ---
+    # --- Campos para el Worksheet ---
     worksheet_file = fields.Binary(string='Worksheet', attachment=True, copy=False)
     worksheet_filename = fields.Char(string='Nombre del Worksheet', copy=False)
     
     @api.depends('packing_list_file', 'spreadsheet_id')
     def _compute_has_packing_list(self):
         for rec in self:
-            # Ahora tiene PL si tiene el archivo o si ya se creó la hoja de cálculo
             rec.has_packing_list = bool(rec.packing_list_file or rec.spreadsheet_id)
     
     def action_open_packing_list_spreadsheet(self):
         """
-        Crea o abre una hoja de cálculo nativa de Odoo pre-configurada.
-        Sustituye el proceso de descargar/subir Excel para el PL.
+        Crea o abre una hoja de cálculo nativa de Odoo dentro de la App de Documentos.
         """
         self.ensure_one()
         
         if self.picking_type_code != 'incoming':
             raise UserError('Esta acción solo está disponible para Recepciones.')
             
-        # Si no existe la hoja, la creamos con la estructura inicial
         if not self.spreadsheet_id:
             products = self.move_ids.mapped('product_id')
             if not products:
                 raise UserError('No hay productos en esta operación para generar la plantilla.')
 
-            # Títulos de columnas requeridos
+            # Buscamos una carpeta para guardar la hoja (buscamos por nombre o la primera disponible)
+            folder = self.env['documents.folder'].search([('name', 'ilike', 'Internal')], limit=1)
+            if not folder:
+                folder = self.env['documents.folder'].search([], limit=1)
+            
+            if not folder:
+                raise UserError('No se encontró ninguna carpeta en la App de Documentos para guardar la hoja.')
+
+            # Títulos de columnas
             headers = ['Grosor (cm)', 'Alto (m)', 'Ancho (m)', 'Bloque', 'Atado', 'Tipo', 'Pedimento', 'Contenedor', 'Ref. Proveedor', 'Notas']
             
-            # Construcción del JSON inicial del Spreadsheet (Formato Odoo 19)
             cells = {}
             # Fila 1: Info del producto
             product_names = ", ".join(products.mapped(lambda p: f"{p.name} ({p.default_code or ''})"))
@@ -65,7 +68,7 @@ class StockPicking(models.Model):
                 cells["2"] = cells.get("2", {})
                 cells["2"][str(i)] = {
                     "content": header,
-                    "style": 1 # Estilo azul definido abajo
+                    "style": 1 
                 }
 
             spreadsheet_data = {
@@ -78,10 +81,9 @@ class StockPicking(models.Model):
                         "colNumber": 10,
                         "rowNumber": 100,
                         "areLinesVisible": True,
-                        # Protección de cabeceras (Solo editable lo de abajo)
                         "isProtected": True,
                         "protectedRanges": [
-                            {"range": "A4:J100", "isProtected": False} # Desbloqueamos el área de llenado
+                            {"range": "A4:J100", "isProtected": False} 
                         ]
                     }
                 ],
@@ -90,30 +92,29 @@ class StockPicking(models.Model):
                 }
             }
 
-            # Creamos el documento en el módulo nativo de Documents/Spreadsheet
-            new_spreadsheet = self.env['spreadsheet.document'].create({
-                'name': f'PL: {self.name}',
+            # Creamos el documento en Documents usando el handler 'spreadsheet'
+            new_spreadsheet = self.env['documents.document'].create({
+                'name': f'PL: {self.name}.osheet',
+                'folder_id': folder.id,
+                'handler': 'spreadsheet',
+                'mimetype': 'application/o-spreadsheet',
                 'spreadsheet_data': json.dumps(spreadsheet_data),
                 'res_model': 'stock.picking',
                 'res_id': self.id
             })
             self.spreadsheet_id = new_spreadsheet
 
-        # Retornamos acción para abrir el editor de Spreadsheet directamente
+        # Abrir el documento directamente en la vista de edición de hoja de cálculo
         return {
             'type': 'ir.actions.act_window',
-            'res_model': 'spreadsheet.document',
+            'res_model': 'documents.document',
             'res_id': self.spreadsheet_id.id,
             'view_mode': 'form',
             'target': 'current',
-            'context': {'form_view_ref': 'spreadsheet_edition.spreadsheet_document_view_form'}
         }
 
-    # --- Mantenemos action_download_packing_template por si se requiere como respaldo ---
     def action_download_packing_template(self):
         self.ensure_one()
-        _logger.info(f'DESCARGA MANUAL PACKING TEMPLATE - Picking ID: {self.id}')
-        
         if self.picking_type_code != 'incoming':
             raise UserError('Esta acción solo está disponible para Recepciones.')
         
@@ -160,11 +161,8 @@ class StockPicking(models.Model):
             'target': 'self',
         }
     
-    # --- BLOQUE WORKSHEET (SE MANTIENE INTACTO SEGÚN REQUERIMIENTO) ---
     def action_download_worksheet(self):
         self.ensure_one()
-        _logger.info(f'DEBUG WORKSHEET - Picking ID: {self.id}')
-        
         if self.picking_type_code != 'incoming':
             raise UserError('Esta acción solo está disponible para Recepciones.')
         if not self.packing_list_imported:
@@ -234,9 +232,7 @@ class StockPicking(models.Model):
             'target': 'self',
         }
     
-    # --- Acciones de Importación ---
     def action_import_packing_list(self):
-        """ Abre el wizard para procesar el PL (ya sea por Spreadsheet o Archivo) """
         self.ensure_one()
         return {
             'name': 'Procesar / Importar Packing List',
