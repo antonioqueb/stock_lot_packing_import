@@ -5,7 +5,6 @@ import base64
 import io
 import json
 import logging
-from datetime import datetime, timedelta
 
 _logger = logging.getLogger(__name__)
 
@@ -58,8 +57,7 @@ class PackingListImportWizard(models.TransientModel):
 
     def action_import_excel(self):
         self.ensure_one()
-        _logger.info("======================================================")
-        _logger.info("INICIANDO IMPORTACIÓN - MODO DEBUG AGRESIVO")
+        _logger.info("=== PROCESANDO IMPORTACIÓN ODOO 19 ===")
         
         if self.picking_id.state == 'done':
              raise UserError('La recepción ya está validada.')
@@ -73,17 +71,16 @@ class PackingListImportWizard(models.TransientModel):
             raise UserError('No hay datos. Llene la plantilla Spreadsheet o suba un archivo Excel.')
 
         if not rows_to_process:
-            raise UserError('ERROR: No se pudo leer ningún dato de la hoja. Revisa los logs de Docker para ver el diagnóstico técnico.')
+            raise UserError('No se encontraron datos válidos. Asegúrese de haber llenado Grosor, Alto o Ancho.')
 
-        # 1. Limpieza
-        _logger.info(f"Limpiando líneas viejas del picking {self.picking_id.name}")
+        # 1. Limpieza de líneas previas
         lots_to_delete = self.picking_id.move_line_ids.mapped('lot_id')
         self.picking_id.move_line_ids.unlink()
         for lot in lots_to_delete:
             if not self.env['stock.move.line'].search_count([('lot_id', '=', lot.id), ('picking_id', '!=', self.picking_id.id)]):
                 lot.unlink()
 
-        # 2. Procesamiento
+        # 2. Creación de Lotes
         move_lines_created = 0
         next_global_prefix = self._get_next_global_prefix()
         container_counters = {}
@@ -129,79 +126,55 @@ class PackingListImportWizard(models.TransientModel):
             container_counters[cont]['next_num'] = lot_num + 1
             move_lines_created += 1
 
-        _logger.info(f"IMPORTACIÓN FINALIZADA: {move_lines_created} lotes creados.")
         self.picking_id.write({'packing_list_imported': True})
         return {'type': 'ir.actions.client', 'tag': 'display_notification', 'params': {'title': 'Éxito', 'message': f'Se crearon {move_lines_created} lotes.', 'type': 'success', 'next': {'type': 'ir.actions.act_window_close'}}}
 
     def _get_data_from_spreadsheet(self):
-        """Diagnóstico profundo de Spreadsheet Odoo 19"""
+        """Lectura de Spreadsheet Odoo 19 con búsqueda de revisiones multimodelo"""
         doc = self.picking_id.spreadsheet_id
         if not doc: return []
 
-        _logger.info(f"Analizando Documento ID: {doc.id} ('{doc.name}')")
-
-        # 1. Obtener JSON base
+        # 1. Cargar JSON base
         try:
             data = json.loads(doc.spreadsheet_data or '{}')
-            _logger.info(f"JSON Base cargado. Bytes: {len(doc.spreadsheet_data or '')}")
         except:
-            _logger.error("No se pudo parsear el JSON base de spreadsheet_data")
             data = {}
 
         sheets = data.get('sheets', [])
         if not sheets: return []
         cells = sheets[0].get('cells', {})
-        _logger.info(f"Celdas en JSON base: {len(cells)} - Llaves: {list(cells.keys())}")
 
-        # 2. INTENTO OFICIAL ODOO 19 (Snapshot)
-        try:
-            # Los métodos privados a veces contienen la data real fusionada
-            official_data = False
-            if hasattr(doc, '_get_spreadsheet_snapshot'):
-                official_data = doc._get_spreadsheet_snapshot()
-                _logger.info("Usando método oficial _get_spreadsheet_snapshot")
-            elif hasattr(doc, 'get_spreadsheet_snapshot'):
-                official_data = doc.get_spreadsheet_snapshot()
-                _logger.info("Usando método oficial get_spreadsheet_snapshot")
-            
-            if official_data:
-                cells = official_data.get('sheets', [{}])[0].get('cells', {})
-                _logger.info(f"Celdas tras Snapshot Oficial: {len(cells)}")
-        except Exception as e:
-            _logger.warning(f"Error en método oficial de snapshot: {e}")
-
-        # 3. BÚSQUEDA AGRESIVA DE REVISIONES (SUDO)
-        # Buscamos cualquier revisión de los últimos 10 minutos para este documento
-        ten_min_ago = datetime.now() - timedelta(minutes=10)
-        revisions = self.env['spreadsheet.revision'].sudo().search([
-            ('res_id', '=', doc.id),
-            ('res_model', '=', 'documents.document')
-        ], order='id asc')
+        # 2. BÚSQUEDA DE REVISIONES (FUSIÓN DE EDICIONES EN VIVO)
+        # IMPORTANTE: Odoo 19 puede asociarlas al Documento o a la Recepción vinculada
+        revision_domain = [
+            '|',
+            '&', ('res_model', '=', 'documents.document'), ('res_id', '=', doc.id),
+            '&', ('res_model', '=', 'stock.picking'), ('res_id', '=', self.picking_id.id)
+        ]
+        revisions = self.env['spreadsheet.revision'].sudo().search(revision_domain, order='id asc')
         
-        _logger.info(f"Revisiones encontradas (sudo): {len(revisions)}")
+        _logger.info(f"FUSIONANDO {len(revisions)} REVISIONES ENCONTRADAS")
 
         for rev in revisions:
             try:
                 cmds = json.loads(rev.commands)
                 for c in cmds:
-                    # Odoo 19 usa UPDATE_CELL, SET_CELL_CONTENT o EDIT_CELL
-                    if c.get('type') in ('UPDATE_CELL', 'SET_CELL_CONTENT', 'EDIT_CELL'):
+                    # UPDATE_CELL es el comando cuando se escribe un valor
+                    if c.get('type') in ('UPDATE_CELL', 'SET_CELL_CONTENT'):
                         col = c.get('col')
                         row = c.get('row')
-                        # El valor puede estar en 'content', 'value' o dentro de 'cell'
-                        val = c.get('content')
-                        if val is None and 'cell' in c:
-                            val = c.get('cell', {}).get('content')
+                        content = c.get('content')
+                        # Si no hay content, buscamos dentro del objeto cell si existe
+                        if content is None and 'cell' in c:
+                            content = c.get('cell', {}).get('content')
                         
                         if col is not None and row is not None:
-                            _logger.info(f"  -> Fusionando revisión: Fila {row}, Col {col} = {val}")
-                            cells[f"{col},{row}"] = {'content': val}
-            except Exception as e:
-                _logger.error(f"Error procesando comandos de revisión {rev.id}: {e}")
+                            # Actualizamos el mapa de celdas en memoria para la extracción
+                            cells[f"{col},{row}"] = {'content': content}
+            except: continue
 
-        _logger.info(f"TOTAL CELDAS TRAS FUSIÓN MANUAL: {len(cells)}")
-
-        # 4. EXTRACCIÓN DE FILAS
+        _logger.info(f"CELDAS TOTALES TRAS FUSIÓN: {len(cells)}")
+        
         default_product = self.picking_id.move_ids.mapped('product_id')[:1]
         rows = []
         col_map = {'A': 0, 'B': 1, 'C': 2, 'D': 3, 'E': 4, 'F': 5, 'G': 6, 'H': 7, 'I': 8}
@@ -211,7 +184,7 @@ class PackingListImportWizard(models.TransientModel):
             
             def gv(col_letter):
                 c_idx = col_map[col_letter]
-                # Probamos todos los formatos de llave imaginables
+                # Probamos formatos de Odoo 19 (técnico y A1)
                 keys = [f"{c_idx},{row_idx}", f"{col_letter}{r}", f"{row_idx},{c_idx}"]
                 cell = None
                 for k in keys:
@@ -220,7 +193,7 @@ class PackingListImportWizard(models.TransientModel):
                         break
                 
                 if not cell:
-                    # Formato anidado cells["row"]["col"]
+                    # Intento de lectura anidada
                     row_data = cells.get(str(row_idx)) or cells.get(row_idx)
                     if isinstance(row_data, dict):
                         cell = row_data.get(str(c_idx)) or row_data.get(c_idx)
@@ -234,8 +207,6 @@ class PackingListImportWizard(models.TransientModel):
 
             if grosor is None and alto is None and ancho is None:
                 continue
-
-            _logger.info(f"Fila {r} detectada: Grosor={grosor}, Alto={alto}, Ancho={ancho}")
 
             try:
                 def to_f(v):
@@ -259,7 +230,7 @@ class PackingListImportWizard(models.TransientModel):
                 })
             except: continue
 
-        _logger.info(f"Extracción finalizada: {len(rows)} filas obtenidas.")
+        _logger.info(f"LECTURA FINALIZADA: {len(rows)} FILAS EXTRAÍDAS")
         return rows
 
     def _get_data_from_excel_file(self):
