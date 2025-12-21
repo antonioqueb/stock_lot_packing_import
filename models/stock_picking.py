@@ -18,7 +18,7 @@ class StockPicking(models.Model):
     has_packing_list = fields.Boolean(string='Tiene Packing List', compute='_compute_has_packing_list', store=True)
     packing_list_imported = fields.Boolean(string='Packing List Importado', default=False, copy=False)
     
-    # --- Campos para el Worksheet (Intactos) ---
+    # --- Campos para el Worksheet ---
     worksheet_file = fields.Binary(string='Worksheet', attachment=True, copy=False)
     worksheet_filename = fields.Char(string='Nombre del Worksheet', copy=False)
     
@@ -29,8 +29,8 @@ class StockPicking(models.Model):
     
     def action_open_packing_list_spreadsheet(self):
         """
-        Crea el documento si no existe y delega la apertura a los métodos nativos 
-        de Documents para evitar errores de Client Action Tags.
+        Crea o abre la hoja de cálculo nativa de Odoo en Documents.
+        Corregido para Odoo 19: Usa notación A1 para las celdas.
         """
         self.ensure_one()
         
@@ -42,18 +42,29 @@ class StockPicking(models.Model):
             if not products:
                 raise UserError('No hay productos en esta operación.')
 
-            # Localizar carpeta (Workspace) - En Odoo 19 es documents.document con type='folder'
+            # Carpeta raíz
             folder = self.env['documents.document'].search([('type', '=', 'folder')], limit=1)
 
-            # Estructura de cabeceras
+            # Cabeceras
             headers = ['Grosor (cm)', 'Alto (m)', 'Ancho (m)', 'Bloque', 'Atado', 'Tipo', 'Pedimento', 'Contenedor', 'Ref. Proveedor', 'Notas']
-            cells = {}
-            product_names = ", ".join(products.mapped(lambda p: f"{p.name} ({p.default_code or ''})"))
-            cells["0"] = {"0": {"content": "PRODUCTO(S):"}, "1": {"content": product_names}}
             
+            # --- CONSTRUCCIÓN DE CELDAS EN FORMATO A1 (Requerido por Odoo 19) ---
+            cells = {}
+            
+            # Fila 1: Info del producto
+            product_names = ", ".join(products.mapped(lambda p: f"{p.name} ({p.default_code or ''})"))
+            cells["A1"] = {"content": "PRODUCTO(S):"}
+            cells["B1"] = {"content": product_names}
+            
+            # Fila 3: Cabeceras (A3, B3, C3...)
+            # chr(65) es 'A', 66 es 'B', etc.
             for i, header in enumerate(headers):
-                cells["2"] = cells.get("2", {})
-                cells["2"][str(i)] = {"content": header, "style": 1}
+                col_letter = chr(65 + i)
+                cell_id = f"{col_letter}3"
+                cells[cell_id] = {
+                    "content": header,
+                    "style": 1 
+                }
 
             spreadsheet_data = {
                 "version": 16,
@@ -64,15 +75,15 @@ class StockPicking(models.Model):
                         "cells": cells,
                         "colNumber": 10,
                         "rowNumber": 100,
-                        "areLinesVisible": True,
                         "isProtected": True,
                         "protectedRanges": [{"range": "A4:J100", "isProtected": False}]
                     }
                 ],
-                "styles": {"1": {"bold": True, "fillColor": "#366092", "textColor": "#FFFFFF", "align": "center"}}
+                "styles": {
+                    "1": {"bold": True, "fillColor": "#366092", "textColor": "#FFFFFF", "align": "center"}
+                }
             }
 
-            # Creación con los campos requeridos por Odoo 19 Documents
             vals = {
                 'name': f'PL: {self.name}.osheet',
                 'type': 'binary', 
@@ -87,38 +98,26 @@ class StockPicking(models.Model):
 
             self.spreadsheet_id = self.env['documents.document'].create(vals)
 
-        # --- OPCIÓN A: DELEGAR APERTURA ---
+        # Delegar apertura a Documents
         doc = self.spreadsheet_id.sudo()
-        
-        # 1. Intentar el método nativo que devuelve la Client Action correcta según la versión
-        # En Odoo 19 Enterprise, Documents suele usar 'action_open' o 'access_content'
         for method_name in ["action_open_spreadsheet", "action_open", "access_content"]:
             open_meth = getattr(doc, method_name, None)
             if callable(open_meth):
                 try:
                     action = open_meth()
-                    if action:
-                        return action
-                except:
-                    continue
+                    if action: return action
+                except: continue
 
-        # 2. Fallback: Si los métodos nativos fallan, abrimos el formulario pero
-        # forzamos el contexto de Spreadsheet para que el navegador cargue el editor.
         return {
             'type': 'ir.actions.act_window',
             'res_model': 'documents.document',
             'res_id': doc.id,
             'view_mode': 'form',
             'target': 'current',
-            'context': {
-                'active_id': doc.id,
-                'is_spreadsheet': True,
-                'request_handler': 'spreadsheet'
-            }
+            'context': {'request_handler': 'spreadsheet'}
         }
 
-    # --- Métodos de descarga (Excel) - Sin cambios ---
-
+    # --- Los métodos de descarga (Excel Worksheet) se mantienen intactos ---
     def action_download_packing_template(self):
         self.ensure_one()
         try:
