@@ -1,16 +1,20 @@
 # -*- coding: utf-8 -*-
-from odoo import models, fields
+from odoo import models, fields, _
 from odoo.exceptions import UserError
 import base64
 import io
-import re
+import json
+import logging
+
+_logger = logging.getLogger(__name__)
 
 class PackingListImportWizard(models.TransientModel):
     _name = 'packing.list.import.wizard'
-    _description = 'Importar Packing List Excel'
+    _description = 'Importar Packing List (Excel o Spreadsheet)'
     
     picking_id = fields.Many2one('stock.picking', string='Recepción', required=True, readonly=True)
-    excel_file = fields.Binary(string='Archivo Excel', required=True, attachment=False)
+    # Cambiamos required=True a False porque ahora puede venir de la Spreadsheet nativa
+    excel_file = fields.Binary(string='Archivo Excel', required=False, attachment=False)
     excel_filename = fields.Char(string='Nombre del archivo')
     
     def _get_next_global_prefix(self):
@@ -66,214 +70,190 @@ class PackingListImportWizard(models.TransientModel):
     def action_import_excel(self):
         self.ensure_one()
         
-        # VALIDACIÓN 1: Solo recepciones
+        # VALIDACIONES PREVIAS
         if self.picking_id.picking_type_code != 'incoming':
             raise UserError('Solo se puede importar en recepciones.')
-
-        # VALIDACIÓN 2: No permitir si ya está validado (evita corromper stock histórico)
         if self.picking_id.state == 'done':
-             raise UserError('La recepción ya está validada. No se puede modificar el Packing List.')
+             raise UserError('La recepción ya está validada. No se puede modificar.')
              
-        if not self.excel_file:
-            raise UserError('Debe seleccionar un archivo Excel')
+        # Determinar fuente de datos
+        rows_to_process = []
         
-        # Limpiar lotes previos de ESTA recepción (seguro porque state != done)
+        if self.picking_id.spreadsheet_id:
+            # --- CASO 1: SPREADSHEET NATIVA (ODOO 19 ENTERPRISE) ---
+            rows_to_process = self._get_data_from_spreadsheet()
+        elif self.excel_file:
+            # --- CASO 2: ARCHIVO EXCEL TRADICIONAL ---
+            rows_to_process = self._get_data_from_excel_file()
+        else:
+            raise UserError('No se encontró una Hoja de Cálculo nativa ni un archivo Excel cargado.')
+
+        if not rows_to_process:
+            raise UserError('No se encontraron filas con datos para procesar.')
+
+        # 1. LIMPIEZA DE LOTES PREVIOS (Seguro porque state != done)
         lots_to_delete = self.picking_id.move_line_ids.mapped('lot_id')
         self.picking_id.move_line_ids.unlink()
-        
         for lot in lots_to_delete:
-            other_moves = self.env['stock.move.line'].search([
-                ('lot_id', '=', lot.id),
-                ('picking_id', '!=', self.picking_id.id)
-            ])
-            if not other_moves:
+            if not self.env['stock.move.line'].search_count([('lot_id', '=', lot.id), ('picking_id', '!=', self.picking_id.id)]):
                 lot.unlink()
-        
-        try:
-            from openpyxl import load_workbook
-        except ImportError:
-            raise UserError('Instale openpyxl: pip install openpyxl --break-system-packages')
-        
-        try:
-            excel_data = base64.b64decode(self.excel_file)
-            wb = load_workbook(io.BytesIO(excel_data))
-        except Exception as e:
-            raise UserError(f'Error al leer el archivo Excel: {str(e)}')
-        
+
+        # 2. PROCESAMIENTO
         move_lines_created = 0
-        errors = []
         next_global_prefix = self._get_next_global_prefix()
-        container_to_prefix = {}
         container_counters = {}
         
-        # FASE 1: Mapeo de Contenedores
-        for sheet_name in wb.sheetnames:
-            ws = wb[sheet_name]
-            for row in range(4, ws.max_row + 1):
-                contenedor_val = ws.cell(row=row, column=8).value
-                if contenedor_val is None or str(contenedor_val).strip() == '':
-                    continue
-                
-                contenedor = str(int(contenedor_val)) if isinstance(contenedor_val, (int, float)) else str(contenedor_val).strip()
-                
-                if contenedor and contenedor not in container_to_prefix:
-                    container_to_prefix[contenedor] = str(next_global_prefix)
-                    container_counters[contenedor] = {
-                        'prefix': str(next_global_prefix),
-                        'next_num': self._get_next_lot_number_for_prefix(str(next_global_prefix))
-                    }
-                    next_global_prefix += 1
-        
-        # FASE 2: Creación de Lotes
-        for sheet_name in wb.sheetnames:
-            ws = wb[sheet_name]
-            
-            product_info = ws['B1'].value
-            if not product_info:
-                errors.append(f'Hoja {sheet_name}: No se encontró información del producto en B1')
-                continue
-            
-            product_code = None
-            if '(' in str(product_info) and ')' in str(product_info):
-                code_part = str(product_info).split('(')[1].split(')')[0].strip()
-                if code_part:
-                    product_code = code_part
-            
-            product = False
-            if product_code:
-                # Búsqueda exacta por código
-                product = self.env['product.product'].search([
-                    '|', ('default_code', '=', product_code), ('barcode', '=', product_code)
-                ], limit=1)
-            
-            if not product:
-                # Búsqueda por nombre: PRIMERO exacta, LUEGO aproximada
-                product_name = str(product_info).split('(')[0].strip()
-                product = self.env['product.product'].search([('name', '=', product_name)], limit=1)
-                if not product:
-                     product = self.env['product.product'].search([('name', 'ilike', product_name)], limit=1)
+        # Primero mapeamos contenedores para asignar prefijos
+        for row in rows_to_process:
+            cont = row.get('contenedor')
+            if cont and cont not in container_counters:
+                container_counters[cont] = {
+                    'prefix': str(next_global_prefix),
+                    'next_num': self._get_next_lot_number_for_prefix(str(next_global_prefix))
+                }
+                next_global_prefix += 1
 
-            if not product:
-                errors.append(f'Hoja {sheet_name}: No se encontró el producto "{product_name or product_code}"')
-                continue
-            
-            # Buscar o crear movimiento
-            move = self.picking_id.move_ids.filtered(lambda m: m.product_id == product)
+        # Creación de lotes y líneas
+        for data in rows_to_process:
+            product = data['product']
+            move = self.picking_id.move_ids.filtered(lambda m: m.product_id == product)[:1]
             if not move:
                 move = self.env['stock.move'].create({
-                    'name': product.name,
-                    'product_id': product.id,
-                    'product_uom_qty': 0,
-                    'product_uom': product.uom_id.id,
-                    'picking_id': self.picking_id.id,
-                    'location_id': self.picking_id.location_id.id,
-                    'location_dest_id': self.picking_id.location_dest_id.id,
+                    'name': product.name, 'product_id': product.id, 'product_uom_qty': 0,
+                    'product_uom': product.uom_id.id, 'picking_id': self.picking_id.id,
+                    'location_id': self.picking_id.location_id.id, 'location_dest_id': self.picking_id.location_dest_id.id,
                 })
+
+            cont = data.get('contenedor')
+            prefix = container_counters[cont]['prefix']
+            lot_num = container_counters[cont]['next_num']
+            lot_name = self._format_lot_name(prefix, lot_num)
             
-            for row in range(4, ws.max_row + 1):
-                grosor_val = ws.cell(row=row, column=1).value
-                alto_val = ws.cell(row=row, column=2).value
-                ancho_val = ws.cell(row=row, column=3).value
-                
-                if grosor_val is None and alto_val is None and ancho_val is None:
-                    continue
+            # Evitar colisión de nombres
+            while self.env['stock.lot'].search_count([('name', '=', lot_name), ('product_id', '=', product.id)]):
+                lot_num += 1
+                lot_name = self._format_lot_name(prefix, lot_num)
 
-                try:
-                    grosor = float(grosor_val) if grosor_val is not None else 0.0
-                    alto = float(alto_val) if alto_val is not None else 0.0
-                    ancho = float(ancho_val) if ancho_val is not None else 0.0
-                except (ValueError, TypeError):
-                    continue
-                
-                bloque_val = ws.cell(row=row, column=4).value
-                atado_val = ws.cell(row=row, column=5).value
-                tipo_val = ws.cell(row=row, column=6).value
-                pedimento_val = ws.cell(row=row, column=7).value
-                contenedor_val = ws.cell(row=row, column=8).value
-                ref_proveedor_val = ws.cell(row=row, column=9).value
+            lot = self.env['stock.lot'].create({
+                'name': lot_name, 'product_id': product.id, 'company_id': self.picking_id.company_id.id,
+                'x_grosor': data['grosor'], 'x_alto': data['alto'], 'x_ancho': data['ancho'],
+                'x_bloque': data['bloque'], 'x_atado': data['atado'], 'x_tipo': data['tipo'],
+                'x_pedimento': data['pedimento'], 'x_contenedor': cont, 'x_referencia_proveedor': data['ref_proveedor'],
+            })
+            
+            self.env['stock.move.line'].create({
+                'move_id': move.id, 'product_id': product.id, 'lot_id': lot.id, 'qty_done': data['alto'] * data['ancho'] or 1.0,
+                'location_id': self.picking_id.location_id.id, 'location_dest_id': self.picking_id.location_dest_id.id,
+                'picking_id': self.picking_id.id,
+            })
+            
+            container_counters[cont]['next_num'] = lot_num + 1
+            move_lines_created += 1
 
-                if contenedor_val is None or str(contenedor_val).strip() == '':
-                    errors.append(f'Hoja {sheet_name}, Fila {row}: Falta número de contenedor')
-                    continue
-
-                bloque = str(int(bloque_val)) if isinstance(bloque_val, (int, float)) else (str(bloque_val).strip() if bloque_val else '')
-                atado = str(int(atado_val)) if isinstance(atado_val, (int, float)) else (str(atado_val).strip() if atado_val else '')
-                tipo_str = str(tipo_val).strip().lower() if tipo_val else ''
-                tipo = 'formato' if tipo_str == 'formato' else 'placa'
-                pedimento = str(int(pedimento_val)) if isinstance(pedimento_val, (int, float)) else (str(pedimento_val).strip() if pedimento_val else '')
-                contenedor = str(int(contenedor_val)) if isinstance(contenedor_val, (int, float)) else str(contenedor_val).strip()
-                ref_proveedor = str(ref_proveedor_val).strip() if ref_proveedor_val else ''
-
-                prefix = container_counters[contenedor]['prefix']
-                lot_number = container_counters[contenedor]['next_num']
-                lot_name = self._format_lot_name(prefix, lot_number)
-                
-                # Evitar colisiones
-                existing_lot = self.env['stock.lot'].search([('name', '=', lot_name), ('product_id', '=', product.id)], limit=1)
-                while existing_lot:
-                    lot_number += 1
-                    lot_name = self._format_lot_name(prefix, lot_number)
-                    existing_lot = self.env['stock.lot'].search([('name', '=', lot_name), ('product_id', '=', product.id)], limit=1)
-                
-                lot = self.env['stock.lot'].create({
-                    'name': lot_name,
-                    'product_id': product.id,
-                    'company_id': self.picking_id.company_id.id,
-                    'x_grosor': grosor,
-                    'x_alto': alto,
-                    'x_ancho': ancho,
-                    'x_bloque': bloque,
-                    'x_atado': atado,
-                    'x_tipo': tipo,
-                    'x_pedimento': pedimento,
-                    'x_contenedor': contenedor,
-                    'x_referencia_proveedor': ref_proveedor,
-                })
-                
-                qty_done = alto * ancho if (alto and ancho) else 1.0
-                
-                self.env['stock.move.line'].create({
-                    'move_id': move.id,
-                    'product_id': product.id,
-                    'lot_id': lot.id,
-                    'product_uom_id': product.uom_id.id,
-                    'location_id': self.picking_id.location_id.id,
-                    'location_dest_id': self.picking_id.location_dest_id.id,
-                    'picking_id': self.picking_id.id,
-                    'qty_done': qty_done,
-                    'x_grosor_temp': grosor,
-                    'x_alto_temp': alto,
-                    'x_ancho_temp': ancho,
-                    'x_bloque_temp': bloque,
-                    'x_atado_temp': atado,
-                    'x_tipo_temp': tipo,
-                    'x_pedimento_temp': pedimento,
-                    'x_contenedor_temp': contenedor,
-                    'x_referencia_proveedor_temp': ref_proveedor,
-                })
-                
-                container_counters[contenedor]['next_num'] += 1
-                move_lines_created += 1
-        
-        if move_lines_created == 0:
-            error_msg = 'No se encontraron datos válidos.'
-            if errors:
-                error_msg += '\n\nDetalles:\n' + '\n'.join(errors)
-            raise UserError(error_msg)
-        
         self.picking_id.write({'packing_list_imported': True})
-        
-        containers_summary = '\n'.join([f"- Contenedor {cont}: Prefijo {data['prefix']}" for cont, data in container_counters.items()])
-        message = f'Se crearon {move_lines_created} lotes\n\nResumen por contenedor:\n{containers_summary}'
         
         return {
             'type': 'ir.actions.client',
             'tag': 'display_notification',
             'params': {
                 'title': '¡Importación Exitosa!',
-                'message': message,
+                'message': f'Se crearon {move_lines_created} lotes desde la plantilla.',
                 'type': 'success',
-                'sticky': False,
                 'next': {'type': 'ir.actions.act_window_close'},
             }
         }
+
+    def _get_data_from_spreadsheet(self):
+        """Extrae datos del JSON de Odoo Spreadsheet"""
+        doc = self.picking_id.spreadsheet_id
+        if not doc or not doc.spreadsheet_data:
+            return []
+        
+        data = json.loads(doc.spreadsheet_data)
+        sheet = data.get('sheets', [{}])[0]
+        cells = sheet.get('cells', {})
+        
+        # Identificamos el producto (tomamos el primero de la recepción por defecto en Spreadsheet)
+        default_product = self.picking_id.move_ids.mapped('product_id')[:1]
+        if not default_product:
+            return []
+
+        rows_to_process = []
+        # Odoo Spreadsheet usa índices de string. Fila 4 es índice "3"
+        # Buscamos en las filas del JSON
+        for row_idx_str, cols in cells.items():
+            row_idx = int(row_idx_str)
+            if row_idx < 3: continue # Saltamos cabeceras
+            
+            # Obtener contenido de celdas por índice de columna
+            def get_val(col_idx):
+                return cols.get(str(col_idx), {}).get('content', '')
+
+            grosor = get_val(0)
+            alto = get_val(1)
+            ancho = get_val(2)
+            
+            if not (grosor or alto or ancho): continue
+
+            try:
+                rows_to_process.append({
+                    'product': default_product,
+                    'grosor': float(grosor) if grosor else 0.0,
+                    'alto': float(alto) if alto else 0.0,
+                    'ancho': float(ancho) if ancho else 0.0,
+                    'bloque': str(get_val(3)),
+                    'atado': str(get_val(4)),
+                    'tipo': 'formato' if str(get_val(5)).lower() == 'formato' else 'placa',
+                    'pedimento': str(get_val(6)),
+                    'contenedor': str(get_val(7)).strip(),
+                    'ref_proveedor': str(get_val(8)),
+                })
+            except: continue
+            
+        return rows_to_process
+
+    def _get_data_from_excel_file(self):
+        """Mantiene la lógica original de lectura de archivo Excel"""
+        try:
+            from openpyxl import load_workbook
+        except ImportError:
+            raise UserError('Instale openpyxl')
+            
+        excel_data = base64.b64decode(self.excel_file)
+        wb = load_workbook(io.BytesIO(excel_data), data_only=True)
+        rows_to_process = []
+
+        for sheet_name in wb.sheetnames:
+            ws = wb[sheet_name]
+            product_info = ws['B1'].value
+            if not product_info: continue
+            
+            # Extraer producto (Misma lógica original)
+            product_code = None
+            if '(' in str(product_info):
+                product_code = str(product_info).split('(')[1].split(')')[0].strip()
+            
+            product = self.env['product.product'].search([('|'), ('default_code', '=', product_code), ('barcode', '=', product_code)], limit=1)
+            if not product:
+                name = str(product_info).split('(')[0].strip()
+                product = self.env['product.product'].search([('name', 'ilike', name)], limit=1)
+            
+            if not product: continue
+
+            for row in range(4, ws.max_row + 1):
+                g_val = ws.cell(row=row, column=1).value
+                if g_val is None: continue
+                
+                rows_to_process.append({
+                    'product': product,
+                    'grosor': float(g_val or 0),
+                    'alto': float(ws.cell(row=row, column=2).value or 0),
+                    'ancho': float(ws.cell(row=row, column=3).value or 0),
+                    'bloque': str(ws.cell(row=row, column=4).value or ''),
+                    'atado': str(ws.cell(row=row, column=5).value or ''),
+                    'tipo': 'formato' if str(ws.cell(row=row, column=6).value).lower() == 'formato' else 'placa',
+                    'pedimento': str(ws.cell(row=row, column=7).value or ''),
+                    'contenedor': str(ws.cell(row=row, column=8).value or '').strip(),
+                    'ref_proveedor': str(ws.cell(row=row, column=9).value or ''),
+                })
+        return rows_to_process

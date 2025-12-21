@@ -8,6 +8,7 @@
             <field name="partner_id" position="after">
                 <field name="has_packing_list" invisible="1"/>
                 <field name="packing_list_imported" invisible="1"/>
+                <field name="spreadsheet_id" invisible="1"/>
                 <field name="packing_list_file" invisible="1"/>
                 <field name="packing_list_filename" invisible="1"/>
                 <field name="worksheet_file" invisible="1"/>
@@ -15,19 +16,21 @@
             </field>
             
             <xpath expr="//header/button[@name='action_assign']" position="after">
-                <!-- Solo visible si es RECEPCIÓN (incoming) y no está validado -->
-                <button name="action_download_packing_template"
-                        string="Descargar Plantilla Packing List"
-                        type="object"
-                        class="btn-secondary"
-                        invisible="state in ('done', 'cancel', 'draft') or picking_type_code != 'incoming' or packing_list_imported"/>
-                
-                <button name="action_import_packing_list"
-                        string="Cargar Packing List"
+                <!-- NUEVO BOTÓN: Llenar nativamente -->
+                <button name="action_open_packing_list_spreadsheet"
+                        string="Llenar Plantilla PL"
                         type="object"
                         class="btn-primary"
-                        invisible="state in ('done', 'cancel', 'draft') or picking_type_code != 'incoming'"/>
+                        invisible="state in ('done', 'cancel', 'draft') or picking_type_code != 'incoming' or packing_list_imported"/>
                 
+                <!-- BOTÓN PARA PROCESAR LO QUE SE LLENÓ EN EL SPREADSHEET -->
+                <button name="action_import_packing_list"
+                        string="Procesar PL"
+                        type="object"
+                        class="btn-secondary"
+                        invisible="state in ('done', 'cancel', 'draft') or picking_type_code != 'incoming' or packing_list_imported or not spreadsheet_id"/>
+
+                <!-- Worksheet se queda igual por archivo -->
                 <button name="action_download_worksheet"
                         string="Descargar Worksheet"
                         type="object"

@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 {
-    'name': 'Importación Masiva de Lotes via Packing List',
-    'version': '19.0.1.0.1',
+    'name': 'Importación Masiva de Lotes via Packing List (Spreadsheet Edition)',
+    'version': '19.0.1.1.0',
     'category': 'Inventory/Inventory',
-    'summary': 'Importación Excel de lotes con numeración automática',
+    'summary': 'Uso de Odoo Spreadsheet para Packing List y Excel para Worksheet',
     'author': 'Alphaqueb Consulting',
     'website': 'https://alphaqueb.com',
-    'depends': ['stock_lot_dimensions'],
+    'depends': ['stock_lot_dimensions', 'spreadsheet_edition'], # Añadida dependencia
     'data': [
         'security/stock_lot_hold_security.xml',
         'security/ir.model.access.csv',
@@ -16,6 +16,5 @@
     ],
     'installable': True,
     'application': True,
-    'auto_install': False,
     'license': 'LGPL-3',
 }
