@@ -15,7 +15,7 @@ class StockPicking(models.Model):
     packing_list_file = fields.Binary(string='Packing List (Archivo)', attachment=True, copy=False)
     packing_list_filename = fields.Char(string='Nombre del archivo', copy=False)
     
-    # Relación con Documents (App nativa que ya tienes instalada)
+    # Relación con Documents (App nativa)
     spreadsheet_id = fields.Many2one('documents.document', string='Spreadsheet de Packing List', copy=False)
     
     has_packing_list = fields.Boolean(string='Tiene Packing List', compute='_compute_has_packing_list', store=True)
@@ -33,6 +33,7 @@ class StockPicking(models.Model):
     def action_open_packing_list_spreadsheet(self):
         """
         Crea o abre una hoja de cálculo nativa de Odoo usando el modelo documents.document
+        Adaptado específicamente para Odoo 19.0 Enterprise.
         """
         self.ensure_one()
         
@@ -44,13 +45,13 @@ class StockPicking(models.Model):
             if not products:
                 raise UserError('No hay productos en esta operación.')
 
-            # Buscamos un documento que actúe como carpeta (Workspace)
-            # En Odoo 19, las carpetas son documents.document con type='folder'
+            # En Odoo 19, las carpetas son documentos con type='folder'
+            # Buscamos una carpeta para organizar el documento
             folder = self.env['documents.document'].search([
                 ('type', '=', 'folder')
             ], limit=1)
 
-            # Estructura de cabeceras
+            # Estructura de cabeceras para el JSON de la hoja
             headers = ['Grosor (cm)', 'Alto (m)', 'Ancho (m)', 'Bloque', 'Atado', 'Tipo', 'Pedimento', 'Contenedor', 'Ref. Proveedor', 'Notas']
             
             cells = {}
@@ -90,11 +91,13 @@ class StockPicking(models.Model):
                 }
             }
 
-            # VALS LIMPIOS: Solo usamos campos que existen 100% en documents.document
-            # Evitamos parent_id o document_type para prevenir KeyErrors
+            # VALORES CORREGIDOS PARA ODOO 19:
+            # - type: debe ser 'file' (no 'spreadsheet')
+            # - handler: 'spreadsheet' indica que debe abrirse con el editor de hojas
+            # - mimetype: 'application/o-spreadsheet' es el estándar de Odoo
             vals = {
                 'name': f'PL: {self.name}.osheet',
-                'type': 'spreadsheet',
+                'type': 'file', 
                 'handler': 'spreadsheet',
                 'mimetype': 'application/o-spreadsheet',
                 'spreadsheet_data': json.dumps(spreadsheet_data),
@@ -102,7 +105,7 @@ class StockPicking(models.Model):
                 'res_id': self.id,
             }
             
-            # folder_id es el campo estándar para Workspaces en Odoo 19 Enterprise
+            # El campo folder_id vincula el documento a su Workspace/Carpeta
             if folder:
                 vals['folder_id'] = folder.id
 
