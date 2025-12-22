@@ -264,7 +264,7 @@ class PackingListImportWizard(models.TransientModel):
           {"type": "REMOTE_REVISION", "version": 1, "commands": [{...}, {...}]}
         - Los UPDATE_CELL reales están en el array 'commands' interno
         """
-        revisions = self.env['spreadsheet.revision'].sudo().search([
+        revisions = self.env['spreadsheet.revision'].sudo().with_context(active_test=False).search([
             ('res_model', '=', 'documents.document'),
             ('res_id', '=', doc.id)
         ], order='id asc')
