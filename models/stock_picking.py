@@ -207,7 +207,16 @@ class StockPicking(models.Model):
     
     def action_import_packing_list(self):
         self.ensure_one()
-        return {'name': 'Importar Packing List', 'type': 'ir.actions.act_window', 'res_model': 'packing.list.import.wizard', 'view_mode': 'form', 'target': 'new', 'context': {'default_picking_id': self.id}}
+        # Cambiamos el nombre dinámicamente si ya fue importado
+        title = 'Aplicar Cambios al PL' if self.packing_list_imported else 'Importar Packing List'
+        return {
+            'name': title, 
+            'type': 'ir.actions.act_window', 
+            'res_model': 'packing.list.import.wizard', 
+            'view_mode': 'form', 
+            'target': 'new', 
+            'context': {'default_picking_id': self.id}
+        }
     
     def action_import_worksheet(self):
         self.ensure_one()

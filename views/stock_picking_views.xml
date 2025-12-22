@@ -16,21 +16,33 @@
             </field>
             
             <xpath expr="//header/button[@name='action_assign']" position="after">
-                <!-- NUEVO BOTÓN: Llenar nativamente -->
+                <!-- CASO 1: No se ha importado (Estado inicial) -->
                 <button name="action_open_packing_list_spreadsheet"
                         string="Llenar Plantilla PL"
                         type="object"
                         class="btn-primary"
                         invisible="state in ('done', 'cancel', 'draft') or picking_type_code != 'incoming' or packing_list_imported"/>
                 
-                <!-- BOTÓN PARA PROCESAR LO QUE SE LLENÓ EN EL SPREADSHEET -->
                 <button name="action_import_packing_list"
                         string="Procesar PL"
                         type="object"
                         class="btn-secondary"
                         invisible="state in ('done', 'cancel', 'draft') or picking_type_code != 'incoming' or packing_list_imported or not spreadsheet_id"/>
 
-                <!-- Worksheet se queda igual por archivo -->
+                <!-- CASO 2: Ya se importó (Para edición/re-ajuste) -->
+                <button name="action_open_packing_list_spreadsheet"
+                        string="Editar PL"
+                        type="object"
+                        class="btn-outline-primary"
+                        invisible="state in ('done', 'cancel', 'draft') or picking_type_code != 'incoming' or not packing_list_imported"/>
+                
+                <button name="action_import_packing_list"
+                        string="Aplicar Cambios al PL"
+                        type="object"
+                        class="btn-warning"
+                        invisible="state in ('done', 'cancel', 'draft') or picking_type_code != 'incoming' or not packing_list_imported or not spreadsheet_id"/>
+
+                <!-- Worksheet botones (se mantienen igual) -->
                 <button name="action_download_worksheet"
                         string="Descargar Worksheet"
                         type="object"
