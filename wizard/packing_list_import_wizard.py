@@ -18,25 +18,21 @@ class PackingListImportWizard(models.TransientModel):
     excel_filename = fields.Char(string='Nombre del archivo')
     
     # ---------------------------------------------------------
-    # LÓGICA DE NUMERACIÓN (SE MANTIENE INTACTA)
+    # LÓGICA DE NUMERACIÓN (Mantenida por estabilidad)
     # ---------------------------------------------------------
     def _get_next_global_prefix(self):
-        self.env['stock.lot'].flush_model()
         self.env.cr.execute("""
             SELECT CAST(SUBSTRING(sl.name FROM '^([0-9]+)-') AS INTEGER) as prefix_num
             FROM stock_lot sl
             INNER JOIN stock_move_line sml ON sml.lot_id = sl.id
             INNER JOIN stock_picking sp ON sp.id = sml.picking_id
-            WHERE sl.name ~ '^[0-9]+-[0-9]+$'
-            AND sp.state = 'done'
-            AND sp.company_id = %s
+            WHERE sl.name ~ '^[0-9]+-[0-9]+$' AND sp.state = 'done' AND sp.company_id = %s
             ORDER BY prefix_num DESC LIMIT 1
         """, (self.picking_id.company_id.id,))
         result = self.env.cr.fetchone()
         return (result[0] + 1) if result and result[0] else 1
     
     def _get_next_lot_number_for_prefix(self, prefix):
-        self.env['stock.lot'].flush_model()
         self.env.cr.execute("""
             SELECT sl.name FROM stock_lot sl
             INNER JOIN stock_move_line sml ON sml.lot_id = sl.id
@@ -54,36 +50,29 @@ class PackingListImportWizard(models.TransientModel):
         return f'{prefix}-{number:02d}' if number < 100 else f'{prefix}-{number}'
 
     # ---------------------------------------------------------
-    # ACCIÓN PRINCIPAL DE IMPORTACIÓN
+    # ACCIÓN DE IMPORTACIÓN (EL MOTOR)
     # ---------------------------------------------------------
     def action_import_excel(self):
         self.ensure_one()
-        _logger.info("INICIANDO IMPORTACIÓN DE LOTES")
+        _logger.info("=== PROCESANDO CARGA DE LOTES ===")
         
-        if self.picking_id.state == 'done':
-             raise UserError('La recepción ya está validada.')
-             
         rows_to_process = []
-        # Prioridad 1: Spreadsheet vinculado
-        if self.picking_id.spreadsheet_id:
-            rows_to_process = self._get_data_from_spreadsheet()
-        # Prioridad 2: Archivo subido manualmente
-        elif self.excel_file:
+        # Si hay un archivo manual, tiene prioridad total
+        if self.excel_file:
             rows_to_process = self._get_data_from_excel_file()
+        # Si no, intentamos leer la hoja de cálculo
+        elif self.picking_id.spreadsheet_id:
+            rows_to_process = self._get_data_from_spreadsheet()
         else:
-            raise UserError('No hay datos. Llene el Spreadsheet o suba un archivo Excel.')
+            raise UserError('No hay datos. Cargue un archivo Excel o llene la plantilla PL.')
 
         if not rows_to_process:
-            raise UserError('No se encontraron datos válidos. Si usó el Spreadsheet, asegúrese de haber llenado las filas y que el archivo esté guardado.')
+            raise UserError('No se detectaron datos en las filas. Si usó la hoja de cálculo, asegúrese de hacer clic fuera de la celda antes de cerrar para que Odoo guarde los cambios.')
 
-        # 1. Limpieza de líneas previas (Para permitir re-importar)
-        lots_to_delete = self.picking_id.move_line_ids.mapped('lot_id')
+        # Limpieza de líneas previas
         self.picking_id.move_line_ids.unlink()
-        for lot in lots_to_delete:
-            if not self.env['stock.move.line'].search_count([('lot_id', '=', lot.id), ('picking_id', '!=', self.picking_id.id)]):
-                lot.unlink()
 
-        # 2. Creación Masiva
+        # Procesamiento
         move_lines_created = 0
         next_global_prefix = self._get_next_global_prefix()
         container_counters = {}
@@ -91,12 +80,7 @@ class PackingListImportWizard(models.TransientModel):
         for data in rows_to_process:
             product = data['product']
             move = self.picking_id.move_ids.filtered(lambda m: m.product_id == product)[:1]
-            if not move:
-                move = self.env['stock.move'].create({
-                    'name': product.name, 'product_id': product.id, 'product_uom_qty': 0,
-                    'product_uom': product.uom_id.id, 'picking_id': self.picking_id.id,
-                    'location_id': self.picking_id.location_id.id, 'location_dest_id': self.picking_id.location_dest_id.id,
-                })
+            if not move: continue
 
             cont = data['contenedor'] or 'SN'
             if cont not in container_counters:
@@ -110,6 +94,7 @@ class PackingListImportWizard(models.TransientModel):
             lot_num = container_counters[cont]['next_num']
             lot_name = self._format_lot_name(prefix, lot_num)
             
+            # Evitar duplicados
             while self.env['stock.lot'].search_count([('name', '=', lot_name), ('product_id', '=', product.id)]):
                 lot_num += 1
                 lot_name = self._format_lot_name(prefix, lot_num)
@@ -121,7 +106,7 @@ class PackingListImportWizard(models.TransientModel):
                 'x_pedimento': data['pedimento'], 'x_contenedor': cont, 'x_referencia_proveedor': data['ref_proveedor'],
             })
             
-            self.env['stock.move.line'].create({
+            self.env['stock.move_line'].create({
                 'move_id': move.id, 'product_id': product.id, 'lot_id': lot.id, 'qty_done': data['alto'] * data['ancho'] or 1.0,
                 'location_id': self.picking_id.location_id.id, 'location_dest_id': self.picking_id.location_dest_id.id,
                 'picking_id': self.picking_id.id,
@@ -130,76 +115,71 @@ class PackingListImportWizard(models.TransientModel):
             move_lines_created += 1
 
         self.picking_id.write({'packing_list_imported': True})
-        _logger.info(f"IMPORTACIÓN EXITOSA: {move_lines_created} lotes creados.")
-        
         return {'type': 'ir.actions.client', 'tag': 'display_notification', 'params': {
-            'title': 'Éxito', 'message': f'Se crearon {move_lines_created} lotes.', 
+            'title': 'Éxito', 'message': f'Importación finalizada: {move_lines_created} lotes creados.',
             'type': 'success', 'next': {'type': 'ir.actions.act_window_close'}
         }}
 
     # ---------------------------------------------------------
-    # EXTRACTOR DE DATOS DESDE SPREADSHEET (MÉTODO ROBUSTO)
+    # LECTOR SPREADSHEET (SOPORTE REVISIONES AGRESIVO)
     # ---------------------------------------------------------
     def _get_data_from_spreadsheet(self):
         doc = self.picking_id.spreadsheet_id
-        if not doc: return []
-
-        # Intentamos obtener el JSON final de Odoo 19
+        # Intentamos obtener la data consolidada
         try:
-            # 1. Intentamos leer el snapshot consolidado (Odoo 19 Enterprise)
-            if hasattr(doc, 'get_spreadsheet_snapshot'):
-                data_json = doc.get_spreadsheet_snapshot()
-            else:
-                # 2. Si no, leemos el campo directo (pero decodificando si es binario)
-                raw = doc.spreadsheet_data
-                if isinstance(raw, bytes): raw = raw.decode('utf-8')
-                data_json = json.loads(raw or '{}')
+            # En Odoo 19, action_open a veces dispara el flush de revisiones
+            raw_data = doc.spreadsheet_data
+            if isinstance(raw_data, bytes): raw_data = raw_data.decode('utf-8')
+            data_json = json.loads(raw_data or '{}')
         except:
-            _logger.error("No se pudo leer el contenido JSON del Spreadsheet.")
-            return []
+            data_json = {}
 
         sheets = data_json.get('sheets', [])
-        if not sheets: return []
-        
-        # Odoo 19 suele guardar las celdas en un diccionario 'cells'
-        cells = sheets[0].get('cells', {})
-        _logger.info(f"DEBUG: Analizando {len(cells)} celdas del Spreadsheet.")
+        cells = sheets[0].get('cells', {}) if sheets else {}
 
-        default_product = self.picking_id.move_ids.mapped('product_id')[:1]
+        # REVISIONES: Buscamos cualquier cambio reciente en los modelos vinculados
+        # Odoo 19 suele usar res_id del documento o el ID interno del recurso
+        revs = self.env['spreadsheet.revision'].sudo().search([
+            '|', ('res_id', '=', doc.id), ('res_id', '=', self.picking_id.id)
+        ], order='id asc')
+
+        _logger.info(f"LOG: Procesando {len(revs)} revisiones encontradas en DB.")
+        for rev in revs:
+            try:
+                for cmd in json.loads(rev.commands):
+                    if cmd.get('type') in ('UPDATE_CELL', 'SET_CELL_CONTENT'):
+                        col, row = cmd.get('col'), cmd.get('row')
+                        val = cmd.get('content') or cmd.get('cell', {}).get('content')
+                        if col is not None and row is not None:
+                            cells[f"{col},{row}"] = {'content': val}
+            except: continue
+
         rows = []
+        default_product = self.picking_id.move_ids.mapped('product_id')[:1]
         col_map = {'A': 0, 'B': 1, 'C': 2, 'D': 3, 'E': 4, 'F': 5, 'G': 6, 'H': 7, 'I': 8}
 
-        # Escaneamos las primeras 500 filas
         for r in range(4, 501):
             row_idx = r - 1
-            
             def gv(col_letter):
                 c_idx = col_map[col_letter]
-                # Probamos todos los formatos de llave que usa Odoo (A1, 0,3 , y anidado)
-                cell = cells.get(f"{c_idx},{row_idx}") or cells.get(f"{col_letter}{r}") or cells.get(f"{row_idx},{c_idx}")
+                # Búsqueda en todos los formatos de llave de Odoo
+                cell = cells.get(f"{c_idx},{row_idx}") or cells.get(f"{col_letter}{r}")
                 if not cell:
                     row_data = cells.get(str(row_idx)) or cells.get(row_idx)
                     if isinstance(row_data, dict):
                         cell = row_data.get(str(c_idx)) or row_data.get(c_idx)
-                
                 if not cell: return None
-                # Tomamos content o value (Odoo 19 usa ambos)
-                return cell.get('content') if cell.get('content') is not None else cell.get('value')
+                return cell.get('content') or cell.get('value')
 
-            grosor, alto, ancho = gv('A'), gv('B'), gv('C')
-
-            # Si no hay medidas, saltamos la fila
-            if grosor is None and alto is None and ancho is None:
-                continue
+            g, a, an = gv('A'), gv('B'), gv('C')
+            if g is None and a is None: continue # Fila vacía
 
             try:
-                def to_f(v):
-                    if v is None or str(v).strip() == '': return 0.0
-                    return float(str(v).replace('=', '').replace(',', '.').strip())
-
                 rows.append({
                     'product': default_product,
-                    'grosor': to_f(grosor), 'alto': to_f(alto), 'ancho': to_f(ancho),
+                    'grosor': float(str(g or 0).replace(',', '.')),
+                    'alto': float(str(a or 0).replace(',', '.')),
+                    'ancho': float(str(an or 0).replace(',', '.')),
                     'bloque': str(gv('D') or '').strip(),
                     'atado': str(gv('E') or '').strip(),
                     'tipo': 'formato' if str(gv('F') or '').lower() == 'formato' else 'placa',
@@ -208,55 +188,39 @@ class PackingListImportWizard(models.TransientModel):
                     'ref_proveedor': str(gv('I') or '').strip(),
                 })
             except: continue
-
         return rows
 
     # ---------------------------------------------------------
-    # EXTRACTOR DE DATOS DESDE ARCHIVO EXCEL (MÉTODO ESTABLE)
+    # LECTOR EXCEL (EL MÉTODO INFALIBLE)
     # ---------------------------------------------------------
     def _get_data_from_excel_file(self):
         try:
             from openpyxl import load_workbook
-        except ImportError:
-            raise UserError('Por favor instale la librería openpyxl.')
-            
-        excel_data = base64.b64decode(self.excel_file)
-        wb = load_workbook(io.BytesIO(excel_data), data_only=True)
-        rows = []
+        except:
+            raise UserError('Instale openpyxl')
         
-        for sheet_name in wb.sheetnames:
-            ws = wb[sheet_name]
-            # Intentar obtener producto desde B1
-            product_info = ws['B1'].value
-            if not product_info: continue
-            
-            # Buscar producto por código entre paréntesis o por nombre
-            product = False
-            if '(' in str(product_info):
-                p_code = str(product_info).split('(')[1].split(')')[0].strip()
-                product = self.env['product.product'].search(['|', ('default_code', '=', p_code), ('barcode', '=', p_code)], limit=1)
-            
-            if not product:
-                p_name = str(product_info).split('(')[0].strip()
-                product = self.env['product.product'].search([('name', 'ilike', p_name)], limit=1)
-            
+        wb = load_workbook(io.BytesIO(base64.b64decode(self.excel_file)), data_only=True)
+        rows = []
+        for sheet in wb.worksheets:
+            p_info = sheet['B1'].value
+            if not p_info: continue
+            # Buscar producto por código en paréntesis o nombre
+            p_code = str(p_info).split('(')[1].split(')')[0].strip() if '(' in str(p_info) else ''
+            product = self.env['product.product'].search(['|', ('default_code', '=', p_code), ('name', '=', str(p_info).split('(')[0].strip())], limit=1)
             if not product: continue
 
-            for r in range(4, ws.max_row + 1):
-                # Validar si la fila tiene datos (Grosor o Alto)
-                if not ws.cell(row=r, column=1).value and not ws.cell(row=r, column=2).value:
-                    continue
-                    
+            for r in range(4, sheet.max_row + 1):
+                if not sheet.cell(r, 1).value and not sheet.cell(r, 2).value: continue
                 rows.append({
                     'product': product,
-                    'grosor': float(ws.cell(row=r, column=1).value or 0),
-                    'alto': float(ws.cell(row=r, column=2).value or 0),
-                    'ancho': float(ws.cell(row=r, column=3).value or 0),
-                    'bloque': str(ws.cell(row=r, column=4).value or ''),
-                    'atado': str(ws.cell(row=r, column=5).value or ''),
-                    'tipo': 'formato' if str(ws.cell(row=r, column=6).value).lower() == 'formato' else 'placa',
-                    'pedimento': str(ws.cell(row=r, column=7).value or ''),
-                    'contenedor': str(ws.cell(row=r, column=8).value or 'SN').strip(),
-                    'ref_proveedor': str(ws.cell(row=r, column=9).value or ''),
+                    'grosor': float(sheet.cell(r, 1).value or 0),
+                    'alto': float(sheet.cell(r, 2).value or 0),
+                    'ancho': float(sheet.cell(r, 3).value or 0),
+                    'bloque': str(sheet.cell(r, 4).value or ''),
+                    'atado': str(sheet.cell(r, 5).value or ''),
+                    'tipo': 'formato' if str(sheet.cell(r, 6).value).lower() == 'formato' else 'placa',
+                    'pedimento': str(sheet.cell(r, 7).value or ''),
+                    'contenedor': str(sheet.cell(r, 8).value or 'SN').strip(),
+                    'ref_proveedor': str(sheet.cell(r, 9).value or ''),
                 })
         return rows
