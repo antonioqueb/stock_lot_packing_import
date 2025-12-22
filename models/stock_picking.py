@@ -30,20 +30,21 @@ class StockPicking(models.Model):
             rec.has_packing_list = bool(rec.packing_list_file or rec.spreadsheet_id)
 
     # -------------------------------------------------------------------------
-    # FUNCIONES DE UTILIDAD (PARA EVITAR ERRORES JS)
+    # FUNCIONES DE UTILIDAD (CRÍTICAS PARA EVITAR ERRORES JS)
     # -------------------------------------------------------------------------
 
     def _format_spreadsheet_val(self, val):
         """
-        Convierte cualquier valor a String y maneja vacíos.
-        Esencial para evitar 'TypeError: cell.content.startsWith is not a function' en el frontend.
+        CORRECCIÓN DEFINITIVA: Odoo Spreadsheet JS requiere que 'content' sea SIEMPRE string.
+        Esta función previene el error 'TypeError: cell.content.startsWith is not a function'.
         """
         if val is None or val is False:
             return ""
+        # Convertimos a string y nos aseguramos de que no sea un objeto vacío
         return str(val)
 
     def _get_col_letter(self, n):
-        """Convierte índice numérico a letra de columna (0=A, 12=M, 13=N)"""
+        """Convierte índice numérico a letra de columna (0=A, 1=B, ..., 12=M, 13=N)"""
         string = ""
         while n >= 0:
             n, remainder = divmod(n, 26)
@@ -84,7 +85,8 @@ class StockPicking(models.Model):
                 cells = {}
                 # Fila 1: Info del producto (Asegurado como String)
                 cells["A1"] = {"content": "PRODUCTO:"}
-                cells["B1"] = {"content": self._format_spreadsheet_val(product.name) + " (" + self._format_spreadsheet_val(product.default_code) + ")"}
+                product_info = self._format_spreadsheet_val(product.name) + " (" + self._format_spreadsheet_val(product.default_code) + ")"
+                cells["B1"] = {"content": product_info}
                 
                 # Fila 3: Cabeceras
                 for i, header in enumerate(headers):
@@ -157,16 +159,17 @@ class StockPicking(models.Model):
             sheets = []
             for product in products:
                 cells = {}
-                # Encabezado de producto
+                # Encabezado de producto (Asegurado como String)
                 cells["A1"] = {"content": "PRODUCTO:"}
-                cells["B1"] = {"content": self._format_spreadsheet_val(product.name) + " (" + self._format_spreadsheet_val(product.default_code) + ")"}
+                product_info = self._format_spreadsheet_val(product.name) + " (" + self._format_spreadsheet_val(product.default_code) + ")"
+                cells["B1"] = {"content": product_info}
                 
                 # Cabeceras con estilo verde (WS)
                 for i, header in enumerate(headers):
                     col_letter = self._get_col_letter(i)
                     cells[f"{col_letter}3"] = {"content": self._format_spreadsheet_val(header), "style": 2}
 
-                # Carga de datos de lotes existentes (IMPORTANTE: Todo formateado como String)
+                # Carga de datos de lotes existentes (IMPORTANTE: str() en cada contenido)
                 move_lines = self.move_line_ids.filtered(lambda ml: ml.product_id == product and ml.lot_id)
                 row_idx = 4
                 for ml in move_lines:
@@ -213,8 +216,10 @@ class StockPicking(models.Model):
                 'spreadsheet_data': json.dumps(spreadsheet_data),
                 'res_model': 'stock.picking',
                 'res_id': self.id,
-                'folder_id': folder.id if folder else False,
             }
+            if folder:
+                vals['folder_id'] = folder.id
+
             self.ws_spreadsheet_id = self.env['documents.document'].create(vals)
 
         return self._action_launch_spreadsheet(self.ws_spreadsheet_id)
@@ -226,7 +231,7 @@ class StockPicking(models.Model):
     def _action_launch_spreadsheet(self, doc):
         """Dispara la apertura del documento en el cliente web"""
         doc_sudo = doc.sudo()
-        # Intentamos abrir mediante los métodos disponibles en Documents (Odoo 17/18/19)
+        # Buscamos el método de apertura compatible con Documents
         for method in ["action_open_spreadsheet", "action_open", "access_content"]:
             if hasattr(doc_sudo, method):
                 try:
@@ -249,7 +254,7 @@ class StockPicking(models.Model):
             from openpyxl import Workbook
             from openpyxl.styles import Font, PatternFill, Border, Side
         except ImportError:
-            raise UserError('La librería openpyxl no está instalada en el servidor.')
+            raise UserError('La librería openpyxl no está instalada.')
             
         wb = Workbook()
         wb.remove(wb.active)
@@ -280,7 +285,7 @@ class StockPicking(models.Model):
         try:
             from openpyxl import Workbook
             from openpyxl.styles import Font, PatternFill, Border, Side
-        except ImportError: raise UserError('La librería openpyxl no está instalada en el servidor.')
+        except ImportError: raise UserError('La librería openpyxl no está instalada.')
         
         wb = Workbook()
         wb.remove(wb.active)
