@@ -30,6 +30,28 @@ class StockPicking(models.Model):
             rec.has_packing_list = bool(rec.packing_list_file or rec.spreadsheet_id)
 
     # -------------------------------------------------------------------------
+    # FUNCIONES DE UTILIDAD (PARA EVITAR ERRORES JS)
+    # -------------------------------------------------------------------------
+
+    def _format_spreadsheet_val(self, val):
+        """
+        Convierte cualquier valor a String y maneja vacíos.
+        Esencial para evitar 'TypeError: cell.content.startsWith is not a function' en el frontend.
+        """
+        if val is None or val is False:
+            return ""
+        return str(val)
+
+    def _get_col_letter(self, n):
+        """Convierte índice numérico a letra de columna (0=A, 12=M, 13=N)"""
+        string = ""
+        while n >= 0:
+            n, remainder = divmod(n, 26)
+            string = chr(65 + remainder) + string
+            n -= 1
+        return string
+
+    # -------------------------------------------------------------------------
     # GESTIÓN DE PACKING LIST (ETAPA 1)
     # -------------------------------------------------------------------------
     
@@ -60,14 +82,14 @@ class StockPicking(models.Model):
             sheets = []
             for index, product in enumerate(products):
                 cells = {}
-                # Fila 1: Info del producto (CORRECCIÓN: str() para evitar error JS)
+                # Fila 1: Info del producto (Asegurado como String)
                 cells["A1"] = {"content": "PRODUCTO:"}
-                cells["B1"] = {"content": str(product.name or '') + " (" + str(product.default_code or '') + ")"}
+                cells["B1"] = {"content": self._format_spreadsheet_val(product.name) + " (" + self._format_spreadsheet_val(product.default_code) + ")"}
                 
                 # Fila 3: Cabeceras
                 for i, header in enumerate(headers):
-                    col_letter = chr(65 + i)
-                    cells[f"{col_letter}3"] = {"content": str(header), "style": 1}
+                    col_letter = self._get_col_letter(i)
+                    cells[f"{col_letter}3"] = {"content": self._format_spreadsheet_val(header), "style": 1}
 
                 # Crear estructura de la pestaña
                 sheet_name = (product.default_code or product.name)[:31]
@@ -135,32 +157,32 @@ class StockPicking(models.Model):
             sheets = []
             for product in products:
                 cells = {}
-                # Encabezado de producto (CORRECCIÓN: str())
+                # Encabezado de producto
                 cells["A1"] = {"content": "PRODUCTO:"}
-                cells["B1"] = {"content": str(product.name or '') + " (" + str(product.default_code or '') + ")"}
+                cells["B1"] = {"content": self._format_spreadsheet_val(product.name) + " (" + self._format_spreadsheet_val(product.default_code) + ")"}
                 
                 # Cabeceras con estilo verde (WS)
                 for i, header in enumerate(headers):
                     col_letter = self._get_col_letter(i)
-                    cells[f"{col_letter}3"] = {"content": str(header), "style": 2}
+                    cells[f"{col_letter}3"] = {"content": self._format_spreadsheet_val(header), "style": 2}
 
-                # Carga de datos de lotes existentes (CORRECCIÓN: str() en todos los valores)
+                # Carga de datos de lotes existentes (IMPORTANTE: Todo formateado como String)
                 move_lines = self.move_line_ids.filtered(lambda ml: ml.product_id == product and ml.lot_id)
                 row_idx = 4
                 for ml in move_lines:
                     lot = ml.lot_id
-                    cells[f"A{row_idx}"] = {"content": str(lot.name or '')}
-                    cells[f"B{row_idx}"] = {"content": str(lot.x_grosor or 0.0)}
-                    cells[f"C{row_idx}"] = {"content": str(lot.x_alto or 0.0)}
-                    cells[f"D{row_idx}"] = {"content": str(lot.x_ancho or 0.0)}
-                    cells[f"E{row_idx}"] = {"content": str(lot.x_color or '')}
-                    cells[f"F{row_idx}"] = {"content": str(lot.x_bloque or '')}
-                    cells[f"G{row_idx}"] = {"content": str(lot.x_atado or '')}
-                    cells[f"H{row_idx}"] = {"content": str(lot.x_tipo or '')}
-                    cells[f"I{row_idx}"] = {"content": str(", ".join(lot.x_grupo.mapped('name')))}
-                    cells[f"J{row_idx}"] = {"content": str(lot.x_pedimento or '')}
-                    cells[f"K{row_idx}"] = {"content": str(lot.x_contenedor or '')}
-                    cells[f"L{row_idx}"] = {"content": str(lot.x_referencia_proveedor or '')}
+                    cells[f"A{row_idx}"] = {"content": self._format_spreadsheet_val(lot.name)}
+                    cells[f"B{row_idx}"] = {"content": self._format_spreadsheet_val(lot.x_grosor)}
+                    cells[f"C{row_idx}"] = {"content": self._format_spreadsheet_val(lot.x_alto)}
+                    cells[f"D{row_idx}"] = {"content": self._format_spreadsheet_val(lot.x_ancho)}
+                    cells[f"E{row_idx}"] = {"content": self._format_spreadsheet_val(lot.x_color)}
+                    cells[f"F{row_idx}"] = {"content": self._format_spreadsheet_val(lot.x_bloque)}
+                    cells[f"G{row_idx}"] = {"content": self._format_spreadsheet_val(lot.x_atado)}
+                    cells[f"H{row_idx}"] = {"content": self._format_spreadsheet_val(lot.x_tipo)}
+                    cells[f"I{row_idx}"] = {"content": self._format_spreadsheet_val(", ".join(lot.x_grupo.mapped('name')))}
+                    cells[f"J{row_idx}"] = {"content": self._format_spreadsheet_val(lot.x_pedimento)}
+                    cells[f"K{row_idx}"] = {"content": self._format_spreadsheet_val(lot.x_contenedor)}
+                    cells[f"L{row_idx}"] = {"content": self._format_spreadsheet_val(lot.x_referencia_proveedor)}
                     row_idx += 1
 
                 sheet_name = (product.default_code or product.name)[:31]
@@ -171,6 +193,7 @@ class StockPicking(models.Model):
                     "colNumber": 14,
                     "rowNumber": max(row_idx + 20, 100),
                     "isProtected": True,
+                    # Solo permitimos edición en las columnas M (índice 12) y N (índice 13)
                     "protectedRanges": [{"range": f"M4:N{row_idx + 100}", "isProtected": False}]
                 })
 
@@ -200,17 +223,16 @@ class StockPicking(models.Model):
     # FUNCIONES DE APOYO Y EXPORTACIÓN EXCEL
     # -------------------------------------------------------------------------
 
-    def _get_col_letter(self, n):
-        """Convierte índice a letra de columna (0=A, 12=M, 13=N)"""
-        return chr(65 + n) if n < 26 else f"A{chr(65 + n - 26)}"
-
     def _action_launch_spreadsheet(self, doc):
         """Dispara la apertura del documento en el cliente web"""
         doc_sudo = doc.sudo()
-        for method in ["action_open_spreadsheet", "action_open"]:
+        # Intentamos abrir mediante los métodos disponibles en Documents (Odoo 17/18/19)
+        for method in ["action_open_spreadsheet", "action_open", "access_content"]:
             if hasattr(doc_sudo, method):
-                action = getattr(doc_sudo, method)()
-                if action: return action
+                try:
+                    action = getattr(doc_sudo, method)()
+                    if action: return action
+                except: continue
         return {
             'type': 'ir.actions.act_window',
             'res_model': 'documents.document',
@@ -227,7 +249,7 @@ class StockPicking(models.Model):
             from openpyxl import Workbook
             from openpyxl.styles import Font, PatternFill, Border, Side
         except ImportError:
-            raise UserError('La librería openpyxl no está instalada.')
+            raise UserError('La librería openpyxl no está instalada en el servidor.')
             
         wb = Workbook()
         wb.remove(wb.active)
@@ -258,7 +280,7 @@ class StockPicking(models.Model):
         try:
             from openpyxl import Workbook
             from openpyxl.styles import Font, PatternFill, Border, Side
-        except ImportError: raise UserError('La librería openpyxl no está instalada.')
+        except ImportError: raise UserError('La librería openpyxl no está instalada en el servidor.')
         
         wb = Workbook()
         wb.remove(wb.active)
