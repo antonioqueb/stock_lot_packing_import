@@ -34,7 +34,6 @@ class _PLCellsIndex:
 
     def _parse_cell_key(self, key):
         """Convierte 'A1', '0,3', etc. a (col, row) base 0"""
-        # Formato A1 (ej: "A4", "B10", "AA1")
         if isinstance(key, str) and key and key[0].isalpha():
             match = re.match(r'^([A-Z]+)(\d+)$', key.upper())
             if match:
@@ -44,7 +43,6 @@ class _PLCellsIndex:
                     col = col * 26 + (ord(char) - ord('A') + 1)
                 return col - 1, int(row_str) - 1
         
-        # Formato "col,row" (ej: "0,3")
         if isinstance(key, str) and ',' in key:
             parts = key.split(',')
             if len(parts) == 2:
@@ -64,25 +62,25 @@ class _PLCellsIndex:
     def apply_revision_commands(self, commands):
         """Aplica comandos de revisión sobre las celdas"""
         if not commands:
-            return
+            return 0
         
+        applied = 0
         for cmd in commands:
             cmd_type = cmd.get('type', '')
-            if cmd_type in ('UPDATE_CELL', 'SET_CELL_CONTENT', 'UPDATE_CELL_CONTENT'):
+            if cmd_type == 'UPDATE_CELL':
                 col = cmd.get('col')
                 row = cmd.get('row')
                 content = cmd.get('content')
-                if content is None:
-                    cell = cmd.get('cell', {})
-                    content = cell.get('content') if isinstance(cell, dict) else None
                 if col is not None and row is not None:
                     self.put(col, row, content)
+                    applied += 1
+        return applied
 
     def value(self, col, row):
         """Obtiene el valor de una celda"""
         return self._cells.get((int(col), int(row)))
 
-    def debug_dump(self, max_rows=20):
+    def debug_dump(self, max_rows=25):
         """Imprime las celdas para debug"""
         for (c, r), v in sorted(self._cells.items()):
             if r < max_rows:
@@ -200,17 +198,11 @@ class PackingListImportWizard(models.TransientModel):
         }
 
     def _get_data_from_spreadsheet(self):
-        """
-        Extrae datos del spreadsheet nativo de Odoo.
-        
-        ARQUITECTURA ODOO 17-19:
-        - Los datos están en attachment_id.datas (Base64 → JSON)
-        - Las ediciones recientes pueden estar en spreadsheet.revision
-        """
+        """Extrae datos del spreadsheet nativo de Odoo 19"""
         doc = self.spreadsheet_id
-        _logger.info(f"[PL_IMPORT] Documento ID: {doc.id}, Attachment ID: {doc.attachment_id.id if doc.attachment_id else 'None'}")
+        _logger.info(f"[PL_IMPORT] Documento ID: {doc.id}")
         
-        # === PASO 1: Obtener JSON base del ATTACHMENT (no de spreadsheet_data) ===
+        # PASO 1: Cargar JSON base desde attachment
         spreadsheet_json = self._load_spreadsheet_json(doc)
         if not spreadsheet_json:
             _logger.warning("[PL_IMPORT] No se pudo cargar el JSON del spreadsheet")
@@ -221,113 +213,97 @@ class PackingListImportWizard(models.TransientModel):
             _logger.warning("[PL_IMPORT] El spreadsheet no tiene hojas")
             return []
         
-        # Usar la primera hoja
         first_sheet = sheets[0]
         cells_data = first_sheet.get('cells', {})
+        _logger.info(f"[PL_IMPORT] Hoja: {first_sheet.get('name')}, Celdas base: {len(cells_data)}")
         
-        _logger.info(f"[PL_IMPORT] Hoja: {first_sheet.get('name')}, Celdas encontradas: {len(cells_data)}")
-        
-        # === PASO 2: Indexar celdas base ===
+        # PASO 2: Indexar celdas base
         idx = _PLCellsIndex()
         idx.ingest_cells(cells_data)
         
-        # === PASO 3: Aplicar revisiones pendientes (si existen) ===
-        self._apply_pending_revisions(doc, idx)
+        # PASO 3: Aplicar TODAS las revisiones
+        self._apply_all_revisions(doc, idx)
         
-        # Debug: mostrar qué hay en el índice
-        _logger.info("[PL_IMPORT] Contenido del índice de celdas:")
-        idx.debug_dump(max_rows=15)
+        # Debug
+        _logger.info("[PL_IMPORT] Contenido final del índice:")
+        idx.debug_dump(max_rows=25)
         
-        # === PASO 4: Extraer filas de datos ===
+        # PASO 4: Extraer filas
         return self._extract_rows_from_index(idx)
 
     def _load_spreadsheet_json(self, doc):
-        """Carga el JSON del spreadsheet desde el attachment"""
-        json_data = None
-        
-        # MÉTODO 1: Desde attachment_id.datas (ubicación correcta en Odoo 17-19)
+        """Carga el JSON del spreadsheet"""
+        # Desde attachment_id.datas
         if doc.attachment_id and doc.attachment_id.datas:
             try:
                 raw_bytes = base64.b64decode(doc.attachment_id.datas)
                 json_data = json.loads(raw_bytes.decode('utf-8'))
-                _logger.info(f"[PL_IMPORT] JSON cargado desde attachment_id.datas ({len(raw_bytes)} bytes)")
+                _logger.info(f"[PL_IMPORT] JSON cargado desde attachment ({len(raw_bytes)} bytes)")
                 return json_data
             except Exception as e:
                 _logger.warning(f"[PL_IMPORT] Error leyendo attachment: {e}")
         
-        # MÉTODO 2: Desde raw (algunos casos de Odoo 18+)
-        if hasattr(doc, 'raw') and doc.raw:
-            try:
-                raw = doc.raw
-                if isinstance(raw, bytes):
-                    raw = raw.decode('utf-8')
-                json_data = json.loads(raw)
-                _logger.info("[PL_IMPORT] JSON cargado desde doc.raw")
-                return json_data
-            except Exception as e:
-                _logger.warning(f"[PL_IMPORT] Error leyendo raw: {e}")
-        
-        # MÉTODO 3: Desde spreadsheet_data (fallback, usualmente solo tiene plantilla inicial)
+        # Fallback: spreadsheet_data
         if doc.spreadsheet_data:
             try:
                 raw = doc.spreadsheet_data
                 if isinstance(raw, bytes):
                     raw = raw.decode('utf-8')
-                json_data = json.loads(raw)
-                _logger.info("[PL_IMPORT] JSON cargado desde spreadsheet_data (puede ser solo plantilla)")
-                return json_data
+                return json.loads(raw)
             except Exception as e:
                 _logger.warning(f"[PL_IMPORT] Error leyendo spreadsheet_data: {e}")
         
-        # MÉTODO 4: Buscar attachment por res_model/res_id
-        attachment = self.env['ir.attachment'].sudo().search([
-            ('res_model', '=', 'documents.document'),
-            ('res_id', '=', doc.id),
-            ('mimetype', '=', 'application/o-spreadsheet')
-        ], limit=1, order='id desc')
-        
-        if attachment and attachment.datas:
-            try:
-                raw_bytes = base64.b64decode(attachment.datas)
-                json_data = json.loads(raw_bytes.decode('utf-8'))
-                _logger.info(f"[PL_IMPORT] JSON cargado desde ir.attachment búsqueda ({attachment.id})")
-                return json_data
-            except Exception as e:
-                _logger.warning(f"[PL_IMPORT] Error leyendo attachment encontrado: {e}")
-        
-        return json_data
+        return None
 
-    def _apply_pending_revisions(self, doc, idx):
-        """Aplica revisiones pendientes sobre el índice de celdas"""
-        # Buscar en spreadsheet.revision con múltiples criterios
-        revision_domains = [
-            [('res_model', '=', 'documents.document'), ('res_id', '=', doc.id)],
-        ]
+    def _apply_all_revisions(self, doc, idx):
+        """
+        Aplica TODAS las revisiones del documento.
         
-        # Si el documento está vinculado a otro modelo, buscar ahí también
-        if doc.res_model and doc.res_id:
-            revision_domains.append([
-                ('res_model', '=', doc.res_model),
-                ('res_id', '=', doc.res_id)
-            ])
+        ESTRUCTURA ODOO 19:
+        - commands es un STRING JSON con formato:
+          {"type": "REMOTE_REVISION", "version": 1, "commands": [{...}, {...}]}
+        - Los UPDATE_CELL reales están en el array 'commands' interno
+        """
+        revisions = self.env['spreadsheet.revision'].sudo().search([
+            ('res_model', '=', 'documents.document'),
+            ('res_id', '=', doc.id)
+        ], order='id asc')
         
-        total_revisions = 0
-        for domain in revision_domains:
-            revisions = self.env['spreadsheet.revision'].sudo().search(domain, order='id asc')
-            _logger.info(f"[PL_IMPORT] Revisiones con dominio {domain}: {len(revisions)}")
-            
-            for rev in revisions:
-                try:
-                    commands = rev.commands
-                    if isinstance(commands, str):
-                        commands = json.loads(commands)
-                    if isinstance(commands, list):
-                        idx.apply_revision_commands(commands)
-                        total_revisions += 1
-                except Exception as e:
-                    _logger.warning(f"[PL_IMPORT] Error procesando revisión {rev.id}: {e}")
+        _logger.info(f"[PL_IMPORT] Total revisiones encontradas: {len(revisions)}")
         
-        _logger.info(f"[PL_IMPORT] Total revisiones aplicadas: {total_revisions}")
+        total_cells_updated = 0
+        
+        for rev in revisions:
+            try:
+                # Parsear el JSON del campo commands
+                raw_commands = rev.commands
+                if not raw_commands:
+                    continue
+                
+                parsed = json.loads(raw_commands) if isinstance(raw_commands, str) else raw_commands
+                revision_type = parsed.get('type', '')
+                
+                _logger.info(f"[PL_IMPORT] Revisión {rev.id}: tipo={revision_type}")
+                
+                # Solo procesar REMOTE_REVISION que contienen comandos de celdas
+                if revision_type == 'REMOTE_REVISION':
+                    # Los comandos reales están en parsed['commands']
+                    actual_commands = parsed.get('commands', [])
+                    if actual_commands and isinstance(actual_commands, list):
+                        applied = idx.apply_revision_commands(actual_commands)
+                        total_cells_updated += applied
+                        _logger.info(f"[PL_IMPORT]   -> Aplicados {applied} UPDATE_CELL")
+                
+                # SNAPSHOT_CREATED indica que los datos se consolidaron
+                # pero en Odoo 19 parece que NO se actualizan en el attachment
+                # así que seguimos procesando todas las revisiones
+                        
+            except json.JSONDecodeError as e:
+                _logger.warning(f"[PL_IMPORT] Error JSON en revisión {rev.id}: {e}")
+            except Exception as e:
+                _logger.warning(f"[PL_IMPORT] Error procesando revisión {rev.id}: {e}")
+        
+        _logger.info(f"[PL_IMPORT] Total celdas actualizadas desde revisiones: {total_cells_updated}")
 
     def _extract_rows_from_index(self, idx):
         """Extrae las filas de datos del índice de celdas"""
@@ -342,24 +318,23 @@ class PackingListImportWizard(models.TransientModel):
         for row_idx in range(3, 103):
             grosor_val = idx.value(0, row_idx)  # Columna A = 0
             
-            # Si no hay grosor, saltamos (fila vacía)
             if not grosor_val:
                 continue
             
-            _logger.info(f"[PL_IMPORT] Fila {row_idx + 1}: Grosor={grosor_val}")
+            _logger.info(f"[PL_IMPORT] Fila {row_idx + 1}: G={grosor_val}, A={idx.value(1, row_idx)}, An={idx.value(2, row_idx)}")
             
             try:
                 row_data = {
                     'product': prod,
                     'grosor': self._to_float(grosor_val),
-                    'alto': self._to_float(idx.value(1, row_idx)),      # B
-                    'ancho': self._to_float(idx.value(2, row_idx)),     # C
-                    'bloque': str(idx.value(3, row_idx) or '').strip(),  # D
-                    'atado': str(idx.value(4, row_idx) or '').strip(),   # E
-                    'tipo': self._parse_tipo(idx.value(5, row_idx)),     # F
-                    'pedimento': str(idx.value(6, row_idx) or '').strip(),  # G
-                    'contenedor': str(idx.value(7, row_idx) or 'SN').strip(),  # H
-                    'ref_proveedor': str(idx.value(8, row_idx) or '').strip(),  # I
+                    'alto': self._to_float(idx.value(1, row_idx)),
+                    'ancho': self._to_float(idx.value(2, row_idx)),
+                    'bloque': str(idx.value(3, row_idx) or '').strip(),
+                    'atado': str(idx.value(4, row_idx) or '').strip(),
+                    'tipo': self._parse_tipo(idx.value(5, row_idx)),
+                    'pedimento': str(idx.value(6, row_idx) or '').strip(),
+                    'contenedor': str(idx.value(7, row_idx) or 'SN').strip(),
+                    'ref_proveedor': str(idx.value(8, row_idx) or '').strip(),
                 }
                 rows.append(row_data)
             except Exception as e:
