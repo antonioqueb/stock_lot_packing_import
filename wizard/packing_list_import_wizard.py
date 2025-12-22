@@ -80,12 +80,6 @@ class _PLCellsIndex:
         """Obtiene el valor de una celda"""
         return self._cells.get((int(col), int(row)))
 
-    def debug_dump(self, max_rows=25):
-        """Imprime las celdas para debug"""
-        for (c, r), v in sorted(self._cells.items()):
-            if r < max_rows:
-                _logger.info(f"  Celda ({c},{r}): {v}")
-
 
 class PackingListImportWizard(models.TransientModel):
     _name = 'packing.list.import.wizard'
@@ -97,24 +91,27 @@ class PackingListImportWizard(models.TransientModel):
     excel_filename = fields.Char(string='Nombre del archivo')
 
     def _get_next_global_prefix(self):
+        """
+        Busca el prefijo más alto en TODA la tabla de lotes de la compañía.
+        Se eliminó el filtro de picking 'done' para evitar duplicados entre recepciones abiertas.
+        """
         self.env.cr.execute("""
-            SELECT CAST(SUBSTRING(sl.name FROM '^([0-9]+)-') AS INTEGER) as prefix_num
-            FROM stock_lot sl
-            INNER JOIN stock_move_line sml ON sml.lot_id = sl.id
-            INNER JOIN stock_picking sp ON sp.id = sml.picking_id
-            WHERE sl.name ~ '^[0-9]+-[0-9]+$' AND sp.state = 'done' AND sp.company_id = %s
+            SELECT CAST(SUBSTRING(name FROM '^([0-9]+)-') AS INTEGER) as prefix_num
+            FROM stock_lot
+            WHERE name ~ '^[0-9]+-[0-9]+$' AND company_id = %s
             ORDER BY prefix_num DESC LIMIT 1
         """, (self.picking_id.company_id.id,))
         res = self.env.cr.fetchone()
         return (res[0] + 1) if res and res[0] else 1
 
     def _get_next_lot_number_for_prefix(self, prefix):
+        """
+        Busca el siguiente número para un prefijo en toda la tabla de lotes.
+        """
         self.env.cr.execute("""
-            SELECT sl.name FROM stock_lot sl
-            INNER JOIN stock_move_line sml ON sml.lot_id = sl.id
-            INNER JOIN stock_picking sp ON sp.id = sml.picking_id
-            WHERE sl.name LIKE %s AND sp.state = 'done' AND sp.company_id = %s
-            ORDER BY CAST(SUBSTRING(sl.name FROM '-([0-9]+)$') AS INTEGER) DESC LIMIT 1
+            SELECT name FROM stock_lot
+            WHERE name LIKE %s AND company_id = %s
+            ORDER BY CAST(SUBSTRING(name FROM '-([0-9]+)$') AS INTEGER) DESC LIMIT 1
         """, (f'{prefix}-%', self.picking_id.company_id.id))
         res = self.env.cr.fetchone()
         return int(res[0].split('-')[1]) + 1 if res else 1
@@ -130,9 +127,11 @@ class PackingListImportWizard(models.TransientModel):
             rows = self._get_data_from_spreadsheet()
         
         if not rows:
-            raise UserError("No se encontraron datos. Verifique que llenó las filas a partir de la fila 4.")
+            raise UserError("No se encontraron datos.")
 
+        # Limpiar líneas previas de esta recepción para permitir re-importación
         self.picking_id.move_line_ids.unlink()
+        
         move_lines_created = 0
         next_prefix = self._get_next_global_prefix()
         containers = {}
@@ -153,7 +152,7 @@ class PackingListImportWizard(models.TransientModel):
 
             l_name = f"{containers[cont]['pre']}-{containers[cont]['num']:02d}"
             
-            # --- LÓGICA PARA GRUPO (Many2many) ---
+            # --- LÓGICA PARA GRUPO ---
             grupo_ids = []
             if data.get('grupo_name'):
                 grupo_name = data['grupo_name'].strip()
@@ -162,7 +161,7 @@ class PackingListImportWizard(models.TransientModel):
                     grupo = self.env['stock.lot.group'].create({'name': grupo_name})
                 grupo_ids = [grupo.id]
 
-            # 1. Crear el Lote
+            # Crear el Lote
             lot = self.env['stock.lot'].create({
                 'name': l_name,
                 'product_id': product.id,
@@ -180,7 +179,7 @@ class PackingListImportWizard(models.TransientModel):
                 'x_referencia_proveedor': data['ref_proveedor'],
             })
             
-            # 2. Crear la línea de movimiento (Llenando campos TEMP para visibilidad inmediata)
+            # Crear la línea de movimiento con campos TEMP para visibilidad
             self.env['stock.move.line'].create({
                 'move_id': move.id,
                 'product_id': product.id,
@@ -189,7 +188,6 @@ class PackingListImportWizard(models.TransientModel):
                 'location_id': self.picking_id.location_id.id,
                 'location_dest_id': self.picking_id.location_dest_id.id,
                 'picking_id': self.picking_id.id,
-                # --- CAMPOS PARA QUE SE VEAN EN LA VISTA DE DETALLE ---
                 'x_grosor_temp': data['grosor'],
                 'x_alto_temp': data['alto'],
                 'x_ancho_temp': data['ancho'],
@@ -219,20 +217,14 @@ class PackingListImportWizard(models.TransientModel):
         }
 
     def _get_data_from_spreadsheet(self):
-        """Extrae datos del spreadsheet nativo de Odoo 19"""
         doc = self.spreadsheet_id
         spreadsheet_json = self._load_spreadsheet_json(doc)
-        if not spreadsheet_json:
+        if not spreadsheet_json or not spreadsheet_json.get('sheets'):
             return []
         
-        sheets = spreadsheet_json.get('sheets', [])
-        if not sheets:
-            return []
-        
-        first_sheet = sheets[0]
-        cells_data = first_sheet.get('cells', {})
+        first_sheet = spreadsheet_json['sheets'][0]
         idx = _PLCellsIndex()
-        idx.ingest_cells(cells_data)
+        idx.ingest_cells(first_sheet.get('cells', {}))
         self._apply_all_revisions(doc, idx)
         
         return self._extract_rows_from_index(idx)
@@ -266,12 +258,10 @@ class PackingListImportWizard(models.TransientModel):
             except: continue
 
     def _extract_rows_from_index(self, idx):
-        """Extrae las filas de datos del índice de celdas"""
         rows = []
         prod = self.picking_id.move_ids.mapped('product_id')[:1]
         if not prod: return []
         
-        # Mapeo según el orden: Grosor(0), Alto(1), Ancho(2), Color(3), Bloque(4), Atado(5), Tipo(6), Grupo(7), Pedimento(8), Contenedor(9), Ref.Prov(10)
         for row_idx in range(3, 103):
             grosor_val = idx.value(0, row_idx)
             if not grosor_val: continue
@@ -304,7 +294,6 @@ class PackingListImportWizard(models.TransientModel):
         return 'formato' if str(val).lower().strip() == 'formato' else 'placa'
 
     def _get_data_from_excel_file(self):
-        """Extrae datos desde archivo Excel manual"""
         from openpyxl import load_workbook
         wb = load_workbook(io.BytesIO(base64.b64decode(self.excel_file)), data_only=True)
         rows = []
