@@ -5,6 +5,7 @@
         <field name="model">stock.picking</field>
         <field name="inherit_id" ref="stock.view_picking_form"/>
         <field name="arch" type="xml">
+            <!-- Inserción de campos de control invisibles para la lógica de los botones -->
             <field name="partner_id" position="after">
                 <field name="has_packing_list" invisible="1"/>
                 <field name="packing_list_imported" invisible="1"/>
@@ -16,44 +17,59 @@
             </field>
             
             <xpath expr="//header/button[@name='action_assign']" position="after">
-                <!-- CASO 1: No se ha importado (Estado inicial) -->
+                
+                <!-- GRUPO 1: GESTIÓN DEL SPREADSHEET (PL / WS UNIFICADO) -->
+                <!-- Botón principal para abrir la hoja de cálculo operativa -->
                 <button name="action_open_packing_list_spreadsheet"
-                        string="Llenar Plantilla PL"
+                        string="Abrir Spreadsheet PL/WS"
                         type="object"
                         class="btn-primary"
-                        invisible="state in ('done', 'cancel', 'draft') or picking_type_code != 'incoming' or packing_list_imported"/>
-                
+                        icon="fa-table"
+                        invisible="state in ('done', 'cancel', 'draft') or picking_type_code != 'incoming'"/>
+
+                <!-- GRUPO 2: PROCESAMIENTO DE PACKING LIST (ETAPA 1) -->
+                <!-- Botón para procesar por primera vez (Crea los lotes) -->
                 <button name="action_import_packing_list"
-                        string="Procesar PL"
+                        string="Procesar Packing List"
                         type="object"
                         class="btn-secondary"
+                        icon="fa-cogs"
                         invisible="state in ('done', 'cancel', 'draft') or picking_type_code != 'incoming' or packing_list_imported or not spreadsheet_id"/>
-
-                <!-- CASO 2: Ya se importó (Para edición/re-ajuste) -->
-                <button name="action_open_packing_list_spreadsheet"
-                        string="Editar PL"
-                        type="object"
-                        class="btn-outline-primary"
-                        invisible="state in ('done', 'cancel', 'draft') or picking_type_code != 'incoming' or not packing_list_imported"/>
                 
+                <!-- Botón para re-procesar si hubo cambios en la lista original -->
                 <button name="action_import_packing_list"
-                        string="Aplicar Cambios al PL"
+                        string="Actualizar Cambios PL"
                         type="object"
                         class="btn-warning"
+                        icon="fa-refresh"
                         invisible="state in ('done', 'cancel', 'draft') or picking_type_code != 'incoming' or not packing_list_imported or not spreadsheet_id"/>
 
-                <!-- Worksheet botones (se mantienen igual) -->
-                <button name="action_download_worksheet"
-                        string="Descargar Worksheet"
+                <!-- GRUPO 3: PROCESAMIENTO DE MEDIDAS REALES / WORKSHEET (ETAPA 2) -->
+                <!-- Este botón procesa las columnas M y N del Spreadsheet (Alto/Ancho Real) -->
+                <button name="action_import_worksheet"
+                        string="Procesar Medidas Reales (WS)"
                         type="object"
                         class="btn-info"
+                        icon="fa-check-square-o"
                         invisible="state in ('done', 'cancel', 'draft') or picking_type_code != 'incoming' or not packing_list_imported"/>
-                
-                <button name="action_import_worksheet"
-                        string="Cargar Worksheet"
+
+                <!-- GRUPO 4: SOPORTE EXTERNO (EXCEL) -->
+                <!-- Descarga de plantilla PL para trabajo fuera de línea -->
+                <button name="action_download_packing_template"
+                        string="Plantilla PL (Excel)"
                         type="object"
-                        class="btn-warning"
+                        class="btn-outline-secondary"
+                        icon="fa-download"
+                        invisible="state in ('done', 'cancel', 'draft') or picking_type_code != 'incoming' or packing_list_imported"/>
+
+                <!-- Descarga de Worksheet para trabajo fuera de línea -->
+                <button name="action_download_worksheet"
+                        string="Exportar WS (Excel)"
+                        type="object"
+                        class="btn-outline-info"
+                        icon="fa-file-excel-o"
                         invisible="state in ('done', 'cancel', 'draft') or picking_type_code != 'incoming' or not packing_list_imported"/>
+
             </xpath>
         </field>
     </record>

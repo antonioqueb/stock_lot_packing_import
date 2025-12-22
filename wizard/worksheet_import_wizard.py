@@ -1,193 +1,225 @@
 # -*- coding: utf-8 -*-
-from odoo import models, fields
+from odoo import models, fields, api, _
 from odoo.exceptions import UserError
 import base64
 import io
+import json
+import logging
+
+_logger = logging.getLogger(__name__)
 
 class WorksheetImportWizard(models.TransientModel):
     _name = 'worksheet.import.wizard'
-    _description = 'Importar Worksheet Excel'
+    _description = 'Importar Worksheet (Spreadsheet o Excel)'
     
     picking_id = fields.Many2one('stock.picking', string='Recepción', required=True, readonly=True)
-    excel_file = fields.Binary(string='Archivo Excel', required=True, attachment=False)
+    spreadsheet_id = fields.Many2one('documents.document', related='picking_id.spreadsheet_id', readonly=True)
+    excel_file = fields.Binary(string='Archivo Excel (Opcional)', attachment=False)
     excel_filename = fields.Char(string='Nombre del archivo')
     
     def action_import_worksheet(self):
         self.ensure_one()
         
-        if not self.excel_file:
-            raise UserError('Debe seleccionar un archivo Excel')
-        
-        # VALIDACIÓN 1: Tipo de operación
+        # VALIDACIONES PREVIAS
         if self.picking_id.picking_type_code != 'incoming':
             raise UserError('Solo se puede importar en recepciones.')
 
-        # VALIDACIÓN 2 (CRÍTICA): Estado de la operación
         if self.picking_id.state == 'done':
-            raise UserError('La recepción ya está validada (Hecho). No se puede procesar el Worksheet porque modificaría lotes que ya están en el inventario histórico.')
-        
-        try:
-            from openpyxl import load_workbook
-        except ImportError:
-            raise UserError('Instale openpyxl: pip install openpyxl --break-system-packages')
-        
-        try:
-            excel_data = base64.b64decode(self.excel_file)
-            wb = load_workbook(io.BytesIO(excel_data))
-        except Exception as e:
-            raise UserError(f'Error al leer el archivo Excel: {str(e)}')
-        
+            raise UserError('La recepción ya está validada. No se puede procesar el Worksheet sobre lotes históricos.')
+
+        if not self.spreadsheet_id and not self.excel_file:
+            raise UserError('No se encontró un Spreadsheet activo ni se subió un archivo Excel.')
+
+        # 1. OBTENER DATOS (De Spreadsheet o Excel)
+        rows_data = []
+        if self.excel_file:
+            rows_data = self._get_data_from_excel()
+        else:
+            rows_data = self._get_data_from_spreadsheet()
+
+        if not rows_data:
+            raise UserError('No se encontraron datos válidos en las columnas de Medidas Reales (Alto/Ancho Real).')
+
+        # 2. PROCESAR Y ACTUALIZAR
         lines_updated = 0
-        errors = []
         total_missing_pieces = 0
         total_missing_m2 = 0
-        
-        container_lots = {}
-        
-        for sheet_name in wb.sheetnames:
-            ws = wb[sheet_name]
-            
-            product_info = ws['B1'].value
-            if not product_info:
-                errors.append(f'Hoja {sheet_name}: Sin info de producto en B1')
+        container_lots = {} # Para la renumeración posterior
+
+        for data in rows_data:
+            product = data['product']
+            # Buscamos el lote basándonos en los datos únicos del Packing List
+            # (Bloque, Atado y Contenedor son los identificadores más fiables antes de renumerar)
+            move_line = self.env['stock.move.line'].search([
+                ('picking_id', '=', self.picking_id.id),
+                ('product_id', '=', product.id),
+                ('lot_id.x_bloque', '=', data['bloque']),
+                ('lot_id.x_atado', '=', data['atado']),
+                ('lot_id.x_contenedor', '=', data['contenedor'])
+            ], limit=1)
+
+            if not move_line or not move_line.lot_id:
+                _logger.warning(f"No se encontró el lote para el producto {product.name} (Bloque: {data['bloque']}, Atado: {data['atado']})")
                 continue
-            
-            product_code = None
-            if '(' in str(product_info) and ')' in str(product_info):
-                code_part = str(product_info).split('(')[1].split(')')[0].strip()
-                if code_part:
-                    product_code = code_part
-            
-            product = False
-            if product_code:
-                product = self.env['product.product'].search([
-                    '|', ('default_code', '=', product_code), ('barcode', '=', product_code)
-                ], limit=1)
-            
-            if not product:
-                product_name = str(product_info).split('(')[0].strip()
-                product = self.env['product.product'].search([('name', '=', product_name)], limit=1)
-                if not product:
-                     product = self.env['product.product'].search([('name', 'ilike', product_name)], limit=1)
-            
-            if not product:
-                errors.append(f'Hoja {sheet_name}: No se encontró el producto')
-                continue
-            
-            lots_data = []
-            
-            for row in range(4, ws.max_row + 1):
-                lot_name_val = ws.cell(row=row, column=1).value
-                if lot_name_val is None:
-                    continue
+
+            lot = move_line.lot_id
+            alto_real = data['alto_real']
+            ancho_real = data['ancho_real']
+
+            # CASO A: Material que NO llegó (Medidas en 0)
+            if alto_real == 0.0 and ancho_real == 0.0:
+                m2_faltante = lot.x_alto * lot.x_ancho
+                total_missing_pieces += 1
+                total_missing_m2 += m2_faltante
                 
-                lot_name = f'{int(lot_name_val):05d}' if isinstance(lot_name_val, (int, float)) else str(lot_name_val).strip()
-                
-                lot = self.env['stock.lot'].search([
-                    ('name', '=', lot_name),
-                    ('product_id', '=', product.id)
-                ], limit=1)
-                
-                if not lot:
-                    continue
-                
-                alto_real_val = ws.cell(row=row, column=12).value
-                ancho_real_val = ws.cell(row=row, column=13).value
-                
-                alto_real = float(alto_real_val) if alto_real_val not in (None, '', 0) else 0.0
-                ancho_real = float(ancho_real_val) if ancho_real_val not in (None, '', 0) else 0.0
-                
-                if alto_real == 0.0 and ancho_real == 0.0:
-                    # Lote NO llegó, marcarlo para eliminación
-                    m2_faltante = lot.x_alto * lot.x_ancho if lot.x_alto and lot.x_ancho else 0
-                    total_missing_pieces += 1
-                    total_missing_m2 += m2_faltante
-                    
-                    move_line = self.env['stock.move.line'].search([
-                        ('picking_id', '=', self.picking_id.id),
-                        ('lot_id', '=', lot.id),
-                        ('product_id', '=', product.id)
-                    ], limit=1)
-                    
-                    if move_line:
-                        move_line.unlink()
-                    
-                    other_moves = self.env['stock.move.line'].search([
-                        ('lot_id', '=', lot.id),
-                        ('picking_id', '!=', self.picking_id.id)
-                    ])
-                    if not other_moves:
-                        lot.unlink()
-                else:
-                    lots_data.append({
-                        'lot': lot,
-                        'alto_real': alto_real,
-                        'ancho_real': ancho_real,
-                        'contenedor': lot.x_contenedor,
-                        'original_name': lot.name
-                    })
+                # Desvincular y eliminar
+                move_line.unlink()
+                # Solo borrar el lote si no se ha usado en otras operaciones (doble seguridad)
+                other_ops = self.env['stock.move.line'].search([('lot_id', '=', lot.id), ('id', '!=', move_line.id)])
+                if not other_ops:
+                    lot.unlink()
             
-            for lot_data in lots_data:
-                contenedor = lot_data['contenedor']
-                if contenedor not in container_lots:
-                    container_lots[contenedor] = []
-                container_lots[contenedor].append(lot_data)
-        
-        # Renumeración
-        for contenedor, lots in container_lots.items():
-            if not lots:
-                continue
-            
-            original_name = lots[0]['original_name']
-            prefix = original_name.split('-')[0] if '-' in original_name else '1'
-            lots.sort(key=lambda x: x['original_name'])
-            
-            for idx, lot_data in enumerate(lots, start=1):
-                lot = lot_data['lot']
-                alto_real = lot_data['alto_real']
-                ancho_real = lot_data['ancho_real']
-                
-                new_name = f'{prefix}-{idx:02d}' if idx < 100 else f'{prefix}-{idx}'
-                
+            # CASO B: Material que llegó (Se actualizan medidas)
+            else:
                 lot.write({
-                    'name': new_name,
                     'x_alto': alto_real,
-                    'x_ancho': ancho_real,
+                    'x_ancho': ancho_real
+                })
+                move_line.write({
+                    'qty_done': alto_real * ancho_real,
+                    'x_alto_temp': alto_real,
+                    'x_ancho_temp': ancho_real,
                 })
                 
-                move_line = self.env['stock.move.line'].search([
-                    ('picking_id', '=', self.picking_id.id),
-                    ('lot_id', '=', lot.id)
-                ], limit=1)
-                
-                if move_line:
-                    qty_done = alto_real * ancho_real if (alto_real and ancho_real) else move_line.qty_done
-                    move_line.write({
-                        'qty_done': qty_done,
-                        'x_alto_temp': alto_real,
-                        'x_ancho_temp': ancho_real,
-                    })
-                
+                # Agrupar por contenedor para renumerar al final
+                cont = lot.x_contenedor or 'SN'
+                if cont not in container_lots:
+                    container_lots[cont] = []
+                container_lots[cont].append(lot)
                 lines_updated += 1
-        
-        if lines_updated == 0 and total_missing_pieces == 0:
-            error_msg = 'No se encontraron cambios.'
-            if errors:
-                error_msg += '\n\nDetalles:\n' + '\n'.join(errors)
-            raise UserError(error_msg)
-        
-        message = f'✓ Se actualizaron {lines_updated} lotes\n'
+
+        # 3. RENUMERACIÓN SECUENCIAL (Tu lógica original mejorada)
+        for cont, lots in container_lots.items():
+            if not lots: continue
+            
+            # Ordenar por el nombre actual para mantener el orden de entrada
+            lots.sort(key=lambda l: l.name)
+            
+            # Extraer el prefijo del primer lote (ej: "1" de "1-01")
+            prefix = lots[0].name.split('-')[0] if '-' in lots[0].name else "1"
+            
+            for idx, lot in enumerate(lots, start=1):
+                new_name = f"{prefix}-{idx:02d}"
+                lot.write({'name': new_name})
+
+        # 4. NOTIFICACIÓN FINAL
+        message = f'✓ Se actualizaron {lines_updated} lotes con medidas reales.'
         if total_missing_pieces > 0:
-            message += f'\n⚠️ MATERIAL FALTANTE:\n• Piezas no arribadas: {total_missing_pieces}\n• Total m²: {total_missing_m2:.2f} m²\n(Lotes eliminados)'
-        
+            message += f'\n⚠️ MATERIAL FALTANTE:\n• Piezas eliminadas: {total_missing_pieces}\n• Total m² reducidos: {total_missing_m2:.2f} m²'
+
         return {
             'type': 'ir.actions.client',
             'tag': 'display_notification',
             'params': {
-                'title': 'Proceso Completado',
+                'title': 'Worksheet Procesado Correctamente',
                 'message': message,
                 'type': 'warning' if total_missing_pieces > 0 else 'success',
                 'sticky': True if total_missing_pieces > 0 else False,
                 'next': {'type': 'ir.actions.act_window_close'},
             }
         }
+
+    def _get_data_from_spreadsheet(self):
+        """Lee el Spreadsheet nativo detectando cambios manuales"""
+        # Reutilizamos la lógica del Wizard de PL para ser consistentes
+        pl_wizard = self.env['packing.list.import.wizard'].create({'picking_id': self.picking_id.id})
+        doc = self.spreadsheet_id
+        
+        # Carga del JSON y las revisiones (cambios sin guardar en el binario)
+        data = pl_wizard._load_spreadsheet_json(doc)
+        revisions = self.env['spreadsheet.revision'].sudo().with_context(active_test=False).search([
+            ('res_model', '=', 'documents.document'), ('res_id', '=', doc.id)
+        ], order='id asc')
+
+        # Usamos el ayudante de indexación de celdas (debe estar en el archivo de PL o importado)
+        from .packing_list_import_wizard import _PLCellsIndex
+        
+        all_rows = []
+        for sheet in data.get('sheets', []):
+            idx = _PLCellsIndex()
+            idx.ingest_cells(sheet.get('cells', {}))
+            
+            # Aplicamos revisiones del usuario
+            for rev in revisions:
+                try:
+                    cmds = json.loads(rev.commands) if isinstance(rev.commands, str) else rev.commands
+                    if isinstance(cmds, dict) and cmds.get('type') == 'REMOTE_REVISION':
+                        idx.apply_revision_commands(cmds.get('commands', []), sheet.get('id'))
+                except: continue
+            
+            product = pl_wizard._identify_product_from_sheet(idx)
+            if not product: continue
+
+            # Columnas Worksheet: M=12 (Alto Real), N=13 (Ancho Real)
+            # También necesitamos: E=4 (Bloque), F=5 (Atado), J=9 (Contenedor) para identificar el lote
+            for r in range(3, 250): # Procesar hasta 250 filas
+                alto_r = self._to_float(idx.value(12, r))
+                ancho_r = self._to_float(idx.value(13, r))
+                
+                # Solo procesamos si hay alguna medida real escrita o si queremos marcar como faltante
+                # Para evitar procesar filas vacías, validamos que haya un bloque
+                bloque = str(idx.value(4, r) or '').strip()
+                if not bloque: continue
+
+                all_rows.append({
+                    'product': product,
+                    'alto_real': alto_r,
+                    'ancho_real': ancho_r,
+                    'bloque': bloque,
+                    'atado': str(idx.value(5, r) or '').strip(),
+                    'contenedor': str(idx.value(9, r) or 'SN').strip(),
+                })
+        return all_rows
+
+    def _get_data_from_excel(self):
+        """Lógica para leer el archivo Excel subido manualmente"""
+        try:
+            from openpyxl import load_workbook
+        except ImportError:
+            raise UserError('Instale openpyxl')
+            
+        wb = load_workbook(io.BytesIO(base64.b64decode(self.excel_file)), data_only=True)
+        all_rows = []
+        
+        for sheet in wb.worksheets:
+            p_info = sheet['B1'].value
+            if not p_info: continue
+            
+            # Identificación de producto (Buscando código entre paréntesis)
+            p_code = str(p_info).split('(')[1].split(')')[0].strip() if '(' in str(p_info) else ''
+            product = self.env['product.product'].search([
+                '|', ('default_code', '=', p_code), ('name', '=', str(p_info).split('(')[0].strip())
+            ], limit=1)
+            
+            if not product: continue
+
+            # En el Excel de Worksheet: 
+            # Col 5: Bloque, Col 6: Atado, Col 11: Contenedor, Col 14: Alto Real, Col 15: Ancho Real
+            for r in range(4, sheet.max_row + 1):
+                bloque = str(sheet.cell(r, 6).value or '').strip() # Basado en tu Excel anterior
+                if not bloque: continue
+                
+                all_rows.append({
+                    'product': product,
+                    'bloque': bloque,
+                    'atado': str(sheet.cell(r, 7).value or '').strip(),
+                    'contenedor': str(sheet.cell(r, 11).value or 'SN').strip(),
+                    'alto_real': self._to_float(sheet.cell(r, 14).value),
+                    'ancho_real': self._to_float(sheet.cell(r, 15).value),
+                })
+        return all_rows
+
+    def _to_float(self, val):
+        if val is None or val == '': return 0.0
+        try: return float(str(val).replace(',', '.'))
+        except: return 0.0

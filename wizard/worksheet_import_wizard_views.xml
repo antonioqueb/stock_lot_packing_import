@@ -6,26 +6,26 @@
         <field name="arch" type="xml">
             <form>
                 <sheet>
+                    <field name="spreadsheet_id" invisible="1"/>
                     <group>
                         <field name="picking_id" readonly="1"/>
                         <field name="excel_filename" invisible="1"/>
-                        <field name="excel_file" filename="excel_filename"/>
+                        <field name="excel_file" filename="excel_filename" 
+                               invisible="spreadsheet_id != False"/>
                     </group>
-                    <group>
-                        <div class="alert alert-info" role="alert">
-                            <p><strong>Instrucciones para Worksheet:</strong></p>
-                            <ul>
-                                <li>Este archivo contiene los lotes ya creados desde el Packing List</li>
-                                <li>Las cantidades y lotes NO se modificarán</li>
-                                <li>Complete ÚNICAMENTE las columnas "Alto Real (m)" y "Ancho Real (m)"</li>
-                                <li>Si no coloca medidas, se mantendrán las del Packing List original</li>
-                                <li>Si coloca medidas nuevas, se actualizarán en los lotes existentes</li>
-                            </ul>
-                        </div>
-                    </group>
+                    
+                    <div class="alert alert-success" role="alert" invisible="spreadsheet_id == False">
+                        <p><strong><i class="fa fa-table"></i> Spreadsheet Detectado:</strong></p>
+                        <p>El sistema leerá las columnas <strong>"ALTO REAL (m)"</strong> y <strong>"ANCHO REAL (m)"</strong> directamente de tu hoja de cálculo activa.</p>
+                        <p>Asegúrate de haber guardado los cambios en el Spreadsheet antes de procesar.</p>
+                    </div>
+
+                    <div class="alert alert-info" role="alert" invisible="spreadsheet_id != False">
+                        <p>Sube el archivo Excel con las medidas reales si no estás usando la hoja de cálculo de Odoo.</p>
+                    </div>
                 </sheet>
                 <footer>
-                    <button string="Importar Worksheet" name="action_import_worksheet" type="object" class="btn-primary"/>
+                    <button string="Actualizar Medidas Reales" name="action_import_worksheet" type="object" class="btn-primary"/>
                     <button string="Cancelar" class="btn-secondary" special="cancel"/>
                 </footer>
             </form>
