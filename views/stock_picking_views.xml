@@ -10,6 +10,7 @@
                 <field name="has_packing_list" invisible="1"/>
                 <field name="packing_list_imported" invisible="1"/>
                 <field name="spreadsheet_id" invisible="1"/>
+                <field name="ws_spreadsheet_id" invisible="1"/>
                 <field name="packing_list_file" invisible="1"/>
                 <field name="packing_list_filename" invisible="1"/>
                 <field name="worksheet_file" invisible="1"/>
@@ -18,51 +19,67 @@
             
             <xpath expr="//header/button[@name='action_assign']" position="after">
                 
-                <!-- GRUPO 1: GESTIÓN DEL SPREADSHEET (PL / WS UNIFICADO) -->
-                <!-- Botón principal para abrir la hoja de cálculo operativa -->
+                <!-- ====================================================== -->
+                <!-- ETAPA 1: PACKING LIST (CREACIÓN DE LOTES)              -->
+                <!-- ====================================================== -->
+                
+                <!-- Abrir PL antes de importar (Botón Principal) -->
                 <button name="action_open_packing_list_spreadsheet"
-                        string="Abrir Spreadsheet PL/WS"
+                        string="Abrir Spreadsheet PL"
                         type="object"
                         class="btn-primary"
                         icon="fa-table"
-                        invisible="state in ('done', 'cancel', 'draft') or picking_type_code != 'incoming'"/>
+                        invisible="state in ('done', 'cancel', 'draft') or picking_type_code != 'incoming' or packing_list_imported"/>
 
-                <!-- GRUPO 2: PROCESAMIENTO DE PACKING LIST (ETAPA 1) -->
-                <!-- Botón para procesar por primera vez (Crea los lotes) -->
+                <!-- Procesar PL para crear los lotes -->
                 <button name="action_import_packing_list"
                         string="Procesar Packing List"
                         type="object"
                         class="btn-secondary"
                         icon="fa-cogs"
                         invisible="state in ('done', 'cancel', 'draft') or picking_type_code != 'incoming' or packing_list_imported or not spreadsheet_id"/>
-                
-                <!-- Botón para re-procesar si hubo cambios en la lista original -->
-                <button name="action_import_packing_list"
-                        string="Actualizar Cambios PL"
+
+                <!-- Corregir PL después de importar (Botón de advertencia/reajuste) -->
+                <button name="action_open_packing_list_spreadsheet"
+                        string="Corregir Datos PL"
                         type="object"
                         class="btn-warning"
-                        icon="fa-refresh"
-                        invisible="state in ('done', 'cancel', 'draft') or picking_type_code != 'incoming' or not packing_list_imported or not spreadsheet_id"/>
+                        icon="fa-edit"
+                        invisible="state in ('done', 'cancel', 'draft') or picking_type_code != 'incoming' or not packing_list_imported"/>
 
-                <!-- GRUPO 3: PROCESAMIENTO DE MEDIDAS REALES / WORKSHEET (ETAPA 2) -->
-                <!-- Este botón procesa las columnas M y N del Spreadsheet (Alto/Ancho Real) -->
+
+                <!-- ====================================================== -->
+                <!-- ETAPA 2: WORKSHEET (MEDIDAS REALES)                    -->
+                <!-- ====================================================== -->
+                
+                <!-- Abrir Worksheet independiente (Solo tras importar PL) -->
+                <button name="action_open_worksheet_spreadsheet"
+                        string="Abrir Spreadsheet WS (Medidas Reales)"
+                        type="object"
+                        class="btn-info"
+                        icon="fa-balance-scale"
+                        invisible="state in ('done', 'cancel', 'draft') or picking_type_code != 'incoming' or not packing_list_imported"/>
+
+                <!-- Procesar el Worksheet para actualizar dimensiones de lotes -->
                 <button name="action_import_worksheet"
                         string="Procesar Medidas Reales (WS)"
                         type="object"
-                        class="btn-info"
+                        class="btn-success"
                         icon="fa-check-square-o"
-                        invisible="state in ('done', 'cancel', 'draft') or picking_type_code != 'incoming' or not packing_list_imported"/>
+                        invisible="state in ('done', 'cancel', 'draft') or picking_type_code != 'incoming' or not packing_list_imported or not ws_spreadsheet_id"/>
 
-                <!-- GRUPO 4: SOPORTE EXTERNO (EXCEL) -->
-                <!-- Descarga de plantilla PL para trabajo fuera de línea -->
+
+                <!-- ====================================================== -->
+                <!-- SOPORTE EXTERNO (EXCEL)                                -->
+                <!-- ====================================================== -->
+                
                 <button name="action_download_packing_template"
-                        string="Plantilla PL (Excel)"
+                        string="Descargar Plantilla PL (Excel)"
                         type="object"
                         class="btn-outline-secondary"
                         icon="fa-download"
                         invisible="state in ('done', 'cancel', 'draft') or picking_type_code != 'incoming' or packing_list_imported"/>
 
-                <!-- Descarga de Worksheet para trabajo fuera de línea -->
                 <button name="action_download_worksheet"
                         string="Exportar WS (Excel)"
                         type="object"
