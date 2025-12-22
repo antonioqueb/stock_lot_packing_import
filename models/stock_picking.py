@@ -26,25 +26,25 @@ class StockPicking(models.Model):
     @api.depends('packing_list_file', 'spreadsheet_id')
     def _compute_has_packing_list(self):
         for rec in self:
-            # Se considera que tiene PL si hay un archivo subido o si ya se generó el Spreadsheet
+            # Se considera que tiene PL si hay un archivo o un spreadsheet generado
             rec.has_packing_list = bool(rec.packing_list_file or rec.spreadsheet_id)
 
     # -------------------------------------------------------------------------
-    # FUNCIONES DE UTILIDAD (CRÍTICAS PARA EVITAR ERRORES JS)
+    # FUNCIONES DE SEGURIDAD PARA SPREADSHEET (EVITA ERROR STARTSWITH)
     # -------------------------------------------------------------------------
 
-    def _format_spreadsheet_val(self, val):
-        """
-        CORRECCIÓN DEFINITIVA: Odoo Spreadsheet JS requiere que 'content' sea SIEMPRE string.
-        Esta función previene el error 'TypeError: cell.content.startsWith is not a function'.
+    def _format_cell_val(self, val):
+        """ 
+        Garantiza que el valor sea SIEMPRE un string.
+        Si es None o False, devuelve cadena vacía.
+        Esto previene el error JS: cell.content.startsWith is not a function.
         """
         if val is None or val is False:
             return ""
-        # Convertimos a string y nos aseguramos de que no sea un objeto vacío
         return str(val)
 
     def _get_col_letter(self, n):
-        """Convierte índice numérico a letra de columna (0=A, 1=B, ..., 12=M, 13=N)"""
+        """ Convierte índice (0, 1, 2...) a letra (A, B, C...) """
         string = ""
         while n >= 0:
             n, remainder = divmod(n, 26)
@@ -57,10 +57,7 @@ class StockPicking(models.Model):
     # -------------------------------------------------------------------------
     
     def action_open_packing_list_spreadsheet(self):
-        """
-        Crea o abre el Spreadsheet para el Packing List inicial.
-        Permite editar las 12 columnas base para la creación de lotes.
-        """
+        """ Crea o abre el Spreadsheet para el Packing List inicial. """
         self.ensure_one()
         
         if self.picking_type_code != 'incoming':
@@ -71,10 +68,7 @@ class StockPicking(models.Model):
             if not products:
                 raise UserError('No hay productos cargados en esta operación.')
 
-            # Carpeta raíz de documentos
             folder = self.env['documents.document'].search([('type', '=', 'folder')], limit=1)
-
-            # Cabeceras estándar de PL (12 columnas)
             headers = [
                 'Grosor (cm)', 'Alto (m)', 'Ancho (m)', 'Color', 'Bloque', 'Atado', 
                 'Tipo', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Proveedor', 'Notas'
@@ -83,17 +77,20 @@ class StockPicking(models.Model):
             sheets = []
             for index, product in enumerate(products):
                 cells = {}
-                # Fila 1: Info del producto (Asegurado como String)
+                # Identificación de producto
                 cells["A1"] = {"content": "PRODUCTO:"}
-                product_info = self._format_spreadsheet_val(product.name) + " (" + self._format_spreadsheet_val(product.default_code) + ")"
-                cells["B1"] = {"content": product_info}
+                p_name = self._format_cell_val(product.name)
+                p_code = self._format_cell_val(product.default_code)
+                cells["B1"] = {"content": f"{p_name} ({p_code})"}
                 
-                # Fila 3: Cabeceras
+                # Cabeceras
                 for i, header in enumerate(headers):
                     col_letter = self._get_col_letter(i)
-                    cells[f"{col_letter}3"] = {"content": self._format_spreadsheet_val(header), "style": 1}
+                    cells[f"{col_letter}3"] = {
+                        "content": self._format_cell_val(header), 
+                        "style": 1
+                    }
 
-                # Crear estructura de la pestaña
                 sheet_name = (product.default_code or product.name)[:31]
                 if any(s['name'] == sheet_name for s in sheets):
                     sheet_name = f"{sheet_name[:25]}_{product.id}"
@@ -137,10 +134,7 @@ class StockPicking(models.Model):
     # -------------------------------------------------------------------------
 
     def action_open_worksheet_spreadsheet(self):
-        """
-        Crea un Spreadsheet independiente para el Worksheet.
-        Pre-carga los lotes importados del PL, los bloquea, y abre las columnas M y N.
-        """
+        """ Crea un Spreadsheet independiente para el Worksheet con datos bloqueados. """
         self.ensure_one()
         if not self.packing_list_imported:
             raise UserError('Debe procesar primero el Packing List para generar el Worksheet.')
@@ -149,7 +143,6 @@ class StockPicking(models.Model):
             products = self.move_line_ids.mapped('product_id')
             folder = self.env['documents.document'].search([('type', '=', 'folder')], limit=1)
 
-            # 14 columnas: 12 informativas de PL (Bloqueadas) + 2 de ingreso real (Editables)
             headers = [
                 'Nº Lote', 'Grosor', 'Alto Teo.', 'Ancho Teo.', 'Color', 'Bloque', 
                 'Atado', 'Tipo', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Prov.', 
@@ -159,33 +152,36 @@ class StockPicking(models.Model):
             sheets = []
             for product in products:
                 cells = {}
-                # Encabezado de producto (Asegurado como String)
                 cells["A1"] = {"content": "PRODUCTO:"}
-                product_info = self._format_spreadsheet_val(product.name) + " (" + self._format_spreadsheet_val(product.default_code) + ")"
-                cells["B1"] = {"content": product_info}
+                p_name = self._format_cell_val(product.name)
+                p_code = self._format_cell_val(product.default_code)
+                cells["B1"] = {"content": f"{p_name} ({p_code})"}
                 
-                # Cabeceras con estilo verde (WS)
+                # Cabeceras con estilo verde
                 for i, header in enumerate(headers):
                     col_letter = self._get_col_letter(i)
-                    cells[f"{col_letter}3"] = {"content": self._format_spreadsheet_val(header), "style": 2}
+                    cells[f"{col_letter}3"] = {
+                        "content": self._format_cell_val(header), 
+                        "style": 2
+                    }
 
-                # Carga de datos de lotes existentes (IMPORTANTE: str() en cada contenido)
+                # Carga de datos de lotes
                 move_lines = self.move_line_ids.filtered(lambda ml: ml.product_id == product and ml.lot_id)
                 row_idx = 4
                 for ml in move_lines:
                     lot = ml.lot_id
-                    cells[f"A{row_idx}"] = {"content": self._format_spreadsheet_val(lot.name)}
-                    cells[f"B{row_idx}"] = {"content": self._format_spreadsheet_val(lot.x_grosor)}
-                    cells[f"C{row_idx}"] = {"content": self._format_spreadsheet_val(lot.x_alto)}
-                    cells[f"D{row_idx}"] = {"content": self._format_spreadsheet_val(lot.x_ancho)}
-                    cells[f"E{row_idx}"] = {"content": self._format_spreadsheet_val(lot.x_color)}
-                    cells[f"F{row_idx}"] = {"content": self._format_spreadsheet_val(lot.x_bloque)}
-                    cells[f"G{row_idx}"] = {"content": self._format_spreadsheet_val(lot.x_atado)}
-                    cells[f"H{row_idx}"] = {"content": self._format_spreadsheet_val(lot.x_tipo)}
-                    cells[f"I{row_idx}"] = {"content": self._format_spreadsheet_val(", ".join(lot.x_grupo.mapped('name')))}
-                    cells[f"J{row_idx}"] = {"content": self._format_spreadsheet_val(lot.x_pedimento)}
-                    cells[f"K{row_idx}"] = {"content": self._format_spreadsheet_val(lot.x_contenedor)}
-                    cells[f"L{row_idx}"] = {"content": self._format_spreadsheet_val(lot.x_referencia_proveedor)}
+                    cells[f"A{row_idx}"] = {"content": self._format_cell_val(lot.name)}
+                    cells[f"B{row_idx}"] = {"content": self._format_cell_val(lot.x_grosor)}
+                    cells[f"C{row_idx}"] = {"content": self._format_cell_val(lot.x_alto)}
+                    cells[f"D{row_idx}"] = {"content": self._format_cell_val(lot.x_ancho)}
+                    cells[f"E{row_idx}"] = {"content": self._format_cell_val(lot.x_color)}
+                    cells[f"F{row_idx}"] = {"content": self._format_cell_val(lot.x_bloque)}
+                    cells[f"G{row_idx}"] = {"content": self._format_cell_val(lot.x_atado)}
+                    cells[f"H{row_idx}"] = {"content": self._format_cell_val(lot.x_tipo)}
+                    cells[f"I{row_idx}"] = {"content": self._format_cell_val(", ".join(lot.x_grupo.mapped('name')))}
+                    cells[f"J{row_idx}"] = {"content": self._format_cell_val(lot.x_pedimento)}
+                    cells[f"K{row_idx}"] = {"content": self._format_cell_val(lot.x_contenedor)}
+                    cells[f"L{row_idx}"] = {"content": self._format_cell_val(lot.x_referencia_proveedor)}
                     row_idx += 1
 
                 sheet_name = (product.default_code or product.name)[:31]
@@ -196,7 +192,6 @@ class StockPicking(models.Model):
                     "colNumber": 14,
                     "rowNumber": max(row_idx + 20, 100),
                     "isProtected": True,
-                    # Solo permitimos edición en las columnas M (índice 12) y N (índice 13)
                     "protectedRanges": [{"range": f"M4:N{row_idx + 100}", "isProtected": False}]
                 })
 
@@ -229,9 +224,9 @@ class StockPicking(models.Model):
     # -------------------------------------------------------------------------
 
     def _action_launch_spreadsheet(self, doc):
-        """Dispara la apertura del documento en el cliente web"""
+        """ Dispara la apertura del documento. """
         doc_sudo = doc.sudo()
-        # Buscamos el método de apertura compatible con Documents
+        # Intentamos abrir mediante los métodos disponibles en Documents para Odoo 19
         for method in ["action_open_spreadsheet", "action_open", "access_content"]:
             if hasattr(doc_sudo, method):
                 try:
@@ -248,22 +243,20 @@ class StockPicking(models.Model):
         }
 
     def action_download_packing_template(self):
-        """Genera y descarga el archivo Excel para el Packing List (Etapa 1)"""
+        """ Descarga Excel para el Packing List. """
         self.ensure_one()
         try:
             from openpyxl import Workbook
             from openpyxl.styles import Font, PatternFill, Border, Side
         except ImportError:
-            raise UserError('La librería openpyxl no está instalada.')
+            raise UserError('Instale openpyxl')
             
-        wb = Workbook()
-        wb.remove(wb.active)
-        products = self.move_ids.mapped('product_id')
+        wb = Workbook(); wb.remove(wb.active)
         header_fill = PatternFill(start_color='366092', end_color='366092', fill_type='solid')
         header_font = Font(color='FFFFFF', bold=True)
         border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
         
-        for product in products:
+        for product in self.move_ids.mapped('product_id'):
             ws = wb.create_sheet(title=(product.default_code or product.name)[:31])
             ws['A1'] = 'PRODUCTO:'; ws['B1'] = f'{product.name} ({product.default_code or ""})'
             headers = ['Grosor (cm)', 'Alto (m)', 'Ancho (m)', 'Color', 'Bloque', 'Atado', 'Tipo', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Proveedor', 'Notas']
@@ -272,23 +265,21 @@ class StockPicking(models.Model):
             for row in range(4, 54):
                 for col in range(1, 13): ws.cell(row=row, column=col).border = border
                 
-        output = io.BytesIO()
-        wb.save(output)
+        output = io.BytesIO(); wb.save(output)
         filename = f'Plantilla_PL_{self.name}.xlsx'
         self.write({'packing_list_file': base64.b64encode(output.getvalue()), 'packing_list_filename': filename})
         return {'type': 'ir.actions.act_url', 'url': f'/web/content?model=stock.picking&id={self.id}&field=packing_list_file&filename={filename}&download=true', 'target': 'self'}
 
     def action_download_worksheet(self):
-        """Genera y descarga el archivo Excel para el Worksheet (Etapa 2) con datos de lotes"""
+        """ Descarga Excel para el Worksheet. """
         self.ensure_one()
-        if not self.packing_list_imported: raise UserError('Debe importar primero el Packing List.')
+        if not self.packing_list_imported: raise UserError('Importe primero el Packing List.')
         try:
             from openpyxl import Workbook
             from openpyxl.styles import Font, PatternFill, Border, Side
-        except ImportError: raise UserError('La librería openpyxl no está instalada.')
+        except ImportError: raise UserError('Instale openpyxl')
         
-        wb = Workbook()
-        wb.remove(wb.active)
+        wb = Workbook(); wb.remove(wb.active)
         header_fill = PatternFill(start_color='1f5b13', end_color='1f5b13', fill_type='solid')
         header_font = Font(color='FFFFFF', bold=True)
         data_fill = PatternFill(start_color='E7E6E6', end_color='E7E6E6', fill_type='solid')
@@ -314,8 +305,7 @@ class StockPicking(models.Model):
                 ws.cell(row=curr, column=15).fill = editable_fill; ws.cell(row=curr, column=15).border = border
                 curr += 1
                 
-        output = io.BytesIO()
-        wb.save(output)
+        output = io.BytesIO(); wb.save(output)
         filename = f'Worksheet_{self.name}.xlsx'
         self.write({'worksheet_file': base64.b64encode(output.getvalue()), 'worksheet_filename': filename})
         return {'type': 'ir.actions.act_url', 'url': f'/web/content?model=stock.picking&id={self.id}&field=worksheet_file&filename={filename}&download=true', 'target': 'self'}
@@ -325,7 +315,6 @@ class StockPicking(models.Model):
     # -------------------------------------------------------------------------
 
     def action_import_packing_list(self):
-        """Dispara el Wizard de procesamiento de PL"""
         self.ensure_one()
         title = 'Aplicar Cambios al PL' if self.packing_list_imported else 'Importar Packing List'
         return {
@@ -338,7 +327,6 @@ class StockPicking(models.Model):
         }
     
     def action_import_worksheet(self):
-        """Dispara el Wizard de procesamiento de WS"""
         self.ensure_one()
         return {
             'name': 'Procesar Worksheet (Medidas Reales)', 
