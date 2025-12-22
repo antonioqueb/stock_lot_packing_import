@@ -17,6 +17,9 @@ class PackingListImportWizard(models.TransientModel):
     excel_file = fields.Binary(string='Archivo Excel', required=False, attachment=False)
     excel_filename = fields.Char(string='Nombre del archivo')
     
+    # ---------------------------------------------------------
+    # LÓGICA DE NUMERACIÓN (SE MANTIENE INTACTA)
+    # ---------------------------------------------------------
     def _get_next_global_prefix(self):
         self.env['stock.lot'].flush_model()
         self.env.cr.execute("""
@@ -27,8 +30,7 @@ class PackingListImportWizard(models.TransientModel):
             WHERE sl.name ~ '^[0-9]+-[0-9]+$'
             AND sp.state = 'done'
             AND sp.company_id = %s
-            ORDER BY prefix_num DESC
-            LIMIT 1
+            ORDER BY prefix_num DESC LIMIT 1
         """, (self.picking_id.company_id.id,))
         result = self.env.cr.fetchone()
         return (result[0] + 1) if result and result[0] else 1
@@ -36,15 +38,11 @@ class PackingListImportWizard(models.TransientModel):
     def _get_next_lot_number_for_prefix(self, prefix):
         self.env['stock.lot'].flush_model()
         self.env.cr.execute("""
-            SELECT sl.name
-            FROM stock_lot sl
+            SELECT sl.name FROM stock_lot sl
             INNER JOIN stock_move_line sml ON sml.lot_id = sl.id
             INNER JOIN stock_picking sp ON sp.id = sml.picking_id
-            WHERE sl.name LIKE %s
-            AND sp.state = 'done'
-            AND sp.company_id = %s
-            ORDER BY CAST(SUBSTRING(sl.name FROM '-([0-9]+)$') AS INTEGER) DESC
-            LIMIT 1
+            WHERE sl.name LIKE %s AND sp.state = 'done' AND sp.company_id = %s
+            ORDER BY CAST(SUBSTRING(sl.name FROM '-([0-9]+)$') AS INTEGER) DESC LIMIT 1
         """, (f'{prefix}-%', self.picking_id.company_id.id))
         result = self.env.cr.fetchone()
         if result:
@@ -55,32 +53,37 @@ class PackingListImportWizard(models.TransientModel):
     def _format_lot_name(self, prefix, number):
         return f'{prefix}-{number:02d}' if number < 100 else f'{prefix}-{number}'
 
+    # ---------------------------------------------------------
+    # ACCIÓN PRINCIPAL DE IMPORTACIÓN
+    # ---------------------------------------------------------
     def action_import_excel(self):
         self.ensure_one()
-        _logger.info("=== INICIANDO EXTRACCIÓN DE DATOS ODOO 19 (REFORZADO) ===")
+        _logger.info("INICIANDO IMPORTACIÓN DE LOTES")
         
         if self.picking_id.state == 'done':
              raise UserError('La recepción ya está validada.')
              
         rows_to_process = []
+        # Prioridad 1: Spreadsheet vinculado
         if self.picking_id.spreadsheet_id:
             rows_to_process = self._get_data_from_spreadsheet()
+        # Prioridad 2: Archivo subido manualmente
         elif self.excel_file:
             rows_to_process = self._get_data_from_excel_file()
         else:
-            raise UserError('No hay datos. Llene la plantilla Spreadsheet o suba un archivo Excel.')
+            raise UserError('No hay datos. Llene el Spreadsheet o suba un archivo Excel.')
 
         if not rows_to_process:
-            raise UserError('No se encontraron datos. Verifique que escribió las medidas y que el icono de la nube en la hoja de cálculo esté en verde.')
+            raise UserError('No se encontraron datos válidos. Si usó el Spreadsheet, asegúrese de haber llenado las filas y que el archivo esté guardado.')
 
-        # 1. Limpieza
+        # 1. Limpieza de líneas previas (Para permitir re-importar)
         lots_to_delete = self.picking_id.move_line_ids.mapped('lot_id')
         self.picking_id.move_line_ids.unlink()
         for lot in lots_to_delete:
             if not self.env['stock.move.line'].search_count([('lot_id', '=', lot.id), ('picking_id', '!=', self.picking_id.id)]):
                 lot.unlink()
 
-        # 2. Procesamiento
+        # 2. Creación Masiva
         move_lines_created = 0
         next_global_prefix = self._get_next_global_prefix()
         container_counters = {}
@@ -97,7 +100,10 @@ class PackingListImportWizard(models.TransientModel):
 
             cont = data['contenedor'] or 'SN'
             if cont not in container_counters:
-                container_counters[cont] = {'prefix': str(next_global_prefix), 'next_num': self._get_next_lot_number_for_prefix(str(next_global_prefix))}
+                container_counters[cont] = {
+                    'prefix': str(next_global_prefix),
+                    'next_num': self._get_next_lot_number_for_prefix(str(next_global_prefix))
+                }
                 next_global_prefix += 1
 
             prefix = container_counters[cont]['prefix']
@@ -124,74 +130,65 @@ class PackingListImportWizard(models.TransientModel):
             move_lines_created += 1
 
         self.picking_id.write({'packing_list_imported': True})
-        return {'type': 'ir.actions.client', 'tag': 'display_notification', 'params': {'title': 'Éxito', 'message': f'Se crearon {move_lines_created} lotes.', 'type': 'success', 'next': {'type': 'ir.actions.act_window_close'}}}
+        _logger.info(f"IMPORTACIÓN EXITOSA: {move_lines_created} lotes creados.")
+        
+        return {'type': 'ir.actions.client', 'tag': 'display_notification', 'params': {
+            'title': 'Éxito', 'message': f'Se crearon {move_lines_created} lotes.', 
+            'type': 'success', 'next': {'type': 'ir.actions.act_window_close'}
+        }}
 
+    # ---------------------------------------------------------
+    # EXTRACTOR DE DATOS DESDE SPREADSHEET (MÉTODO ROBUSTO)
+    # ---------------------------------------------------------
     def _get_data_from_spreadsheet(self):
-        """Lector Forense Odoo 19: Reconstruye los datos buscando en todas las tablas técnicas"""
         doc = self.picking_id.spreadsheet_id
         if not doc: return []
 
-        # 1. Obtener JSON Base
+        # Intentamos obtener el JSON final de Odoo 19
         try:
-            raw_data = doc.spreadsheet_data
-            if isinstance(raw_data, bytes):
-                raw_data = raw_data.decode('utf-8')
-            data_json = json.loads(raw_data or '{}')
+            # 1. Intentamos leer el snapshot consolidado (Odoo 19 Enterprise)
+            if hasattr(doc, 'get_spreadsheet_snapshot'):
+                data_json = doc.get_spreadsheet_snapshot()
+            else:
+                # 2. Si no, leemos el campo directo (pero decodificando si es binario)
+                raw = doc.spreadsheet_data
+                if isinstance(raw, bytes): raw = raw.decode('utf-8')
+                data_json = json.loads(raw or '{}')
         except:
-            data_json = {}
+            _logger.error("No se pudo leer el contenido JSON del Spreadsheet.")
+            return []
 
         sheets = data_json.get('sheets', [])
-        cells = sheets[0].get('cells', {}) if sheets else {}
-        _logger.info(f"Celdas base: {len(cells)}")
-
-        # 2. BÚSQUEDA AGRESIVA DE REVISIONES (SUDO)
-        # En Odoo 19, buscamos revisiones vinculadas por ID sin filtrar por modelo, por seguridad.
-        revisions = self.env['spreadsheet.revision'].sudo().search([('res_id', '=', doc.id)], order='id asc')
+        if not sheets: return []
         
-        # Si no hay nada, buscamos si están vinculadas al Picking (muy común en Odoo 19 con handlers)
-        if not revisions:
-            revisions = self.env['spreadsheet.revision'].sudo().search([('res_id', '=', self.picking_id.id), ('res_model', '=', 'stock.picking')], order='id asc')
+        # Odoo 19 suele guardar las celdas en un diccionario 'cells'
+        cells = sheets[0].get('cells', {})
+        _logger.info(f"DEBUG: Analizando {len(cells)} celdas del Spreadsheet.")
 
-        _logger.info(f"Revisiones técnicas encontradas: {len(revisions)}")
-
-        for rev in revisions:
-            try:
-                commands = json.loads(rev.commands)
-                for cmd in commands:
-                    if cmd.get('type') in ('UPDATE_CELL', 'SET_CELL_CONTENT'):
-                        col, row = cmd.get('col'), cmd.get('row')
-                        val = cmd.get('content') or cmd.get('cell', {}).get('content')
-                        if col is not None and row is not None:
-                            cells[f"{col},{row}"] = {'content': val}
-                            _logger.info(f"DATO CAPTURADO: Fila {row}, Col {col} = {val}")
-            except: continue
-
-        # 3. EXTRACCIÓN DE FILAS
         default_product = self.picking_id.move_ids.mapped('product_id')[:1]
         rows = []
         col_map = {'A': 0, 'B': 1, 'C': 2, 'D': 3, 'E': 4, 'F': 5, 'G': 6, 'H': 7, 'I': 8}
 
-        # Buscamos en las primeras 500 filas
+        # Escaneamos las primeras 500 filas
         for r in range(4, 501):
             row_idx = r - 1
             
             def gv(col_letter):
                 c_idx = col_map[col_letter]
-                # Probamos todos los formatos de llave que usa Odoo 19
-                cell = cells.get(f"{c_idx},{row_idx}") or cells.get(f"{col_letter}{r}")
+                # Probamos todos los formatos de llave que usa Odoo (A1, 0,3 , y anidado)
+                cell = cells.get(f"{c_idx},{row_idx}") or cells.get(f"{col_letter}{r}") or cells.get(f"{row_idx},{c_idx}")
                 if not cell:
-                    # Formato de diccionario anidado (Odoo Enterprise)
                     row_data = cells.get(str(row_idx)) or cells.get(row_idx)
                     if isinstance(row_data, dict):
                         cell = row_data.get(str(c_idx)) or row_data.get(c_idx)
                 
                 if not cell: return None
+                # Tomamos content o value (Odoo 19 usa ambos)
                 return cell.get('content') if cell.get('content') is not None else cell.get('value')
 
-            grosor = gv('A')
-            alto = gv('B')
-            ancho = gv('C')
+            grosor, alto, ancho = gv('A'), gv('B'), gv('C')
 
+            # Si no hay medidas, saltamos la fila
             if grosor is None and alto is None and ancho is None:
                 continue
 
@@ -212,29 +209,44 @@ class PackingListImportWizard(models.TransientModel):
                 })
             except: continue
 
-        _logger.info(f"LECTURA FINALIZADA: {len(rows)} filas obtenidas.")
         return rows
 
+    # ---------------------------------------------------------
+    # EXTRACTOR DE DATOS DESDE ARCHIVO EXCEL (MÉTODO ESTABLE)
+    # ---------------------------------------------------------
     def _get_data_from_excel_file(self):
         try:
             from openpyxl import load_workbook
         except ImportError:
-            raise UserError('Instale openpyxl')
+            raise UserError('Por favor instale la librería openpyxl.')
+            
         excel_data = base64.b64decode(self.excel_file)
         wb = load_workbook(io.BytesIO(excel_data), data_only=True)
         rows = []
+        
         for sheet_name in wb.sheetnames:
             ws = wb[sheet_name]
+            # Intentar obtener producto desde B1
             product_info = ws['B1'].value
             if not product_info: continue
-            product_code = str(product_info).split('(')[1].split(')')[0].strip() if '(' in str(product_info) else None
-            product = self.env['product.product'].search([('|'), ('default_code', '=', product_code), ('barcode', '=', product_code)], limit=1)
+            
+            # Buscar producto por código entre paréntesis o por nombre
+            product = False
+            if '(' in str(product_info):
+                p_code = str(product_info).split('(')[1].split(')')[0].strip()
+                product = self.env['product.product'].search(['|', ('default_code', '=', p_code), ('barcode', '=', p_code)], limit=1)
+            
             if not product:
-                name = str(product_info).split('(')[0].strip()
-                product = self.env['product.product'].search([('name', 'ilike', name)], limit=1)
+                p_name = str(product_info).split('(')[0].strip()
+                product = self.env['product.product'].search([('name', 'ilike', p_name)], limit=1)
+            
             if not product: continue
+
             for r in range(4, ws.max_row + 1):
-                if not ws.cell(row=r, column=1).value and not ws.cell(row=r, column=2).value: continue
+                # Validar si la fila tiene datos (Grosor o Alto)
+                if not ws.cell(row=r, column=1).value and not ws.cell(row=r, column=2).value:
+                    continue
+                    
                 rows.append({
                     'product': product,
                     'grosor': float(ws.cell(row=r, column=1).value or 0),
