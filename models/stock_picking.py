@@ -30,7 +30,7 @@ class StockPicking(models.Model):
     def action_open_packing_list_spreadsheet(self):
         """
         Crea o abre la hoja de cálculo nativa de Odoo en Documents.
-        Corregido para Odoo 19: Usa notación A1 para las celdas.
+        Actualizado: 12 columnas (A-L) incluyendo Color y Grupo.
         """
         self.ensure_one()
         
@@ -45,10 +45,13 @@ class StockPicking(models.Model):
             # Carpeta raíz
             folder = self.env['documents.document'].search([('type', '=', 'folder')], limit=1)
 
-            # Cabeceras
-            headers = ['Grosor (cm)', 'Alto (m)', 'Ancho (m)', 'Bloque', 'Atado', 'Tipo', 'Pedimento', 'Contenedor', 'Ref. Proveedor', 'Notas']
+            # --- NUEVOS CABECERAS (12 columnas) ---
+            headers = [
+                'Grosor (cm)', 'Alto (m)', 'Ancho (m)', 'Color', 'Bloque', 
+                'Atado', 'Tipo', 'Grupo', 'Pedimento', 'Contenedor', 
+                'Ref. Proveedor', 'Notas'
+            ]
             
-            # --- CONSTRUCCIÓN DE CELDAS EN FORMATO A1 (Requerido por Odoo 19) ---
             cells = {}
             
             # Fila 1: Info del producto
@@ -56,9 +59,9 @@ class StockPicking(models.Model):
             cells["A1"] = {"content": "PRODUCTO(S):"}
             cells["B1"] = {"content": product_names}
             
-            # Fila 3: Cabeceras (A3, B3, C3...)
-            # chr(65) es 'A', 66 es 'B', etc.
+            # Fila 3: Cabeceras (A3 hasta L3)
             for i, header in enumerate(headers):
+                # Generar letras A, B, C... L
                 col_letter = chr(65 + i)
                 cell_id = f"{col_letter}3"
                 cells[cell_id] = {
@@ -73,10 +76,10 @@ class StockPicking(models.Model):
                         "id": "sheet1",
                         "name": "Packing List",
                         "cells": cells,
-                        "colNumber": 10,
+                        "colNumber": 12, # Aumentado a 12 columnas
                         "rowNumber": 100,
                         "isProtected": True,
-                        "protectedRanges": [{"range": "A4:J100", "isProtected": False}]
+                        "protectedRanges": [{"range": "A4:L100", "isProtected": False}] # Permitir edición hasta col L
                     }
                 ],
                 "styles": {
@@ -98,16 +101,8 @@ class StockPicking(models.Model):
 
             self.spreadsheet_id = self.env['documents.document'].create(vals)
 
-        # Delegar apertura a Documents
+        # Abrir el documento
         doc = self.spreadsheet_id.sudo()
-        for method_name in ["action_open_spreadsheet", "action_open", "access_content"]:
-            open_meth = getattr(doc, method_name, None)
-            if callable(open_meth):
-                try:
-                    action = open_meth()
-                    if action: return action
-                except: continue
-
         return {
             'type': 'ir.actions.act_window',
             'res_model': 'documents.document',
@@ -117,45 +112,70 @@ class StockPicking(models.Model):
             'context': {'request_handler': 'spreadsheet'}
         }
 
-    # --- Los métodos de descarga (Excel Worksheet) se mantienen intactos ---
     def action_download_packing_template(self):
+        """Descarga el Excel manual con la estructura actualizada (12 columnas)"""
         self.ensure_one()
         try:
             from openpyxl import Workbook
             from openpyxl.styles import Font, PatternFill, Border, Side
         except ImportError:
             raise UserError('Instale openpyxl')
+            
         wb = Workbook()
         wb.remove(wb.active)
         products = self.move_ids.mapped('product_id')
         header_fill = PatternFill(start_color='366092', end_color='366092', fill_type='solid')
         header_font = Font(color='FFFFFF', bold=True)
         border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+        
         for product in products:
             sheet_name = product.default_code[:31] if product.default_code else f'Prod_{product.id}'[:31]
             ws = wb.create_sheet(title=sheet_name)
             ws['A1'] = 'PRODUCTO:'; ws['A1'].font = Font(bold=True)
-            ws.merge_cells('B1:J1')
+            ws.merge_cells('B1:L1') # Merge hasta la columna L
             ws['B1'] = f'{product.name} ({product.default_code or ""})'
-            headers = ['Grosor (cm)', 'Alto (m)', 'Ancho (m)', 'Bloque', 'Atado', 'Tipo', 'Pedimento', 'Contenedor', 'Ref. Proveedor', 'Notas']
+            
+            # Cabeceras actualizadas
+            headers = [
+                'Grosor (cm)', 'Alto (m)', 'Ancho (m)', 'Color', 'Bloque', 
+                'Atado', 'Tipo', 'Grupo', 'Pedimento', 'Contenedor', 
+                'Ref. Proveedor', 'Notas'
+            ]
+            
             for col_num, header in enumerate(headers, 1):
-                cell = ws.cell(row=3, column=col_num); cell.value = header; cell.fill = header_fill; cell.font = header_font; cell.border = border
+                cell = ws.cell(row=3, column=col_num)
+                cell.value = header
+                cell.fill = header_fill
+                cell.font = header_font
+                cell.border = border
+                
             for row in range(4, 54):
-                for col in range(1, 11): ws.cell(row=row, column=col).border = border
+                for col in range(1, 13): # Bordes hasta la columna 12
+                    ws.cell(row=row, column=col).border = border
+                    
         output = io.BytesIO()
         wb.save(output)
         excel_data = base64.b64encode(output.getvalue())
         filename = f'Packing_List_{self.name}.xlsx'
         self.write({'packing_list_file': excel_data, 'packing_list_filename': filename})
-        return {'type': 'ir.actions.act_url', 'url': f'/web/content?model=stock.picking&id={self.id}&field=packing_list_file&filename={filename}&download=true', 'target': 'self'}
+        return {
+            'type': 'ir.actions.act_url', 
+            'url': f'/web/content?model=stock.picking&id={self.id}&field=packing_list_file&filename={filename}&download=true', 
+            'target': 'self'
+        }
     
     def action_download_worksheet(self):
+        """Descarga el Worksheet con los datos actuales de los lotes creados"""
         self.ensure_one()
-        if not self.packing_list_imported: raise UserError('Debe importar primero un Packing List')
+        if not self.packing_list_imported: 
+            raise UserError('Debe importar primero un Packing List')
+            
         try:
             from openpyxl import Workbook
             from openpyxl.styles import Font, PatternFill, Border, Side
-        except ImportError: raise UserError('Instale openpyxl')
+        except ImportError: 
+            raise UserError('Instale openpyxl')
+            
         wb = Workbook()
         wb.remove(wb.active)
         products = self.move_line_ids.mapped('product_id')
@@ -164,13 +184,25 @@ class StockPicking(models.Model):
         data_fill = PatternFill(start_color='E7E6E6', end_color='E7E6E6', fill_type='solid')
         editable_fill = PatternFill(start_color='FFFF00', end_color='FFFF00', fill_type='solid')
         border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+        
         for product in products:
             sheet_name = product.default_code[:31] if product.default_code else f'Prod_{product.id}'[:31]
             ws = wb.create_sheet(title=sheet_name)
-            ws['A1'] = 'PRODUCTO:'; ws.merge_cells('B1:J1'); ws['B1'] = f'{product.name} ({product.default_code or ""})'
-            headers = ['Nº Lote', 'Grosor (cm)', 'Alto (m)', 'Ancho (m)', 'Bloque', 'Atado', 'Tipo', 'Pedimento', 'Contenedor', 'Ref. Proveedor', 'Cantidad', 'Alto Real (m)', 'Ancho Real (m)']
+            ws['A1'] = 'PRODUCTO:'; ws.merge_cells('B1:M1'); ws['B1'] = f'{product.name} ({product.default_code or ""})'
+            
+            headers = [
+                'Nº Lote', 'Grosor (cm)', 'Alto (m)', 'Ancho (m)', 'Color', 
+                'Bloque', 'Atado', 'Tipo', 'Grupo', 'Pedimento', 
+                'Contenedor', 'Ref. Proveedor', 'Cantidad', 'Alto Real (m)', 'Ancho Real (m)'
+            ]
+            
             for col_num, header in enumerate(headers, 1):
-                cell = ws.cell(row=3, column=col_num); cell.value = header; cell.fill = header_fill; cell.font = header_font; cell.border = border
+                cell = ws.cell(row=3, column=col_num)
+                cell.value = header
+                cell.fill = header_fill
+                cell.font = header_font
+                cell.border = border
+                
             move_lines = self.move_line_ids.filtered(lambda ml: ml.product_id == product and ml.lot_id)
             current_row = 4
             for ml in move_lines:
@@ -179,28 +211,52 @@ class StockPicking(models.Model):
                 ws.cell(row=current_row, column=2, value=lot.x_grosor).fill = data_fill
                 ws.cell(row=current_row, column=3, value=lot.x_alto).fill = data_fill
                 ws.cell(row=current_row, column=4, value=lot.x_ancho).fill = data_fill
-                ws.cell(row=current_row, column=5, value=lot.x_bloque).fill = data_fill
-                ws.cell(row=current_row, column=6, value=lot.x_atado).fill = data_fill
-                ws.cell(row=current_row, column=7, value=dict(lot._fields['x_tipo'].selection).get(lot.x_tipo, '')).fill = data_fill
-                ws.cell(row=current_row, column=8, value=lot.x_pedimento).fill = data_fill
-                ws.cell(row=current_row, column=9, value=lot.x_contenedor).fill = data_fill
-                ws.cell(row=current_row, column=10, value=lot.x_referencia_proveedor).fill = data_fill
-                ws.cell(row=current_row, column=11, value=ml.qty_done).fill = data_fill
-                for col in range(1, 12): ws.cell(row=current_row, column=col).border = border
-                for col in range(12, 14):
-                    cell = ws.cell(row=current_row, column=col); cell.fill = editable_fill; cell.border = border
+                ws.cell(row=current_row, column=5, value=lot.x_color).fill = data_fill
+                ws.cell(row=current_row, column=6, value=lot.x_bloque).fill = data_fill
+                ws.cell(row=current_row, column=7, value=lot.x_atado).fill = data_fill
+                ws.cell(row=current_row, column=8, value=dict(lot._fields['x_tipo'].selection).get(lot.x_tipo, '')).fill = data_fill
+                ws.cell(row=current_row, column=9, value=", ".join(lot.x_grupo.mapped('name'))).fill = data_fill
+                ws.cell(row=current_row, column=10, value=lot.x_pedimento).fill = data_fill
+                ws.cell(row=current_row, column=11, value=lot.x_contenedor).fill = data_fill
+                ws.cell(row=current_row, column=12, value=lot.x_referencia_proveedor).fill = data_fill
+                ws.cell(row=current_row, column=13, value=ml.qty_done).fill = data_fill
+                
+                for col in range(1, 14): ws.cell(row=current_row, column=col).border = border
+                for col in range(14, 16): # Alto Real y Ancho Real editables
+                    cell = ws.cell(row=current_row, column=col)
+                    cell.fill = editable_fill
+                    cell.border = border
                 current_row += 1
+                
         output = io.BytesIO()
         wb.save(output)
         excel_data = base64.b64encode(output.getvalue())
         filename = f'Worksheet_{self.name}.xlsx'
         self.write({'worksheet_file': excel_data, 'worksheet_filename': filename})
-        return {'type': 'ir.actions.act_url', 'url': f'/web/content?model=stock.picking&id={self.id}&field=worksheet_file&filename={filename}&download=true', 'target': 'self'}
+        return {
+            'type': 'ir.actions.act_url', 
+            'url': f'/web/content?model=stock.picking&id={self.id}&field=worksheet_file&filename={filename}&download=true', 
+            'target': 'self'
+        }
     
     def action_import_packing_list(self):
         self.ensure_one()
-        return {'name': 'Importar Packing List', 'type': 'ir.actions.act_window', 'res_model': 'packing.list.import.wizard', 'view_mode': 'form', 'target': 'new', 'context': {'default_picking_id': self.id}}
+        return {
+            'name': 'Importar Packing List', 
+            'type': 'ir.actions.act_window', 
+            'res_model': 'packing.list.import.wizard', 
+            'view_mode': 'form', 
+            'target': 'new', 
+            'context': {'default_picking_id': self.id}
+        }
     
     def action_import_worksheet(self):
         self.ensure_one()
-        return {'name': 'Importar Worksheet', 'type': 'ir.actions.act_window', 'res_model': 'worksheet.import.wizard', 'view_mode': 'form', 'target': 'new', 'context': {'default_picking_id': self.id}}
+        return {
+            'name': 'Importar Worksheet', 
+            'type': 'ir.actions.act_window', 
+            'res_model': 'worksheet.import.wizard', 
+            'view_mode': 'form', 
+            'target': 'new', 
+            'context': {'default_picking_id': self.id}
+        }

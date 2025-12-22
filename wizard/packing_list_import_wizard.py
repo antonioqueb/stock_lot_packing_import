@@ -130,13 +130,7 @@ class PackingListImportWizard(models.TransientModel):
             rows = self._get_data_from_spreadsheet()
         
         if not rows:
-            raise UserError(
-                "No se encontraron datos.\n\n"
-                "Posibles causas:\n"
-                "• No llenó las filas a partir de la fila 4\n"
-                "• El spreadsheet no se guardó (ciérrelo y vuelva a intentar)\n"
-                "• La columna A (Grosor) está vacía en todas las filas"
-            )
+            raise UserError("No se encontraron datos. Verifique que llenó las filas a partir de la fila 4.")
 
         self.picking_id.move_line_ids.unlink()
         move_lines_created = 0
@@ -158,6 +152,17 @@ class PackingListImportWizard(models.TransientModel):
                 next_prefix += 1
 
             l_name = f"{containers[cont]['pre']}-{containers[cont]['num']:02d}"
+            
+            # --- LÓGICA PARA GRUPO (Many2many) ---
+            grupo_ids = []
+            if data.get('grupo_name'):
+                grupo_name = data['grupo_name'].strip()
+                grupo = self.env['stock.lot.group'].search([('name', '=', grupo_name)], limit=1)
+                if not grupo:
+                    grupo = self.env['stock.lot.group'].create({'name': grupo_name})
+                grupo_ids = [grupo.id]
+
+            # 1. Crear el Lote
             lot = self.env['stock.lot'].create({
                 'name': l_name,
                 'product_id': product.id,
@@ -165,14 +170,17 @@ class PackingListImportWizard(models.TransientModel):
                 'x_grosor': data['grosor'],
                 'x_alto': data['alto'],
                 'x_ancho': data['ancho'],
+                'x_color': data.get('color'),
                 'x_bloque': data['bloque'],
                 'x_atado': data['atado'],
                 'x_tipo': data['tipo'],
+                'x_grupo': [(6, 0, grupo_ids)],
                 'x_pedimento': data['pedimento'],
                 'x_contenedor': cont,
                 'x_referencia_proveedor': data['ref_proveedor'],
             })
             
+            # 2. Crear la línea de movimiento (Llenando campos TEMP para visibilidad inmediata)
             self.env['stock.move.line'].create({
                 'move_id': move.id,
                 'product_id': product.id,
@@ -181,7 +189,20 @@ class PackingListImportWizard(models.TransientModel):
                 'location_id': self.picking_id.location_id.id,
                 'location_dest_id': self.picking_id.location_dest_id.id,
                 'picking_id': self.picking_id.id,
+                # --- CAMPOS PARA QUE SE VEAN EN LA VISTA DE DETALLE ---
+                'x_grosor_temp': data['grosor'],
+                'x_alto_temp': data['alto'],
+                'x_ancho_temp': data['ancho'],
+                'x_color_temp': data.get('color'),
+                'x_tipo_temp': data['tipo'],
+                'x_bloque_temp': data['bloque'],
+                'x_atado_temp': data['atado'],
+                'x_pedimento_temp': data['pedimento'],
+                'x_contenedor_temp': cont,
+                'x_referencia_proveedor_temp': data['ref_proveedor'],
+                'x_grupo_temp': [(6, 0, grupo_ids)],
             })
+            
             containers[cont]['num'] += 1
             move_lines_created += 1
 
@@ -191,7 +212,7 @@ class PackingListImportWizard(models.TransientModel):
             'tag': 'display_notification',
             'params': {
                 'title': 'Éxito',
-                'message': f'Importados {move_lines_created} lotes.',
+                'message': f'Importados {move_lines_created} lotes correctamente.',
                 'type': 'success',
                 'next': {'type': 'ir.actions.act_window_close'}
             }
@@ -200,166 +221,90 @@ class PackingListImportWizard(models.TransientModel):
     def _get_data_from_spreadsheet(self):
         """Extrae datos del spreadsheet nativo de Odoo 19"""
         doc = self.spreadsheet_id
-        _logger.info(f"[PL_IMPORT] Documento ID: {doc.id}")
-        
-        # PASO 1: Cargar JSON base desde attachment
         spreadsheet_json = self._load_spreadsheet_json(doc)
         if not spreadsheet_json:
-            _logger.warning("[PL_IMPORT] No se pudo cargar el JSON del spreadsheet")
             return []
         
         sheets = spreadsheet_json.get('sheets', [])
         if not sheets:
-            _logger.warning("[PL_IMPORT] El spreadsheet no tiene hojas")
             return []
         
         first_sheet = sheets[0]
         cells_data = first_sheet.get('cells', {})
-        _logger.info(f"[PL_IMPORT] Hoja: {first_sheet.get('name')}, Celdas base: {len(cells_data)}")
-        
-        # PASO 2: Indexar celdas base
         idx = _PLCellsIndex()
         idx.ingest_cells(cells_data)
-        
-        # PASO 3: Aplicar TODAS las revisiones
         self._apply_all_revisions(doc, idx)
         
-        # Debug
-        _logger.info("[PL_IMPORT] Contenido final del índice:")
-        idx.debug_dump(max_rows=25)
-        
-        # PASO 4: Extraer filas
         return self._extract_rows_from_index(idx)
 
     def _load_spreadsheet_json(self, doc):
-        """Carga el JSON del spreadsheet"""
-        # Desde attachment_id.datas
         if doc.attachment_id and doc.attachment_id.datas:
             try:
                 raw_bytes = base64.b64decode(doc.attachment_id.datas)
-                json_data = json.loads(raw_bytes.decode('utf-8'))
-                _logger.info(f"[PL_IMPORT] JSON cargado desde attachment ({len(raw_bytes)} bytes)")
-                return json_data
-            except Exception as e:
-                _logger.warning(f"[PL_IMPORT] Error leyendo attachment: {e}")
-        
-        # Fallback: spreadsheet_data
+                return json.loads(raw_bytes.decode('utf-8'))
+            except: pass
         if doc.spreadsheet_data:
             try:
                 raw = doc.spreadsheet_data
-                if isinstance(raw, bytes):
-                    raw = raw.decode('utf-8')
+                if isinstance(raw, bytes): raw = raw.decode('utf-8')
                 return json.loads(raw)
-            except Exception as e:
-                _logger.warning(f"[PL_IMPORT] Error leyendo spreadsheet_data: {e}")
-        
+            except: pass
         return None
 
     def _apply_all_revisions(self, doc, idx):
-        """
-        Aplica TODAS las revisiones del documento.
-        
-        ESTRUCTURA ODOO 19:
-        - commands es un STRING JSON con formato:
-          {"type": "REMOTE_REVISION", "version": 1, "commands": [{...}, {...}]}
-        - Los UPDATE_CELL reales están en el array 'commands' interno
-        """
         revisions = self.env['spreadsheet.revision'].sudo().with_context(active_test=False).search([
             ('res_model', '=', 'documents.document'),
             ('res_id', '=', doc.id)
         ], order='id asc')
-        
-        _logger.info(f"[PL_IMPORT] Total revisiones encontradas: {len(revisions)}")
-        
-        total_cells_updated = 0
-        
         for rev in revisions:
             try:
-                # Parsear el JSON del campo commands
                 raw_commands = rev.commands
-                if not raw_commands:
-                    continue
-                
+                if not raw_commands: continue
                 parsed = json.loads(raw_commands) if isinstance(raw_commands, str) else raw_commands
-                revision_type = parsed.get('type', '')
-                
-                _logger.info(f"[PL_IMPORT] Revisión {rev.id}: tipo={revision_type}")
-                
-                # Solo procesar REMOTE_REVISION que contienen comandos de celdas
-                if revision_type == 'REMOTE_REVISION':
-                    # Los comandos reales están en parsed['commands']
-                    actual_commands = parsed.get('commands', [])
-                    if actual_commands and isinstance(actual_commands, list):
-                        applied = idx.apply_revision_commands(actual_commands)
-                        total_cells_updated += applied
-                        _logger.info(f"[PL_IMPORT]   -> Aplicados {applied} UPDATE_CELL")
-                
-                # SNAPSHOT_CREATED indica que los datos se consolidaron
-                # pero en Odoo 19 parece que NO se actualizan en el attachment
-                # así que seguimos procesando todas las revisiones
-                        
-            except json.JSONDecodeError as e:
-                _logger.warning(f"[PL_IMPORT] Error JSON en revisión {rev.id}: {e}")
-            except Exception as e:
-                _logger.warning(f"[PL_IMPORT] Error procesando revisión {rev.id}: {e}")
-        
-        _logger.info(f"[PL_IMPORT] Total celdas actualizadas desde revisiones: {total_cells_updated}")
+                if parsed.get('type') == 'REMOTE_REVISION':
+                    idx.apply_revision_commands(parsed.get('commands', []))
+            except: continue
 
     def _extract_rows_from_index(self, idx):
         """Extrae las filas de datos del índice de celdas"""
         rows = []
         prod = self.picking_id.move_ids.mapped('product_id')[:1]
+        if not prod: return []
         
-        if not prod:
-            _logger.warning("[PL_IMPORT] No hay producto en los movimientos")
-            return []
-        
-        # Filas 4 a 103 (índices 3 a 102)
+        # Mapeo según el orden: Grosor(0), Alto(1), Ancho(2), Color(3), Bloque(4), Atado(5), Tipo(6), Grupo(7), Pedimento(8), Contenedor(9), Ref.Prov(10)
         for row_idx in range(3, 103):
-            grosor_val = idx.value(0, row_idx)  # Columna A = 0
-            
-            if not grosor_val:
-                continue
-            
-            _logger.info(f"[PL_IMPORT] Fila {row_idx + 1}: G={grosor_val}, A={idx.value(1, row_idx)}, An={idx.value(2, row_idx)}")
+            grosor_val = idx.value(0, row_idx)
+            if not grosor_val: continue
             
             try:
-                row_data = {
+                rows.append({
                     'product': prod,
                     'grosor': self._to_float(grosor_val),
                     'alto': self._to_float(idx.value(1, row_idx)),
                     'ancho': self._to_float(idx.value(2, row_idx)),
-                    'bloque': str(idx.value(3, row_idx) or '').strip(),
-                    'atado': str(idx.value(4, row_idx) or '').strip(),
-                    'tipo': self._parse_tipo(idx.value(5, row_idx)),
-                    'pedimento': str(idx.value(6, row_idx) or '').strip(),
-                    'contenedor': str(idx.value(7, row_idx) or 'SN').strip(),
-                    'ref_proveedor': str(idx.value(8, row_idx) or '').strip(),
-                }
-                rows.append(row_data)
-            except Exception as e:
-                _logger.warning(f"[PL_IMPORT] Error en fila {row_idx + 1}: {e}")
-                continue
-        
-        _logger.info(f"[PL_IMPORT] Total filas extraídas: {len(rows)}")
+                    'color': str(idx.value(3, row_idx) or '').strip(),
+                    'bloque': str(idx.value(4, row_idx) or '').strip(),
+                    'atado': str(idx.value(5, row_idx) or '').strip(),
+                    'tipo': self._parse_tipo(idx.value(6, row_idx)),
+                    'grupo_name': str(idx.value(7, row_idx) or '').strip(),
+                    'pedimento': str(idx.value(8, row_idx) or '').strip(),
+                    'contenedor': str(idx.value(9, row_idx) or 'SN').strip(),
+                    'ref_proveedor': str(idx.value(10, row_idx) or '').strip(),
+                })
+            except: continue
         return rows
 
     def _to_float(self, val):
-        """Convierte un valor a float de forma segura"""
-        if val is None:
-            return 0.0
-        try:
-            return float(str(val).replace(',', '.'))
-        except (ValueError, TypeError):
-            return 0.0
+        if val is None: return 0.0
+        try: return float(str(val).replace(',', '.'))
+        except: return 0.0
 
     def _parse_tipo(self, val):
-        """Parsea el campo tipo"""
-        if not val:
-            return 'placa'
+        if not val: return 'placa'
         return 'formato' if str(val).lower().strip() == 'formato' else 'placa'
 
     def _get_data_from_excel_file(self):
+        """Extrae datos desde archivo Excel manual"""
         from openpyxl import load_workbook
         wb = load_workbook(io.BytesIO(base64.b64decode(self.excel_file)), data_only=True)
         rows = []
@@ -367,25 +312,24 @@ class PackingListImportWizard(models.TransientModel):
             p_info = sheet['B1'].value
             p_code = str(p_info).split('(')[1].split(')')[0].strip() if '(' in str(p_info) else ''
             product = self.env['product.product'].search([
-                '|',
-                ('default_code', '=', p_code),
-                ('name', '=', str(p_info).split('(')[0].strip())
+                '|', ('default_code', '=', p_code), ('name', '=', str(p_info).split('(')[0].strip())
             ], limit=1)
-            if not product:
-                continue
+            if not product: continue
+            
             for r in range(4, sheet.max_row + 1):
-                if not sheet.cell(r, 1).value:
-                    continue
+                if not sheet.cell(r, 1).value: continue
                 rows.append({
                     'product': product,
-                    'grosor': float(sheet.cell(r, 1).value or 0),
-                    'alto': float(sheet.cell(r, 2).value or 0),
-                    'ancho': float(sheet.cell(r, 3).value or 0),
-                    'bloque': str(sheet.cell(r, 4).value or ''),
-                    'atado': str(sheet.cell(r, 5).value or ''),
-                    'tipo': 'formato' if str(sheet.cell(r, 6).value or '').lower() == 'formato' else 'placa',
-                    'pedimento': str(sheet.cell(r, 7).value or ''),
-                    'contenedor': str(sheet.cell(r, 8).value or 'SN').strip(),
-                    'ref_proveedor': str(sheet.cell(r, 9).value or ''),
+                    'grosor': self._to_float(sheet.cell(r, 1).value),
+                    'alto': self._to_float(sheet.cell(r, 2).value),
+                    'ancho': self._to_float(sheet.cell(r, 3).value),
+                    'color': str(sheet.cell(r, 4).value or '').strip(),
+                    'bloque': str(sheet.cell(r, 5).value or '').strip(),
+                    'atado': str(sheet.cell(r, 6).value or '').strip(),
+                    'tipo': self._parse_tipo(sheet.cell(r, 7).value),
+                    'grupo_name': str(sheet.cell(r, 8).value or '').strip(),
+                    'pedimento': str(sheet.cell(r, 9).value or '').strip(),
+                    'contenedor': str(sheet.cell(r, 10).value or 'SN').strip(),
+                    'ref_proveedor': str(sheet.cell(r, 11).value or '').strip(),
                 })
         return rows
