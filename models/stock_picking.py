@@ -30,7 +30,7 @@ class StockPicking(models.Model):
     def action_open_packing_list_spreadsheet(self):
         """
         Crea o abre la hoja de cálculo nativa de Odoo.
-        Ajustado para 12 columnas (A-L) incluyendo Color y Grupo.
+        Crea una pestaña (sheet) por cada producto en la orden.
         """
         self.ensure_one()
         
@@ -42,40 +42,47 @@ class StockPicking(models.Model):
             if not products:
                 raise UserError('No hay productos en esta operación.')
 
-            # Carpeta raíz
+            # Carpeta raíz de documentos
             folder = self.env['documents.document'].search([('type', '=', 'folder')], limit=1)
 
-            # --- CABECERAS ACTUALIZADAS (12 COLUMNAS) ---
+            # Cabeceras sincronizadas (12 columnas)
             headers = ['Grosor (cm)', 'Alto (m)', 'Ancho (m)', 'Color', 'Bloque', 'Atado', 'Tipo', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Proveedor', 'Notas']
             
-            cells = {}
-            # Fila 1: Info del producto
-            product_names = ", ".join(products.mapped(lambda p: f"{p.name} ({p.default_code or ''})"))
-            cells["A1"] = {"content": "PRODUCTO(S):"}
-            cells["B1"] = {"content": product_names}
-            
-            # Fila 3: Cabeceras (A3 a L3)
-            for i, header in enumerate(headers):
-                col_letter = chr(65 + i)
-                cell_id = f"{col_letter}3"
-                cells[cell_id] = {
-                    "content": header,
-                    "style": 1 
-                }
+            sheets = []
+            for index, product in enumerate(products):
+                cells = {}
+                # Fila 1: Info del producto individual
+                cells["A1"] = {"content": "PRODUCTO:"}
+                cells["B1"] = {"content": f"{product.name} ({product.default_code or ''})"}
+                
+                # Fila 3: Cabeceras (A3 a L3)
+                for i, header in enumerate(headers):
+                    col_letter = chr(65 + i)
+                    cell_id = f"{col_letter}3"
+                    cells[cell_id] = {
+                        "content": header,
+                        "style": 1 
+                    }
+
+                # Crear estructura de la hoja para este producto
+                sheet_name = (product.default_code or product.name)[:31]
+                # Asegurar que el nombre de la hoja no se repita si hay códigos similares
+                if any(s['name'] == sheet_name for s in sheets):
+                    sheet_name = f"{sheet_name[:25]}_{product.id}"
+
+                sheets.append({
+                    "id": f"sheet_prod_{product.id}",
+                    "name": sheet_name,
+                    "cells": cells,
+                    "colNumber": 12,
+                    "rowNumber": 100,
+                    "isProtected": True,
+                    "protectedRanges": [{"range": "A4:L100", "isProtected": False}]
+                })
 
             spreadsheet_data = {
                 "version": 16,
-                "sheets": [
-                    {
-                        "id": "sheet1",
-                        "name": "Packing List",
-                        "cells": cells,
-                        "colNumber": 12, # Aumentado para ver todas las columnas
-                        "rowNumber": 100,
-                        "isProtected": True,
-                        "protectedRanges": [{"range": "A4:L100", "isProtected": False}] # Rango abierto hasta L
-                    }
-                ],
+                "sheets": sheets,
                 "styles": {
                     "1": {"bold": True, "fillColor": "#366092", "textColor": "#FFFFFF", "align": "center"}
                 }
@@ -95,7 +102,7 @@ class StockPicking(models.Model):
 
             self.spreadsheet_id = self.env['documents.document'].create(vals)
 
-        # Usar el método que ya te funciona para abrir
+        # Abrir el documento creado o existente
         doc = self.spreadsheet_id.sudo()
         for method_name in ["action_open_spreadsheet", "action_open", "access_content"]:
             open_meth = getattr(doc, method_name, None)

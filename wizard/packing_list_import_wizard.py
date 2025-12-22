@@ -59,13 +59,17 @@ class _PLCellsIndex:
             return cell_data.get('content') or cell_data.get('value') or cell_data.get('text')
         return cell_data
 
-    def apply_revision_commands(self, commands):
-        """Aplica comandos de revisión sobre las celdas"""
+    def apply_revision_commands(self, commands, target_sheet_id):
+        """Aplica comandos de revisión filtrando por el ID de la hoja actual"""
         if not commands:
             return 0
         
         applied = 0
         for cmd in commands:
+            # Filtramos para aplicar solo cambios que pertenezcan a esta hoja
+            if cmd.get('sheetId') and cmd.get('sheetId') != target_sheet_id:
+                continue
+
             cmd_type = cmd.get('type', '')
             if cmd_type == 'UPDATE_CELL':
                 col = cmd.get('col')
@@ -91,10 +95,6 @@ class PackingListImportWizard(models.TransientModel):
     excel_filename = fields.Char(string='Nombre del archivo')
 
     def _get_next_global_prefix(self):
-        """
-        Busca el prefijo más alto en TODA la tabla de lotes de la compañía.
-        Se eliminó el filtro de picking 'done' para evitar duplicados entre recepciones abiertas.
-        """
         self.env.cr.execute("""
             SELECT CAST(SUBSTRING(name FROM '^([0-9]+)-') AS INTEGER) as prefix_num
             FROM stock_lot
@@ -105,9 +105,6 @@ class PackingListImportWizard(models.TransientModel):
         return (res[0] + 1) if res and res[0] else 1
 
     def _get_next_lot_number_for_prefix(self, prefix):
-        """
-        Busca el siguiente número para un prefijo en toda la tabla de lotes.
-        """
         self.env.cr.execute("""
             SELECT name FROM stock_lot
             WHERE name LIKE %s AND company_id = %s
@@ -127,9 +124,8 @@ class PackingListImportWizard(models.TransientModel):
             rows = self._get_data_from_spreadsheet()
         
         if not rows:
-            raise UserError("No se encontraron datos.")
+            raise UserError("No se encontraron datos en ninguna de las hojas.")
 
-        # Limpiar líneas previas de esta recepción para permitir re-importación
         self.picking_id.move_line_ids.unlink()
         
         move_lines_created = 0
@@ -152,7 +148,6 @@ class PackingListImportWizard(models.TransientModel):
 
             l_name = f"{containers[cont]['pre']}-{containers[cont]['num']:02d}"
             
-            # --- LÓGICA PARA GRUPO ---
             grupo_ids = []
             if data.get('grupo_name'):
                 grupo_name = data['grupo_name'].strip()
@@ -161,7 +156,6 @@ class PackingListImportWizard(models.TransientModel):
                     grupo = self.env['stock.lot.group'].create({'name': grupo_name})
                 grupo_ids = [grupo.id]
 
-            # Crear el Lote
             lot = self.env['stock.lot'].create({
                 'name': l_name,
                 'product_id': product.id,
@@ -179,7 +173,6 @@ class PackingListImportWizard(models.TransientModel):
                 'x_referencia_proveedor': data['ref_proveedor'],
             })
             
-            # Crear la línea de movimiento con campos TEMP para visibilidad
             self.env['stock.move.line'].create({
                 'move_id': move.id,
                 'product_id': product.id,
@@ -222,12 +215,50 @@ class PackingListImportWizard(models.TransientModel):
         if not spreadsheet_json or not spreadsheet_json.get('sheets'):
             return []
         
-        first_sheet = spreadsheet_json['sheets'][0]
-        idx = _PLCellsIndex()
-        idx.ingest_cells(first_sheet.get('cells', {}))
-        self._apply_all_revisions(doc, idx)
+        all_rows = []
+        # Obtener revisiones para aplicar cambios que el usuario hizo manualmente
+        revisions = self.env['spreadsheet.revision'].sudo().with_context(active_test=False).search([
+            ('res_model', '=', 'documents.document'),
+            ('res_id', '=', doc.id)
+        ], order='id asc')
+
+        # Iterar sobre CADA hoja (una por producto)
+        for sheet in spreadsheet_json['sheets']:
+            sheet_id = sheet.get('id')
+            idx = _PLCellsIndex()
+            idx.ingest_cells(sheet.get('cells', {}))
+            
+            # Aplicar revisiones del usuario para esta hoja específica
+            for rev in revisions:
+                try:
+                    raw_commands = rev.commands
+                    if not raw_commands: continue
+                    parsed = json.loads(raw_commands) if isinstance(raw_commands, str) else raw_commands
+                    if parsed.get('type') == 'REMOTE_REVISION':
+                        idx.apply_revision_commands(parsed.get('commands', []), sheet_id)
+                except: continue
+            
+            # Identificar de qué producto es esta hoja (Celda B1)
+            product = self._identify_product_from_sheet(idx)
+            if product:
+                sheet_rows = self._extract_rows_from_index(idx, product)
+                all_rows.extend(sheet_rows)
         
-        return self._extract_rows_from_index(idx)
+        return all_rows
+
+    def _identify_product_from_sheet(self, idx):
+        """Busca el producto basado en la celda B1: 'Nombre (Codigo)'"""
+        p_info = idx.value(1, 0) # Columna B (1), Fila 1 (0)
+        if not p_info: return None
+        
+        p_info_str = str(p_info)
+        p_code = p_info_str.split('(')[1].split(')')[0].strip() if '(' in p_info_str else ''
+        p_name = p_info_str.split('(')[0].strip()
+        
+        product = self.env['product.product'].search([
+            '|', ('default_code', '=', p_code), ('name', '=', p_name)
+        ], limit=1)
+        return product
 
     def _load_spreadsheet_json(self, doc):
         if doc.attachment_id and doc.attachment_id.datas:
@@ -243,32 +274,16 @@ class PackingListImportWizard(models.TransientModel):
             except: pass
         return None
 
-    def _apply_all_revisions(self, doc, idx):
-        revisions = self.env['spreadsheet.revision'].sudo().with_context(active_test=False).search([
-            ('res_model', '=', 'documents.document'),
-            ('res_id', '=', doc.id)
-        ], order='id asc')
-        for rev in revisions:
-            try:
-                raw_commands = rev.commands
-                if not raw_commands: continue
-                parsed = json.loads(raw_commands) if isinstance(raw_commands, str) else raw_commands
-                if parsed.get('type') == 'REMOTE_REVISION':
-                    idx.apply_revision_commands(parsed.get('commands', []))
-            except: continue
-
-    def _extract_rows_from_index(self, idx):
+    def _extract_rows_from_index(self, idx, product):
         rows = []
-        prod = self.picking_id.move_ids.mapped('product_id')[:1]
-        if not prod: return []
-        
+        # Empezamos en la fila 4 (índice 3)
         for row_idx in range(3, 103):
             grosor_val = idx.value(0, row_idx)
             if not grosor_val: continue
             
             try:
                 rows.append({
-                    'product': prod,
+                    'product': product,
                     'grosor': self._to_float(grosor_val),
                     'alto': self._to_float(idx.value(1, row_idx)),
                     'ancho': self._to_float(idx.value(2, row_idx)),
@@ -299,10 +314,13 @@ class PackingListImportWizard(models.TransientModel):
         rows = []
         for sheet in wb.worksheets:
             p_info = sheet['B1'].value
+            if not p_info: continue
+            
             p_code = str(p_info).split('(')[1].split(')')[0].strip() if '(' in str(p_info) else ''
             product = self.env['product.product'].search([
                 '|', ('default_code', '=', p_code), ('name', '=', str(p_info).split('(')[0].strip())
             ], limit=1)
+            
             if not product: continue
             
             for r in range(4, sheet.max_row + 1):
