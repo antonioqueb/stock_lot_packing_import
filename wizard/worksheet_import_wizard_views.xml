@@ -6,21 +6,21 @@
         <field name="arch" type="xml">
             <form>
                 <sheet>
-                    <field name="spreadsheet_id" invisible="1"/>
+                    <field name="ws_spreadsheet_id" invisible="1"/>
                     <group>
                         <field name="picking_id" readonly="1"/>
                         <field name="excel_filename" invisible="1"/>
                         <field name="excel_file" filename="excel_filename" 
-                               invisible="spreadsheet_id != False"/>
+                               invisible="ws_spreadsheet_id != False"/>
                     </group>
                     
-                    <div class="alert alert-success" role="alert" invisible="spreadsheet_id == False">
+                    <div class="alert alert-success" role="alert" invisible="ws_spreadsheet_id == False">
                         <p><strong><i class="fa fa-table"></i> Spreadsheet Detectado:</strong></p>
                         <p>El sistema leerá las columnas <strong>"ALTO REAL (m)"</strong> y <strong>"ANCHO REAL (m)"</strong> directamente de tu hoja de cálculo activa.</p>
                         <p>Asegúrate de haber guardado los cambios en el Spreadsheet antes de procesar.</p>
                     </div>
 
-                    <div class="alert alert-info" role="alert" invisible="spreadsheet_id != False">
+                    <div class="alert alert-info" role="alert" invisible="ws_spreadsheet_id != False">
                         <p>Sube el archivo Excel con las medidas reales si no estás usando la hoja de cálculo de Odoo.</p>
                     </div>
                 </sheet>
