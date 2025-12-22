@@ -60,7 +60,7 @@ class StockPicking(models.Model):
             sheets = []
             for index, product in enumerate(products):
                 cells = {}
-                # Fila 1: Info del producto (Convertido a String para evitar errores JS)
+                # Fila 1: Info del producto (CORRECCIÓN: str() para evitar error JS)
                 cells["A1"] = {"content": "PRODUCTO:"}
                 cells["B1"] = {"content": str(product.name or '') + " (" + str(product.default_code or '') + ")"}
                 
@@ -135,21 +135,20 @@ class StockPicking(models.Model):
             sheets = []
             for product in products:
                 cells = {}
-                # Encabezado de producto
+                # Encabezado de producto (CORRECCIÓN: str())
                 cells["A1"] = {"content": "PRODUCTO:"}
                 cells["B1"] = {"content": str(product.name or '') + " (" + str(product.default_code or '') + ")"}
                 
-                # Cabeceras con estilo verde (Worksheet)
+                # Cabeceras con estilo verde (WS)
                 for i, header in enumerate(headers):
                     col_letter = self._get_col_letter(i)
                     cells[f"{col_letter}3"] = {"content": str(header), "style": 2}
 
-                # Carga de datos de lotes existentes creados por el PL
+                # Carga de datos de lotes existentes (CORRECCIÓN: str() en todos los valores)
                 move_lines = self.move_line_ids.filtered(lambda ml: ml.product_id == product and ml.lot_id)
                 row_idx = 4
                 for ml in move_lines:
                     lot = ml.lot_id
-                    # CORRECCIÓN PARA JS ERROR: Convertir todos los valores numéricos a str()
                     cells[f"A{row_idx}"] = {"content": str(lot.name or '')}
                     cells[f"B{row_idx}"] = {"content": str(lot.x_grosor or 0.0)}
                     cells[f"C{row_idx}"] = {"content": str(lot.x_alto or 0.0)}
@@ -172,7 +171,6 @@ class StockPicking(models.Model):
                     "colNumber": 14,
                     "rowNumber": max(row_idx + 20, 100),
                     "isProtected": True,
-                    # Solo permitimos edición en las columnas M (índice 12) y N (índice 13)
                     "protectedRanges": [{"range": f"M4:N{row_idx + 100}", "isProtected": False}]
                 })
 
@@ -209,7 +207,6 @@ class StockPicking(models.Model):
     def _action_launch_spreadsheet(self, doc):
         """Dispara la apertura del documento en el cliente web"""
         doc_sudo = doc.sudo()
-        # Intentamos abrir mediante los métodos disponibles en Documents
         for method in ["action_open_spreadsheet", "action_open"]:
             if hasattr(doc_sudo, method):
                 action = getattr(doc_sudo, method)()
@@ -230,7 +227,7 @@ class StockPicking(models.Model):
             from openpyxl import Workbook
             from openpyxl.styles import Font, PatternFill, Border, Side
         except ImportError:
-            raise UserError('La librería openpyxl no está instalada en el servidor.')
+            raise UserError('La librería openpyxl no está instalada.')
             
         wb = Workbook()
         wb.remove(wb.active)
@@ -261,7 +258,7 @@ class StockPicking(models.Model):
         try:
             from openpyxl import Workbook
             from openpyxl.styles import Font, PatternFill, Border, Side
-        except ImportError: raise UserError('La librería openpyxl no está instalada en el servidor.')
+        except ImportError: raise UserError('La librería openpyxl no está instalada.')
         
         wb = Workbook()
         wb.remove(wb.active)
