@@ -22,6 +22,7 @@ class StockPicking(models.Model):
     ws_spreadsheet_id = fields.Many2one('documents.document', string='Spreadsheet Worksheet', copy=False)
     worksheet_file = fields.Binary(string='Worksheet Exportado', attachment=True, copy=False)
     worksheet_filename = fields.Char(string='Nombre del Worksheet', copy=False)
+    worksheet_imported = fields.Boolean(string='Worksheet Importado', default=False, copy=False)
     
     @api.depends('packing_list_file', 'spreadsheet_id')
     def _compute_has_packing_list(self):
@@ -81,6 +82,10 @@ class StockPicking(models.Model):
         
         if self.picking_type_code != 'incoming':
             raise UserError('Esta acción solo está disponible para Recepciones (Entradas).')
+        
+        # Bloquear si el Worksheet ya fue procesado
+        if self.worksheet_imported:
+            raise UserError('El Worksheet ya fue procesado. No es posible modificar el Packing List.')
             
         if not self.spreadsheet_id:
             products = self.move_ids.mapped('product_id')
@@ -330,6 +335,11 @@ class StockPicking(models.Model):
 
     def action_import_packing_list(self):
         self.ensure_one()
+        
+        # Bloquear si el Worksheet ya fue procesado
+        if self.worksheet_imported:
+            raise UserError('El Worksheet ya fue procesado. No es posible reprocesar el Packing List.')
+        
         title = 'Aplicar Cambios al PL' if self.packing_list_imported else 'Importar Packing List'
         return {
             'name': title, 

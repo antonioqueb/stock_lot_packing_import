@@ -114,7 +114,10 @@ class WorksheetImportWizard(models.TransientModel):
                 new_name = f"{prefix}-{idx:02d}"
                 lot.write({'name': new_name})
 
-        # 4. NOTIFICACIÓN FINAL
+        # 4. MARCAR WORKSHEET COMO PROCESADO (Bloquea reprocesamiento del PL)
+        self.picking_id.write({'worksheet_imported': True})
+
+        # 5. NOTIFICACIÓN FINAL
         message = f'✓ Se actualizaron {lines_updated} lotes con medidas reales.'
         if total_missing_pieces > 0:
             message += f'\n⚠️ MATERIAL FALTANTE:\n• Piezas eliminadas: {total_missing_pieces}\n• Total m² reducidos: {total_missing_m2:.2f} m²'

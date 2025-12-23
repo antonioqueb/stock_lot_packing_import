@@ -9,6 +9,7 @@
             <field name="partner_id" position="after">
                 <field name="has_packing_list" invisible="1"/>
                 <field name="packing_list_imported" invisible="1"/>
+                <field name="worksheet_imported" invisible="1"/>
                 <field name="spreadsheet_id" invisible="1"/>
                 <field name="ws_spreadsheet_id" invisible="1"/>
                 <field name="packing_list_file" invisible="1"/>
@@ -23,29 +24,37 @@
                 <!-- ETAPA 1: PACKING LIST (CREACIÓN DE LOTES)              -->
                 <!-- ====================================================== -->
                 
-                <!-- Abrir PL antes de importar (Botón Principal) -->
+                <!-- Abrir PL antes de importar (Botón Principal - Primera vez) -->
                 <button name="action_open_packing_list_spreadsheet"
                         string="Abrir PL"
                         type="object"
                         class="btn-primary"
                         icon="fa-table"
-                        invisible="state in ('done', 'cancel', 'draft') or picking_type_code != 'incoming' or packing_list_imported"/>
+                        invisible="state in ('done', 'cancel', 'draft') or picking_type_code != 'incoming' or packing_list_imported or worksheet_imported"/>
 
-                <!-- Procesar PL para crear los lotes -->
+                <!-- Procesar PL para crear los lotes (Primera vez) -->
                 <button name="action_import_packing_list"
                         string="Procesar PL"
                         type="object"
                         class="btn-secondary"
                         icon="fa-cogs"
-                        invisible="state in ('done', 'cancel', 'draft') or picking_type_code != 'incoming' or packing_list_imported or not spreadsheet_id"/>
+                        invisible="state in ('done', 'cancel', 'draft') or picking_type_code != 'incoming' or packing_list_imported or not spreadsheet_id or worksheet_imported"/>
 
-                <!-- Corregir PL después de importar (Botón de advertencia/reajuste) -->
+                <!-- Corregir PL después de importar (Solo si WS NO ha sido procesado) -->
                 <button name="action_open_packing_list_spreadsheet"
                         string="Corregir PL"
                         type="object"
                         class="btn-warning"
                         icon="fa-edit"
-                        invisible="state in ('done', 'cancel', 'draft') or picking_type_code != 'incoming' or not packing_list_imported"/>
+                        invisible="state in ('done', 'cancel', 'draft') or picking_type_code != 'incoming' or not packing_list_imported or worksheet_imported"/>
+
+                <!-- Reprocesar PL después de corregir (Solo si WS NO ha sido procesado) -->
+                <button name="action_import_packing_list"
+                        string="Reprocesar PL"
+                        type="object"
+                        class="btn-warning"
+                        icon="fa-refresh"
+                        invisible="state in ('done', 'cancel', 'draft') or picking_type_code != 'incoming' or not packing_list_imported or worksheet_imported"/>
 
 
                 <!-- ====================================================== -->
@@ -70,15 +79,8 @@
 
 
                 <!-- ====================================================== -->
-                <!-- SOPORTE EXTERNO (EXCEL)                                -->
+                <!-- SOPORTE EXTERNO (EXCEL) - Solo exportar WS             -->
                 <!-- ====================================================== -->
-                
-                <button name="action_download_packing_template"
-                        string="Descargar Plantilla PL"
-                        type="object"
-                        class="btn-outline-secondary"
-                        icon="fa-download"
-                        invisible="state in ('done', 'cancel', 'draft') or picking_type_code != 'incoming' or packing_list_imported"/>
 
                 <button name="action_download_worksheet"
                         string="Exportar WS"
