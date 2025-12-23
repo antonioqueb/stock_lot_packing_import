@@ -25,7 +25,7 @@
                 
                 <!-- Abrir PL antes de importar (Botón Principal) -->
                 <button name="action_open_packing_list_spreadsheet"
-                        string="Abrir Spreadsheet PL"
+                        string="Abrir PL"
                         type="object"
                         class="btn-primary"
                         icon="fa-table"
@@ -33,7 +33,7 @@
 
                 <!-- Procesar PL para crear los lotes -->
                 <button name="action_import_packing_list"
-                        string="Procesar Packing List"
+                        string="Procesar PL"
                         type="object"
                         class="btn-secondary"
                         icon="fa-cogs"
@@ -41,7 +41,7 @@
 
                 <!-- Corregir PL después de importar (Botón de advertencia/reajuste) -->
                 <button name="action_open_packing_list_spreadsheet"
-                        string="Corregir Datos PL"
+                        string="Corregir PL"
                         type="object"
                         class="btn-warning"
                         icon="fa-edit"
@@ -54,7 +54,7 @@
                 
                 <!-- Abrir Worksheet independiente (Solo tras importar PL) -->
                 <button name="action_open_worksheet_spreadsheet"
-                        string="Abrir Spreadsheet WS (Medidas Reales)"
+                        string="Abrir WS"
                         type="object"
                         class="btn-info"
                         icon="fa-balance-scale"
@@ -62,7 +62,7 @@
 
                 <!-- Procesar el Worksheet para actualizar dimensiones de lotes -->
                 <button name="action_import_worksheet"
-                        string="Procesar Medidas Reales (WS)"
+                        string="Procesar WS"
                         type="object"
                         class="btn-success"
                         icon="fa-check-square-o"
@@ -74,14 +74,14 @@
                 <!-- ====================================================== -->
                 
                 <button name="action_download_packing_template"
-                        string="Descargar Plantilla PL (Excel)"
+                        string="Descargar Plantilla PL"
                         type="object"
                         class="btn-outline-secondary"
                         icon="fa-download"
                         invisible="state in ('done', 'cancel', 'draft') or picking_type_code != 'incoming' or packing_list_imported"/>
 
                 <button name="action_download_worksheet"
-                        string="Exportar WS (Excel)"
+                        string="Exportar WS"
                         type="object"
                         class="btn-outline-info"
                         icon="fa-file-excel-o"
