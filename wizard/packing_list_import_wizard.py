@@ -86,7 +86,9 @@ class _PLCellsIndex:
                     applied += 1
                         
             elif cmd_type in ('DELETE_CONTENT', 'CLEAR_CELL'):
-                for zone in cmd.get('zones', []):
+                # Odoo usa 'target' O 'zones' dependiendo de la versión
+                zones = cmd.get('zones') or cmd.get('target') or []
+                for zone in zones:
                     _logger.info(f"[INDEX_DB] Limpiando zona por DELETE_CONTENT: {zone}")
                     for r in range(zone.get('top', 0), zone.get('bottom', 0) + 1):
                         for c in range(zone.get('left', 0), zone.get('right', 0) + 1):
@@ -209,8 +211,7 @@ class PackingListImportWizard(models.TransientModel):
     def _get_data_from_spreadsheet(self):
         doc = self.spreadsheet_id
         
-        # Obtener el estado ACTUAL del spreadsheet
-        spreadsheet_json = self._get_current_spreadsheet_state(doc)
+        spreadsheet_json = self._load_spreadsheet_with_revisions(doc)
         if not spreadsheet_json or not spreadsheet_json.get('sheets'):
             return []
 
@@ -225,63 +226,11 @@ class PackingListImportWizard(models.TransientModel):
                 all_rows.extend(sheet_rows)
         return all_rows
 
-    def _get_current_spreadsheet_state(self, doc):
-        """Obtiene el estado actual del spreadsheet"""
-        # DEBUG: Ver qué métodos tiene
-        spread_methods = [m for m in dir(doc) if 'spread' in m.lower()]
-        _logger.info(f"[PL_DEBUG] Métodos spreadsheet disponibles: {spread_methods}")
-        
-        try:
-            # Método 1: join_spreadsheet_session
-            if hasattr(doc, 'join_spreadsheet_session'):
-                session_data = doc.join_spreadsheet_session()
-                _logger.info(f"[PL_DEBUG] join_spreadsheet_session tipo: {type(session_data)}")
-                if isinstance(session_data, dict):
-                    _logger.info(f"[PL_DEBUG] join_spreadsheet_session keys: {session_data.keys()}")
-                    # Truncar para el log
-                    _logger.info(f"[PL_DEBUG] session_data preview: {str(session_data)[:1000]}")
-                
-                if session_data:
-                    # Intentar obtener data de diferentes formas
-                    data = None
-                    if isinstance(session_data, dict):
-                        data = session_data.get('data') or session_data.get('spreadsheet_data')
-                        # Si no hay 'data' pero hay 'sheets', es el dato directo
-                        if not data and 'sheets' in session_data:
-                            _logger.info("[PL_IMPORT] Usando session_data directo (tiene sheets)")
-                            return session_data
-                    
-                    if data:
-                        _logger.info("[PL_IMPORT] Usando estado actual desde join_spreadsheet_session")
-                        parsed = json.loads(data) if isinstance(data, str) else data
-                        if parsed and parsed.get('sheets'):
-                            return parsed
-            
-            # Método 2: get_spreadsheet_data (Odoo 17+)
-            if hasattr(doc, 'get_spreadsheet_data'):
-                data = doc.get_spreadsheet_data()
-                _logger.info(f"[PL_DEBUG] get_spreadsheet_data tipo: {type(data)}")
-                if data:
-                    _logger.info("[PL_IMPORT] Usando get_spreadsheet_data")
-                    parsed = json.loads(data) if isinstance(data, str) else data
-                    if parsed and parsed.get('sheets'):
-                        return parsed
-                        
-        except Exception as e:
-            _logger.warning(f"[PL_IMPORT] Error obteniendo estado actual: {e}")
-        
-        # Fallback: Snapshot + revisiones
-        _logger.info("[PL_IMPORT] Fallback a snapshot + revisiones")
-        return self._load_spreadsheet_with_revisions(doc)
-
     def _load_spreadsheet_with_revisions(self, doc):
-        """Carga snapshot y aplica TODAS las revisiones para reconstruir estado actual"""
+        """Carga snapshot y aplica SOLO las revisiones POST-snapshot"""
         spreadsheet_json = self._load_spreadsheet_json(doc)
         if not spreadsheet_json:
             return None
-        
-        snapshot_revision_id = spreadsheet_json.get('revisionId', '')
-        _logger.info(f"[PL_DEBUG] Snapshot revisionId: '{snapshot_revision_id}'")
         
         revisions = self.env['spreadsheet.revision'].sudo().with_context(active_test=False).search([
             ('res_model', '=', 'documents.document'), 
@@ -290,37 +239,32 @@ class PackingListImportWizard(models.TransientModel):
         
         _logger.info(f"[PL_DEBUG] Total revisiones encontradas: {len(revisions)}")
         
-        # Loguear estructura de primeras revisiones para entender formato
-        for i, rev in enumerate(revisions[:3]):
+        # Encontrar el índice del último SNAPSHOT_CREATED
+        snapshot_idx = -1
+        for i, rev in enumerate(revisions):
             rev_data = json.loads(rev.commands) if isinstance(rev.commands, str) else rev.commands
-            _logger.info(f"[PL_DEBUG] Revision {i} tipo: {type(rev_data)}, keys: {rev_data.keys() if isinstance(rev_data, dict) else 'N/A'}")
-            if isinstance(rev_data, dict):
-                _logger.info(f"[PL_DEBUG] Revision {i} preview: {str(rev_data)[:500]}")
+            if isinstance(rev_data, dict) and rev_data.get('type') == 'SNAPSHOT_CREATED':
+                snapshot_idx = i
+                _logger.info(f"[PL_DEBUG] SNAPSHOT_CREATED encontrado en revision {i}")
         
-        start_applying = not snapshot_revision_id
+        # Solo aplicar revisiones DESPUÉS del último snapshot
         all_cmds = []
-        
-        for rev in revisions:
-            rev_data = json.loads(rev.commands) if isinstance(rev.commands, str) else rev.commands
-            
-            if not start_applying:
-                rev_id = rev_data.get('id') if isinstance(rev_data, dict) else None
-                if rev_id == snapshot_revision_id:
-                    start_applying = True
-                    _logger.info(f"[PL_DEBUG] Encontrado snapshot revision, empezando a aplicar desde aquí")
+        for i, rev in enumerate(revisions):
+            if i <= snapshot_idx:
+                _logger.info(f"[PL_DEBUG] Saltando revision {i} (antes o igual al snapshot)")
                 continue
-            
+                
+            rev_data = json.loads(rev.commands) if isinstance(rev.commands, str) else rev.commands
             if isinstance(rev_data, dict) and 'commands' in rev_data:
-                cmds = rev_data['commands']
-                _logger.info(f"[PL_DEBUG] Agregando {len(cmds)} comandos de revision")
-                all_cmds.extend(cmds)
+                _logger.info(f"[PL_DEBUG] Agregando {len(rev_data['commands'])} comandos de revision {i}")
+                all_cmds.extend(rev_data['commands'])
             elif isinstance(rev_data, list):
-                _logger.info(f"[PL_DEBUG] Agregando {len(rev_data)} comandos (lista directa)")
+                _logger.info(f"[PL_DEBUG] Agregando {len(rev_data)} comandos (lista directa) de revision {i}")
                 all_cmds.extend(rev_data)
         
         _logger.info(f"[PL_IMPORT] Aplicando {len(all_cmds)} comandos de revisión post-snapshot")
         
-        # Log tipos de comandos encontrados
+        # Log tipos de comandos
         cmd_types = {}
         for cmd in all_cmds:
             if isinstance(cmd, dict):
@@ -337,7 +281,6 @@ class PackingListImportWizard(models.TransientModel):
             applied = idx.apply_revision_commands(all_cmds, sheet_id)
             _logger.info(f"[PL_DEBUG] Sheet {sheet_id}: {applied} comandos aplicados, {len(idx._cells)} celdas después")
             
-            # Reconstruir celdas desde el índice
             sheet['cells'] = {f"{self._col_to_letter(c)}{r+1}": {'content': v} 
                              for (c, r), v in idx._cells.items()}
         
