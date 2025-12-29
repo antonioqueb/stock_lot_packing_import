@@ -16,10 +16,12 @@ class _PLCellsIndex:
     def __init__(self):
         self._cells = {}
 
-    def put(self, col, row, content):
+    def put(self, col, row, content, source="unknown"):
         if col is not None and row is not None:
+            # Forzamos limpieza si el contenido es nulo o vacío
             if content in (None, False, ""):
                 if (int(col), int(row)) in self._cells:
+                    _logger.info(f"[INDEX_DB] Limpiando celda [{col},{row}] por contenido vacío de {source}")
                     del self._cells[(int(col), int(row))]
             else:
                 self._cells[(int(col), int(row))] = str(content)
@@ -27,12 +29,13 @@ class _PLCellsIndex:
     def ingest_cells(self, raw_cells):
         if not raw_cells:
             return
+        _logger.info(f"[INDEX_DB] Cargando {len(raw_cells)} celdas del archivo base.")
         for key, cell_data in raw_cells.items():
             col, row = self._parse_cell_key(key)
             if col is not None and row is not None:
                 content = self._extract_content(cell_data)
                 if content:
-                    self.put(col, row, content)
+                    self.put(col, row, content, source="snapshot")
 
     def _parse_cell_key(self, key):
         if isinstance(key, str) and key and key[0].isalpha():
@@ -52,13 +55,18 @@ class _PLCellsIndex:
 
     def _extract_content(self, cell_data):
         if isinstance(cell_data, dict):
-            return cell_data.get('content') or cell_data.get('value') or cell_data.get('text')
-        return cell_data
+            return cell_data.get('content') or cell_data.get('value') or cell_data.get('text') or ""
+        return cell_data or ""
 
     def apply_revision_commands(self, commands, target_sheet_id):
-        """Procesa comandos de edición, borrado y desplazamiento de Odoo Spreadsheet"""
+        """Procesa comandos de edición y eliminación de filas de Odoo 19"""
         applied = 0
         for cmd in commands:
+            # Si el comando es una lista de comandos (Batch)
+            if isinstance(cmd, list):
+                applied += self.apply_revision_commands(cmd, target_sheet_id)
+                continue
+
             if cmd.get('sheetId') and cmd.get('sheetId') != target_sheet_id:
                 continue
             
@@ -67,26 +75,29 @@ class _PLCellsIndex:
             if cmd_type == 'UPDATE_CELL':
                 col, row = cmd.get('col'), cmd.get('row')
                 if col is not None and row is not None:
-                    self.put(col, row, cmd.get('content'))
+                    content = self._extract_content(cmd)
+                    self.put(col, row, content, source="UPDATE_CELL_REV")
                     applied += 1
             
             elif cmd_type == 'REMOVE_COLUMNS_ROWS':
                 if cmd.get('dimension') == 'row':
                     elements = sorted(cmd.get('elements', []), reverse=True)
+                    _logger.info(f"[INDEX_DB] Ejecutando eliminación de filas: {elements}")
                     for row_idx in elements:
                         self._shift_rows_up(row_idx)
                     applied += 1
                         
             elif cmd_type in ('DELETE_CONTENT', 'CLEAR_CELL'):
                 for zone in cmd.get('zones', []):
+                    _logger.info(f"[INDEX_DB] Limpiando zona por DELETE_CONTENT: {zone}")
                     for r in range(zone.get('top', 0), zone.get('bottom', 0) + 1):
                         for c in range(zone.get('left', 0), zone.get('right', 0) + 1):
-                            if (c, r) in self._cells:
-                                del self._cells[(c, r)]
+                            self.put(c, r, "", source="DELETE_REV")
                 applied += 1
         return applied
 
     def _shift_rows_up(self, removed_row):
+        """Mueve los datos hacia arriba cuando se elimina una fila"""
         new_cells = {}
         for (c, r), val in self._cells.items():
             if r < removed_row:
@@ -118,18 +129,17 @@ class PackingListImportWizard(models.TransientModel):
         elif self.spreadsheet_id:
             rows = self._get_data_from_spreadsheet()
         
-        _logger.info(f"[PL_IMPORT] Filas detectadas para procesar: {len(rows)}")
+        _logger.info(f"[PL_IMPORT] Resultado Final: {len(rows)} filas listas para importar.")
 
         if not rows:
-            _logger.error("[PL_IMPORT] No se obtuvieron filas. Abortando para no dañar datos.")
-            raise UserError("No se encontraron datos válidos. Verifique el producto en B1 y que las medidas no sean cero.")
+            raise UserError("No se encontraron datos. Verifique que haya llenado el PL y que las medidas sean mayores a cero.")
 
-        # --- LÓGICA DE LIMPIEZA PROFUNDA ---
-        _logger.info("[PL_CLEANUP] Iniciando limpieza de registros previos...")
+        # --- LÓGICA DE LIMPIEZA PROFUNDA (Basada en Worksheet) ---
+        _logger.info("[PL_CLEANUP] Borrando datos previos...")
         old_move_lines = self.picking_id.move_line_ids
         old_lots = old_move_lines.mapped('lot_id')
 
-        # 1. Liberar Quants
+        # 1. Liberar inventario técnico (Quants)
         old_move_lines.write({'qty_done': 0})
         self.env.flush_all()
         if old_lots:
@@ -137,15 +147,16 @@ class PackingListImportWizard(models.TransientModel):
             _logger.info(f"[PL_CLEANUP] Eliminando {len(quants)} quants.")
             quants.sudo().unlink()
 
-        # 2. Borrar líneas y lotes
+        # 2. Borrar registros Odoo
         old_move_lines.unlink()
         for lot in old_lots:
+            # Verificamos si realmente ya no se usa
             if self.env['stock.move.line'].search_count([('lot_id', '=', lot.id)]) == 0:
                 try:
                     with self.env.cr.savepoint():
                         lot.unlink()
-                        _logger.info(f"[PL_CLEANUP] Lote {lot.name} eliminado.")
-                except: continue
+                except Exception as e:
+                    _logger.warning(f"[PL_CLEANUP] No se pudo borrar lote {lot.name}: {e}")
 
         # --- CREACIÓN DE NUEVOS REGISTROS ---
         move_lines_created = 0
@@ -191,10 +202,11 @@ class PackingListImportWizard(models.TransientModel):
             move_lines_created += 1
 
         self.picking_id.write({'packing_list_imported': True})
+        _logger.info(f"=== [PL_IMPORT] PROCESO TERMINADO. Creados {move_lines_created} registros. ===")
         return {
             'type': 'ir.actions.client', 'tag': 'display_notification',
             'params': {
-                'title': 'PL Actualizado', 'message': f'Se han importado {move_lines_created} lotes correctamente.',
+                'title': 'PL Procesado', 'message': f'Se han importado/corregido {move_lines_created} lotes.',
                 'type': 'success', 'next': {'type': 'ir.actions.act_window_close'}
             }
         }
@@ -209,7 +221,7 @@ class PackingListImportWizard(models.TransientModel):
             ('res_model', '=', 'documents.document'), ('res_id', '=', doc.id)
         ], order='id asc')
         
-        # --- CORRECCIÓN: Aplanar comandos de Odoo 19 ---
+        # Aplanamos comandos de revisión
         all_cmds = []
         for rev in revisions:
             rev_data = json.loads(rev.commands) if isinstance(rev.commands, str) else rev.commands
@@ -218,44 +230,46 @@ class PackingListImportWizard(models.TransientModel):
             elif isinstance(rev_data, list):
                 all_cmds.extend(rev_data)
         
-        _logger.info(f"[PL_IMPORT] Procesando {len(all_cmds)} comandos de revisión.")
+        _logger.info(f"[PL_IMPORT] Procesando {len(all_cmds)} comandos de revisión sobre el Snapshot.")
 
         all_rows = []
         for sheet in spreadsheet_json['sheets']:
             sheet_id = sheet.get('id')
             idx = _PLCellsIndex()
             idx.ingest_cells(sheet.get('cells', {}))
+            
+            # Aplicar historial de ediciones
             idx.apply_revision_commands(all_cmds, sheet_id)
             
             product = self._identify_product_from_sheet(idx)
             if product:
-                all_rows.extend(self._extract_rows_from_index(idx, product))
+                sheet_rows = self._extract_rows_from_index(idx, product)
+                all_rows.extend(sheet_rows)
         return all_rows
 
     def _identify_product_from_sheet(self, idx):
-        """Busca el producto en las primeras celdas (tolerante a movimientos de filas)"""
+        # Buscamos en las primeras 3 filas por si se movieron datos
         p_info = None
-        for r in range(3): # Busca en las primeras 3 filas por si hubo desplazamientos
-            val = idx.value(1, r) # Columna B
-            if val and 'PRODUCTO:' in str(idx.value(0, r)).upper():
-                p_info = val
+        for r in range(3):
+            label = str(idx.value(0, r) or "").upper()
+            if "PRODUCTO:" in label:
+                p_info = idx.value(1, r)
                 break
         if not p_info: p_info = idx.value(1, 0) # Fallback a B1
         
-        if not p_info: 
-            _logger.error("[PL_IMPORT] No se encontró información del producto en Columna B.")
-            return None
-            
+        if not p_info: return None
         p_name = str(p_info).split('(')[0].strip()
-        _logger.info(f"[PL_IMPORT] Buscando producto: '{p_name}'")
+        _logger.info(f"[PL_IMPORT] Producto detectado: '{p_name}'")
         return self.env['product.product'].search(['|', ('name', '=', p_name), ('default_code', '=', p_name)], limit=1)
 
     def _extract_rows_from_index(self, idx, product):
         rows = []
+        # Leemos hasta 200 filas para estar seguros
         for r in range(3, 200):
             alto = self._to_float(idx.value(1, r))
             ancho = self._to_float(idx.value(2, r))
             
+            # Si el Alto y Ancho son mayores a 0, la fila es válida
             if alto > 0 and ancho > 0:
                 rows.append({
                     'product': product, 'grosor': self._to_float(idx.value(0, r)),
@@ -265,7 +279,11 @@ class PackingListImportWizard(models.TransientModel):
                     'pedimento': str(idx.value(8, r) or '').strip(), 'contenedor': str(idx.value(9, r) or 'SN').strip(),
                     'ref_proveedor': str(idx.value(10, r) or '').strip(),
                 })
-                _logger.info(f"[PL_IMPORT] Fila {r+1} leída OK.")
+                _logger.info(f"[PL_EXTRACT] Fila {r+1} procesada OK.")
+            else:
+                # Si el sistema encuentra algo pero no tiene medidas, lo ignora (posible borrado)
+                if idx.value(0, r) or idx.value(4, r):
+                    _logger.info(f"[PL_EXTRACT] Fila {r+1} descartada (Alto: {alto}, Ancho: {ancho})")
         return rows
 
     def _to_float(self, val):
