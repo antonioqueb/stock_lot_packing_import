@@ -47,14 +47,12 @@ class _PLCellsIndex:
 
     def _extract_content(self, cell_data):
         if isinstance(cell_data, dict):
-            # Prioridad al content de la edición actual
             return cell_data.get('content') or cell_data.get('value') or cell_data.get('text')
         return cell_data
 
     def apply_revision_commands(self, commands, target_sheet_id):
         applied = 0
         for cmd in commands:
-            # En Odoo 19, las revisiones pueden no traer sheetId si es la activa
             if cmd.get('sheetId') and cmd.get('sheetId') != target_sheet_id:
                 continue
             if cmd.get('type') == 'UPDATE_CELL':
@@ -90,10 +88,27 @@ class PackingListImportWizard(models.TransientModel):
         
         if not rows:
             _logger.warning("[PL_IMPORT] No se extrajeron filas de ninguna fuente.")
-            raise UserError("No se encontraron datos. Asegúrese de haber llenado las celdas y que el producto en B1 sea correcto.")
+            raise UserError("No se encontraron datos. Asegúrese de haber llenado las celdas correctamente.")
 
-        self.picking_id.move_line_ids.unlink()
+        # --- CORRECCIÓN PUNTUAL: LIMPIEZA DE LOTES Y LÍNEAS PREVIAS ---
+        # 1. Identificar lotes actuales antes de borrar las líneas
+        old_move_lines = self.picking_id.move_line_ids
+        old_lots = old_move_lines.mapped('lot_id')
         
+        # 2. Borrar líneas de movimiento existentes
+        old_move_lines.unlink()
+        
+        # 3. Borrar los lotes "huérfanos" que quedaron de la validación anterior
+        # Solo borramos si el lote no tiene movimientos en otras transferencias
+        for lot in old_lots:
+            usage_count = self.env['stock.move.line'].search_count([('lot_id', '=', lot.id)])
+            if usage_count == 0:
+                try:
+                    lot.unlink()
+                except Exception as e:
+                    _logger.warning(f"No se pudo eliminar el lote {lot.name}: {e}")
+        # -------------------------------------------------------------
+
         move_lines_created = 0
         next_prefix = self._get_next_global_prefix()
         containers = {}
@@ -102,7 +117,6 @@ class PackingListImportWizard(models.TransientModel):
             product = data['product']
             move = self.picking_id.move_ids.filtered(lambda m: m.product_id == product)[:1]
             if not move:
-                _logger.warning(f"[PL_IMPORT] Producto {product.name} no está en la orden. Saltando.")
                 continue
 
             cont = data['contenedor'] or 'SN'
@@ -171,7 +185,7 @@ class PackingListImportWizard(models.TransientModel):
             'tag': 'display_notification',
             'params': {
                 'title': 'Éxito',
-                'message': f'Importados {move_lines_created} lotes correctamente.',
+                'message': f'Se han importado/actualizado {move_lines_created} lotes.',
                 'type': 'success',
                 'next': {'type': 'ir.actions.act_window_close'}
             }
@@ -181,26 +195,19 @@ class PackingListImportWizard(models.TransientModel):
         doc = self.spreadsheet_id
         spreadsheet_json = self._load_spreadsheet_json(doc)
         if not spreadsheet_json or not spreadsheet_json.get('sheets'):
-            _logger.error("[PL_IMPORT] El Spreadsheet no tiene contenido válido.")
             return []
         
-        # Obtener todas las revisiones (cambios del usuario)
         revisions = self.env['spreadsheet.revision'].sudo().with_context(active_test=False).search([
             ('res_model', '=', 'documents.document'),
             ('res_id', '=', doc.id)
         ], order='id asc')
-        _logger.info(f"[PL_IMPORT] Procesando {len(revisions)} revisiones de Spreadsheet.")
 
         all_rows = []
         for sheet in spreadsheet_json['sheets']:
             sheet_id = sheet.get('id')
-            sheet_name = sheet.get('name')
-            _logger.info(f"[PL_IMPORT] Analizando hoja: {sheet_name} (ID: {sheet_id})")
-            
             idx = _PLCellsIndex()
             idx.ingest_cells(sheet.get('cells', {}))
             
-            # Aplicar cambios manuales del usuario
             for rev in revisions:
                 try:
                     cmds = json.loads(rev.commands) if isinstance(rev.commands, str) else rev.commands
@@ -208,60 +215,51 @@ class PackingListImportWizard(models.TransientModel):
                         idx.apply_revision_commands(cmds.get('commands', []), sheet_id)
                 except: continue
             
-            # Identificar producto
             product = self._identify_product_from_sheet(idx)
             if not product:
-                _logger.warning(f"[PL_IMPORT] No se pudo identificar producto en hoja {sheet_name}. Celda B1: {idx.value(1,0)}")
                 continue
 
-            _logger.info(f"[PL_IMPORT] Producto identificado: {product.display_name}")
-            
-            # Extraer filas
             sheet_rows = self._extract_rows_from_index(idx, product)
-            _logger.info(f"[PL_IMPORT] Extraídas {len(sheet_rows)} filas de la hoja {sheet_name}")
             all_rows.extend(sheet_rows)
             
         return all_rows
 
     def _identify_product_from_sheet(self, idx):
-        p_info = idx.value(1, 0) # Celda B1
+        p_info = idx.value(1, 0)
         if not p_info: return None
-        
         info_str = str(p_info).strip()
-        _logger.info(f"[PL_IMPORT] Buscando producto con info de B1: '{info_str}'")
-        
-        # Intentar extraer código entre paréntesis
         p_code = ""
         if '(' in info_str and ')' in info_str:
             p_code = info_str.split('(')[1].split(')')[0].strip()
-        
-        # Intentar extraer nombre (lo que está antes del paréntesis)
         p_name = info_str.split('(')[0].strip()
-        
         domain = ['|', ('name', '=', p_name), ('default_code', '=', p_name)]
         if p_code:
             domain = ['|', ('default_code', '=', p_code)] + domain
-            
         return self.env['product.product'].search(domain, limit=1)
 
     def _extract_rows_from_index(self, idx, product):
         rows = []
-        # Odoo 19 Spreadsheet: filas son base 0. Row 4 es índice 3.
-        for r in range(3, 100):
+        # Aumentamos el rango de búsqueda para no perder datos
+        for r in range(3, 500):
             grosor_raw = idx.value(0, r)
             alto_raw = idx.value(1, r)
             ancho_raw = idx.value(2, r)
 
-            # Si las 3 celdas principales están vacías, saltar
+            # Si las celdas críticas están vacías o son cero, ignoramos la fila (corrección para eliminar líneas)
             if not grosor_raw and not alto_raw and not ancho_raw:
+                continue
+            
+            alto = self._to_float(alto_raw)
+            ancho = self._to_float(ancho_raw)
+            if alto <= 0 or ancho <= 0:
                 continue
             
             try:
                 rows.append({
                     'product': product,
                     'grosor': self._to_float(grosor_raw),
-                    'alto': self._to_float(alto_raw),
-                    'ancho': self._to_float(ancho_raw),
+                    'alto': alto,
+                    'ancho': ancho,
                     'color': str(idx.value(3, r) or '').strip(),
                     'bloque': str(idx.value(4, r) or '').strip(),
                     'atado': str(idx.value(5, r) or '').strip(),
@@ -271,14 +269,12 @@ class PackingListImportWizard(models.TransientModel):
                     'contenedor': str(idx.value(9, r) or 'SN').strip(),
                     'ref_proveedor': str(idx.value(10, r) or '').strip(),
                 })
-            except Exception as e:
-                _logger.error(f"[PL_IMPORT] Error en fila {r+1}: {e}")
+            except:
                 continue
         return rows
 
     def _to_float(self, val):
         if val is None or val == '': return 0.0
-        # Odoo Spreadsheet a veces envía strings con '=' o formatos raros
         try:
             clean_val = str(val).replace(',', '.')
             return float(clean_val)
@@ -312,11 +308,6 @@ class PackingListImportWizard(models.TransientModel):
                 if isinstance(raw, bytes): raw = raw.decode('utf-8')
                 return json.loads(raw)
             except: pass
-        if doc.attachment_id and doc.attachment_id.datas:
-            try:
-                raw_bytes = base64.b64decode(doc.attachment_id.datas)
-                return json.loads(raw_bytes.decode('utf-8'))
-            except: pass
         return None
 
     def _get_data_from_excel_file(self):
@@ -326,21 +317,22 @@ class PackingListImportWizard(models.TransientModel):
         for sheet in wb.worksheets:
             p_info = sheet['B1'].value
             if not p_info: continue
-            
             p_code = str(p_info).split('(')[1].split(')')[0].strip() if '(' in str(p_info) else ''
             product = self.env['product.product'].search([
                 '|', ('default_code', '=', p_code), ('name', '=', str(p_info).split('(')[0].strip())
             ], limit=1)
-            
             if not product: continue
             
             for r in range(4, sheet.max_row + 1):
-                if not sheet.cell(r, 1).value: continue
+                alto = self._to_float(sheet.cell(r, 2).value)
+                ancho = self._to_float(sheet.cell(r, 3).value)
+                if alto <= 0 or ancho <= 0:
+                    continue
                 rows.append({
                     'product': product,
                     'grosor': self._to_float(sheet.cell(r, 1).value),
-                    'alto': self._to_float(sheet.cell(r, 2).value),
-                    'ancho': self._to_float(sheet.cell(r, 3).value),
+                    'alto': alto,
+                    'ancho': ancho,
                     'color': str(sheet.cell(r, 4).value or '').strip(),
                     'bloque': str(sheet.cell(r, 5).value or '').strip(),
                     'atado': str(sheet.cell(r, 6).value or '').strip(),
