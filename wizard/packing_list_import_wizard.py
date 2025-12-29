@@ -87,27 +87,34 @@ class PackingListImportWizard(models.TransientModel):
             rows = self._get_data_from_spreadsheet()
         
         if not rows:
-            _logger.warning("[PL_IMPORT] No se extrajeron filas de ninguna fuente.")
-            raise UserError("No se encontraron datos. Asegúrese de haber llenado las celdas correctamente.")
+            raise UserError("No se encontraron datos válidos. Verifique el contenido del Excel o Spreadsheet.")
 
-        # --- CORRECCIÓN PUNTUAL: LIMPIEZA DE LOTES Y LÍNEAS PREVIAS ---
-        # 1. Identificar lotes actuales antes de borrar las líneas
+        # --- CORRECCIÓN: LIMPIEZA SEGURA DE DATOS PREVIOS ---
+        # 1. Obtenemos las líneas y lotes actuales antes de borrar
         old_move_lines = self.picking_id.move_line_ids
         old_lots = old_move_lines.mapped('lot_id')
         
-        # 2. Borrar líneas de movimiento existentes
+        # 2. Borramos las líneas de la recepción
         old_move_lines.unlink()
         
-        # 3. Borrar los lotes "huérfanos" que quedaron de la validación anterior
-        # Solo borramos si el lote no tiene movimientos en otras transferencias
-        for lot in old_lots:
-            usage_count = self.env['stock.move.line'].search_count([('lot_id', '=', lot.id)])
-            if usage_count == 0:
-                try:
-                    lot.unlink()
-                except Exception as e:
-                    _logger.warning(f"No se pudo eliminar el lote {lot.name}: {e}")
-        # -------------------------------------------------------------
+        # 3. Borramos los lotes que quedaron huérfanos
+        # Usamos savepoint para evitar que un error de integridad aborte la transacción
+        if old_lots:
+            # Aseguramos que el estado de la DB esté actualizado para el conteo
+            self.env['stock.move.line'].flush_model()
+            
+            for lot in old_lots:
+                # Solo intentamos borrar si ya no tiene ninguna línea de movimiento en el sistema
+                count = self.env['stock.move.line'].search_count([('lot_id', '=', lot.id)])
+                if count == 0:
+                    try:
+                        with self.env.cr.savepoint():
+                            lot.unlink()
+                    except Exception:
+                        # Si el lote tiene quants o historial, el savepoint revierte el fallo 
+                        # de ese borrado puntual y nos permite continuar con el siguiente
+                        _logger.info(f"Lote {lot.name} conservado por restricciones de sistema.")
+        # ---------------------------------------------------
 
         move_lines_created = 0
         next_prefix = self._get_next_global_prefix()
@@ -179,13 +186,12 @@ class PackingListImportWizard(models.TransientModel):
             move_lines_created += 1
 
         self.picking_id.write({'packing_list_imported': True})
-        _logger.info(f"=== [PL_IMPORT] FIN. Creados {move_lines_created} lotes. ===")
         return {
             'type': 'ir.actions.client',
             'tag': 'display_notification',
             'params': {
-                'title': 'Éxito',
-                'message': f'Se han importado/actualizado {move_lines_created} lotes.',
+                'title': 'Proceso Completado',
+                'message': f'Se han importado {move_lines_created} lotes correctamente.',
                 'type': 'success',
                 'next': {'type': 'ir.actions.act_window_close'}
             }
@@ -198,8 +204,7 @@ class PackingListImportWizard(models.TransientModel):
             return []
         
         revisions = self.env['spreadsheet.revision'].sudo().with_context(active_test=False).search([
-            ('res_model', '=', 'documents.document'),
-            ('res_id', '=', doc.id)
+            ('res_model', '=', 'documents.document'), ('res_id', '=', doc.id)
         ], order='id asc')
 
         all_rows = []
@@ -216,21 +221,15 @@ class PackingListImportWizard(models.TransientModel):
                 except: continue
             
             product = self._identify_product_from_sheet(idx)
-            if not product:
-                continue
-
-            sheet_rows = self._extract_rows_from_index(idx, product)
-            all_rows.extend(sheet_rows)
-            
+            if product:
+                all_rows.extend(self._extract_rows_from_index(idx, product))
         return all_rows
 
     def _identify_product_from_sheet(self, idx):
         p_info = idx.value(1, 0)
         if not p_info: return None
         info_str = str(p_info).strip()
-        p_code = ""
-        if '(' in info_str and ')' in info_str:
-            p_code = info_str.split('(')[1].split(')')[0].strip()
+        p_code = info_str.split('(')[1].split(')')[0].strip() if '(' in info_str else ""
         p_name = info_str.split('(')[0].strip()
         domain = ['|', ('name', '=', p_name), ('default_code', '=', p_name)]
         if p_code:
@@ -239,13 +238,10 @@ class PackingListImportWizard(models.TransientModel):
 
     def _extract_rows_from_index(self, idx, product):
         rows = []
-        # Aumentamos el rango de búsqueda para no perder datos
         for r in range(3, 500):
             grosor_raw = idx.value(0, r)
             alto_raw = idx.value(1, r)
             ancho_raw = idx.value(2, r)
-
-            # Si las celdas críticas están vacías o son cero, ignoramos la fila (corrección para eliminar líneas)
             if not grosor_raw and not alto_raw and not ancho_raw:
                 continue
             
@@ -269,15 +265,13 @@ class PackingListImportWizard(models.TransientModel):
                     'contenedor': str(idx.value(9, r) or 'SN').strip(),
                     'ref_proveedor': str(idx.value(10, r) or '').strip(),
                 })
-            except:
-                continue
+            except: continue
         return rows
 
     def _to_float(self, val):
         if val is None or val == '': return 0.0
         try:
-            clean_val = str(val).replace(',', '.')
-            return float(clean_val)
+            return float(str(val).replace(',', '.'))
         except: return 0.0
 
     def _parse_tipo(self, val):
@@ -317,29 +311,18 @@ class PackingListImportWizard(models.TransientModel):
         for sheet in wb.worksheets:
             p_info = sheet['B1'].value
             if not p_info: continue
-            p_code = str(p_info).split('(')[1].split(')')[0].strip() if '(' in str(p_info) else ''
-            product = self.env['product.product'].search([
-                '|', ('default_code', '=', p_code), ('name', '=', str(p_info).split('(')[0].strip())
-            ], limit=1)
+            product = self.env['product.product'].search([('name', 'ilike', str(p_info).split('(')[0].strip())], limit=1)
             if not product: continue
-            
             for r in range(4, sheet.max_row + 1):
                 alto = self._to_float(sheet.cell(r, 2).value)
                 ancho = self._to_float(sheet.cell(r, 3).value)
-                if alto <= 0 or ancho <= 0:
-                    continue
+                if alto <= 0 or ancho <= 0: continue
                 rows.append({
-                    'product': product,
-                    'grosor': self._to_float(sheet.cell(r, 1).value),
-                    'alto': alto,
-                    'ancho': ancho,
-                    'color': str(sheet.cell(r, 4).value or '').strip(),
-                    'bloque': str(sheet.cell(r, 5).value or '').strip(),
-                    'atado': str(sheet.cell(r, 6).value or '').strip(),
-                    'tipo': self._parse_tipo(sheet.cell(r, 7).value),
-                    'grupo_name': str(sheet.cell(r, 8).value or '').strip(),
-                    'pedimento': str(sheet.cell(r, 9).value or '').strip(),
-                    'contenedor': str(sheet.cell(r, 10).value or 'SN').strip(),
+                    'product': product, 'grosor': self._to_float(sheet.cell(r, 1).value),
+                    'alto': alto, 'ancho': ancho, 'color': str(sheet.cell(r, 4).value or '').strip(),
+                    'bloque': str(sheet.cell(r, 5).value or '').strip(), 'atado': str(sheet.cell(r, 6).value or '').strip(),
+                    'tipo': self._parse_tipo(sheet.cell(r, 7).value), 'grupo_name': str(sheet.cell(r, 8).value or '').strip(),
+                    'pedimento': str(sheet.cell(r, 9).value or '').strip(), 'contenedor': str(sheet.cell(r, 10).value or 'SN').strip(),
                     'ref_proveedor': str(sheet.cell(r, 11).value or '').strip(),
                 })
         return rows
