@@ -18,7 +18,6 @@ class _PLCellsIndex:
 
     def put(self, col, row, content):
         if col is not None and row is not None:
-            # Forzamos que si el contenido es nulo o vacío, se limpie de la memoria
             if content in (None, False, ""):
                 if (int(col), int(row)) in self._cells:
                     del self._cells[(int(col), int(row))]
@@ -26,7 +25,7 @@ class _PLCellsIndex:
                 self._cells[(int(col), int(row))] = str(content)
 
     def ingest_cells(self, raw_cells):
-        if not raw_cells or not isinstance(raw_cells, dict):
+        if not raw_cells:
             return
         for key, cell_data in raw_cells.items():
             col, row = self._parse_cell_key(key)
@@ -57,6 +56,7 @@ class _PLCellsIndex:
         return cell_data
 
     def apply_revision_commands(self, commands, target_sheet_id):
+        """Procesa comandos de edición, borrado y desplazamiento de Odoo Spreadsheet"""
         applied = 0
         for cmd in commands:
             if cmd.get('sheetId') and cmd.get('sheetId') != target_sheet_id:
@@ -64,28 +64,21 @@ class _PLCellsIndex:
             
             cmd_type = cmd.get('type')
             
-            # 1. Actualización de celda
             if cmd_type == 'UPDATE_CELL':
                 col, row = cmd.get('col'), cmd.get('row')
-                content = cmd.get('content')
-                _logger.info(f"[DEBUG_REV] UPDATE [{col},{row}] -> '{content}'")
-                self.put(col, row, content)
-                applied += 1
+                if col is not None and row is not None:
+                    self.put(col, row, cmd.get('content'))
+                    applied += 1
             
-            # 2. Eliminación física de filas (Shift hacia arriba)
             elif cmd_type == 'REMOVE_COLUMNS_ROWS':
                 if cmd.get('dimension') == 'row':
                     elements = sorted(cmd.get('elements', []), reverse=True)
-                    _logger.info(f"[DEBUG_REV] REMOVE_ROWS: {elements}")
                     for row_idx in elements:
                         self._shift_rows_up(row_idx)
                     applied += 1
-
-            # 3. Borrado de contenido (Backspace / Delete)
+                        
             elif cmd_type in ('DELETE_CONTENT', 'CLEAR_CELL'):
-                zones = cmd.get('zones', [])
-                _logger.info(f"[DEBUG_REV] DELETE_CONTENT en zonas: {zones}")
-                for zone in zones:
+                for zone in cmd.get('zones', []):
                     for r in range(zone.get('top', 0), zone.get('bottom', 0) + 1):
                         for c in range(zone.get('left', 0), zone.get('right', 0) + 1):
                             if (c, r) in self._cells:
@@ -125,35 +118,36 @@ class PackingListImportWizard(models.TransientModel):
         elif self.spreadsheet_id:
             rows = self._get_data_from_spreadsheet()
         
+        _logger.info(f"[PL_IMPORT] Filas detectadas para procesar: {len(rows)}")
+
         if not rows:
+            _logger.error("[PL_IMPORT] No se obtuvieron filas. Abortando para no dañar datos.")
             raise UserError("No se encontraron datos válidos. Verifique el producto en B1 y que las medidas no sean cero.")
 
-        # --- LIMPIEZA SEGURA DE LOTES ANTERIORES ---
-        _logger.info(f"[PL_CLEANUP] Limpiando datos previos del picking {self.picking_id.name}")
+        # --- LÓGICA DE LIMPIEZA PROFUNDA ---
+        _logger.info("[PL_CLEANUP] Iniciando limpieza de registros previos...")
         old_move_lines = self.picking_id.move_line_ids
         old_lots = old_move_lines.mapped('lot_id')
 
-        # 1. Forzar qty a 0 para que stock.quant se limpie
+        # 1. Liberar Quants
         old_move_lines.write({'qty_done': 0})
         self.env.flush_all()
-
-        # 2. Borrar Quants manualmente para evitar bloqueos de integridad
         if old_lots:
             quants = self.env['stock.quant'].sudo().search([('lot_id', 'in', old_lots.ids)])
-            _logger.info(f"[PL_CLEANUP] Borrando {len(quants)} quants.")
+            _logger.info(f"[PL_CLEANUP] Eliminando {len(quants)} quants.")
             quants.sudo().unlink()
 
-        # 3. Borrar líneas y lotes (con savepoint para evitar crash)
+        # 2. Borrar líneas y lotes
         old_move_lines.unlink()
         for lot in old_lots:
             if self.env['stock.move.line'].search_count([('lot_id', '=', lot.id)]) == 0:
                 try:
                     with self.env.cr.savepoint():
                         lot.unlink()
-                except:
-                    _logger.info(f"[PL_CLEANUP] Lote {lot.name} no se pudo borrar, se conserva.")
+                        _logger.info(f"[PL_CLEANUP] Lote {lot.name} eliminado.")
+                except: continue
 
-        # --- CREACIÓN DE NUEVOS LOTES ---
+        # --- CREACIÓN DE NUEVOS REGISTROS ---
         move_lines_created = 0
         next_prefix = self._get_next_global_prefix()
         containers = {}
@@ -165,20 +159,15 @@ class PackingListImportWizard(models.TransientModel):
 
             cont = data['contenedor'] or 'SN'
             if cont not in containers:
-                containers[cont] = {
-                    'pre': str(next_prefix),
-                    'num': self._get_next_lot_number_for_prefix(str(next_prefix))
-                }
+                containers[cont] = {'pre': str(next_prefix), 'num': self._get_next_lot_number_for_prefix(str(next_prefix))}
                 next_prefix += 1
 
             l_name = f"{containers[cont]['pre']}-{containers[cont]['num']:02d}"
             
             grupo_ids = []
             if data.get('grupo_name'):
-                grupo_name = data['grupo_name'].strip()
-                grupo = self.env['stock.lot.group'].search([('name', '=', grupo_name)], limit=1)
-                if not grupo:
-                    grupo = self.env['stock.lot.group'].create({'name': grupo_name})
+                grupo = self.env['stock.lot.group'].search([('name', '=', data['grupo_name'].strip())], limit=1)
+                if not grupo: grupo = self.env['stock.lot.group'].create({'name': data['grupo_name'].strip()})
                 grupo_ids = [grupo.id]
 
             lot = self.env['stock.lot'].create({
@@ -192,24 +181,20 @@ class PackingListImportWizard(models.TransientModel):
             self.env['stock.move.line'].create({
                 'move_id': move.id, 'product_id': product.id, 'lot_id': lot.id,
                 'qty_done': data['alto'] * data['ancho'] or 1.0,
-                'location_id': self.picking_id.location_id.id,
-                'location_dest_id': self.picking_id.location_dest_id.id,
-                'picking_id': self.picking_id.id,
-                'x_grosor_temp': data['grosor'], 'x_alto_temp': data['alto'], 'x_ancho_temp': data['ancho'],
-                'x_color_temp': data.get('color'), 'x_tipo_temp': data['tipo'], 'x_bloque_temp': data['bloque'],
-                'x_atado_temp': data['atado'], 'x_pedimento_temp': data['pedimento'],
-                'x_contenedor_temp': cont, 'x_referencia_proveedor_temp': data['ref_proveedor'],
-                'x_grupo_temp': [(6, 0, grupo_ids)],
+                'location_id': self.picking_id.location_id.id, 'location_dest_id': self.picking_id.location_dest_id.id,
+                'picking_id': self.picking_id.id, 'x_grosor_temp': data['grosor'], 'x_alto_temp': data['alto'],
+                'x_ancho_temp': data['ancho'], 'x_color_temp': data.get('color'), 'x_tipo_temp': data['tipo'],
+                'x_bloque_temp': data['bloque'], 'x_atado_temp': data['atado'], 'x_pedimento_temp': data['pedimento'],
+                'x_contenedor_temp': cont, 'x_referencia_proveedor_temp': data['ref_proveedor'], 'x_grupo_temp': [(6, 0, grupo_ids)],
             })
             containers[cont]['num'] += 1
             move_lines_created += 1
 
         self.picking_id.write({'packing_list_imported': True})
-        _logger.info(f"=== [PL_IMPORT] FINALIZADO. {move_lines_created} registros creados. ===")
         return {
             'type': 'ir.actions.client', 'tag': 'display_notification',
             'params': {
-                'title': 'PL Procesado', 'message': f'Se han generado {move_lines_created} lotes.',
+                'title': 'PL Actualizado', 'message': f'Se han importado {move_lines_created} lotes correctamente.',
                 'type': 'success', 'next': {'type': 'ir.actions.act_window_close'}
             }
         }
@@ -224,16 +209,23 @@ class PackingListImportWizard(models.TransientModel):
             ('res_model', '=', 'documents.document'), ('res_id', '=', doc.id)
         ], order='id asc')
         
-        _logger.info(f"[PL_IMPORT] Spreadsheet {doc.id}: aplicando {len(revisions)} revisiones.")
+        # --- CORRECCIÓN: Aplanar comandos de Odoo 19 ---
+        all_cmds = []
+        for rev in revisions:
+            rev_data = json.loads(rev.commands) if isinstance(rev.commands, str) else rev.commands
+            if isinstance(rev_data, dict) and 'commands' in rev_data:
+                all_cmds.extend(rev_data['commands'])
+            elif isinstance(rev_data, list):
+                all_cmds.extend(rev_data)
+        
+        _logger.info(f"[PL_IMPORT] Procesando {len(all_cmds)} comandos de revisión.")
 
         all_rows = []
         for sheet in spreadsheet_json['sheets']:
             sheet_id = sheet.get('id')
             idx = _PLCellsIndex()
             idx.ingest_cells(sheet.get('cells', {}))
-            
-            # Aplicar historial de ediciones (Crucial para detectar borrados)
-            idx.apply_revision_commands([json.loads(r.commands) if isinstance(r.commands, str) else r.commands for r in revisions], sheet_id)
+            idx.apply_revision_commands(all_cmds, sheet_id)
             
             product = self._identify_product_from_sheet(idx)
             if product:
@@ -241,34 +233,39 @@ class PackingListImportWizard(models.TransientModel):
         return all_rows
 
     def _identify_product_from_sheet(self, idx):
-        p_info = idx.value(1, 0)
-        if not p_info: return None
-        info_str = str(p_info).strip()
-        p_name = info_str.split('(')[0].strip()
+        """Busca el producto en las primeras celdas (tolerante a movimientos de filas)"""
+        p_info = None
+        for r in range(3): # Busca en las primeras 3 filas por si hubo desplazamientos
+            val = idx.value(1, r) # Columna B
+            if val and 'PRODUCTO:' in str(idx.value(0, r)).upper():
+                p_info = val
+                break
+        if not p_info: p_info = idx.value(1, 0) # Fallback a B1
+        
+        if not p_info: 
+            _logger.error("[PL_IMPORT] No se encontró información del producto en Columna B.")
+            return None
+            
+        p_name = str(p_info).split('(')[0].strip()
+        _logger.info(f"[PL_IMPORT] Buscando producto: '{p_name}'")
         return self.env['product.product'].search(['|', ('name', '=', p_name), ('default_code', '=', p_name)], limit=1)
 
     def _extract_rows_from_index(self, idx, product):
         rows = []
         for r in range(3, 200):
-            a_raw = idx.value(1, r) # Alto
-            w_raw = idx.value(2, r) # Ancho
-
-            # LOG DE SEGURIDAD
-            if a_raw or w_raw:
-                alto = self._to_float(a_raw)
-                ancho = self._to_float(w_raw)
-                if alto > 0 and ancho > 0:
-                    rows.append({
-                        'product': product, 'grosor': self._to_float(idx.value(0, r)),
-                        'alto': alto, 'ancho': ancho, 'color': str(idx.value(3, r) or '').strip(),
-                        'bloque': str(idx.value(4, r) or '').strip(), 'atado': str(idx.value(5, r) or '').strip(),
-                        'tipo': self._parse_tipo(idx.value(6, r)), 'grupo_name': str(idx.value(7, r) or '').strip(),
-                        'pedimento': str(idx.value(8, r) or '').strip(), 'contenedor': str(idx.value(9, r) or 'SN').strip(),
-                        'ref_proveedor': str(idx.value(10, r) or '').strip(),
-                    })
-                    _logger.info(f"[PL_EXTRACT] Fila {r+1} OK.")
-                else:
-                    _logger.info(f"[PL_EXTRACT] Fila {r+1} descartada por medidas 0.")
+            alto = self._to_float(idx.value(1, r))
+            ancho = self._to_float(idx.value(2, r))
+            
+            if alto > 0 and ancho > 0:
+                rows.append({
+                    'product': product, 'grosor': self._to_float(idx.value(0, r)),
+                    'alto': alto, 'ancho': ancho, 'color': str(idx.value(3, r) or '').strip(),
+                    'bloque': str(idx.value(4, r) or '').strip(), 'atado': str(idx.value(5, r) or '').strip(),
+                    'tipo': self._parse_tipo(idx.value(6, r)), 'grupo_name': str(idx.value(7, r) or '').strip(),
+                    'pedimento': str(idx.value(8, r) or '').strip(), 'contenedor': str(idx.value(9, r) or 'SN').strip(),
+                    'ref_proveedor': str(idx.value(10, r) or '').strip(),
+                })
+                _logger.info(f"[PL_IMPORT] Fila {r+1} leída OK.")
         return rows
 
     def _to_float(self, val):
@@ -292,7 +289,9 @@ class PackingListImportWizard(models.TransientModel):
 
     def _load_spreadsheet_json(self, doc):
         if doc.spreadsheet_data:
-            try: return json.loads(doc.spreadsheet_data.decode('utf-8') if isinstance(doc.spreadsheet_data, bytes) else doc.spreadsheet_data)
+            try:
+                data = doc.spreadsheet_data
+                return json.loads(data.decode('utf-8') if isinstance(data, bytes) else data)
             except: pass
         return None
 
@@ -306,8 +305,7 @@ class PackingListImportWizard(models.TransientModel):
             product = self.env['product.product'].search([('name', 'ilike', str(p_info).split('(')[0].strip())], limit=1)
             if not product: continue
             for r in range(4, sheet.max_row + 1):
-                alto = self._to_float(sheet.cell(r, 2).value)
-                ancho = self._to_float(sheet.cell(r, 3).value)
+                alto, ancho = self._to_float(sheet.cell(r, 2).value), self._to_float(sheet.cell(r, 3).value)
                 if alto > 0 and ancho > 0:
                     rows.append({
                         'product': product, 'grosor': self._to_float(sheet.cell(r, 1).value),
