@@ -86,7 +86,6 @@ class _PLCellsIndex:
                     applied += 1
                         
             elif cmd_type in ('DELETE_CONTENT', 'CLEAR_CELL'):
-                # Odoo usa 'target' O 'zones' dependiendo de la versión
                 zones = cmd.get('zones') or cmd.get('target') or []
                 for zone in zones:
                     _logger.info(f"[INDEX_DB] Limpiando zona por DELETE_CONTENT: {zone}")
@@ -211,7 +210,7 @@ class PackingListImportWizard(models.TransientModel):
     def _get_data_from_spreadsheet(self):
         doc = self.spreadsheet_id
         
-        spreadsheet_json = self._load_spreadsheet_with_revisions(doc)
+        spreadsheet_json = self._get_current_spreadsheet_state(doc)
         if not spreadsheet_json or not spreadsheet_json.get('sheets'):
             return []
 
@@ -226,8 +225,92 @@ class PackingListImportWizard(models.TransientModel):
                 all_rows.extend(sheet_rows)
         return all_rows
 
-    def _load_spreadsheet_with_revisions(self, doc):
-        """Carga snapshot y aplica SOLO las revisiones POST-snapshot"""
+    def _get_current_spreadsheet_state(self, doc):
+        """Obtiene el estado ACTUAL del spreadsheet usando el mismo método que el frontend"""
+        
+        # Método 1: Usar spreadsheet_snapshot (el snapshot más reciente)
+        if doc.spreadsheet_snapshot:
+            try:
+                data = doc.spreadsheet_snapshot
+                parsed = json.loads(data.decode('utf-8') if isinstance(data, bytes) else data)
+                if parsed and parsed.get('sheets'):
+                    cells_count = sum(len(s.get('cells', {})) for s in parsed['sheets'])
+                    _logger.info(f"[PL_IMPORT] Usando spreadsheet_snapshot ({cells_count} celdas)")
+                    return self._apply_pending_revisions(doc, parsed)
+            except Exception as e:
+                _logger.warning(f"[PL_IMPORT] Error leyendo spreadsheet_snapshot: {e}")
+        
+        # Método 2: Usar _get_spreadsheet_serialized_snapshot (método interno de Odoo)
+        try:
+            if hasattr(doc, '_get_spreadsheet_serialized_snapshot'):
+                snapshot_data = doc._get_spreadsheet_serialized_snapshot()
+                if snapshot_data:
+                    parsed = json.loads(snapshot_data) if isinstance(snapshot_data, str) else snapshot_data
+                    if parsed and parsed.get('sheets'):
+                        cells_count = sum(len(s.get('cells', {})) for s in parsed['sheets'])
+                        _logger.info(f"[PL_IMPORT] Usando _get_spreadsheet_serialized_snapshot ({cells_count} celdas)")
+                        return self._apply_pending_revisions(doc, parsed)
+        except Exception as e:
+            _logger.warning(f"[PL_IMPORT] Error en _get_spreadsheet_serialized_snapshot: {e}")
+        
+        # Método 3: Fallback a spreadsheet_data + todas las revisiones
+        _logger.info("[PL_IMPORT] Fallback: spreadsheet_data + todas las revisiones")
+        return self._load_spreadsheet_with_all_revisions(doc)
+
+    def _apply_pending_revisions(self, doc, spreadsheet_json):
+        """Aplica revisiones pendientes después del último snapshot"""
+        
+        snapshot_revision_id = spreadsheet_json.get('revisionId', '')
+        _logger.info(f"[PL_DEBUG] Snapshot revisionId: '{snapshot_revision_id}'")
+        
+        if not snapshot_revision_id:
+            return spreadsheet_json
+        
+        revisions = self.env['spreadsheet.revision'].sudo().with_context(active_test=False).search([
+            ('res_model', '=', 'documents.document'), 
+            ('res_id', '=', doc.id)
+        ], order='id asc')
+        
+        # Encontrar revisiones después del snapshot actual
+        start_applying = False
+        all_cmds = []
+        
+        for rev in revisions:
+            rev_data = json.loads(rev.commands) if isinstance(rev.commands, str) else rev.commands
+            
+            if not start_applying:
+                rev_id = rev_data.get('id') if isinstance(rev_data, dict) else None
+                if rev_id == snapshot_revision_id:
+                    start_applying = True
+                continue
+            
+            # Saltar SNAPSHOT_CREATED
+            if isinstance(rev_data, dict) and rev_data.get('type') == 'SNAPSHOT_CREATED':
+                continue
+                
+            if isinstance(rev_data, dict) and 'commands' in rev_data:
+                all_cmds.extend(rev_data['commands'])
+            elif isinstance(rev_data, list):
+                all_cmds.extend(rev_data)
+        
+        if not all_cmds:
+            _logger.info("[PL_IMPORT] No hay revisiones pendientes después del snapshot")
+            return spreadsheet_json
+        
+        _logger.info(f"[PL_IMPORT] Aplicando {len(all_cmds)} comandos pendientes")
+        
+        for sheet in spreadsheet_json.get('sheets', []):
+            sheet_id = sheet.get('id')
+            idx = _PLCellsIndex()
+            idx.ingest_cells(sheet.get('cells', {}))
+            idx.apply_revision_commands(all_cmds, sheet_id)
+            sheet['cells'] = {f"{self._col_to_letter(c)}{r+1}": {'content': v} 
+                             for (c, r), v in idx._cells.items()}
+        
+        return spreadsheet_json
+
+    def _load_spreadsheet_with_all_revisions(self, doc):
+        """Carga spreadsheet_data y aplica TODAS las revisiones desde el inicio"""
         spreadsheet_json = self._load_spreadsheet_json(doc)
         if not spreadsheet_json:
             return None
@@ -237,34 +320,23 @@ class PackingListImportWizard(models.TransientModel):
             ('res_id', '=', doc.id)
         ], order='id asc')
         
-        _logger.info(f"[PL_DEBUG] Total revisiones encontradas: {len(revisions)}")
+        _logger.info(f"[PL_DEBUG] Total revisiones: {len(revisions)}")
         
-        # Encontrar el índice del último SNAPSHOT_CREATED
-        snapshot_idx = -1
-        for i, rev in enumerate(revisions):
-            rev_data = json.loads(rev.commands) if isinstance(rev.commands, str) else rev.commands
-            if isinstance(rev_data, dict) and rev_data.get('type') == 'SNAPSHOT_CREATED':
-                snapshot_idx = i
-                _logger.info(f"[PL_DEBUG] SNAPSHOT_CREATED encontrado en revision {i}")
-        
-        # Solo aplicar revisiones DESPUÉS del último snapshot
         all_cmds = []
-        for i, rev in enumerate(revisions):
-            if i <= snapshot_idx:
-                _logger.info(f"[PL_DEBUG] Saltando revision {i} (antes o igual al snapshot)")
+        for rev in revisions:
+            rev_data = json.loads(rev.commands) if isinstance(rev.commands, str) else rev.commands
+            
+            # Saltar SNAPSHOT_CREATED (no tienen comandos útiles)
+            if isinstance(rev_data, dict) and rev_data.get('type') == 'SNAPSHOT_CREATED':
                 continue
                 
-            rev_data = json.loads(rev.commands) if isinstance(rev.commands, str) else rev.commands
             if isinstance(rev_data, dict) and 'commands' in rev_data:
-                _logger.info(f"[PL_DEBUG] Agregando {len(rev_data['commands'])} comandos de revision {i}")
                 all_cmds.extend(rev_data['commands'])
             elif isinstance(rev_data, list):
-                _logger.info(f"[PL_DEBUG] Agregando {len(rev_data)} comandos (lista directa) de revision {i}")
                 all_cmds.extend(rev_data)
         
-        _logger.info(f"[PL_IMPORT] Aplicando {len(all_cmds)} comandos de revisión post-snapshot")
+        _logger.info(f"[PL_IMPORT] Aplicando {len(all_cmds)} comandos totales")
         
-        # Log tipos de comandos
         cmd_types = {}
         for cmd in all_cmds:
             if isinstance(cmd, dict):
@@ -277,9 +349,9 @@ class PackingListImportWizard(models.TransientModel):
             idx = _PLCellsIndex()
             idx.ingest_cells(sheet.get('cells', {}))
             
-            _logger.info(f"[PL_DEBUG] Sheet {sheet_id}: {len(idx._cells)} celdas antes de aplicar revisiones")
+            _logger.info(f"[PL_DEBUG] Sheet {sheet_id}: {len(idx._cells)} celdas antes")
             applied = idx.apply_revision_commands(all_cmds, sheet_id)
-            _logger.info(f"[PL_DEBUG] Sheet {sheet_id}: {applied} comandos aplicados, {len(idx._cells)} celdas después")
+            _logger.info(f"[PL_DEBUG] Sheet {sheet_id}: {applied} aplicados, {len(idx._cells)} celdas después")
             
             sheet['cells'] = {f"{self._col_to_letter(c)}{r+1}": {'content': v} 
                              for (c, r), v in idx._cells.items()}
