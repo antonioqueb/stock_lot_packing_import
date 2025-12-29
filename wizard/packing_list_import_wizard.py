@@ -226,23 +226,47 @@ class PackingListImportWizard(models.TransientModel):
         return all_rows
 
     def _get_current_spreadsheet_state(self, doc):
-        """Obtiene el estado actual del spreadsheet aplicando todas las revisiones"""
+        """Obtiene el estado actual del spreadsheet"""
+        # DEBUG: Ver qué métodos tiene
+        spread_methods = [m for m in dir(doc) if 'spread' in m.lower()]
+        _logger.info(f"[PL_DEBUG] Métodos spreadsheet disponibles: {spread_methods}")
+        
         try:
-            # Método 1: join_spreadsheet_session (Odoo 17+)
+            # Método 1: join_spreadsheet_session
             if hasattr(doc, 'join_spreadsheet_session'):
                 session_data = doc.join_spreadsheet_session()
-                if session_data and session_data.get('data'):
-                    _logger.info("[PL_IMPORT] Usando estado actual desde join_spreadsheet_session")
-                    data = session_data['data']
-                    return json.loads(data) if isinstance(data, str) else data
-            
-            # Método 2: dispatch_spreadsheet_message (Odoo 18+)
-            if hasattr(doc, 'dispatch_spreadsheet_message'):
-                result = doc.dispatch_spreadsheet_message({'type': 'SNAPSHOT_FETCHED'})
-                if result and result.get('data'):
-                    _logger.info("[PL_IMPORT] Usando estado actual desde dispatch")
-                    return json.loads(result['data']) if isinstance(result['data'], str) else result['data']
+                _logger.info(f"[PL_DEBUG] join_spreadsheet_session tipo: {type(session_data)}")
+                if isinstance(session_data, dict):
+                    _logger.info(f"[PL_DEBUG] join_spreadsheet_session keys: {session_data.keys()}")
+                    # Truncar para el log
+                    _logger.info(f"[PL_DEBUG] session_data preview: {str(session_data)[:1000]}")
+                
+                if session_data:
+                    # Intentar obtener data de diferentes formas
+                    data = None
+                    if isinstance(session_data, dict):
+                        data = session_data.get('data') or session_data.get('spreadsheet_data')
+                        # Si no hay 'data' pero hay 'sheets', es el dato directo
+                        if not data and 'sheets' in session_data:
+                            _logger.info("[PL_IMPORT] Usando session_data directo (tiene sheets)")
+                            return session_data
                     
+                    if data:
+                        _logger.info("[PL_IMPORT] Usando estado actual desde join_spreadsheet_session")
+                        parsed = json.loads(data) if isinstance(data, str) else data
+                        if parsed and parsed.get('sheets'):
+                            return parsed
+            
+            # Método 2: get_spreadsheet_data (Odoo 17+)
+            if hasattr(doc, 'get_spreadsheet_data'):
+                data = doc.get_spreadsheet_data()
+                _logger.info(f"[PL_DEBUG] get_spreadsheet_data tipo: {type(data)}")
+                if data:
+                    _logger.info("[PL_IMPORT] Usando get_spreadsheet_data")
+                    parsed = json.loads(data) if isinstance(data, str) else data
+                    if parsed and parsed.get('sheets'):
+                        return parsed
+                        
         except Exception as e:
             _logger.warning(f"[PL_IMPORT] Error obteniendo estado actual: {e}")
         
@@ -257,11 +281,21 @@ class PackingListImportWizard(models.TransientModel):
             return None
         
         snapshot_revision_id = spreadsheet_json.get('revisionId', '')
+        _logger.info(f"[PL_DEBUG] Snapshot revisionId: '{snapshot_revision_id}'")
         
         revisions = self.env['spreadsheet.revision'].sudo().with_context(active_test=False).search([
             ('res_model', '=', 'documents.document'), 
             ('res_id', '=', doc.id)
         ], order='id asc')
+        
+        _logger.info(f"[PL_DEBUG] Total revisiones encontradas: {len(revisions)}")
+        
+        # Loguear estructura de primeras revisiones para entender formato
+        for i, rev in enumerate(revisions[:3]):
+            rev_data = json.loads(rev.commands) if isinstance(rev.commands, str) else rev.commands
+            _logger.info(f"[PL_DEBUG] Revision {i} tipo: {type(rev_data)}, keys: {rev_data.keys() if isinstance(rev_data, dict) else 'N/A'}")
+            if isinstance(rev_data, dict):
+                _logger.info(f"[PL_DEBUG] Revision {i} preview: {str(rev_data)[:500]}")
         
         start_applying = not snapshot_revision_id
         all_cmds = []
@@ -273,20 +307,35 @@ class PackingListImportWizard(models.TransientModel):
                 rev_id = rev_data.get('id') if isinstance(rev_data, dict) else None
                 if rev_id == snapshot_revision_id:
                     start_applying = True
+                    _logger.info(f"[PL_DEBUG] Encontrado snapshot revision, empezando a aplicar desde aquí")
                 continue
             
             if isinstance(rev_data, dict) and 'commands' in rev_data:
-                all_cmds.extend(rev_data['commands'])
+                cmds = rev_data['commands']
+                _logger.info(f"[PL_DEBUG] Agregando {len(cmds)} comandos de revision")
+                all_cmds.extend(cmds)
             elif isinstance(rev_data, list):
+                _logger.info(f"[PL_DEBUG] Agregando {len(rev_data)} comandos (lista directa)")
                 all_cmds.extend(rev_data)
         
         _logger.info(f"[PL_IMPORT] Aplicando {len(all_cmds)} comandos de revisión post-snapshot")
+        
+        # Log tipos de comandos encontrados
+        cmd_types = {}
+        for cmd in all_cmds:
+            if isinstance(cmd, dict):
+                t = cmd.get('type', 'UNKNOWN')
+                cmd_types[t] = cmd_types.get(t, 0) + 1
+        _logger.info(f"[PL_DEBUG] Tipos de comandos: {cmd_types}")
         
         for sheet in spreadsheet_json.get('sheets', []):
             sheet_id = sheet.get('id')
             idx = _PLCellsIndex()
             idx.ingest_cells(sheet.get('cells', {}))
-            idx.apply_revision_commands(all_cmds, sheet_id)
+            
+            _logger.info(f"[PL_DEBUG] Sheet {sheet_id}: {len(idx._cells)} celdas antes de aplicar revisiones")
+            applied = idx.apply_revision_commands(all_cmds, sheet_id)
+            _logger.info(f"[PL_DEBUG] Sheet {sheet_id}: {applied} comandos aplicados, {len(idx._cells)} celdas después")
             
             # Reconstruir celdas desde el índice
             sheet['cells'] = {f"{self._col_to_letter(c)}{r+1}": {'content': v} 
