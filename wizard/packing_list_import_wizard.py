@@ -38,30 +38,13 @@ class _PLCellsIndex:
                 for char in col_str:
                     col = col * 26 + (ord(char) - ord('A') + 1)
                 return col - 1, int(row_str) - 1
-        if isinstance(key, str) and ',' in key:
-            parts = key.split(',')
-            if len(parts) == 2:
-                try: return int(parts[0]), int(parts[1])
-                except: pass
         return None, None
 
     def _extract_content(self, cell_data):
         if isinstance(cell_data, dict):
-            return cell_data.get('content') or cell_data.get('value') or cell_data.get('text')
+            # En Odoo 19, el valor real suele estar en 'content'
+            return cell_data.get('content') or cell_data.get('value') or ""
         return cell_data
-
-    def apply_revision_commands(self, commands, target_sheet_id):
-        applied = 0
-        for cmd in commands:
-            if cmd.get('sheetId') and cmd.get('sheetId') != target_sheet_id:
-                continue
-            if cmd.get('type') == 'UPDATE_CELL':
-                col, row = cmd.get('col'), cmd.get('row')
-                content = cmd.get('content')
-                if col is not None and row is not None:
-                    self.put(col, row, content)
-                    applied += 1
-        return applied
 
     def value(self, col, row):
         return self._cells.get((int(col), int(row)))
@@ -80,6 +63,9 @@ class PackingListImportWizard(models.TransientModel):
         self.ensure_one()
         _logger.info("=== [PL_IMPORT] INICIO PROCESO DE LIMPIEZA Y REPROCESO ===")
         
+        # Forzar guardado de cualquier cambio pendiente en la base de datos
+        self.env.flush_all()
+
         rows = []
         if self.excel_file:
             rows = self._get_data_from_excel_file()
@@ -87,36 +73,33 @@ class PackingListImportWizard(models.TransientModel):
             rows = self._get_data_from_spreadsheet()
         
         if not rows:
-            raise UserError("No se encontraron datos válidos en la hoja de cálculo.")
+            raise UserError("No se encontraron datos válidos. Verifique que haya llenado la hoja de cálculo.")
 
-        # --- LIMPIEZA PROFUNDA DE INVENTARIO ---
-        # 1. Obtener líneas y lotes actuales
+        # --- LIMPIEZA PROFUNDA: Borrar rastros de la importación anterior ---
         old_move_lines = self.picking_id.move_line_ids
         old_lots = old_move_lines.mapped('lot_id')
         
-        # 2. Primero poner cantidad a 0 para que Odoo intente limpiar los Quants internamente
+        # 1. Quitar cantidades para liberar quants
         old_move_lines.write({'qty_done': 0})
-        self.env.flush_all() # Forzar escritura en DB
+        self.env.flush_all()
         
-        # 3. Eliminar Quants de esos lotes (SUDO para evitar restricciones de permiso)
-        # Esto es lo que causaba el error de foreign key
+        # 2. Borrar Quants (SUDO para evitar bloqueos)
         if old_lots:
-            quants = self.env['stock.quant'].sudo().search([('lot_id', 'in', old_lots.ids)])
-            if quants:
-                quants.unlink()
+            self.env['stock.quant'].sudo().search([('lot_id', 'in', old_lots.ids)]).unlink()
         
-        # 4. Eliminar líneas de movimiento
+        # 3. Borrar líneas de movimiento
         old_move_lines.unlink()
         
-        # 5. Intentar eliminar lotes viejos uno a uno
+        # 4. Borrar lotes antiguos (si no están en otras transferencias)
         for lot in old_lots:
-            try:
-                with self.env.cr.savepoint():
-                    lot.unlink()
-            except Exception:
-                _logger.info(f"Lote {lot.name} no pudo eliminarse (posiblemente usado en otra operación), se mantiene.")
+            if self.env['stock.move.line'].search_count([('lot_id', '=', lot.id)]) == 0:
+                try:
+                    with self.env.cr.savepoint():
+                        lot.unlink()
+                except:
+                    _logger.info(f"Lote {lot.name} conservado: está referenciado en el sistema.")
 
-        # --- CREACIÓN DE NUEVOS LOTES SEGÚN EXCEL ACTUAL ---
+        # --- IMPORTACIÓN DE NUEVA DATA ---
         move_lines_created = 0
         next_prefix = self._get_next_global_prefix()
         containers = {}
@@ -124,8 +107,7 @@ class PackingListImportWizard(models.TransientModel):
         for data in rows:
             product = data['product']
             move = self.picking_id.move_ids.filtered(lambda m: m.product_id == product)[:1]
-            if not move:
-                continue
+            if not move: continue
 
             cont = data['contenedor'] or 'SN'
             if cont not in containers:
@@ -137,6 +119,7 @@ class PackingListImportWizard(models.TransientModel):
 
             l_name = f"{containers[cont]['pre']}-{containers[cont]['num']:02d}"
             
+            # Gestión de grupos
             grupo_ids = []
             if data.get('grupo_name'):
                 grupo_name = data['grupo_name'].strip()
@@ -145,43 +128,27 @@ class PackingListImportWizard(models.TransientModel):
                     grupo = self.env['stock.lot.group'].create({'name': grupo_name})
                 grupo_ids = [grupo.id]
 
-            # Crear Lote
+            # Crear Lote y Línea
             lot = self.env['stock.lot'].create({
                 'name': l_name,
                 'product_id': product.id,
                 'company_id': self.picking_id.company_id.id,
-                'x_grosor': data['grosor'],
-                'x_alto': data['alto'],
-                'x_ancho': data['ancho'],
-                'x_color': data.get('color'),
-                'x_bloque': data['bloque'],
-                'x_atado': data['atado'],
-                'x_tipo': data['tipo'],
-                'x_grupo': [(6, 0, grupo_ids)],
-                'x_pedimento': data['pedimento'],
-                'x_contenedor': cont,
-                'x_referencia_proveedor': data['ref_proveedor'],
+                'x_grosor': data['grosor'], 'x_alto': data['alto'], 'x_ancho': data['ancho'],
+                'x_color': data.get('color'), 'x_bloque': data['bloque'], 'x_atado': data['atado'],
+                'x_tipo': data['tipo'], 'x_grupo': [(6, 0, grupo_ids)], 'x_pedimento': data['pedimento'],
+                'x_contenedor': cont, 'x_referencia_proveedor': data['ref_proveedor'],
             })
             
-            # Crear Línea de Movimiento
             self.env['stock.move.line'].create({
-                'move_id': move.id,
-                'product_id': product.id,
-                'lot_id': lot.id,
+                'move_id': move.id, 'product_id': product.id, 'lot_id': lot.id,
                 'qty_done': data['alto'] * data['ancho'] or 1.0,
                 'location_id': self.picking_id.location_id.id,
                 'location_dest_id': self.picking_id.location_dest_id.id,
                 'picking_id': self.picking_id.id,
-                'x_grosor_temp': data['grosor'],
-                'x_alto_temp': data['alto'],
-                'x_ancho_temp': data['ancho'],
-                'x_color_temp': data.get('color'),
-                'x_tipo_temp': data['tipo'],
-                'x_bloque_temp': data['bloque'],
-                'x_atado_temp': data['atado'],
-                'x_pedimento_temp': data['pedimento'],
-                'x_contenedor_temp': cont,
-                'x_referencia_proveedor_temp': data['ref_proveedor'],
+                'x_grosor_temp': data['grosor'], 'x_alto_temp': data['alto'], 'x_ancho_temp': data['ancho'],
+                'x_color_temp': data.get('color'), 'x_tipo_temp': data['tipo'], 'x_bloque_temp': data['bloque'],
+                'x_atado_temp': data['atado'], 'x_pedimento_temp': data['pedimento'],
+                'x_contenedor_temp': cont, 'x_referencia_proveedor_temp': data['ref_proveedor'],
                 'x_grupo_temp': [(6, 0, grupo_ids)],
             })
             
@@ -189,45 +156,41 @@ class PackingListImportWizard(models.TransientModel):
             move_lines_created += 1
 
         self.picking_id.write({'packing_list_imported': True})
+        _logger.info(f"=== [PL_IMPORT] FIN. Creados {move_lines_created} lotes. ===")
+        
         return {
             'type': 'ir.actions.client',
             'tag': 'display_notification',
             'params': {
-                'title': 'Actualización Exitosa',
-                'message': f'Se han generado {move_lines_created} lotes (limpieza de previos realizada).',
+                'title': 'PL Procesado',
+                'message': f'Se han generado {move_lines_created} lotes correctamente.',
                 'type': 'success',
                 'next': {'type': 'ir.actions.act_window_close'}
             }
         }
 
     def _get_data_from_spreadsheet(self):
+        """
+        Lee el snapshot actual del Spreadsheet. 
+        No procesamos revisiones manuales porque Odoo ya las consolida en el snapshot al guardar.
+        """
         doc = self.spreadsheet_id
         spreadsheet_json = self._load_spreadsheet_json(doc)
         if not spreadsheet_json or not spreadsheet_json.get('sheets'):
             return []
         
-        revisions = self.env['spreadsheet.revision'].sudo().with_context(active_test=False).search([
-            ('res_model', '=', 'documents.document'), ('res_id', '=', doc.id)
-        ], order='id asc')
-
         all_rows = []
         for sheet in spreadsheet_json['sheets']:
-            sheet_id = sheet.get('id')
             idx = _PLCellsIndex()
             idx.ingest_cells(sheet.get('cells', {}))
-            for rev in revisions:
-                try:
-                    cmds = json.loads(rev.commands) if isinstance(rev.commands, str) else rev.commands
-                    if isinstance(cmds, dict) and cmds.get('type') == 'REMOTE_REVISION':
-                        idx.apply_revision_commands(cmds.get('commands', []), sheet_id)
-                except: continue
+            
             product = self._identify_product_from_sheet(idx)
             if product:
                 all_rows.extend(self._extract_rows_from_index(idx, product))
         return all_rows
 
     def _identify_product_from_sheet(self, idx):
-        p_info = idx.value(1, 0)
+        p_info = idx.value(1, 0) # Celda B1
         if not p_info: return None
         info_str = str(p_info).strip()
         p_code = info_str.split('(')[1].split(')')[0].strip() if '(' in info_str else ""
@@ -239,22 +202,34 @@ class PackingListImportWizard(models.TransientModel):
     def _extract_rows_from_index(self, idx, product):
         rows = []
         for r in range(3, 500):
-            grosor_raw = idx.value(0, r)
-            alto_raw = idx.value(1, r)
-            ancho_raw = idx.value(2, r)
-            if not grosor_raw and not alto_raw and not ancho_raw: continue
+            # Columnas: A=0(Grosor), B=1(Alto), C=2(Ancho)
+            grosor_v = idx.value(0, r)
+            alto_v = idx.value(1, r)
+            ancho_v = idx.value(2, r)
+
+            if not grosor_v and not alto_v and not ancho_v:
+                continue
             
-            alto = self._to_float(alto_raw)
-            ancho = self._to_float(ancho_raw)
-            if alto <= 0 or ancho <= 0: continue
+            alto = self._to_float(alto_v)
+            ancho = self._to_float(ancho_v)
+            
+            # Validación estricta: si no hay medidas reales, la fila no existe (fue eliminada o está vacía)
+            if alto <= 0 or ancho <= 0:
+                continue
             
             try:
                 rows.append({
-                    'product': product, 'grosor': self._to_float(grosor_raw),
-                    'alto': alto, 'ancho': ancho, 'color': str(idx.value(3, r) or '').strip(),
-                    'bloque': str(idx.value(4, r) or '').strip(), 'atado': str(idx.value(5, r) or '').strip(),
-                    'tipo': self._parse_tipo(idx.value(6, r)), 'grupo_name': str(idx.value(7, r) or '').strip(),
-                    'pedimento': str(idx.value(8, r) or '').strip(), 'contenedor': str(idx.value(9, r) or 'SN').strip(),
+                    'product': product,
+                    'grosor': self._to_float(grosor_v),
+                    'alto': alto,
+                    'ancho': ancho,
+                    'color': str(idx.value(3, r) or '').strip(),
+                    'bloque': str(idx.value(4, r) or '').strip(),
+                    'atado': str(idx.value(5, r) or '').strip(),
+                    'tipo': self._parse_tipo(idx.value(6, r)),
+                    'grupo_name': str(idx.value(7, r) or '').strip(),
+                    'pedimento': str(idx.value(8, r) or '').strip(),
+                    'contenedor': str(idx.value(9, r) or 'SN').strip(),
                     'ref_proveedor': str(idx.value(10, r) or '').strip(),
                 })
             except: continue
