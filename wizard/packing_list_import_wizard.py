@@ -18,7 +18,6 @@ class _PLCellsIndex:
 
     def put(self, col, row, content, source="unknown"):
         if col is not None and row is not None:
-            # Forzamos limpieza si el contenido es nulo o vacío
             if content in (None, False, ""):
                 if (int(col), int(row)) in self._cells:
                     _logger.info(f"[INDEX_DB] Limpiando celda [{col},{row}] por contenido vacío de {source}")
@@ -59,10 +58,9 @@ class _PLCellsIndex:
         return cell_data or ""
 
     def apply_revision_commands(self, commands, target_sheet_id):
-        """Procesa comandos de edición y eliminación de filas de Odoo 19"""
+        """Procesa comandos de edición y eliminación de filas"""
         applied = 0
         for cmd in commands:
-            # Si el comando es una lista de comandos (Batch)
             if isinstance(cmd, list):
                 applied += self.apply_revision_commands(cmd, target_sheet_id)
                 continue
@@ -134,12 +132,11 @@ class PackingListImportWizard(models.TransientModel):
         if not rows:
             raise UserError("No se encontraron datos. Verifique que haya llenado el PL y que las medidas sean mayores a cero.")
 
-        # --- LÓGICA DE LIMPIEZA PROFUNDA (Basada en Worksheet) ---
+        # --- LÓGICA DE LIMPIEZA PROFUNDA ---
         _logger.info("[PL_CLEANUP] Borrando datos previos...")
         old_move_lines = self.picking_id.move_line_ids
         old_lots = old_move_lines.mapped('lot_id')
 
-        # 1. Liberar inventario técnico (Quants)
         old_move_lines.write({'qty_done': 0})
         self.env.flush_all()
         if old_lots:
@@ -147,10 +144,8 @@ class PackingListImportWizard(models.TransientModel):
             _logger.info(f"[PL_CLEANUP] Eliminando {len(quants)} quants.")
             quants.sudo().unlink()
 
-        # 2. Borrar registros Odoo
         old_move_lines.unlink()
         for lot in old_lots:
-            # Verificamos si realmente ya no se usa
             if self.env['stock.move.line'].search_count([('lot_id', '=', lot.id)]) == 0:
                 try:
                     with self.env.cr.savepoint():
@@ -213,33 +208,16 @@ class PackingListImportWizard(models.TransientModel):
 
     def _get_data_from_spreadsheet(self):
         doc = self.spreadsheet_id
-        spreadsheet_json = self._load_spreadsheet_json(doc)
+        
+        # Obtener el estado ACTUAL del spreadsheet
+        spreadsheet_json = self._get_current_spreadsheet_state(doc)
         if not spreadsheet_json or not spreadsheet_json.get('sheets'):
             return []
-        
-        revisions = self.env['spreadsheet.revision'].sudo().with_context(active_test=False).search([
-            ('res_model', '=', 'documents.document'), ('res_id', '=', doc.id)
-        ], order='id asc')
-        
-        # Aplanamos comandos de revisión
-        all_cmds = []
-        for rev in revisions:
-            rev_data = json.loads(rev.commands) if isinstance(rev.commands, str) else rev.commands
-            if isinstance(rev_data, dict) and 'commands' in rev_data:
-                all_cmds.extend(rev_data['commands'])
-            elif isinstance(rev_data, list):
-                all_cmds.extend(rev_data)
-        
-        _logger.info(f"[PL_IMPORT] Procesando {len(all_cmds)} comandos de revisión sobre el Snapshot.")
 
         all_rows = []
         for sheet in spreadsheet_json['sheets']:
-            sheet_id = sheet.get('id')
             idx = _PLCellsIndex()
             idx.ingest_cells(sheet.get('cells', {}))
-            
-            # Aplicar historial de ediciones
-            idx.apply_revision_commands(all_cmds, sheet_id)
             
             product = self._identify_product_from_sheet(idx)
             if product:
@@ -247,15 +225,92 @@ class PackingListImportWizard(models.TransientModel):
                 all_rows.extend(sheet_rows)
         return all_rows
 
+    def _get_current_spreadsheet_state(self, doc):
+        """Obtiene el estado actual del spreadsheet aplicando todas las revisiones"""
+        try:
+            # Método 1: join_spreadsheet_session (Odoo 17+)
+            if hasattr(doc, 'join_spreadsheet_session'):
+                session_data = doc.join_spreadsheet_session()
+                if session_data and session_data.get('data'):
+                    _logger.info("[PL_IMPORT] Usando estado actual desde join_spreadsheet_session")
+                    data = session_data['data']
+                    return json.loads(data) if isinstance(data, str) else data
+            
+            # Método 2: dispatch_spreadsheet_message (Odoo 18+)
+            if hasattr(doc, 'dispatch_spreadsheet_message'):
+                result = doc.dispatch_spreadsheet_message({'type': 'SNAPSHOT_FETCHED'})
+                if result and result.get('data'):
+                    _logger.info("[PL_IMPORT] Usando estado actual desde dispatch")
+                    return json.loads(result['data']) if isinstance(result['data'], str) else result['data']
+                    
+        except Exception as e:
+            _logger.warning(f"[PL_IMPORT] Error obteniendo estado actual: {e}")
+        
+        # Fallback: Snapshot + revisiones
+        _logger.info("[PL_IMPORT] Fallback a snapshot + revisiones")
+        return self._load_spreadsheet_with_revisions(doc)
+
+    def _load_spreadsheet_with_revisions(self, doc):
+        """Carga snapshot y aplica TODAS las revisiones para reconstruir estado actual"""
+        spreadsheet_json = self._load_spreadsheet_json(doc)
+        if not spreadsheet_json:
+            return None
+        
+        snapshot_revision_id = spreadsheet_json.get('revisionId', '')
+        
+        revisions = self.env['spreadsheet.revision'].sudo().with_context(active_test=False).search([
+            ('res_model', '=', 'documents.document'), 
+            ('res_id', '=', doc.id)
+        ], order='id asc')
+        
+        start_applying = not snapshot_revision_id
+        all_cmds = []
+        
+        for rev in revisions:
+            rev_data = json.loads(rev.commands) if isinstance(rev.commands, str) else rev.commands
+            
+            if not start_applying:
+                rev_id = rev_data.get('id') if isinstance(rev_data, dict) else None
+                if rev_id == snapshot_revision_id:
+                    start_applying = True
+                continue
+            
+            if isinstance(rev_data, dict) and 'commands' in rev_data:
+                all_cmds.extend(rev_data['commands'])
+            elif isinstance(rev_data, list):
+                all_cmds.extend(rev_data)
+        
+        _logger.info(f"[PL_IMPORT] Aplicando {len(all_cmds)} comandos de revisión post-snapshot")
+        
+        for sheet in spreadsheet_json.get('sheets', []):
+            sheet_id = sheet.get('id')
+            idx = _PLCellsIndex()
+            idx.ingest_cells(sheet.get('cells', {}))
+            idx.apply_revision_commands(all_cmds, sheet_id)
+            
+            # Reconstruir celdas desde el índice
+            sheet['cells'] = {f"{self._col_to_letter(c)}{r+1}": {'content': v} 
+                             for (c, r), v in idx._cells.items()}
+        
+        return spreadsheet_json
+
+    def _col_to_letter(self, col):
+        """Convierte índice de columna (0-based) a letra(s)"""
+        result = ""
+        col += 1
+        while col:
+            col, remainder = divmod(col - 1, 26)
+            result = chr(65 + remainder) + result
+        return result
+
     def _identify_product_from_sheet(self, idx):
-        # Buscamos en las primeras 3 filas por si se movieron datos
         p_info = None
         for r in range(3):
             label = str(idx.value(0, r) or "").upper()
             if "PRODUCTO:" in label:
                 p_info = idx.value(1, r)
                 break
-        if not p_info: p_info = idx.value(1, 0) # Fallback a B1
+        if not p_info: p_info = idx.value(1, 0)
         
         if not p_info: return None
         p_name = str(p_info).split('(')[0].strip()
@@ -264,12 +319,10 @@ class PackingListImportWizard(models.TransientModel):
 
     def _extract_rows_from_index(self, idx, product):
         rows = []
-        # Leemos hasta 200 filas para estar seguros
         for r in range(3, 200):
             alto = self._to_float(idx.value(1, r))
             ancho = self._to_float(idx.value(2, r))
             
-            # Si el Alto y Ancho son mayores a 0, la fila es válida
             if alto > 0 and ancho > 0:
                 rows.append({
                     'product': product, 'grosor': self._to_float(idx.value(0, r)),
@@ -281,7 +334,6 @@ class PackingListImportWizard(models.TransientModel):
                 })
                 _logger.info(f"[PL_EXTRACT] Fila {r+1} procesada OK.")
             else:
-                # Si el sistema encuentra algo pero no tiene medidas, lo ignora (posible borrado)
                 if idx.value(0, r) or idx.value(4, r):
                     _logger.info(f"[PL_EXTRACT] Fila {r+1} descartada (Alto: {alto}, Ancho: {ancho})")
         return rows
