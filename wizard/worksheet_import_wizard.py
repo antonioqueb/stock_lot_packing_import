@@ -83,7 +83,7 @@ class WorksheetImportWizard(models.TransientModel):
                     'x_ancho': ancho_real
                 })
                 move_line.write({
-                    'qty_done': alto_real * ancho_real,
+                    'qty_done': round(alto_real * ancho_real, 3),
                     'x_alto_temp': alto_real,
                     'x_ancho_temp': ancho_real,
                 })

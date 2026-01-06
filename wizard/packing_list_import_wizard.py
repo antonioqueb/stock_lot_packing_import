@@ -187,7 +187,7 @@ class PackingListImportWizard(models.TransientModel):
             
             self.env['stock.move.line'].create({
                 'move_id': move.id, 'product_id': product.id, 'lot_id': lot.id,
-                'qty_done': data['alto'] * data['ancho'] or 1.0,
+                'qty_done': round(data['alto'] * data['ancho'], 3) or 1.0,
                 'location_id': self.picking_id.location_id.id, 'location_dest_id': self.picking_id.location_dest_id.id,
                 'picking_id': self.picking_id.id, 'x_grosor_temp': data['grosor'], 'x_alto_temp': data['alto'],
                 'x_ancho_temp': data['ancho'], 'x_color_temp': data.get('color'), 'x_tipo_temp': data['tipo'],
