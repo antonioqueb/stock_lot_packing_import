@@ -25,9 +25,9 @@ from . import wizard
     ],
     'assets': {
         'web.assets_frontend': [
-            'stock_lot_dimensions/static/src/scss/supplier_portal.scss',
-            'stock_lot_dimensions/static/src/xml/supplier_portal.xml',
-            'stock_lot_dimensions/static/src/js/supplier_portal.js',
+            'stock_lot_packing_import/static/src/scss/supplier_portal.scss',
+            'stock_lot_packing_import/static/src/xml/supplier_portal.xml',
+            'stock_lot_packing_import/static/src/js/supplier_portal.js',
         ],
     },
     'installable': True,
@@ -74,7 +74,8 @@ class SupplierPortalController(http.Controller):
             'company': picking.company_id
         })
 
-    @http.route('/supplier/pl/submit', type='json', auth='public')
+    # CORRECCIÓN AQUÍ: type='jsonrpc' para Odoo 19
+    @http.route('/supplier/pl/submit', type='jsonrpc', auth='public')
     def submit_pl_data(self, token, rows):
         access = request.env['stock.picking.supplier.access'].sudo().search([
             ('access_token', '=', token)

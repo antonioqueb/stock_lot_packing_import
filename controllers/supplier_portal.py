@@ -11,10 +11,11 @@ class SupplierPortalController(http.Controller):
             ('access_token', '=', token)
         ], limit=1)
 
+        # Corrección de nombre de módulo en render
         if not access:
-            return request.render('stock_lot_dimensions.portal_not_found')
+            return request.render('stock_lot_packing_import.portal_not_found')
         if access.is_expired:
-            return request.render('stock_lot_dimensions.portal_expired')
+            return request.render('stock_lot_packing_import.portal_expired')
 
         # Datos iniciales para el JS
         picking = access.picking_id
@@ -28,14 +29,15 @@ class SupplierPortalController(http.Controller):
                 'uom': move.product_uom.name
             })
 
-        return request.render('stock_lot_dimensions.supplier_portal_view', {
+        # Corrección de nombre de módulo en render
+        return request.render('stock_lot_packing_import.supplier_portal_view', {
             'picking': picking,
             'products_json': json.dumps(products),
             'token': token,
             'company': picking.company_id
         })
 
-    # CORRECCIÓN AQUÍ: type='jsonrpc' para Odoo 19
+    # Corrección type='jsonrpc' para Odoo 19
     @http.route('/supplier/pl/submit', type='jsonrpc', auth='public')
     def submit_pl_data(self, token, rows):
         access = request.env['stock.picking.supplier.access'].sudo().search([
@@ -47,10 +49,9 @@ class SupplierPortalController(http.Controller):
 
         picking = access.picking_id
         if picking.state in ['done', 'cancel']:
-             return {'success': False, 'message': 'La recepción ya fue procesada, no se admiten cambios.'}
+             return {'success': False, 'message': 'La recepción ya fue procesada.'}
 
         try:
-            # Llamamos al método en el modelo para procesar la data
             picking.process_external_pl_data(rows)
             return {'success': True}
         except Exception as e:
