@@ -17,12 +17,17 @@
     ],
 
     'assets': {
+        # JS/CSS del portal (website)
         'web.assets_frontend': [
             'stock_lot_packing_import/static/src/scss/supplier_portal.scss',
-            'stock_lot_packing_import/static/src/xml/supplier_portal.xml',
             'stock_lot_packing_import/static/src/js/supplier_portal.js',
         ],
+        # Templates OWL/QWeb (CRÍTICO para evitar Missing template)
+        'web.assets_qweb': [
+            'stock_lot_packing_import/static/src/xml/supplier_portal.xml',
+        ],
     },
+
     'installable': True,
     'application': True,
     'license': 'LGPL-3',
