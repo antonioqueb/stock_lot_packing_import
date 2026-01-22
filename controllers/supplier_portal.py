@@ -31,7 +31,7 @@ class SupplierPortalController(http.Controller):
         picking = access.picking_id
 
         products = []
-        for move in picking.move_ids:
+        for move in picking.move_ids_without_package:
             products.append({
                 'id': move.product_id.id,
                 'name': move.product_id.name,

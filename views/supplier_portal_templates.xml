@@ -22,7 +22,7 @@
         <t t-call="stock_lot_packing_import.portal_layout">
             <script type="text/javascript">
                 window.portalData = {
-                    products: <t t-out="products_json"/>,
+                    products: <t t-raw="products_json"/>,
                     token: '<t t-esc="token"/>',
                     poName: '<t t-esc="picking.origin or &#34;&#34;"/>',
                     pickingName: '<t t-esc="picking.name"/>'
