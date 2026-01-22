@@ -23,40 +23,160 @@ class StockPicking(models.Model):
     worksheet_file = fields.Binary(string='Worksheet Exportado', attachment=True, copy=False)
     worksheet_filename = fields.Char(string='Nombre del Worksheet', copy=False)
     worksheet_imported = fields.Boolean(string='Worksheet Importado', default=False, copy=False)
+
+    # --- NUEVO: Acceso a Portal Proveedor (Solo lectura/informativo en Picking) ---
+    supplier_access_ids = fields.One2many('stock.picking.supplier.access', 'picking_id', string="Links Proveedor")
     
-    @api.depends('packing_list_file', 'spreadsheet_id')
+    @api.depends('packing_list_file', 'spreadsheet_id', 'supplier_access_ids')
     def _compute_has_packing_list(self):
         for rec in self:
-            # Se considera que tiene PL si hay un archivo o un spreadsheet generado
-            rec.has_packing_list = bool(rec.packing_list_file or rec.spreadsheet_id)
+            # Se considera que tiene PL si hay un archivo, un spreadsheet generado o un link de proveedor creado
+            rec.has_packing_list = bool(rec.packing_list_file or rec.spreadsheet_id or rec.supplier_access_ids)
+
+    # -------------------------------------------------------------------------
+    # FUNCIONALIDAD PORTAL PROVEEDOR (PROCESAMIENTO)
+    # NOTA: La generación del link se movió a purchase.order
+    # -------------------------------------------------------------------------
+
+    def process_external_pl_data(self, json_data):
+        """ 
+        Recibe la data JSON desde el portal del proveedor y crea los lotes.
+        Esta función es llamada por el Controlador cuando el proveedor envía el formulario.
+        """
+        self.ensure_one()
+        _logger.info(f"Procesando PL Externo para {self.name} con {len(json_data)} registros.")
+
+        # 1. Limpieza de datos previos (Borrar y reescribir para evitar duplicados)
+        old_move_lines = self.move_line_ids
+        old_lots = old_move_lines.mapped('lot_id')
+
+        # Resetear cantidades hechas
+        old_move_lines.write({'qty_done': 0})
+        
+        # Eliminar Quants fantasmas si existen
+        if old_lots:
+            quants = self.env['stock.quant'].sudo().search([('lot_id', 'in', old_lots.ids)])
+            quants.sudo().unlink()
+
+        # Eliminar lineas viejas
+        old_move_lines.unlink()
+        
+        # Eliminar lotes huérfanos creados anteriormente para esta operación
+        for lot in old_lots:
+            # Verificar si el lote se usa en otros movimientos fuera de este picking
+            if self.env['stock.move.line'].search_count([('lot_id', '=', lot.id)]) == 0:
+                try:
+                    lot.unlink()
+                except Exception as e:
+                    _logger.warning(f"No se pudo eliminar lote {lot.name}: {e}")
+
+        # 2. Lógica de Prefijos y Contenedores
+        # Buscamos el último prefijo numérico global (Ej: si el ultimo fue 104-XX, el siguiente es 105)
+        self.env.cr.execute("""SELECT CAST(SUBSTRING(name FROM '^([0-9]+)-') AS INTEGER) as prefix_num FROM stock_lot WHERE name ~ '^[0-9]+-[0-9]+$' AND company_id = %s ORDER BY prefix_num DESC LIMIT 1""", (self.company_id.id,))
+        res = self.env.cr.fetchone()
+        next_prefix = (res[0] + 1) if res and res[0] else 1
+        
+        containers_map = {} # Mapa para controlar prefijos por contenedor: {'CONT1': {'prefix': '105', 'seq': 1}}
+        move_lines_created = 0
+
+        # 3. Procesamiento de filas
+        for row in json_data:
+            # Validar producto
+            try:
+                product_id = int(row.get('product_id'))
+                product = self.env['product.product'].browse(product_id)
+            except (ValueError, TypeError):
+                continue
+
+            if not product.exists(): 
+                continue
+            
+            # Buscar el movimiento original (Stock Move) para asociar
+            move = self.move_ids.filtered(lambda m: m.product_id == product)[:1]
+            if not move: 
+                continue
+
+            # Gestión de Contenedor y Numeración
+            cont_raw = (row.get('contenedor') or 'SN').strip().upper()
+            
+            if cont_raw not in containers_map:
+                containers_map[cont_raw] = {
+                    'prefix': str(next_prefix), 
+                    'seq': 1 
+                }
+                next_prefix += 1 # Siguiente contenedor tendrá siguiente prefijo numérico global
+            
+            # Generar Nombre Lote: PREFIJO-CONSECUTIVO (Ej: 105-01)
+            current_prefix = containers_map[cont_raw]['prefix']
+            current_seq = containers_map[cont_raw]['seq']
+            l_name = f"{current_prefix}-{current_seq:02d}"
+            
+            # Parsear valores numéricos
+            try:
+                grosor = float(row.get('grosor', 0))
+                alto = float(row.get('alto', 0))
+                ancho = float(row.get('ancho', 0))
+            except ValueError:
+                grosor = alto = ancho = 0.0
+
+            # Crear Lote
+            lot_vals = {
+                'name': l_name, 
+                'product_id': product.id, 
+                'company_id': self.company_id.id,
+                'x_grosor': grosor, 
+                'x_alto': alto, 
+                'x_ancho': ancho,
+                'x_color': row.get('color', ''), 
+                'x_bloque': row.get('bloque', ''), 
+                'x_tipo': row.get('tipo', 'placa'), 
+                'x_contenedor': cont_raw, 
+                # 'x_referencia_proveedor': row.get('ref_prov', ''), # Descomentar si tu modelo lo tiene
+            }
+            lot = self.env['stock.lot'].create(lot_vals)
+            
+            # Calcular cantidad (M2)
+            qty = round(alto * ancho, 3)
+            if qty <= 0: qty = 1.0
+
+            # Crear Move Line (Asignación al Picking)
+            self.env['stock.move.line'].create({
+                'move_id': move.id, 
+                'product_id': product.id, 
+                'lot_id': lot.id,
+                'qty_done': qty,
+                'location_id': self.location_id.id, 
+                'location_dest_id': self.location_dest_id.id,
+                'picking_id': self.id,
+                # Campos temp para trazabilidad (si tu modulo base los usa)
+                'x_grosor_temp': lot.x_grosor, 
+                'x_alto_temp': lot.x_alto,
+                'x_ancho_temp': lot.x_ancho, 
+                'x_color_temp': lot.x_color,
+                'x_bloque_temp': lot.x_bloque, 
+                'x_contenedor_temp': lot.x_contenedor
+            })
+            
+            containers_map[cont_raw]['seq'] += 1
+            move_lines_created += 1
+
+        self.write({'packing_list_imported': True})
+        return True
 
     # -------------------------------------------------------------------------
     # FUNCIONES DE SEGURIDAD PARA SPREADSHEET (EVITA ERROR STARTSWITH)
     # -------------------------------------------------------------------------
 
     def _format_cell_val(self, val):
-        """ 
-        Garantiza que el valor sea SIEMPRE un string válido para o-spreadsheet.
-        Previene el error JS: cell.content.startsWith is not a function.
-        
-        o-spreadsheet espera que 'content' sea siempre un string de Python,
-        nunca un int, float, None, False o cualquier otro tipo.
-        """
+        """ Garantiza que el valor sea SIEMPRE un string válido para o-spreadsheet. """
         if val is None or val is False:
             return ""
-        # Forzar conversión explícita a string
         if isinstance(val, (int, float)):
-            # Para números, convertir directamente a string
             return str(val)
-        # Para cualquier otro tipo, convertir a string
         result = str(val).strip()
         return result if result else ""
 
     def _make_cell(self, val, style=None):
-        """
-        Crea un diccionario de celda seguro para o-spreadsheet.
-        Garantiza que 'content' siempre sea un string válido.
-        """
         content = self._format_cell_val(val)
         cell = {"content": content}
         if style is not None:
@@ -64,7 +184,6 @@ class StockPicking(models.Model):
         return cell
 
     def _get_col_letter(self, n):
-        """ Convierte índice (0, 1, 2...) a letra (A, B, C...) """
         string = ""
         while n >= 0:
             n, remainder = divmod(n, 26)
@@ -73,7 +192,7 @@ class StockPicking(models.Model):
         return string
 
     # -------------------------------------------------------------------------
-    # GESTIÓN DE PACKING LIST (ETAPA 1)
+    # GESTIÓN DE PACKING LIST INTERNO (ETAPA 1)
     # -------------------------------------------------------------------------
     
     def action_open_packing_list_spreadsheet(self):
@@ -83,7 +202,6 @@ class StockPicking(models.Model):
         if self.picking_type_code != 'incoming':
             raise UserError('Esta acción solo está disponible para Recepciones (Entradas).')
         
-        # Bloquear si el Worksheet ya fue procesado
         if self.worksheet_imported:
             raise UserError('El Worksheet ya fue procesado. No es posible modificar el Packing List.')
             
@@ -101,13 +219,11 @@ class StockPicking(models.Model):
             sheets = []
             for index, product in enumerate(products):
                 cells = {}
-                # Identificación de producto
                 cells["A1"] = self._make_cell("PRODUCTO:")
                 p_name = self._format_cell_val(product.name)
                 p_code = self._format_cell_val(product.default_code)
                 cells["B1"] = self._make_cell(f"{p_name} ({p_code})")
                 
-                # Cabeceras
                 for i, header in enumerate(headers):
                     col_letter = self._get_col_letter(i)
                     cells[f"{col_letter}3"] = self._make_cell(header, style=1)
@@ -178,17 +294,14 @@ class StockPicking(models.Model):
                 p_code = self._format_cell_val(product.default_code)
                 cells["B1"] = self._make_cell(f"{p_name} ({p_code})")
                 
-                # Cabeceras con estilo verde
                 for i, header in enumerate(headers):
                     col_letter = self._get_col_letter(i)
                     cells[f"{col_letter}3"] = self._make_cell(header, style=2)
 
-                # Carga de datos de lotes
                 move_lines = self.move_line_ids.filtered(lambda ml: ml.product_id == product and ml.lot_id)
                 row_idx = 4
                 for ml in move_lines:
                     lot = ml.lot_id
-                    # Usar _make_cell para garantizar que todos los valores sean strings válidos
                     cells[f"A{row_idx}"] = self._make_cell(lot.name)
                     cells[f"B{row_idx}"] = self._make_cell(lot.x_grosor)
                     cells[f"C{row_idx}"] = self._make_cell(lot.x_alto)
@@ -245,7 +358,6 @@ class StockPicking(models.Model):
     def _action_launch_spreadsheet(self, doc):
         """ Dispara la apertura del documento. """
         doc_sudo = doc.sudo()
-        # Intentamos abrir mediante los métodos disponibles en Documents para Odoo 19
         for method in ["action_open_spreadsheet", "action_open", "access_content"]:
             if hasattr(doc_sudo, method):
                 try:
@@ -336,7 +448,6 @@ class StockPicking(models.Model):
     def action_import_packing_list(self):
         self.ensure_one()
         
-        # Bloquear si el Worksheet ya fue procesado
         if self.worksheet_imported:
             raise UserError('El Worksheet ya fue procesado. No es posible reprocesar el Packing List.')
         

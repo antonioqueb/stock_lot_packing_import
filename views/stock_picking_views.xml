@@ -5,7 +5,7 @@
         <field name="model">stock.picking</field>
         <field name="inherit_id" ref="stock.view_picking_form"/>
         <field name="arch" type="xml">
-            <!-- Inserción de campos de control invisibles para la lógica de los botones -->
+            
             <field name="partner_id" position="after">
                 <field name="has_packing_list" invisible="1"/>
                 <field name="packing_list_imported" invisible="1"/>
@@ -16,15 +16,17 @@
                 <field name="packing_list_filename" invisible="1"/>
                 <field name="worksheet_file" invisible="1"/>
                 <field name="worksheet_filename" invisible="1"/>
+                <field name="supplier_access_ids" invisible="1"/>
             </field>
             
             <xpath expr="//header/button[@name='action_assign']" position="after">
                 
+                <!-- BOTÓN "Link Proveedor" ELIMINADO DE AQUÍ (Movido a PO) -->
+
                 <!-- ====================================================== -->
                 <!-- ETAPA 1: PACKING LIST (CREACIÓN DE LOTES)              -->
                 <!-- ====================================================== -->
                 
-                <!-- Abrir PL antes de importar (Botón Principal - Primera vez) -->
                 <button name="action_open_packing_list_spreadsheet"
                         string="Abrir PL"
                         type="object"
@@ -32,7 +34,6 @@
                         icon="fa-table"
                         invisible="state in ('done', 'cancel', 'draft') or picking_type_code != 'incoming' or packing_list_imported or worksheet_imported"/>
 
-                <!-- Procesar PL para crear los lotes (Primera vez) -->
                 <button name="action_import_packing_list"
                         string="Procesar PL"
                         type="object"
@@ -40,7 +41,6 @@
                         icon="fa-cogs"
                         invisible="state in ('done', 'cancel', 'draft') or picking_type_code != 'incoming' or packing_list_imported or not spreadsheet_id or worksheet_imported"/>
 
-                <!-- Corregir PL después de importar (Solo si WS NO ha sido procesado) -->
                 <button name="action_open_packing_list_spreadsheet"
                         string="Corregir PL"
                         type="object"
@@ -48,7 +48,6 @@
                         icon="fa-edit"
                         invisible="state in ('done', 'cancel', 'draft') or picking_type_code != 'incoming' or not packing_list_imported or worksheet_imported"/>
 
-                <!-- Reprocesar PL después de corregir (Solo si WS NO ha sido procesado) -->
                 <button name="action_import_packing_list"
                         string="Reprocesar PL"
                         type="object"
@@ -61,7 +60,6 @@
                 <!-- ETAPA 2: WORKSHEET (MEDIDAS REALES)                    -->
                 <!-- ====================================================== -->
                 
-                <!-- Abrir Worksheet independiente (Solo tras importar PL) -->
                 <button name="action_open_worksheet_spreadsheet"
                         string="Abrir WS"
                         type="object"
@@ -69,7 +67,6 @@
                         icon="fa-balance-scale"
                         invisible="state in ('done', 'cancel', 'draft') or picking_type_code != 'incoming' or not packing_list_imported"/>
 
-                <!-- Procesar el Worksheet para actualizar dimensiones de lotes -->
                 <button name="action_import_worksheet"
                         string="Procesar WS"
                         type="object"
@@ -77,11 +74,7 @@
                         icon="fa-check-square-o"
                         invisible="state in ('done', 'cancel', 'draft') or picking_type_code != 'incoming' or not packing_list_imported or not ws_spreadsheet_id"/>
 
-
-                <!-- ====================================================== -->
-                <!-- SOPORTE EXTERNO (EXCEL) - Solo exportar WS             -->
-                <!-- ====================================================== -->
-
+                <!-- EXPORTAR EXCEL -->
                 <button name="action_download_worksheet"
                         string="Exportar WS"
                         type="object"
@@ -90,6 +83,21 @@
                         invisible="state in ('done', 'cancel', 'draft') or picking_type_code != 'incoming' or not packing_list_imported"/>
 
             </xpath>
+
+            <!-- Pestaña informativa en el Picking (opcional, pero útil para ver si la PO generó el link) -->
+            <xpath expr="//notebook" position="inside">
+                <page string="Acceso Proveedor" invisible="not supplier_access_ids">
+                    <field name="supplier_access_ids" readonly="1">
+                        <list create="0" delete="0" edit="0">
+                            <field name="create_date" string="Generado"/>
+                            <field name="purchase_id" string="Desde OC"/>
+                            <field name="is_expired" widget="boolean_toggle"/>
+                            <field name="portal_url" widget="CopyClipboardChar"/>
+                        </list>
+                    </field>
+                </page>
+            </xpath>
+
         </field>
     </record>
 </odoo>

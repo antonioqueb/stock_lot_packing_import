@@ -1,5 +1,4 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
-access_packing_list_import_wizard_user,packing.list.import.wizard.user,model_packing_list_import_wizard,stock.group_stock_user,1,1,1,1
-access_packing_list_import_wizard_manager,packing.list.import.wizard.manager,model_packing_list_import_wizard,stock.group_stock_manager,1,1,1,1
-access_worksheet_import_wizard_user,worksheet.import.wizard.user,model_worksheet_import_wizard,stock.group_stock_user,1,1,1,1
-access_worksheet_import_wizard_manager,worksheet.import.wizard.manager,model_worksheet_import_wizard,stock.group_stock_manager,1,1,1,1
+access_packing_list_import_wizard,packing.list.import.wizard,model_packing_list_import_wizard,stock.group_stock_user,1,1,1,1
+access_worksheet_import_wizard,worksheet.import.wizard,model_worksheet_import_wizard,stock.group_stock_user,1,1,1,1
+access_stock_picking_supplier_access,stock.picking.supplier.access,model_stock_picking_supplier_access,stock.group_stock_user,1,1,1,1

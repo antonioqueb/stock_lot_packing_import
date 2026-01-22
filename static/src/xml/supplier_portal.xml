@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="stock_lot_dimensions.SupplierPortalApp" owl="1">
+        <div class="o_portal_wrapper">
+            
+            <!-- HEADER -->
+            <header class="o_portal_header">
+                <div class="brand">
+                    <i class="fa fa-cubes me-2"/>PORTAL <span class="ms-1">PROVEEDOR</span>
+                </div>
+                <div class="po-info">
+                    <div><span class="label">Orden de Compra:</span> <span class="value" t-esc="state.data.poName"/></div>
+                    <div><span class="label">Recepción:</span> <span class="value" t-esc="state.data.pickingName"/></div>
+                </div>
+            </header>
+
+            <!-- CONTENIDO -->
+            <div class="o_portal_container pb-5 mb-5">
+                
+                <div class="alert alert-info bg-dark border-secondary text-light mb-4">
+                    <i class="fa fa-info-circle me-2 text-warning"/>
+                    Por favor ingrese las dimensiones y detalles de cada placa o bloque. No necesita agrupar, el sistema lo hará automáticamente.
+                </div>
+
+                <!-- LISTA DE PRODUCTOS -->
+                <t t-foreach="state.products" t-as="product" t-key="product.id">
+                    <div class="product-section">
+                        <div class="product-header">
+                            <div>
+                                <h3><t t-esc="product.name"/> <span class="text-muted small ms-2">(<t t-esc="product.code"/>)</span></h3>
+                            </div>
+                            <div class="meta">
+                                Solicitado: <strong class="text-white"><t t-esc="product.qty_ordered"/> <t t-esc="product.uom"/></strong>
+                            </div>
+                        </div>
+
+                        <div class="table-responsive">
+                            <table class="portal-table">
+                                <thead>
+                                    <tr>
+                                        <th>Contenedor</th>
+                                        <th>Bloque</th>
+                                        <th>Grosor (cm)</th>
+                                        <th>Alto (m)</th>
+                                        <th>Ancho (m)</th>
+                                        <th>Área (m²)</th>
+                                        <th>Color / Notas</th>
+                                        <th style="width: 50px;"></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <t t-foreach="getProductRows(product.id)" t-as="row" t-key="row.id">
+                                        <tr>
+                                            <td>
+                                                <input type="text" class="short text-uppercase" placeholder="CNT01" 
+                                                       t-model="row.contenedor" t-on-change="saveState"/>
+                                            </td>
+                                            <td>
+                                                <input type="text" class="short text-uppercase" placeholder="B-01" 
+                                                       t-model="row.bloque" t-on-change="saveState"/>
+                                            </td>
+                                            <td>
+                                                <input type="number" step="0.01" class="short" 
+                                                       t-model.number="row.grosor" t-on-change="saveState"/>
+                                            </td>
+                                            <td>
+                                                <input type="number" step="0.01" class="short" 
+                                                       t-model.number="row.alto" t-on-change="saveState"/>
+                                            </td>
+                                            <td>
+                                                <input type="number" step="0.01" class="short" 
+                                                       t-model.number="row.ancho" t-on-change="saveState"/>
+                                            </td>
+                                            <td>
+                                                <span class="fw-bold text-white">
+                                                    <t t-esc="(row.alto * row.ancho).toFixed(2)"/>
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <input type="text" placeholder="Opcional" t-model="row.color" t-on-change="saveState"/>
+                                            </td>
+                                            <td class="text-center">
+                                                <button class="btn-action" t-on-click="() => this.deleteRow(row.id)">
+                                                    <i class="fa fa-trash"/>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    </t>
+                                </tbody>
+                            </table>
+                            
+                            <div class="mt-2">
+                                <button class="btn-add-row" t-on-click="() => this.addRow(product.id)">
+                                    <i class="fa fa-plus-circle"/> Agregar Placa
+                                </button>
+                                <button class="btn-add-row ms-2" t-on-click="() => this.addMultipleRows(product.id, 5)">
+                                    +5 Filas
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </t>
+            </div>
+
+            <!-- FOOTER FLOTANTE -->
+            <div class="submit-footer">
+                <div class="summary">
+                    Total Placas: <span t-esc="totalPlates"/> | 
+                    Total Área: <span t-esc="totalArea"/> m²
+                </div>
+                <button class="btn-primary-custom" 
+                        t-on-click="submitData" 
+                        t-att-disabled="state.isSubmitting or totalPlates == 0">
+                    <t t-if="state.isSubmitting">
+                        <i class="fa fa-spinner fa-spin me-2"/> Enviando...
+                    </t>
+                    <t t-else="">
+                        <i class="fa fa-paper-plane me-2"/> Enviar Packing List
+                    </t>
+                </button>
+            </div>
+
+        </div>
+    </t>
+</templates>
