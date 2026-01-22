@@ -50,10 +50,11 @@ class SupplierPortalController(http.Controller):
             ('access_token', '=', token)
         ], limit=1)
 
+        # Corrección de nombre de módulo en render
         if not access:
-            return request.render('stock_lot_dimensions.portal_not_found')
+            return request.render('stock_lot_packing_import.portal_not_found')
         if access.is_expired:
-            return request.render('stock_lot_dimensions.portal_expired')
+            return request.render('stock_lot_packing_import.portal_expired')
 
         # Datos iniciales para el JS
         picking = access.picking_id
@@ -67,14 +68,15 @@ class SupplierPortalController(http.Controller):
                 'uom': move.product_uom.name
             })
 
-        return request.render('stock_lot_dimensions.supplier_portal_view', {
+        # Corrección de nombre de módulo en render
+        return request.render('stock_lot_packing_import.supplier_portal_view', {
             'picking': picking,
             'products_json': json.dumps(products),
             'token': token,
             'company': picking.company_id
         })
 
-    # CORRECCIÓN AQUÍ: type='jsonrpc' para Odoo 19
+    # Corrección type='jsonrpc' para Odoo 19
     @http.route('/supplier/pl/submit', type='jsonrpc', auth='public')
     def submit_pl_data(self, token, rows):
         access = request.env['stock.picking.supplier.access'].sudo().search([
@@ -86,10 +88,9 @@ class SupplierPortalController(http.Controller):
 
         picking = access.picking_id
         if picking.state in ['done', 'cancel']:
-             return {'success': False, 'message': 'La recepción ya fue procesada, no se admiten cambios.'}
+             return {'success': False, 'message': 'La recepción ya fue procesada.'}
 
         try:
-            # Llamamos al método en el modelo para procesar la data
             picking.process_external_pl_data(rows)
             return {'success': True}
         except Exception as e:
@@ -1289,14 +1290,13 @@ body {
                 <meta charset="utf-8"/>
                 <meta name="viewport" content="width=device-width, initial-scale=1"/>
                 <title>Portal de Proveedores</title>
-                <!-- Fuentes y Estilos Base -->
                 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&amp;display=swap" rel="stylesheet"/>
                 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"/>
                 
                 <t t-call-assets="web.assets_frontend" t-js="false"/>
                 <t t-call-assets="web.assets_frontend" t-css="false"/>
             </head>
-            <body>
+            <body class="supplier-portal-body">
                 <main>
                     <t t-out="0"/>
                 </main>
@@ -1305,8 +1305,8 @@ body {
     </template>
 
     <template id="supplier_portal_view">
-        <t t-call="stock_lot_dimensions.portal_layout">
-            <!-- Pasamos datos al JS via variable global segura -->
+        <!-- Corrección de nombre aquí -->
+        <t t-call="stock_lot_packing_import.portal_layout">
             <script>
                 window.portalData = {
                     products: <t t-out="products_json"/>,
@@ -1315,30 +1315,24 @@ body {
                     pickingName: "<t t-out="picking.name"/>"
                 };
             </script>
-            
-            <!-- Contenedor donde OWL montará la app -->
             <div id="supplier-portal-app"></div>
         </t>
     </template>
 
     <template id="portal_not_found">
-        <t t-call="stock_lot_dimensions.portal_layout">
-            <div style="height: 100vh; display: flex; align-items: center; justify-content: center; background: #121212; color: #fff;">
-                <div class="text-center">
-                    <h1 class="display-1">404</h1>
-                    <p>Enlace no válido.</p>
-                </div>
+        <t t-call="stock_lot_packing_import.portal_layout">
+            <div class="error-container">
+                <h1>404</h1>
+                <p>Enlace no válido.</p>
             </div>
         </t>
     </template>
 
     <template id="portal_expired">
-        <t t-call="stock_lot_dimensions.portal_layout">
-             <div style="height: 100vh; display: flex; align-items: center; justify-content: center; background: #121212; color: #fff;">
-                <div class="text-center">
-                    <h1 class="display-1"><i class="fa fa-clock-o"/></h1>
-                    <p>Este enlace ha expirado.</p>
-                </div>
+        <t t-call="stock_lot_packing_import.portal_layout">
+             <div class="error-container">
+                <h1><i class="fa fa-clock-o"/></h1>
+                <p>Este enlace ha expirado.</p>
             </div>
         </t>
     </template>
