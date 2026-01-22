@@ -1,55 +1,44 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <template id="portal_layout">
-        &lt;!DOCTYPE html&gt;
-        <html lang="es">
-            <head>
-                <meta charset="utf-8"/>
-                <meta name="viewport" content="width=device-width, initial-scale=1"/>
-                <title>Portal de Proveedores</title>
-                <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&amp;display=swap" rel="stylesheet"/>
-                <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"/>
-                
-                <t t-call-assets="web.assets_frontend" t-js="false"/>
-                <t t-call-assets="web.assets_frontend" t-css="false"/>
-            </head>
-            <body class="supplier-portal-body">
-                <main>
-                    <t t-out="0"/>
-                </main>
-            </body>
-        </html>
+        <t t-call="web.frontend_layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
+            <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&amp;display=swap" rel="stylesheet"/>
+            <div class="supplier-portal-body">
+                <t t-out="0"/>
+            </div>
+        </t>
     </template>
 
     <template id="supplier_portal_view">
-        <!-- Corrección de nombre aquí -->
         <t t-call="stock_lot_packing_import.portal_layout">
-            <script>
+            <script type="text/javascript">
                 window.portalData = {
                     products: <t t-out="products_json"/>,
-                    token: "<t t-out="token"/>",
-                    poName: "<t t-out="picking.origin"/>",
-                    pickingName: "<t t-out="picking.name"/>"
+                    token: "<t t-esc="token"/>",
+                    poName: "<t t-esc="picking.origin or ''"/>",
+                    pickingName: "<t t-esc="picking.name"/>"
                 };
             </script>
-            <div id="supplier-portal-app"></div>
+            <div id="supplier-portal-app"/>
         </t>
     </template>
 
     <template id="portal_not_found">
         <t t-call="stock_lot_packing_import.portal_layout">
-            <div class="error-container">
-                <h1>404</h1>
-                <p>Enlace no válido.</p>
+            <div class="container text-center py-5">
+                <h1 class="display-1 text-danger">404</h1>
+                <p class="lead">Enlace no válido.</p>
             </div>
         </t>
     </template>
 
     <template id="portal_expired">
         <t t-call="stock_lot_packing_import.portal_layout">
-             <div class="error-container">
-                <h1><i class="fa fa-clock-o"/></h1>
-                <p>Este enlace ha expirado.</p>
+            <div class="container text-center py-5">
+                <h1 class="display-1"><i class="fa fa-clock-o text-warning"/></h1>
+                <p class="lead">Este enlace ha expirado.</p>
             </div>
         </t>
     </template>

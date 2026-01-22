@@ -1,22 +1,22 @@
 /** @odoo-module **/
 
-import { Component, useState, mount, xml } from "@odoo/owl";
+import { Component, useState, mount } from "@odoo/owl";
 import { templates } from "@web/core/assets";
 
 class SupplierPortalApp extends Component {
+    static template = "stock_lot_packing_import.SupplierPortalApp";
+    
     setup() {
         this.state = useState({
             data: window.portalData || {},
-            products: window.portalData.products || [],
-            rows: [], // Almacena todas las filas {id, product_id, ...}
+            products: window.portalData?.products || [],
+            rows: [],
             isSubmitting: false,
             nextId: 1
         });
 
-        // Cargar datos guardados en LocalStorage por seguridad
         this.loadLocalState();
         
-        // Si no hay filas, crear al menos una por producto
         if (this.state.rows.length === 0) {
             this.state.products.forEach(p => this.addRow(p.id));
         }
@@ -28,7 +28,6 @@ class SupplierPortalApp extends Component {
         if (saved) {
             try {
                 this.state.rows = JSON.parse(saved);
-                // Recuperar ID máximo
                 const maxId = this.state.rows.reduce((max, r) => Math.max(max, r.id), 0);
                 this.state.nextId = maxId + 1;
             } catch(e) {}
@@ -45,7 +44,6 @@ class SupplierPortalApp extends Component {
     }
 
     addRow(productId) {
-        // Clonar datos de la última fila de este producto para agilizar (ej. mismo contenedor/bloque)
         const existing = this.getProductRows(productId);
         let defaultData = { contenedor: '', bloque: '', grosor: 0, alto: 0, ancho: 0 };
         
@@ -70,7 +68,7 @@ class SupplierPortalApp extends Component {
     }
 
     addMultipleRows(productId, count) {
-        for(let i=0; i<count; i++) this.addRow(productId);
+        for(let i = 0; i < count; i++) this.addRow(productId);
     }
 
     deleteRow(rowId) {
@@ -79,7 +77,6 @@ class SupplierPortalApp extends Component {
     }
 
     get totalPlates() {
-        // Contar solo filas que tengan dimensiones válidas
         return this.state.rows.filter(r => r.alto > 0 && r.ancho > 0).length;
     }
 
@@ -92,7 +89,7 @@ class SupplierPortalApp extends Component {
 
         this.state.isSubmitting = true;
         const cleanData = this.state.rows
-            .filter(r => r.alto > 0 && r.ancho > 0) // Solo enviar filas con datos
+            .filter(r => r.alto > 0 && r.ancho > 0)
             .map(r => ({
                 product_id: r.product_id,
                 contenedor: r.contenedor,
@@ -101,7 +98,7 @@ class SupplierPortalApp extends Component {
                 alto: r.alto,
                 ancho: r.ancho,
                 color: r.color,
-                atado: '', // O agregar campo si es necesario
+                atado: '',
                 tipo: 'placa'
             }));
 
@@ -123,8 +120,8 @@ class SupplierPortalApp extends Component {
             const result = await response.json();
             if (result.result && result.result.success) {
                 alert("✅ Packing List enviado correctamente. Gracias.");
-                localStorage.removeItem(`pl_portal_${this.state.data.token}`); // Limpiar cache
-                window.location.reload(); // O redirigir a página de éxito
+                localStorage.removeItem(`pl_portal_${this.state.data.token}`);
+                window.location.reload();
             } else {
                 const msg = result.error ? result.error.data.message : result.result.message;
                 alert("❌ Error al procesar: " + msg);
@@ -138,9 +135,6 @@ class SupplierPortalApp extends Component {
     }
 }
 
-SupplierPortalApp.template = "stock_lot_dimensions.SupplierPortalApp";
-
-// Montaje de la app cuando el DOM esté listo
 document.addEventListener('DOMContentLoaded', async () => {
     const root = document.getElementById("supplier-portal-app");
     if (root) {

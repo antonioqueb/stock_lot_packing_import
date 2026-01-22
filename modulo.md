@@ -3,6 +3,7 @@
 # -*- coding: utf-8 -*-
 from . import models
 from . import wizard
+from . import controllers
 ```
 
 ## ./__manifest__.py
@@ -34,6 +35,11 @@ from . import wizard
     'application': True,
     'license': 'LGPL-3',
 }```
+
+## ./controllers/__init__.py
+```py
+# -*- coding: utf-8 -*-
+from . import supplier_portal```
 
 ## ./controllers/supplier_portal.py
 ```py
