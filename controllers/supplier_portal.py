@@ -35,7 +35,8 @@ class SupplierPortalController(http.Controller):
             'company': picking.company_id
         })
 
-    @http.route('/supplier/pl/submit', type='json', auth='public')
+    # CORRECCIÓN AQUÍ: type='jsonrpc' para Odoo 19
+    @http.route('/supplier/pl/submit', type='jsonrpc', auth='public')
     def submit_pl_data(self, token, rows):
         access = request.env['stock.picking.supplier.access'].sudo().search([
             ('access_token', '=', token)
