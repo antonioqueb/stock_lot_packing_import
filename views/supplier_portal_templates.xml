@@ -4,9 +4,14 @@
         <t t-call="web.frontend_layout">
             <t t-set="no_header" t-value="True"/>
             <t t-set="no_footer" t-value="True"/>
+
             <t t-set="head">
+                <!-- CARGA OBLIGATORIA PARA QUE OWL + QWEB TEMPLATES + JS/CSS SE MONTEN -->
+                <t t-call-assets="web.assets_frontend" t-css="true" t-js="true"/>
+
                 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600" rel="stylesheet"/>
             </t>
+
             <div class="supplier-portal-body">
                 <t t-out="0"/>
             </div>
@@ -19,10 +24,21 @@
                 window.portalData = {
                     products: <t t-out="products_json"/>,
                     token: '<t t-esc="token"/>',
-                    poName: '<t t-esc="picking.origin or ''"/>',
+                    poName: '<t t-esc="picking.origin or &#34;&#34;"/>',
                     pickingName: '<t t-esc="picking.name"/>'
                 };
             </script>
+
+            <!-- Fallback visible mientras monta OWL -->
+            <div class="container py-5 text-center text-light">
+                <div class="mb-3" style="opacity:0.85;">
+                    Cargando portal…
+                </div>
+                <div class="small" style="opacity:0.6;">
+                    Si esta pantalla no avanza, revise que los assets frontend estén cargando correctamente.
+                </div>
+            </div>
+
             <div id="supplier-portal-app"/>
         </t>
     </template>

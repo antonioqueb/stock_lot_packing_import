@@ -10,10 +10,12 @@
         'security/ir.model.access.csv',
         'wizard/packing_list_import_wizard_views.xml',
         'wizard/worksheet_import_wizard_views.xml',
-        'views/purchase_order_views.xml', # NUEVO: Vista de Compras
+        'wizard/supplier_link_wizard_views.xml',
+        'views/purchase_order_views.xml',
         'views/stock_picking_views.xml',
         'views/supplier_portal_templates.xml',
     ],
+
     'assets': {
         'web.assets_frontend': [
             'stock_lot_packing_import/static/src/scss/supplier_portal.scss',

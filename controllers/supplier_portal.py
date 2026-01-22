@@ -1,24 +1,35 @@
 # -*- coding: utf-8 -*-
+import json
 from odoo import http
 from odoo.http import request
-import json
+
 
 class SupplierPortalController(http.Controller):
 
-    @http.route('/supplier/pl/<string:token>', type='http', auth='public')
+    @http.route('/supplier/pl/<string:token>', type='http', auth='public', website=True, sitemap=False)
     def view_supplier_portal(self, token, **kwargs):
         access = request.env['stock.picking.supplier.access'].sudo().search([
             ('access_token', '=', token)
         ], limit=1)
 
-        # Corrección de nombre de módulo en render
         if not access:
             return request.render('stock_lot_packing_import.portal_not_found')
         if access.is_expired:
             return request.render('stock_lot_packing_import.portal_expired')
 
-        # Datos iniciales para el JS
+        # Si viene de una PO, movemos el picking al “vigente” (backorder actual), sin cambiar token
+        if access.purchase_id:
+            po = access.purchase_id
+            pickings = po.picking_ids.filtered(
+                lambda p: p.picking_type_code == 'incoming' and p.state not in ('done', 'cancel')
+            )
+            if pickings:
+                target_picking = pickings.sorted(key=lambda p: p.id, reverse=True)[0]
+                if access.picking_id.id != target_picking.id:
+                    access.write({'picking_id': target_picking.id})
+
         picking = access.picking_id
+
         products = []
         for move in picking.move_ids:
             products.append({
@@ -29,7 +40,6 @@ class SupplierPortalController(http.Controller):
                 'uom': move.product_uom.name
             })
 
-        # Corrección de nombre de módulo en render
         return request.render('stock_lot_packing_import.supplier_portal_view', {
             'picking': picking,
             'products_json': json.dumps(products),
@@ -37,8 +47,7 @@ class SupplierPortalController(http.Controller):
             'company': picking.company_id
         })
 
-    # Corrección type='jsonrpc' para Odoo 19
-    @http.route('/supplier/pl/submit', type='jsonrpc', auth='public')
+    @http.route('/supplier/pl/submit', type='jsonrpc', auth='public', csrf=False)
     def submit_pl_data(self, token, rows):
         access = request.env['stock.picking.supplier.access'].sudo().search([
             ('access_token', '=', token)
@@ -49,7 +58,7 @@ class SupplierPortalController(http.Controller):
 
         picking = access.picking_id
         if picking.state in ['done', 'cancel']:
-             return {'success': False, 'message': 'La recepción ya fue procesada.'}
+            return {'success': False, 'message': 'La recepción ya fue procesada.'}
 
         try:
             picking.process_external_pl_data(rows)
