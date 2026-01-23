@@ -16,14 +16,10 @@
 
     <template id="supplier_portal_view">
         <t t-call="stock_lot_packing_import.portal_layout">
-            <!-- DATA ISLAND: Datos para JS -->
+            
+            <!-- DATA ISLAND: Inyección segura de datos -->
             <script type="text/javascript">
-                window.portalData = {
-                    products: <t t-out="products_json"/>,
-                    token: '<t t-esc="token"/>',
-                    poName: '<t t-esc="picking.origin or &#34;&#34;"/>',
-                    pickingName: '<t t-esc="picking.name"/>'
-                };
+                window.portalData = <t t-out="portal_json"/>;
             </script>
 
             <div class="o_portal_wrapper">
@@ -33,7 +29,8 @@
                         <i class="fa fa-cubes me-2"/>PORTAL <span class="ms-1">PROVEEDOR</span>
                     </div>
                     <div class="po-info">
-                        <div><span class="label">Orden de Compra:</span> <span class="value" t-esc="picking.origin or ''"/></div>
+                        <!-- Usamos t-esc directos de los datos del picking (backend) para visualización HTML -->
+                        <div><span class="label">Orden de Compra:</span> <span class="value" t-esc="picking.origin or 'N/A'"/></div>
                         <div><span class="label">Recepción:</span> <span class="value" t-esc="picking.name"/></div>
                     </div>
                 </header>

@@ -1,5 +1,5 @@
 /* static/src/js/supplier_portal.js */
-/* NOTA: No agregamos header de odoo-module para que corra como JS nativo */
+/* JS Puro - Sin dependencias de OWL */
 
 (function () {
     "use strict";
@@ -13,7 +13,6 @@
             this.rows = [];
             this.nextId = 1;
             
-            // Detección del estado del DOM para iniciar
             if (document.readyState === 'loading') {
                 document.addEventListener('DOMContentLoaded', () => this.init());
             } else {
@@ -25,43 +24,37 @@
             console.log("[Portal] Ejecutando init()...");
             
             try {
-                // 1. Validaciones iniciales
                 if (!window.portalData) {
-                    throw new Error("No se recibieron datos del servidor (window.portalData es undefined).");
+                    throw new Error("Datos del portal no encontrados (window.portalData). Posible error de servidor.");
                 }
                 
                 if (!this.data.token) {
-                    console.error("[Portal] Token no encontrado.");
-                    // No lanzamos error fatal aquí para permitir debug, pero es crítico
+                    throw new Error("Token de seguridad no encontrado en los datos.");
                 }
 
-                // 2. Cargar estado local (localStorage)
+                console.log(`[Portal] Token: ${this.data.token.substring(0, 5)}...`);
+                console.log(`[Portal] Productos: ${this.products.length}`);
+
                 this.loadLocalState();
 
-                // 3. Si no hay filas guardadas, crear filas por defecto
-                console.log(`[Portal] Productos encontrados: ${this.products.length}`);
                 if (this.rows.length === 0 && this.products.length > 0) {
-                    console.log("[Portal] Generando filas iniciales...");
                     this.products.forEach(p => this.createRowInternal(p.id));
                 }
 
-                // 4. Renderizar
                 this.render();
-                
-                // 5. Vincular eventos
                 this.bindGlobalEvents();
 
-                console.log("[Portal] ✅ Inicialización completa.");
+                console.log("[Portal] ✅ Interfaz renderizada correctamente.");
 
             } catch (error) {
-                console.error("[Portal] 🛑 Error CRÍTICO en init():", error);
+                console.error("[Portal] 🛑 Error CRÍTICO:", error);
                 const container = document.getElementById('portal-rows-container');
                 if (container) {
                     container.innerHTML = `
-                        <div class="alert alert-danger text-center">
-                            <h4>Error de carga</h4>
+                        <div class="alert alert-danger text-center p-4">
+                            <h4><i class="fa fa-exclamation-triangle"></i> Error de carga</h4>
                             <p>${error.message}</p>
-                            <small>Revise la consola del navegador (F12) para más detalles.</small>
+                            <button onclick="location.reload()" class="btn btn-outline-danger btn-sm mt-3">Reintentar</button>
                         </div>
                     `;
                 }
@@ -81,9 +74,8 @@
                         const maxId = this.rows.reduce((max, r) => Math.max(max, r.id), 0);
                         this.nextId = maxId + 1;
                     }
-                    console.log(`[Portal] ${this.rows.length} filas recuperadas de memoria.`);
                 } catch (e) {
-                    console.error("[Portal] Error leyendo localStorage:", e);
+                    console.error("Error localStorage", e);
                     this.rows = [];
                 }
             }
@@ -143,17 +135,14 @@
             }
         }
 
-        // --- RENDERIZADO (HTML) ---
+        // --- RENDERIZADO ---
 
         render() {
             const container = document.getElementById('portal-rows-container');
-            if (!container) {
-                console.warn("[Portal] No se encontró el contenedor #portal-rows-container");
-                return;
-            }
+            if (!container) return;
 
             if (this.products.length === 0) {
-                container.innerHTML = '<div class="text-center text-muted p-5">No hay productos en esta recepción.</div>';
+                container.innerHTML = '<div class="alert alert-warning text-center">No hay productos pendientes de recepción en esta orden.</div>';
                 return;
             }
 
@@ -192,7 +181,6 @@
 
                 productRows.forEach(row => {
                     const area = (row.alto * row.ancho).toFixed(2);
-                    // IMPORTANTE: data-row-id debe ser el ID único de la fila temporal
                     html += `
                         <tr data-row-id="${row.id}">
                             <td><input type="text" class="short text-uppercase input-field" data-field="contenedor" value="${row.contenedor}" placeholder="CNT01"></td>
@@ -209,7 +197,6 @@
                     `;
                 });
 
-                // Botones de acción
                 html += `
                                 </tbody>
                             </table>
@@ -230,82 +217,67 @@
             this.updateTotalsUI();
         }
 
-        // --- EVENTOS (Delegación) ---
-
         bindGlobalEvents() {
             const container = document.getElementById('portal-rows-container');
             const submitBtn = document.getElementById('btn-submit-pl');
-
-            // Clonar nodos para eliminar eventos previos si se llama init múltiples veces (seguridad)
+            
+            // Clonar para limpiar eventos antiguos
             const newContainer = container.cloneNode(true);
             container.parentNode.replaceChild(newContainer, container);
             
-            // Reasignar la referencia
             const activeContainer = document.getElementById('portal-rows-container');
 
-            // 1. Inputs (Change & Input)
             activeContainer.addEventListener('input', (e) => {
                 if (e.target.classList.contains('input-field')) {
                     const tr = e.target.closest('tr');
-                    if (!tr) return;
-                    
                     const rowId = tr.dataset.rowId;
                     const field = e.target.dataset.field;
                     this.updateRowData(rowId, field, e.target.value);
                     
-                    // Cálculo visual inmediato
                     if (field === 'alto' || field === 'ancho') {
                         const row = this.rows.find(r => r.id === parseInt(rowId));
                         const areaSpan = tr.querySelector('.area-display');
-                        if (areaSpan && row) {
-                            areaSpan.innerText = (row.alto * row.ancho).toFixed(2);
-                        }
+                        if (areaSpan) areaSpan.innerText = (row.alto * row.ancho).toFixed(2);
                         this.updateTotalsUI();
                     }
                 }
             });
 
-            // 2. Click Buttons
             activeContainer.addEventListener('click', (e) => {
                 const target = e.target;
-
-                // Eliminar
-                const deleteBtn = target.closest('.btn-delete');
-                if (deleteBtn) {
-                    const rowId = deleteBtn.closest('tr').dataset.rowId;
-                    this.deleteRowInternal(rowId);
-                    this.saveState();
-                    this.render();
-                    this.bindGlobalEvents(); // Re-bind necesario tras render completo
-                    return;
-                }
-
-                // Agregar Simple
-                const addBtn = target.closest('.action-add');
-                if (addBtn) {
-                    const pid = parseInt(addBtn.dataset.productId);
-                    this.createRowInternal(pid);
+                
+                // Delete
+                const delBtn = target.closest('.btn-delete');
+                if (delBtn) {
+                    this.deleteRowInternal(delBtn.closest('tr').dataset.rowId);
                     this.saveState();
                     this.render();
                     this.bindGlobalEvents();
                     return;
                 }
 
-                // Agregar Múltiple
-                const addMultiBtn = target.closest('.action-add-multi');
-                if (addMultiBtn) {
-                    const pid = parseInt(addMultiBtn.dataset.productId);
+                // Add Single
+                const addBtn = target.closest('.action-add');
+                if (addBtn) {
+                    this.createRowInternal(parseInt(addBtn.dataset.productId));
+                    this.saveState();
+                    this.render();
+                    this.bindGlobalEvents();
+                    return;
+                }
+
+                // Add Multi
+                const addMulti = target.closest('.action-add-multi');
+                if (addMulti) {
+                    const pid = parseInt(addMulti.dataset.productId);
                     for(let i=0; i<5; i++) this.createRowInternal(pid);
                     this.saveState();
                     this.render();
                     this.bindGlobalEvents();
-                    return;
                 }
             });
 
-            // 3. Submit
             if (submitBtn) {
-                // Clonar botón para limpiar eventos previos
                 const newBtn = submitBtn.cloneNode(true);
                 submitBtn.parentNode.replaceChild(newBtn, submitBtn);
                 newBtn.addEventListener('click', () => this.submitData());
@@ -325,24 +297,17 @@
             if (areaEl) areaEl.innerText = totalArea.toFixed(2);
             
             if (btn) {
-                if (count > 0) {
-                    btn.removeAttribute('disabled');
-                    btn.style.opacity = '1';
-                    btn.style.cursor = 'pointer';
-                } else {
-                    btn.setAttribute('disabled', 'disabled');
-                    btn.style.opacity = '0.5';
-                    btn.style.cursor = 'not-allowed';
-                }
+                btn.disabled = count === 0;
+                btn.style.opacity = count === 0 ? '0.5' : '1';
+                btn.style.cursor = count === 0 ? 'not-allowed' : 'pointer';
             }
         }
 
         async submitData() {
-            if (!confirm("¿Está seguro de enviar el Packing List? Esto actualizará la recepción en el sistema.")) return;
-
+            if (!confirm("¿Enviar Packing List?")) return;
             const btn = document.getElementById('btn-submit-pl');
             const originalText = btn.innerHTML;
-            btn.innerHTML = '<i class="fa fa-spinner fa-spin me-2"></i> Enviando...';
+            btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Enviando...';
             btn.disabled = true;
 
             const cleanData = this.rows
@@ -359,42 +324,35 @@
                 }));
 
             try {
-                const response = await fetch('/supplier/pl/submit', {
+                const res = await fetch('/supplier/pl/submit', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
                         jsonrpc: "2.0",
                         method: "call",
-                        params: {
-                            token: this.data.token,
-                            rows: cleanData
-                        },
-                        id: Math.floor(Math.random() * 1000)
+                        params: { token: this.data.token, rows: cleanData },
+                        id: Math.floor(Math.random()*1000)
                     })
                 });
-
-                const result = await response.json();
-                
+                const result = await res.json();
                 if (result.result && result.result.success) {
-                    alert("✅ Packing List enviado correctamente. Gracias.");
+                    alert("✅ Enviado correctamente.");
                     localStorage.removeItem(`pl_portal_${this.data.token}`);
                     window.location.reload();
                 } else {
-                    const msg = result.error ? result.error.data.message : (result.result ? result.result.message : "Error desconocido");
-                    alert("❌ Error al procesar: " + msg);
+                    const msg = result.error?.data?.message || result.result?.message || "Error desconocido";
+                    alert("❌ Error: " + msg);
                     btn.innerHTML = originalText;
                     btn.disabled = false;
                 }
-            } catch (error) {
-                console.error(error);
-                alert("Error de conexión con el servidor.");
+            } catch (e) {
+                console.error(e);
+                alert("Error de conexión");
                 btn.innerHTML = originalText;
                 btn.disabled = false;
             }
         }
     }
 
-    // Instanciar globalmente
     window.supplierPortal = new SupplierPortal();
-
 })();

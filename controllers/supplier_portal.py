@@ -6,7 +6,6 @@ from markupsafe import Markup
 
 class SupplierPortalController(http.Controller):
 
-    # ... (Mantener métodos _get_picking_moves_for_portal y _build_products_payload iguales) ...
     def _get_picking_moves_for_portal(self, picking):
         moves = False
         if hasattr(picking, "move_ids_without_package"):
@@ -23,6 +22,7 @@ class SupplierPortalController(http.Controller):
             product = move.product_id
             if not product:
                 continue
+
             pid = product.id
             if pid not in bucket:
                 bucket[pid] = {
@@ -49,6 +49,7 @@ class SupplierPortalController(http.Controller):
         if access.is_expired:
             return request.render('stock_lot_packing_import.portal_expired')
 
+        # Redirección inteligente al picking vigente si viene de PO
         if access.purchase_id:
             po = access.purchase_id
             pickings = po.picking_ids.filtered(
@@ -64,23 +65,28 @@ class SupplierPortalController(http.Controller):
             return request.render('stock_lot_packing_import.portal_not_found')
 
         products = self._build_products_payload(picking)
-        
-        # --- MODIFICACIÓN DEFENSIVA ---
         if not products:
-             products = [] # Asegurar que es lista vacía
+            products = []
 
-        products_json = json.dumps(products, ensure_ascii=False)
-        
-        portal_data = {
-            'picking': picking,
-            'products_json': Markup(products_json),
+        # --- CORRECCIÓN PRINCIPAL AQUÍ ---
+        # Creamos un diccionario completo con TODOS los datos que necesita el JS
+        full_data = {
+            'products': products,
             'token': token,
-            'company': picking.company_id,
-            'po_name': access.purchase_id.name if access.purchase_id else (picking.origin or ""),
+            'poName': access.purchase_id.name if access.purchase_id else (picking.origin or ""),
+            'pickingName': picking.name or "",
+            'companyName': picking.company_id.name or ""
         }
-        return request.render('stock_lot_packing_import.supplier_portal_view', portal_data)
-        
-    # ... (Resto del archivo igual) ...
+
+        # Serializamos todo el objeto a JSON de una sola vez
+        json_payload = json.dumps(full_data, ensure_ascii=False)
+
+        values = {
+            'picking': picking,
+            'portal_json': Markup(json_payload), # Pasamos el JSON seguro
+        }
+        return request.render('stock_lot_packing_import.supplier_portal_view', values)
+
     @http.route('/supplier/pl/submit', type='json', auth='public', csrf=False)
     def submit_pl_data(self, token, rows):
         access = request.env['stock.picking.supplier.access'].sudo().search([
