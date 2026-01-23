@@ -20,13 +20,7 @@
             </field>
             
             <xpath expr="//header/button[@name='action_assign']" position="after">
-                
-                <!-- BOTÓN "Link Proveedor" ELIMINADO DE AQUÍ (Movido a PO) -->
-
-                <!-- ====================================================== -->
-                <!-- ETAPA 1: PACKING LIST (CREACIÓN DE LOTES)              -->
-                <!-- ====================================================== -->
-                
+                <!-- Botones de Acción (Spreadsheets y Wizards) -->
                 <button name="action_open_packing_list_spreadsheet"
                         string="Abrir PL"
                         type="object"
@@ -55,11 +49,6 @@
                         icon="fa-refresh"
                         invisible="state in ('done', 'cancel', 'draft') or picking_type_code != 'incoming' or not packing_list_imported or worksheet_imported"/>
 
-
-                <!-- ====================================================== -->
-                <!-- ETAPA 2: WORKSHEET (MEDIDAS REALES)                    -->
-                <!-- ====================================================== -->
-                
                 <button name="action_open_worksheet_spreadsheet"
                         string="Abrir WS"
                         type="object"
@@ -73,19 +62,44 @@
                         class="btn-success"
                         icon="fa-check-square-o"
                         invisible="state in ('done', 'cancel', 'draft') or picking_type_code != 'incoming' or not packing_list_imported or not ws_spreadsheet_id"/>
-
-                <!-- EXPORTAR EXCEL -->
-                <button name="action_download_worksheet"
-                        string="Exportar WS"
-                        type="object"
-                        class="btn-outline-info"
-                        icon="fa-file-excel-o"
-                        invisible="state in ('done', 'cancel', 'draft') or picking_type_code != 'incoming' or not packing_list_imported"/>
-
             </xpath>
 
-            <!-- Pestaña informativa en el Picking (opcional, pero útil para ver si la PO generó el link) -->
+            <!-- Nueva Pestaña: Datos de Embarque -->
             <xpath expr="//notebook" position="inside">
+                <page string="Datos de Embarque" invisible="picking_type_code != 'incoming'">
+                    <group>
+                        <group string="Documentación">
+                            <field name="supplier_invoice_number"/>
+                            <field name="supplier_shipment_date"/>
+                            <field name="supplier_proforma_number"/>
+                            <field name="supplier_bl_number"/>
+                            <field name="supplier_incoterm_payment"/>
+                        </group>
+                        <group string="Logística">
+                            <field name="supplier_origin"/>
+                            <field name="supplier_destination"/>
+                            <field name="supplier_country_origin"/>
+                            <field name="supplier_vessel"/>
+                            <field name="supplier_status"/>
+                        </group>
+                    </group>
+                    <group string="Detalles de Carga">
+                        <group>
+                            <field name="supplier_container_no"/>
+                            <field name="supplier_seal_no"/>
+                            <field name="supplier_container_type"/>
+                        </group>
+                        <group>
+                            <field name="supplier_total_packages"/>
+                            <field name="supplier_gross_weight"/>
+                            <field name="supplier_volume"/>
+                        </group>
+                    </group>
+                    <group string="Descripción">
+                        <field name="supplier_merchandise_desc" nolabel="1" placeholder="Descripción general de la mercancía..."/>
+                    </group>
+                </page>
+
                 <page string="Acceso Proveedor" invisible="not supplier_access_ids">
                     <field name="supplier_access_ids" readonly="1">
                         <list create="0" delete="0" edit="0">

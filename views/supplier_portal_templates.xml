@@ -17,15 +17,7 @@
     <template id="supplier_portal_view">
         <t t-call="stock_lot_packing_import.portal_layout">
             
-            <!-- 
-                TRUCO DE ESTABILIDAD:
-                En lugar de <script>, ponemos los datos en un div oculto.
-                Esto evita errores de sintaxis JS si hay caracteres extraños.
-            -->
-            <div id="portal-data-store" 
-                 style="display:none;" 
-                 t-att-data-payload="portal_json">
-            </div>
+            <div id="portal-data-store" style="display:none;" t-att-data-payload="portal_json"></div>
 
             <div class="o_portal_wrapper">
                 <!-- HEADER ESTATICO -->
@@ -39,30 +31,127 @@
                     </div>
                 </header>
 
-                <!-- CONTENEDOR PRINCIPAL -->
                 <div class="o_portal_container pb-5 mb-5">
-                    <div class="alert alert-info bg-dark border-secondary text-light mb-4">
-                        <i class="fa fa-info-circle me-2 text-warning"/>
-                        Por favor ingrese las dimensiones y detalles de cada placa o bloque. No necesita agrupar, el sistema lo hará automáticamente.
+                    
+                    <!-- NUEVA SECCIÓN: DATOS DE EMBARQUE -->
+                    <div class="product-section mb-4">
+                        <div class="product-header">
+                            <h3><i class="fa fa-ship me-2"/> Datos de Embarque</h3>
+                        </div>
+                        <div class="p-4" id="shipment-info-form">
+                            <!-- Fila 1 -->
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-3">
+                                    <label class="form-label text-muted small">No. de Factura</label>
+                                    <input type="text" id="h-invoice" class="form-control bg-dark text-white border-secondary"/>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label text-muted small">Fecha Embarque</label>
+                                    <input type="date" id="h-date" class="form-control bg-dark text-white border-secondary"/>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label text-muted small">No. Proforma (PI)</label>
+                                    <input type="text" id="h-proforma" class="form-control bg-dark text-white border-secondary"/>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label text-muted small">No. B/L</label>
+                                    <input type="text" id="h-bl" class="form-control bg-dark text-white border-secondary"/>
+                                </div>
+                            </div>
+                            
+                            <!-- Fila 2 -->
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-3">
+                                    <label class="form-label text-muted small">Origen (Puerto)</label>
+                                    <input type="text" id="h-origin" class="form-control bg-dark text-white border-secondary"/>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label text-muted small">Destino (Puerto)</label>
+                                    <input type="text" id="h-dest" class="form-control bg-dark text-white border-secondary"/>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label text-muted small">País de Origen</label>
+                                    <input type="text" id="h-country" class="form-control bg-dark text-white border-secondary"/>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label text-muted small">Buque</label>
+                                    <input type="text" id="h-vessel" class="form-control bg-dark text-white border-secondary"/>
+                                </div>
+                            </div>
+
+                            <!-- Fila 3 -->
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-4">
+                                    <label class="form-label text-muted small">Incoterm / Pago</label>
+                                    <input type="text" id="h-incoterm" class="form-control bg-dark text-white border-secondary"/>
+                                </div>
+                                <div class="col-md-8">
+                                    <label class="form-label text-muted small">Descripción Mercancía</label>
+                                    <input type="text" id="h-desc" class="form-control bg-dark text-white border-secondary"/>
+                                </div>
+                            </div>
+
+                            <hr class="border-secondary my-4"/>
+
+                            <!-- Fila 4 (Contenedor) -->
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-3">
+                                    <label class="form-label text-muted small">No. Contenedor</label>
+                                    <input type="text" id="h-cont-no" class="form-control bg-dark text-white border-secondary"/>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label text-muted small">No. Sello</label>
+                                    <input type="text" id="h-seal" class="form-control bg-dark text-white border-secondary"/>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label text-muted small">Tipo Contenedor</label>
+                                    <input type="text" id="h-type" class="form-control bg-dark text-white border-secondary" placeholder="Ej. 20GP, 40HC"/>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label text-muted small">Estatus</label>
+                                    <input type="text" id="h-status" class="form-control bg-dark text-white border-secondary"/>
+                                </div>
+                            </div>
+
+                            <!-- Fila 5 (Totales) -->
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label class="form-label text-muted small">Total Paquetes</label>
+                                    <input type="number" id="h-pkgs" class="form-control bg-dark text-white border-secondary"/>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label text-muted small">Peso Bruto (kg)</label>
+                                    <input type="number" step="0.01" id="h-weight" class="form-control bg-dark text-white border-secondary"/>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label text-muted small">Volumen (m³)</label>
+                                    <input type="number" step="0.01" id="h-volume" class="form-control bg-dark text-white border-secondary"/>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
-                    <!-- AQUÍ EL JS DIBUJARÁ LAS TABLAS -->
+                    <div class="alert alert-info bg-dark border-secondary text-light mb-4">
+                        <i class="fa fa-info-circle me-2 text-warning"/>
+                        Por favor ingrese las dimensiones y detalles de cada placa o bloque a continuación.
+                    </div>
+
+                    <!-- AQUÍ EL JS DIBUJARÁ LAS TABLAS (PACKING LIST) -->
                     <div id="portal-rows-container">
                         <div class="text-center py-5 text-muted">
                             <i class="fa fa-circle-o-notch fa-spin fa-2x"></i>
-                            <p class="mt-2">Inicializando interfaz...</p>
+                            <p class="mt-2">Cargando...</p>
                         </div>
                     </div>
                 </div>
 
-                <!-- FOOTER ESTATICO -->
                 <div class="submit-footer">
                     <div class="summary">
                         Total Placas: <span id="total-plates">0</span> | 
                         Total Área: <span id="total-area">0.00</span> m²
                     </div>
                     <button id="btn-submit-pl" class="btn-primary-custom" disabled="disabled">
-                        <i class="fa fa-paper-plane me-2"/> Enviar Packing List
+                        <i class="fa fa-paper-plane me-2"/> Guardar Todo
                     </button>
                 </div>
             </div>
