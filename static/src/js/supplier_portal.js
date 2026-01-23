@@ -1,15 +1,13 @@
 /* static/src/js/supplier_portal.js */
-/* JS Puro - Sin dependencias de OWL */
-
 (function () {
     "use strict";
 
-    console.log("[Portal] 🚀 Cargando script JS...");
+    console.log("[Portal] 🚀 Script cargado.");
 
     class SupplierPortal {
         constructor() {
-            this.data = window.portalData || {};
-            this.products = this.data.products || [];
+            this.data = {};
+            this.products = [];
             this.rows = [];
             this.nextId = 1;
             
@@ -21,20 +19,32 @@
         }
 
         init() {
-            console.log("[Portal] Ejecutando init()...");
+            console.log("[Portal] Iniciando...");
             
             try {
-                if (!window.portalData) {
-                    throw new Error("Datos del portal no encontrados (window.portalData). Posible error de servidor.");
+                // 1. LEER DATOS DEL DOM (Más seguro que window.variable)
+                const dataEl = document.getElementById('portal-data-store');
+                if (!dataEl) {
+                    throw new Error("Elemento de datos (#portal-data-store) no encontrado en el HTML.");
                 }
-                
+
+                const rawJson = dataEl.dataset.payload;
+                if (!rawJson) {
+                    throw new Error("El payload de datos está vacío.");
+                }
+
+                this.data = JSON.parse(rawJson);
+                this.products = this.data.products || [];
+
+                // Validaciones
                 if (!this.data.token) {
-                    throw new Error("Token de seguridad no encontrado en los datos.");
+                    throw new Error("Token de seguridad no encontrado en el JSON.");
                 }
 
-                console.log(`[Portal] Token: ${this.data.token.substring(0, 5)}...`);
-                console.log(`[Portal] Productos: ${this.products.length}`);
+                console.log(`[Portal] Datos cargados. Token: ...${this.data.token.slice(-4)}`);
+                console.log(`[Portal] Productos a recibir: ${this.products.length}`);
 
+                // 2. Cargar estado y lógica
                 this.loadLocalState();
 
                 if (this.rows.length === 0 && this.products.length > 0) {
@@ -44,17 +54,17 @@
                 this.render();
                 this.bindGlobalEvents();
 
-                console.log("[Portal] ✅ Interfaz renderizada correctamente.");
+                console.log("[Portal] ✅ Interfaz lista.");
 
             } catch (error) {
-                console.error("[Portal] 🛑 Error CRÍTICO:", error);
+                console.error("[Portal] 🛑 Error Fatal:", error);
                 const container = document.getElementById('portal-rows-container');
                 if (container) {
                     container.innerHTML = `
-                        <div class="alert alert-danger text-center p-4">
-                            <h4><i class="fa fa-exclamation-triangle"></i> Error de carga</h4>
-                            <p>${error.message}</p>
-                            <button onclick="location.reload()" class="btn btn-outline-danger btn-sm mt-3">Reintentar</button>
+                        <div class="alert alert-danger text-center p-5">
+                            <h4><i class="fa fa-exclamation-triangle"></i> Error al cargar el portal</h4>
+                            <p class="mt-3">${error.message}</p>
+                            <div class="mt-3 text-muted small">Intente recargar la página.</div>
                         </div>
                     `;
                 }
@@ -98,8 +108,8 @@
                 const last = productRows[productRows.length - 1];
                 defaults = { 
                     contenedor: last.contenedor, 
-                    bloque: last.bloque,
-                    grosor: last.grosor
+                    bloque: last.bloque, 
+                    grosor: last.grosor 
                 };
             }
 
@@ -142,7 +152,7 @@
             if (!container) return;
 
             if (this.products.length === 0) {
-                container.innerHTML = '<div class="alert alert-warning text-center">No hay productos pendientes de recepción en esta orden.</div>';
+                container.innerHTML = '<div class="alert alert-warning text-center p-5">No hay productos pendientes de recepción en esta orden.</div>';
                 return;
             }
 
@@ -221,7 +231,6 @@
             const container = document.getElementById('portal-rows-container');
             const submitBtn = document.getElementById('btn-submit-pl');
             
-            // Clonar para limpiar eventos antiguos
             const newContainer = container.cloneNode(true);
             container.parentNode.replaceChild(newContainer, container);
             
@@ -246,7 +255,6 @@
             activeContainer.addEventListener('click', (e) => {
                 const target = e.target;
                 
-                // Delete
                 const delBtn = target.closest('.btn-delete');
                 if (delBtn) {
                     this.deleteRowInternal(delBtn.closest('tr').dataset.rowId);
@@ -256,7 +264,6 @@
                     return;
                 }
 
-                // Add Single
                 const addBtn = target.closest('.action-add');
                 if (addBtn) {
                     this.createRowInternal(parseInt(addBtn.dataset.productId));
@@ -266,7 +273,6 @@
                     return;
                 }
 
-                // Add Multi
                 const addMulti = target.closest('.action-add-multi');
                 if (addMulti) {
                     const pid = parseInt(addMulti.dataset.productId);
@@ -304,7 +310,7 @@
         }
 
         async submitData() {
-            if (!confirm("¿Enviar Packing List?")) return;
+            if (!confirm("¿Está seguro de enviar el Packing List?")) return;
             const btn = document.getElementById('btn-submit-pl');
             const originalText = btn.innerHTML;
             btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Enviando...';
