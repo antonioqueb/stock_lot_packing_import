@@ -4,15 +4,10 @@
         <t t-call="web.frontend_layout">
             <t t-set="no_header" t-value="True"/>
             <t t-set="no_footer" t-value="True"/>
-
             <t t-set="head">
-                <!-- JS/CSS del portal (website) -->
                 <t t-call-assets="web.assets_frontend" t-css="true" t-js="true"/>
-                
-                <!-- QWeb templates ya incluidos en assets_frontend en Odoo 17+ -->
                 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600" rel="stylesheet"/>
             </t>
-
             <div class="supplier-portal-body">
                 <t t-out="0"/>
             </div>
@@ -21,6 +16,7 @@
 
     <template id="supplier_portal_view">
         <t t-call="stock_lot_packing_import.portal_layout">
+            <!-- DATA ISLAND: Datos para JS -->
             <script type="text/javascript">
                 window.portalData = {
                     products: <t t-out="products_json"/>,
@@ -30,17 +26,45 @@
                 };
             </script>
 
-            <!-- Fallback visible mientras monta OWL -->
-            <div class="container py-5 text-center text-light">
-                <div class="mb-3" style="opacity:0.85;">
-                    Cargando portal…
+            <div class="o_portal_wrapper">
+                <!-- HEADER ESTATICO -->
+                <header class="o_portal_header">
+                    <div class="brand">
+                        <i class="fa fa-cubes me-2"/>PORTAL <span class="ms-1">PROVEEDOR</span>
+                    </div>
+                    <div class="po-info">
+                        <div><span class="label">Orden de Compra:</span> <span class="value" t-esc="picking.origin or ''"/></div>
+                        <div><span class="label">Recepción:</span> <span class="value" t-esc="picking.name"/></div>
+                    </div>
+                </header>
+
+                <!-- CONTENEDOR PRINCIPAL -->
+                <div class="o_portal_container pb-5 mb-5">
+                    <div class="alert alert-info bg-dark border-secondary text-light mb-4">
+                        <i class="fa fa-info-circle me-2 text-warning"/>
+                        Por favor ingrese las dimensiones y detalles de cada placa o bloque. No necesita agrupar, el sistema lo hará automáticamente.
+                    </div>
+
+                    <!-- AQUÍ EL JS DIBUJARÁ LAS TABLAS -->
+                    <div id="portal-rows-container">
+                        <div class="text-center py-5 text-muted">
+                            <i class="fa fa-circle-o-notch fa-spin fa-2x"></i>
+                            <p class="mt-2">Inicializando interfaz...</p>
+                        </div>
+                    </div>
                 </div>
-                <div class="small" style="opacity:0.6;">
-                    Si esta pantalla no avanza, revise que los assets estén cargando correctamente.
+
+                <!-- FOOTER ESTATICO -->
+                <div class="submit-footer">
+                    <div class="summary">
+                        Total Placas: <span id="total-plates">0</span> | 
+                        Total Área: <span id="total-area">0.00</span> m²
+                    </div>
+                    <button id="btn-submit-pl" class="btn-primary-custom" disabled="disabled">
+                        <i class="fa fa-paper-plane me-2"/> Enviar Packing List
+                    </button>
                 </div>
             </div>
-
-            <div id="supplier-portal-app"/>
         </t>
     </template>
 
@@ -56,9 +80,7 @@
     <template id="portal_expired">
         <t t-call="stock_lot_packing_import.portal_layout">
             <div class="container text-center py-5">
-                <h1 class="display-1 text-warning">
-                    <i class="fa fa-clock-o"/>
-                </h1>
+                <h1 class="display-1 text-warning"><i class="fa fa-clock-o"/></h1>
                 <p class="lead">Este enlace ha expirado.</p>
             </div>
         </t>
