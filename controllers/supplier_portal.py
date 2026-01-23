@@ -4,28 +4,18 @@ from odoo import http
 from odoo.http import request
 from markupsafe import Markup
 
-
 class SupplierPortalController(http.Controller):
 
+    # ... (Mantener métodos _get_picking_moves_for_portal y _build_products_payload iguales) ...
     def _get_picking_moves_for_portal(self, picking):
-        """
-        Compatibilidad entre versiones/builds:
-        - Si existe move_ids_without_package lo usamos.
-        - Si no, usamos move_ids.
-        """
         moves = False
         if hasattr(picking, "move_ids_without_package"):
             moves = picking.move_ids_without_package
         if not moves:
             moves = picking.move_ids
-        # Evitar cancelados
         return moves.filtered(lambda m: m.state != "cancel")
 
     def _build_products_payload(self, picking):
-        """
-        Regresa lista de productos agregada por product_id:
-        - qty_ordered = suma de product_uom_qty por producto (por si hay varios moves)
-        """
         moves = self._get_picking_moves_for_portal(picking)
         bucket = {}
 
@@ -33,7 +23,6 @@ class SupplierPortalController(http.Controller):
             product = move.product_id
             if not product:
                 continue
-
             pid = product.id
             if pid not in bucket:
                 bucket[pid] = {
@@ -45,7 +34,6 @@ class SupplierPortalController(http.Controller):
                 }
             bucket[pid]["qty_ordered"] += (move.product_uom_qty or 0.0)
 
-        # Orden estable por nombre
         products = list(bucket.values())
         products.sort(key=lambda x: (x.get("name") or "").lower())
         return products
@@ -61,7 +49,6 @@ class SupplierPortalController(http.Controller):
         if access.is_expired:
             return request.render('stock_lot_packing_import.portal_expired')
 
-        # Si viene de una PO, movemos el picking al “vigente” (backorder actual), sin cambiar token
         if access.purchase_id:
             po = access.purchase_id
             pickings = po.picking_ids.filtered(
@@ -77,8 +64,11 @@ class SupplierPortalController(http.Controller):
             return request.render('stock_lot_packing_import.portal_not_found')
 
         products = self._build_products_payload(picking)
+        
+        # --- MODIFICACIÓN DEFENSIVA ---
+        if not products:
+             products = [] # Asegurar que es lista vacía
 
-        # Usamos Markup para que el JSON no sea escapado en la vista (evita t-raw)
         products_json = json.dumps(products, ensure_ascii=False)
         
         portal_data = {
@@ -86,12 +76,11 @@ class SupplierPortalController(http.Controller):
             'products_json': Markup(products_json),
             'token': token,
             'company': picking.company_id,
-            # Mejor que origin: nombre de OC si existe
             'po_name': access.purchase_id.name if access.purchase_id else (picking.origin or ""),
         }
         return request.render('stock_lot_packing_import.supplier_portal_view', portal_data)
-
-    # IMPORTANTE: type='json' (no jsonrpc). Odoo usa JSON-RPC automáticamente para routes tipo json.
+        
+    # ... (Resto del archivo igual) ...
     @http.route('/supplier/pl/submit', type='json', auth='public', csrf=False)
     def submit_pl_data(self, token, rows):
         access = request.env['stock.picking.supplier.access'].sudo().search([
