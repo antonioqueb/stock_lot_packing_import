@@ -34,7 +34,7 @@
                 
                 // CARGA INICIAL DESDE SERVIDOR (Odoo)
                 const serverHeader = this.data.header || {};
-                this.header = { ...serverHeader }; // Copia base
+                this.header = { ...serverHeader }; // Copia base con los datos frescos de Odoo
 
                 if (!this.data.token) throw new Error("Token no encontrado.");
 
@@ -43,12 +43,19 @@
                 // 2. RECUPERAR MEMORIA LOCAL (Borrador del navegador)
                 const localData = this.loadLocalState();
                 
-                // --- FUSIÓN DE CABECERA ---
-                // Si el usuario ya escribió algo localmente, eso tiene prioridad sobre el servidor.
+                // --- FUSIÓN DE CABECERA (CORRECCIÓN BIDIRECCIONAL) ---
+                // Modificado: Solo sobrescribimos con datos locales si el usuario realmente escribió algo.
+                // Esto permite que si Odoo trae datos y el local está vacío (""), se muestren los datos de Odoo.
                 if (localData && localData.header) {
-                    // Mezclamos: Servidor < Local
-                    this.header = { ...this.header, ...localData.header };
-                    console.log("[Portal] Cabecera fusionada (Server + Local).");
+                    for (const [key, val] of Object.entries(localData.header)) {
+                        // Criterio: Usar valor local SOLO si no es una cadena vacía o nula.
+                        // Si local tiene "INV-001" y Server tiene "INV-ANTIGUO", gana Local (edición en curso).
+                        // Si local tiene "" y Server tiene "INV-001", gana Server (dato nuevo de Odoo).
+                        if (val !== "" && val !== null && val !== undefined) {
+                            this.header[key] = val;
+                        }
+                    }
+                    console.log("[Portal] Cabecera fusionada (Prioridad: Server < Local con datos).");
                 }
 
                 // --- ESTRATEGIA DE CARGA DE FILAS ---
@@ -163,6 +170,7 @@
             for (const [domId, dataKey] of Object.entries(map)) {
                 const el = document.getElementById(domId);
                 // Asignamos valor si existe en this.header y el input existe
+                // Nota: Verificamos !== null y !== undefined para permitir ceros en numéricos
                 if (el && this.header[dataKey] !== undefined && this.header[dataKey] !== null) {
                     el.value = this.header[dataKey];
                 }
