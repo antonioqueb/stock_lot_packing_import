@@ -31,52 +31,62 @@
 
                 this.data = JSON.parse(rawJson);
                 this.products = this.data.products || [];
-                // Cargar cabecera inicial desde el servidor si existe
-                this.header = this.data.header || {};
+                
+                // CARGA INICIAL DESDE SERVIDOR (Odoo)
+                const serverHeader = this.data.header || {};
+                this.header = { ...serverHeader }; // Copia base
 
                 if (!this.data.token) throw new Error("Token no encontrado.");
 
                 console.log(`[Portal] Token: ...${this.data.token.slice(-4)}`);
                 
-                // 2. ESTRATEGIA DE CARGA (Bidireccional)
-                // Prioridad: Local > Server > Default
-                
+                // 2. RECUPERAR MEMORIA LOCAL (Borrador del navegador)
                 const localData = this.loadLocalState();
+                
+                // --- FUSIÓN DE CABECERA ---
+                // Si el usuario ya escribió algo localmente, eso tiene prioridad sobre el servidor.
+                if (localData && localData.header) {
+                    // Mezclamos: Servidor < Local
+                    this.header = { ...this.header, ...localData.header };
+                    console.log("[Portal] Cabecera fusionada (Server + Local).");
+                }
+
+                // --- ESTRATEGIA DE CARGA DE FILAS ---
                 const serverRows = this.data.existing_rows || [];
 
                 if (localData && localData.rows && localData.rows.length > 0) {
-                    console.log("[Portal] Usando datos locales (borrador en progreso).");
+                    // Prioridad 1: Datos locales (trabajo en curso)
+                    console.log("[Portal] Usando filas locales (borrador en progreso).");
                     this.rows = localData.rows;
                     
-                    // Fusionar cabecera local con la del servidor (local gana)
-                    if (localData.header && Object.keys(localData.header).length > 0) {
-                        this.header = { ...this.header, ...localData.header };
-                    }
-
-                    // Recalcular nextId para no pisar IDs
+                    // Recalcular nextId para evitar colisiones
                     const maxId = this.rows.reduce((max, r) => Math.max(max, r.id || 0), 0);
                     this.nextId = maxId + 1;
 
                 } else if (serverRows.length > 0) {
-                    console.log(`[Portal] Usando datos del servidor (${serverRows.length} filas recuperadas).`);
+                    // Prioridad 2: Datos del servidor (Spreadsheet ya guardado)
+                    console.log(`[Portal] Usando filas del servidor (${serverRows.length} filas).`);
+                    
                     // Asignar IDs temporales a los datos que vienen del servidor
                     this.rows = serverRows.map(r => ({
                         ...r,
                         id: this.nextId++
                     }));
-                    // Guardar inmediatamente en local para que sean editables
+                    
+                    // Guardar inmediatamente en local para permitir edición
                     this.saveState();
 
                 } else {
+                    // Prioridad 3: Inicio limpio
                     console.log("[Portal] Iniciando desde cero (sin datos previos).");
                     if (this.products.length > 0) {
                         this.products.forEach(p => this.createRowInternal(p.id));
                     }
                 }
 
-                // 3. RENDERIZADO Y BINDING
-                this.fillHeaderForm(); // Llenar inputs de cabecera con los datos cargados
-                this.render();
+                // 3. RENDERIZADO EN PANTALLA
+                this.fillHeaderForm(); // Pinta los datos en los inputs de cabecera
+                this.render();         // Pinta la tabla de filas
                 this.bindGlobalEvents();
 
                 console.log("[Portal] ✅ Interfaz lista.");
@@ -90,7 +100,7 @@
             }
         }
 
-        // --- GESTIÓN DE ESTADO ---
+        // --- GESTIÓN DE ESTADO (LOCAL STORAGE) ---
 
         loadLocalState() {
             if (!this.data.token) return null;
@@ -99,13 +109,13 @@
             if (saved) {
                 try {
                     const parsed = JSON.parse(saved);
-                    // Compatibilidad con versiones viejas que solo guardaban array de filas
+                    // Compatibilidad con versiones anteriores que solo guardaban arrays
                     if (Array.isArray(parsed)) {
                         return { rows: parsed, header: {} };
                     }
-                    return parsed;
+                    return parsed; // Espera { rows: [], header: {} }
                 } catch (e) {
-                    console.error("Error localStorage", e);
+                    console.error("Error leyendo localStorage", e);
                     return null;
                 }
             }
@@ -116,20 +126,20 @@
             if (!this.data.token) return;
             const key = `pl_portal_${this.data.token}`;
             
-            // Guardamos filas Y el estado actual del formulario de cabecera
+            // Guardamos el estado completo: Filas + Datos actuales de los inputs de cabecera
             const state = {
                 rows: this.rows,
-                header: this.getHeaderDataFromDOM()
+                header: this.getHeaderDataFromDOM() 
             };
             
             localStorage.setItem(key, JSON.stringify(state));
             this.updateTotalsUI(); 
         }
 
-        // --- CABECERA (Header) ---
+        // --- CABECERA (Lectura/Escritura DOM) ---
 
         fillHeaderForm() {
-            // Mapeo ID del HTML -> Clave del objeto header
+            // Mapeo: ID del HTML -> Clave del JSON
             const map = {
                 'h-invoice': 'invoice_number',
                 'h-date': 'shipment_date',
@@ -152,6 +162,7 @@
 
             for (const [domId, dataKey] of Object.entries(map)) {
                 const el = document.getElementById(domId);
+                // Asignamos valor si existe en this.header y el input existe
                 if (el && this.header[dataKey] !== undefined && this.header[dataKey] !== null) {
                     el.value = this.header[dataKey];
                 }
@@ -159,7 +170,6 @@
         }
 
         getHeaderDataFromDOM() {
-            // Recoger valores actuales de los inputs
             return {
                 invoice_number: document.getElementById('h-invoice')?.value || "",
                 shipment_date: document.getElementById('h-date')?.value || "",
@@ -181,7 +191,7 @@
             };
         }
 
-        // --- LÓGICA DE FILAS (PACKING LIST) ---
+        // --- LÓGICA DE FILAS (CRUD) ---
 
         createRowInternal(productId) {
             const productRows = this.rows.filter(r => r.product_id === productId);
@@ -228,7 +238,7 @@
             }
         }
 
-        // --- RENDERIZADO DE TABLAS ---
+        // --- RENDERIZADO ---
 
         render() {
             const container = document.getElementById('portal-rows-container');
@@ -274,6 +284,7 @@
 
                 productRows.forEach(row => {
                     const area = (row.alto * row.ancho).toFixed(2);
+                    // data-row-id es clave para identificar la fila en los eventos
                     html += `
                         <tr data-row-id="${row.id}">
                             <td><input type="text" class="short text-uppercase input-field" data-field="contenedor" value="${row.contenedor || ''}" placeholder="CNT01"></td>
@@ -312,10 +323,10 @@
 
         bindGlobalEvents() {
             const container = document.getElementById('portal-rows-container');
-            const headerForm = document.getElementById('shipment-info-form'); // Contenedor del form de cabecera
+            const headerForm = document.getElementById('shipment-info-form');
             const submitBtn = document.getElementById('btn-submit-pl');
             
-            // Clonar para limpiar eventos antiguos (safety)
+            // Clonar nodos para limpiar eventos antiguos
             const newContainer = container.cloneNode(true);
             container.parentNode.replaceChild(newContainer, container);
             
@@ -372,14 +383,15 @@
                 }
             });
 
-            // 3. Inputs Header (Auto-save local)
+            // 3. Inputs Header (Auto-save local al escribir)
             if (headerForm) {
-                // Removemos listener previo clonando si es necesario, o solo agregamos.
-                // Como headerForm está fuera de portal-rows-container, es estático.
-                // Usamos un flag o simplemente agregamos (addEventListener permite múltiples, pero es mejor controlar)
-                headerForm.oninput = () => {
+                // Clonar para limpiar eventos antiguos
+                const newHeaderForm = headerForm.cloneNode(true);
+                headerForm.parentNode.replaceChild(newHeaderForm, headerForm);
+                
+                document.getElementById('shipment-info-form').addEventListener('input', () => {
                     this.saveState();
-                };
+                });
             }
 
             // 4. Submit
@@ -403,9 +415,6 @@
             if (areaEl) areaEl.innerText = totalArea.toFixed(2);
             
             if (btn) {
-                // Permitimos enviar si hay cabecera aunque no haya filas, o viceversa.
-                // Pero generalmente queremos al menos una acción. 
-                // Dejamos activo siempre para permitir guardar solo cabecera si se desea.
                 btn.removeAttribute('disabled');
                 btn.style.opacity = '1';
                 btn.style.cursor = 'pointer';
@@ -413,7 +422,7 @@
         }
 
         async submitData() {
-            if (!confirm("¿Está seguro de enviar los datos? Se actualizará el documento en el sistema.")) return;
+            if (!confirm("¿Guardar y enviar los datos a Odoo?")) return;
 
             const btn = document.getElementById('btn-submit-pl');
             const originalText = btn.innerHTML;
@@ -433,7 +442,7 @@
                     tipo: 'placa'
                 }));
 
-            // Recoger datos de cabecera
+            // Obtener cabecera
             const headerData = this.getHeaderDataFromDOM();
 
             try {
@@ -446,7 +455,7 @@
                         params: { 
                             token: this.data.token, 
                             rows: cleanData,
-                            header: headerData  // Enviamos la cabecera
+                            header: headerData 
                         },
                         id: Math.floor(Math.random()*1000)
                     })
@@ -456,7 +465,6 @@
                 
                 if (result.result && result.result.success) {
                     alert("✅ Guardado correctamente.");
-                    // Limpiamos local storage para evitar conflictos futuros
                     localStorage.removeItem(`pl_portal_${this.data.token}`);
                     window.location.reload();
                 } else {
@@ -465,9 +473,9 @@
                     btn.innerHTML = originalText;
                     btn.disabled = false;
                 }
-            } catch (error) {
-                console.error(error);
-                alert("Error de conexión con el servidor.");
+            } catch (e) {
+                console.error(e);
+                alert("Error de conexión");
                 btn.innerHTML = originalText;
                 btn.disabled = false;
             }
