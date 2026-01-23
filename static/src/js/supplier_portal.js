@@ -22,35 +22,53 @@
             console.log("[Portal] Iniciando...");
             
             try {
-                // 1. LEER DATOS DEL DOM (Más seguro que window.variable)
+                // 1. LEER DATOS DEL DOM
                 const dataEl = document.getElementById('portal-data-store');
-                if (!dataEl) {
-                    throw new Error("Elemento de datos (#portal-data-store) no encontrado en el HTML.");
-                }
-
+                if (!dataEl) throw new Error("Datos no encontrados en HTML.");
                 const rawJson = dataEl.dataset.payload;
-                if (!rawJson) {
-                    throw new Error("El payload de datos está vacío.");
-                }
+                if (!rawJson) throw new Error("Payload vacío.");
 
                 this.data = JSON.parse(rawJson);
                 this.products = this.data.products || [];
 
-                // Validaciones
-                if (!this.data.token) {
-                    throw new Error("Token de seguridad no encontrado en el JSON.");
+                if (!this.data.token) throw new Error("Token no encontrado.");
+
+                console.log(`[Portal] Token: ...${this.data.token.slice(-4)}`);
+                
+                // 2. ESTRATEGIA DE CARGA DE DATOS (Bidireccional)
+                // Prioridad: 
+                // A. LocalStorage (Trabajo en curso del usuario no enviado)
+                // B. Datos del Servidor (Cargados desde Spreadsheet previo)
+                // C. Default (Filas vacías)
+                
+                const localData = this.loadLocalState();
+                const serverData = this.data.existing_rows || [];
+
+                if (localData && localData.length > 0) {
+                    console.log("[Portal] Usando datos locales (borrador en progreso).");
+                    this.rows = localData;
+                    // Recalcular nextId para no pisar IDs
+                    const maxId = this.rows.reduce((max, r) => Math.max(max, r.id || 0), 0);
+                    this.nextId = maxId + 1;
+
+                } else if (serverData.length > 0) {
+                    console.log(`[Portal] Usando datos del servidor (${serverData.length} filas recuperadas).`);
+                    // Asignar IDs temporales a los datos que vienen del servidor para gestionarlos en el DOM
+                    this.rows = serverData.map(r => ({
+                        ...r,
+                        id: this.nextId++
+                    }));
+                    // Guardar inmediatamente en local para que sean editables
+                    this.saveState();
+
+                } else {
+                    console.log("[Portal] Iniciando desde cero (sin datos previos).");
+                    if (this.products.length > 0) {
+                        this.products.forEach(p => this.createRowInternal(p.id));
+                    }
                 }
 
-                console.log(`[Portal] Datos cargados. Token: ...${this.data.token.slice(-4)}`);
-                console.log(`[Portal] Productos a recibir: ${this.products.length}`);
-
-                // 2. Cargar estado y lógica
-                this.loadLocalState();
-
-                if (this.rows.length === 0 && this.products.length > 0) {
-                    this.products.forEach(p => this.createRowInternal(p.id));
-                }
-
+                // 3. RENDERIZADO
                 this.render();
                 this.bindGlobalEvents();
 
@@ -60,13 +78,7 @@
                 console.error("[Portal] 🛑 Error Fatal:", error);
                 const container = document.getElementById('portal-rows-container');
                 if (container) {
-                    container.innerHTML = `
-                        <div class="alert alert-danger text-center p-5">
-                            <h4><i class="fa fa-exclamation-triangle"></i> Error al cargar el portal</h4>
-                            <p class="mt-3">${error.message}</p>
-                            <div class="mt-3 text-muted small">Intente recargar la página.</div>
-                        </div>
-                    `;
+                    container.innerHTML = `<div class="alert alert-danger text-center p-5"><h4>Error</h4><p>${error.message}</p></div>`;
                 }
             }
         }
@@ -74,21 +86,18 @@
         // --- GESTIÓN DE ESTADO ---
 
         loadLocalState() {
-            if (!this.data.token) return;
+            if (!this.data.token) return null;
             const key = `pl_portal_${this.data.token}`;
             const saved = localStorage.getItem(key);
             if (saved) {
                 try {
-                    this.rows = JSON.parse(saved);
-                    if (this.rows.length > 0) {
-                        const maxId = this.rows.reduce((max, r) => Math.max(max, r.id), 0);
-                        this.nextId = maxId + 1;
-                    }
+                    return JSON.parse(saved);
                 } catch (e) {
                     console.error("Error localStorage", e);
-                    this.rows = [];
+                    return null;
                 }
             }
+            return null;
         }
 
         saveState() {
@@ -193,13 +202,13 @@
                     const area = (row.alto * row.ancho).toFixed(2);
                     html += `
                         <tr data-row-id="${row.id}">
-                            <td><input type="text" class="short text-uppercase input-field" data-field="contenedor" value="${row.contenedor}" placeholder="CNT01"></td>
-                            <td><input type="text" class="short text-uppercase input-field" data-field="bloque" value="${row.bloque}" placeholder="B-01"></td>
+                            <td><input type="text" class="short text-uppercase input-field" data-field="contenedor" value="${row.contenedor || ''}" placeholder="CNT01"></td>
+                            <td><input type="text" class="short text-uppercase input-field" data-field="bloque" value="${row.bloque || ''}" placeholder="B-01"></td>
                             <td><input type="number" step="0.01" class="short input-field" data-field="grosor" value="${row.grosor || ''}"></td>
                             <td><input type="number" step="0.01" class="short input-field" data-field="alto" value="${row.alto || ''}"></td>
                             <td><input type="number" step="0.01" class="short input-field" data-field="ancho" value="${row.ancho || ''}"></td>
                             <td><span class="fw-bold text-white area-display">${area}</span></td>
-                            <td><input type="text" class="input-field" data-field="color" value="${row.color}" placeholder="Opcional"></td>
+                            <td><input type="text" class="input-field" data-field="color" value="${row.color || ''}" placeholder="Opcional"></td>
                             <td class="text-center">
                                 <button class="btn-action btn-delete" type="button"><i class="fa fa-trash"></i></button>
                             </td>
@@ -342,7 +351,7 @@
                 });
                 const result = await res.json();
                 if (result.result && result.result.success) {
-                    alert("✅ Enviado correctamente.");
+                    alert("✅ Enviado correctamente. Se ha actualizado el documento en Odoo.");
                     localStorage.removeItem(`pl_portal_${this.data.token}`);
                     window.location.reload();
                 } else {
