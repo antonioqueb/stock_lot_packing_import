@@ -5,182 +5,166 @@ import io
 import base64
 import logging
 import json
+import re
 
 _logger = logging.getLogger(__name__)
 
 class StockPicking(models.Model):
     _inherit = 'stock.picking'
     
-    # --- Campos de Packing List (PL) ---
     packing_list_file = fields.Binary(string='Packing List (Archivo)', attachment=True, copy=False)
     packing_list_filename = fields.Char(string='Nombre del archivo', copy=False)
     spreadsheet_id = fields.Many2one('documents.document', string='Spreadsheet Packing List', copy=False)
     has_packing_list = fields.Boolean(string='Tiene Packing List', compute='_compute_has_packing_list', store=True)
     packing_list_imported = fields.Boolean(string='Packing List Importado', default=False, copy=False)
     
-    # --- Campos para el Worksheet (WS) ---
     ws_spreadsheet_id = fields.Many2one('documents.document', string='Spreadsheet Worksheet', copy=False)
     worksheet_file = fields.Binary(string='Worksheet Exportado', attachment=True, copy=False)
     worksheet_filename = fields.Char(string='Nombre del Worksheet', copy=False)
     worksheet_imported = fields.Boolean(string='Worksheet Importado', default=False, copy=False)
 
-    # --- NUEVO: Acceso a Portal Proveedor (Solo lectura/informativo en Picking) ---
     supplier_access_ids = fields.One2many('stock.picking.supplier.access', 'picking_id', string="Links Proveedor")
     
     @api.depends('packing_list_file', 'spreadsheet_id', 'supplier_access_ids')
     def _compute_has_packing_list(self):
         for rec in self:
-            # Se considera que tiene PL si hay un archivo, un spreadsheet generado o un link de proveedor creado
             rec.has_packing_list = bool(rec.packing_list_file or rec.spreadsheet_id or rec.supplier_access_ids)
 
     # -------------------------------------------------------------------------
-    # FUNCIONALIDAD PORTAL PROVEEDOR (PROCESAMIENTO)
-    # NOTA: La generación del link se movió a purchase.order
+    #  LOGICA DE SPREADSHEET (Escritura desde Portal)
     # -------------------------------------------------------------------------
 
-    def process_external_pl_data(self, json_data):
-        """ 
-        Recibe la data JSON desde el portal del proveedor y crea los lotes.
-        Esta función es llamada por el Controlador cuando el proveedor envía el formulario.
+    def update_packing_list_from_portal(self, rows):
+        """
+        Toma los datos crudos del portal y los escribe en el Spreadsheet.
+        Si el Spreadsheet no existe, lo crea primero.
         """
         self.ensure_one()
-        _logger.info(f"Procesando PL Externo para {self.name} con {len(json_data)} registros.")
-
-        # 1. Limpieza de datos previos (Borrar y reescribir para evitar duplicados)
-        old_move_lines = self.move_line_ids
-        old_lots = old_move_lines.mapped('lot_id')
-
-        # Resetear cantidades hechas
-        old_move_lines.write({'qty_done': 0})
         
-        # Eliminar Quants fantasmas si existen
-        if old_lots:
-            quants = self.env['stock.quant'].sudo().search([('lot_id', 'in', old_lots.ids)])
-            quants.sudo().unlink()
-
-        # Eliminar lineas viejas
-        old_move_lines.unlink()
+        # 1. Asegurar que existe el Spreadsheet
+        if not self.spreadsheet_id:
+            self.action_open_packing_list_spreadsheet()
         
-        # Eliminar lotes huérfanos creados anteriormente para esta operación
-        for lot in old_lots:
-            # Verificar si el lote se usa en otros movimientos fuera de este picking
-            if self.env['stock.move.line'].search_count([('lot_id', '=', lot.id)]) == 0:
-                try:
-                    lot.unlink()
-                except Exception as e:
-                    _logger.warning(f"No se pudo eliminar lote {lot.name}: {e}")
+        doc = self.spreadsheet_id
+        if not doc.spreadsheet_data:
+            raise UserError("El archivo de hoja de cálculo está corrupto o vacío.")
 
-        # 2. Lógica de Prefijos y Contenedores
-        # Buscamos el último prefijo numérico global (Ej: si el ultimo fue 104-XX, el siguiente es 105)
-        self.env.cr.execute("""SELECT CAST(SUBSTRING(name FROM '^([0-9]+)-') AS INTEGER) as prefix_num FROM stock_lot WHERE name ~ '^[0-9]+-[0-9]+$' AND company_id = %s ORDER BY prefix_num DESC LIMIT 1""", (self.company_id.id,))
-        res = self.env.cr.fetchone()
-        next_prefix = (res[0] + 1) if res and res[0] else 1
+        # 2. Cargar datos JSON del Spreadsheet
+        try:
+            raw_data = doc.spreadsheet_data
+            data = json.loads(raw_data.decode('utf-8') if isinstance(raw_data, bytes) else raw_data)
+        except Exception as e:
+            raise UserError(f"Error al leer el Spreadsheet: {e}")
+
+        # 3. Mapear Productos a Hojas (Sheets)
+        # Buscamos en la celda B1 de cada hoja para ver qué producto es.
+        product_sheet_map = {} # { product_id: sheet_object }
         
-        containers_map = {} # Mapa para controlar prefijos por contenedor: {'CONT1': {'prefix': '105', 'seq': 1}}
-        move_lines_created = 0
+        sheets = data.get('sheets', [])
+        for sheet in sheets:
+            cells = sheet.get('cells', {})
+            # B1 es col 1, row 0 -> clave "B1" o indexada
+            # Odoo guarda keys como "B1", "A10", etc.
+            b1_val = cells.get("B1", {}).get("content", "")
+            
+            if b1_val:
+                # El formato es "Nombre (Codigo)" o similar. Buscamos coincidencia.
+                # Extraemos código o nombre.
+                p_ref = str(b1_val).split('(')[0].strip()
+                product = self.env['product.product'].search([
+                    '|', ('name', 'ilike', p_ref), ('default_code', 'ilike', p_ref)
+                ], limit=1)
+                
+                if product:
+                    product_sheet_map[product.id] = sheet
 
-        # 3. Procesamiento de filas
-        for row in json_data:
-            # Validar producto
+        # 4. Escribir filas
+        # Columnas según action_open_packing_list_spreadsheet:
+        # A=Grosor, B=Alto, C=Ancho, D=Color, E=Bloque, F=Atado, G=Tipo, H=Grupo, I=Pedimento, J=Contenedor, K=RefProv, L=Notas
+        
+        for row in rows:
             try:
-                product_id = int(row.get('product_id'))
-                product = self.env['product.product'].browse(product_id)
-            except (ValueError, TypeError):
+                pid = int(row.get('product_id'))
+            except: continue
+
+            sheet = product_sheet_map.get(pid)
+            if not sheet:
+                _logger.warning(f"No se encontró hoja para producto ID {pid}")
                 continue
 
-            if not product.exists(): 
-                continue
-            
-            # Buscar el movimiento original (Stock Move) para asociar
-            move = self.move_ids.filtered(lambda m: m.product_id == product)[:1]
-            if not move: 
-                continue
+            # Buscar primera fila vacía empezando en fila 4 (índice 3, Excel row 4)
+            # Chequeamos si la columna B (Alto) tiene datos.
+            row_idx = 3 
+            while True:
+                # Convertir indice a clave excel: row_idx=3 -> "4"
+                # Col B es index 1 -> "B"
+                cell_key = f"B{row_idx + 1}"
+                if cell_key not in sheet.get('cells', {}) or not sheet['cells'][cell_key].get('content'):
+                    break
+                row_idx += 1
+                if row_idx > 500: break # Safety break
 
-            # Gestión de Contenedor y Numeración
-            cont_raw = (row.get('contenedor') or 'SN').strip().upper()
-            
-            if cont_raw not in containers_map:
-                containers_map[cont_raw] = {
-                    'prefix': str(next_prefix), 
-                    'seq': 1 
-                }
-                next_prefix += 1 # Siguiente contenedor tendrá siguiente prefijo numérico global
-            
-            # Generar Nombre Lote: PREFIJO-CONSECUTIVO (Ej: 105-01)
-            current_prefix = containers_map[cont_raw]['prefix']
-            current_seq = containers_map[cont_raw]['seq']
-            l_name = f"{current_prefix}-{current_seq:02d}"
-            
-            # Parsear valores numéricos
-            try:
-                grosor = float(row.get('grosor', 0))
-                alto = float(row.get('alto', 0))
-                ancho = float(row.get('ancho', 0))
-            except ValueError:
-                grosor = alto = ancho = 0.0
+            # Escribir datos
+            # Helper para escribir
+            def set_c(col_letter, val):
+                if val is not None:
+                    if 'cells' not in sheet: sheet['cells'] = {}
+                    sheet['cells'][f"{col_letter}{row_idx + 1}"] = {"content": str(val)}
 
-            # Crear Lote
-            lot_vals = {
-                'name': l_name, 
-                'product_id': product.id, 
-                'company_id': self.company_id.id,
-                'x_grosor': grosor, 
-                'x_alto': alto, 
-                'x_ancho': ancho,
-                'x_color': row.get('color', ''), 
-                'x_bloque': row.get('bloque', ''), 
-                'x_tipo': row.get('tipo', 'placa'), 
-                'x_contenedor': cont_raw, 
-                # 'x_referencia_proveedor': row.get('ref_prov', ''), # Descomentar si tu modelo lo tiene
-            }
-            lot = self.env['stock.lot'].create(lot_vals)
-            
-            # Calcular cantidad (M2)
-            qty = round(alto * ancho, 3)
-            if qty <= 0: qty = 1.0
+            set_c("A", row.get('grosor', ''))
+            set_c("B", row.get('alto', ''))
+            set_c("C", row.get('ancho', ''))
+            set_c("D", row.get('color', ''))
+            set_c("E", row.get('bloque', ''))
+            # F (Atado) - No viene del portal simple, dejar vacio o default
+            set_c("G", row.get('tipo', 'placa')) # Tipo
+            # H, I - Vacios
+            set_c("J", row.get('contenedor', ''))
+            # K (Ref Prov) - Opcional
+            set_c("L", "Cargado desde Portal")
 
-            # Crear Move Line (Asignación al Picking)
-            self.env['stock.move.line'].create({
-                'move_id': move.id, 
-                'product_id': product.id, 
-                'lot_id': lot.id,
-                'qty_done': qty,
-                'location_id': self.location_id.id, 
-                'location_dest_id': self.location_dest_id.id,
-                'picking_id': self.id,
-                # Campos temp para trazabilidad (si tu modulo base los usa)
-                'x_grosor_temp': lot.x_grosor, 
-                'x_alto_temp': lot.x_alto,
-                'x_ancho_temp': lot.x_ancho, 
-                'x_color_temp': lot.x_color,
-                'x_bloque_temp': lot.x_bloque, 
-                'x_contenedor_temp': lot.x_contenedor
-            })
-            
-            containers_map[cont_raw]['seq'] += 1
-            move_lines_created += 1
+        # 5. Guardar cambios en el documento
+        new_json = json.dumps(data)
+        doc.write({
+            'spreadsheet_data': new_json,
+            # Importante: Limpiar snapshot/revisiones para forzar que se vea lo nuevo y no lo cacheado
+            'spreadsheet_snapshot': False, 
+        })
+        
+        # Eliminar revisiones antiguas para evitar conflictos de sincronización
+        self.env['spreadsheet.revision'].sudo().search([
+            ('res_model', '=', 'documents.document'),
+            ('res_id', '=', doc.id)
+        ]).unlink()
 
-        self.write({'packing_list_imported': True})
         return True
 
     # -------------------------------------------------------------------------
-    # FUNCIONES DE SEGURIDAD PARA SPREADSHEET (EVITA ERROR STARTSWITH)
+    # FUNCIONALIDAD ORIGINAL DE PROCESAMIENTO (IMPORT WIZARD)
+    # Esta función se mantiene para cuando TÚ decidas procesar el spreadsheet
+    # -------------------------------------------------------------------------
+
+    def process_external_pl_data(self, json_data):
+        # Esta funcion ya no se usa directamente desde el portal, 
+        # pero mantenemos la logica por si se requiere en el futuro o para compatibilidad.
+        # La logica principal ahora reside en el Wizard 'packing.list.import.wizard'
+        # que lee el spreadsheet que acabamos de llenar.
+        return True
+
+    # -------------------------------------------------------------------------
+    # UTILS SPREADSHEET
     # -------------------------------------------------------------------------
 
     def _format_cell_val(self, val):
-        """ Garantiza que el valor sea SIEMPRE un string válido para o-spreadsheet. """
-        if val is None or val is False:
-            return ""
-        if isinstance(val, (int, float)):
-            return str(val)
+        if val is None or val is False: return ""
+        if isinstance(val, (int, float)): return str(val)
         result = str(val).strip()
         return result if result else ""
 
     def _make_cell(self, val, style=None):
         content = self._format_cell_val(val)
         cell = {"content": content}
-        if style is not None:
-            cell["style"] = style
+        if style is not None: cell["style"] = style
         return cell
 
     def _get_col_letter(self, n):
@@ -191,26 +175,17 @@ class StockPicking(models.Model):
             n -= 1
         return string
 
-    # -------------------------------------------------------------------------
-    # GESTIÓN DE PACKING LIST INTERNO (ETAPA 1)
-    # -------------------------------------------------------------------------
-    
     def action_open_packing_list_spreadsheet(self):
-        """ Crea o abre el Spreadsheet para el Packing List inicial. """
         self.ensure_one()
-        
         if self.picking_type_code != 'incoming':
-            raise UserError('Esta acción solo está disponible para Recepciones (Entradas).')
+            raise UserError('Solo para Recepciones.')
         
-        if self.worksheet_imported:
-            raise UserError('El Worksheet ya fue procesado. No es posible modificar el Packing List.')
-            
         if not self.spreadsheet_id:
             products = self.move_ids.mapped('product_id')
-            if not products:
-                raise UserError('No hay productos cargados en esta operación.')
+            if not products: raise UserError('Sin productos.')
 
             folder = self.env['documents.document'].search([('type', '=', 'folder')], limit=1)
+            # Headers deben coincidir con la lógica de escritura del portal
             headers = [
                 'Grosor (cm)', 'Alto (m)', 'Ancho (m)', 'Color', 'Bloque', 'Atado', 
                 'Tipo', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Proveedor', 'Notas'
@@ -229,8 +204,12 @@ class StockPicking(models.Model):
                     cells[f"{col_letter}3"] = self._make_cell(header, style=1)
 
                 sheet_name = (product.default_code or product.name)[:31]
-                if any(s['name'] == sheet_name for s in sheets):
-                    sheet_name = f"{sheet_name[:25]}_{product.id}"
+                # Evitar duplicados en nombres de hoja
+                dedup_idx = 1
+                orig_name = sheet_name
+                while any(s['name'] == sheet_name for s in sheets):
+                    sheet_name = f"{orig_name[:25]}_{dedup_idx}"
+                    dedup_idx += 1
 
                 sheets.append({
                     "id": f"pl_sheet_{product.id}",
@@ -259,22 +238,16 @@ class StockPicking(models.Model):
                 'res_model': 'stock.picking',
                 'res_id': self.id,
             }
-            if folder:
-                vals['folder_id'] = folder.id
+            if folder: vals['folder_id'] = folder.id
 
             self.spreadsheet_id = self.env['documents.document'].create(vals)
 
         return self._action_launch_spreadsheet(self.spreadsheet_id)
 
-    # -------------------------------------------------------------------------
-    # GESTIÓN DE WORKSHEET (ETAPA 2)
-    # -------------------------------------------------------------------------
-
     def action_open_worksheet_spreadsheet(self):
-        """ Crea un Spreadsheet independiente para el Worksheet con datos bloqueados. """
         self.ensure_one()
         if not self.packing_list_imported:
-            raise UserError('Debe procesar primero el Packing List para generar el Worksheet.')
+            raise UserError('Primero debe importar el Packing List.')
 
         if not self.ws_spreadsheet_id:
             products = self.move_line_ids.mapped('product_id')
@@ -344,19 +317,13 @@ class StockPicking(models.Model):
                 'res_model': 'stock.picking',
                 'res_id': self.id,
             }
-            if folder:
-                vals['folder_id'] = folder.id
+            if folder: vals['folder_id'] = folder.id
 
             self.ws_spreadsheet_id = self.env['documents.document'].create(vals)
 
         return self._action_launch_spreadsheet(self.ws_spreadsheet_id)
 
-    # -------------------------------------------------------------------------
-    # FUNCIONES DE APOYO Y EXPORTACIÓN EXCEL
-    # -------------------------------------------------------------------------
-
     def _action_launch_spreadsheet(self, doc):
-        """ Dispara la apertura del documento. """
         doc_sudo = doc.sudo()
         for method in ["action_open_spreadsheet", "action_open", "access_content"]:
             if hasattr(doc_sudo, method):
@@ -374,13 +341,11 @@ class StockPicking(models.Model):
         }
 
     def action_download_packing_template(self):
-        """ Descarga Excel para el Packing List. """
         self.ensure_one()
         try:
             from openpyxl import Workbook
             from openpyxl.styles import Font, PatternFill, Border, Side
-        except ImportError:
-            raise UserError('Instale openpyxl')
+        except ImportError: raise UserError('Instale openpyxl')
             
         wb = Workbook(); wb.remove(wb.active)
         header_fill = PatternFill(start_color='366092', end_color='366092', fill_type='solid')
@@ -402,7 +367,6 @@ class StockPicking(models.Model):
         return {'type': 'ir.actions.act_url', 'url': f'/web/content?model=stock.picking&id={self.id}&field=packing_list_file&filename={filename}&download=true', 'target': 'self'}
 
     def action_download_worksheet(self):
-        """ Descarga Excel para el Worksheet. """
         self.ensure_one()
         if not self.packing_list_imported: raise UserError('Importe primero el Packing List.')
         try:
@@ -441,15 +405,10 @@ class StockPicking(models.Model):
         self.write({'worksheet_file': base64.b64encode(output.getvalue()), 'worksheet_filename': filename})
         return {'type': 'ir.actions.act_url', 'url': f'/web/content?model=stock.picking&id={self.id}&field=worksheet_file&filename={filename}&download=true', 'target': 'self'}
 
-    # -------------------------------------------------------------------------
-    # ACCIONES DE WIZARDS
-    # -------------------------------------------------------------------------
-
     def action_import_packing_list(self):
         self.ensure_one()
-        
         if self.worksheet_imported:
-            raise UserError('El Worksheet ya fue procesado. No es posible reprocesar el Packing List.')
+            raise UserError('El Worksheet ya fue procesado.')
         
         title = 'Aplicar Cambios al PL' if self.packing_list_imported else 'Importar Packing List'
         return {

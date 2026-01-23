@@ -49,7 +49,6 @@ class SupplierPortalController(http.Controller):
         if access.is_expired:
             return request.render('stock_lot_packing_import.portal_expired')
 
-        # Redirección inteligente al picking vigente si viene de PO
         if access.purchase_id:
             po = access.purchase_id
             pickings = po.picking_ids.filtered(
@@ -68,8 +67,6 @@ class SupplierPortalController(http.Controller):
         if not products:
             products = []
 
-        # --- CORRECCIÓN PRINCIPAL AQUÍ ---
-        # Creamos un diccionario completo con TODOS los datos que necesita el JS
         full_data = {
             'products': products,
             'token': token,
@@ -78,17 +75,20 @@ class SupplierPortalController(http.Controller):
             'companyName': picking.company_id.name or ""
         }
 
-        # Serializamos todo el objeto a JSON de una sola vez
         json_payload = json.dumps(full_data, ensure_ascii=False)
 
         values = {
             'picking': picking,
-            'portal_json': Markup(json_payload), # Pasamos el JSON seguro
+            'portal_json': Markup(json_payload), 
         }
         return request.render('stock_lot_packing_import.supplier_portal_view', values)
 
     @http.route('/supplier/pl/submit', type='json', auth='public', csrf=False)
     def submit_pl_data(self, token, rows):
+        """
+        Recibe los datos del portal y actualiza el Spreadsheet.
+        NO crea movimientos de stock todavía.
+        """
         access = request.env['stock.picking.supplier.access'].sudo().search([
             ('access_token', '=', token)
         ], limit=1)
@@ -98,13 +98,14 @@ class SupplierPortalController(http.Controller):
 
         picking = access.picking_id
         if not picking:
-            return {'success': False, 'message': 'No se encontró la recepción asociada al token.'}
+            return {'success': False, 'message': 'Recepción no encontrada.'}
 
         if picking.state in ('done', 'cancel'):
             return {'success': False, 'message': 'La recepción ya fue procesada.'}
 
         try:
-            picking.sudo().process_external_pl_data(rows)
+            # CAMBIO PRINCIPAL: Actualizar Spreadsheet en lugar de procesar stock
+            picking.sudo().update_packing_list_from_portal(rows)
             return {'success': True}
         except Exception as e:
             return {'success': False, 'message': str(e)}
