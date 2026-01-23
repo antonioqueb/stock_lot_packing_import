@@ -43,19 +43,21 @@
                 // 2. RECUPERAR MEMORIA LOCAL (Borrador del navegador)
                 const localData = this.loadLocalState();
                 
-                // --- FUSIÓN DE CABECERA (CORRECCIÓN BIDIRECCIONAL) ---
-                // Modificado: Solo sobrescribimos con datos locales si el usuario realmente escribió algo.
-                // Esto permite que si Odoo trae datos y el local está vacío (""), se muestren los datos de Odoo.
+                // --- FUSIÓN DE CABECERA (CORRECCIÓN BIDIRECCIONAL MEJORADA) ---
                 if (localData && localData.header) {
                     for (const [key, val] of Object.entries(localData.header)) {
                         // Criterio: Usar valor local SOLO si no es una cadena vacía o nula.
-                        // Si local tiene "INV-001" y Server tiene "INV-ANTIGUO", gana Local (edición en curso).
-                        // Si local tiene "" y Server tiene "INV-001", gana Server (dato nuevo de Odoo).
-                        if (val !== "" && val !== null && val !== undefined) {
+                        // CORRECCIÓN ESPECÍFICA: Ignoramos también el 0 (numérico o string "0").
+                        // Los campos numéricos (peso, volumen) se guardan como 0 si están vacíos en local.
+                        // Si permitimos pasar el 0, sobrescribimos el dato real que viene de Odoo.
+                        
+                        const isZero = val === 0 || val === "0" || val === 0.0;
+
+                        if (val !== "" && val !== null && val !== undefined && !isZero) {
                             this.header[key] = val;
                         }
                     }
-                    console.log("[Portal] Cabecera fusionada (Prioridad: Server < Local con datos).");
+                    console.log("[Portal] Cabecera fusionada (Prioridad: Server < Local con datos no-cero).");
                 }
 
                 // --- ESTRATEGIA DE CARGA DE FILAS ---
@@ -170,7 +172,7 @@
             for (const [domId, dataKey] of Object.entries(map)) {
                 const el = document.getElementById(domId);
                 // Asignamos valor si existe en this.header y el input existe
-                // Nota: Verificamos !== null y !== undefined para permitir ceros en numéricos
+                // Verificamos !== null y !== undefined para permitir pintar el 0 si viene del servidor
                 if (el && this.header[dataKey] !== undefined && this.header[dataKey] !== null) {
                     el.value = this.header[dataKey];
                 }
@@ -178,6 +180,7 @@
         }
 
         getHeaderDataFromDOM() {
+            // Si el input está vacío, devuelve 0. Esto causaba el conflicto al recargar.
             return {
                 invoice_number: document.getElementById('h-invoice')?.value || "",
                 shipment_date: document.getElementById('h-date')?.value || "",
