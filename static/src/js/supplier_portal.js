@@ -9,7 +9,7 @@
             this.data = {};
             this.products = [];
             this.rows = [];
-            this.header = {}; // Datos de cabecera (Factura, BL, etc.)
+            this.header = {}; 
             this.nextId = 1;
             
             if (document.readyState === 'loading') {
@@ -34,68 +34,56 @@
                 
                 // CARGA INICIAL DESDE SERVIDOR (Odoo)
                 const serverHeader = this.data.header || {};
-                this.header = { ...serverHeader }; // Copia base con los datos frescos de Odoo
+                this.header = { ...serverHeader };
 
                 if (!this.data.token) throw new Error("Token no encontrado.");
 
                 console.log(`[Portal] Token: ...${this.data.token.slice(-4)}`);
                 
-                // 2. RECUPERAR MEMORIA LOCAL (Borrador del navegador)
+                // 2. RECUPERAR MEMORIA LOCAL
                 const localData = this.loadLocalState();
                 
-                // --- FUSIÓN DE CABECERA (CORRECCIÓN BIDIRECCIONAL MEJORADA) ---
+                // --- FUSIÓN DE CABECERA ---
                 if (localData && localData.header) {
                     for (const [key, val] of Object.entries(localData.header)) {
-                        // Criterio: Usar valor local SOLO si no es una cadena vacía o nula.
-                        // CORRECCIÓN ESPECÍFICA: Ignoramos también el 0 (numérico o string "0").
-                        // Los campos numéricos (peso, volumen) se guardan como 0 si están vacíos en local.
-                        // Si permitimos pasar el 0, sobrescribimos el dato real que viene de Odoo.
-                        
                         const isZero = val === 0 || val === "0" || val === 0.0;
-
                         if (val !== "" && val !== null && val !== undefined && !isZero) {
                             this.header[key] = val;
                         }
                     }
-                    console.log("[Portal] Cabecera fusionada (Prioridad: Server < Local con datos no-cero).");
                 }
 
                 // --- ESTRATEGIA DE CARGA DE FILAS ---
                 const serverRows = this.data.existing_rows || [];
 
                 if (localData && localData.rows && localData.rows.length > 0) {
-                    // Prioridad 1: Datos locales (trabajo en curso)
-                    console.log("[Portal] Usando filas locales (borrador en progreso).");
+                    // Prioridad 1: Datos locales
+                    console.log("[Portal] Usando filas locales.");
                     this.rows = localData.rows;
                     
-                    // Recalcular nextId para evitar colisiones
                     const maxId = this.rows.reduce((max, r) => Math.max(max, r.id || 0), 0);
                     this.nextId = maxId + 1;
 
                 } else if (serverRows.length > 0) {
-                    // Prioridad 2: Datos del servidor (Spreadsheet ya guardado)
-                    console.log(`[Portal] Usando filas del servidor (${serverRows.length} filas).`);
-                    
-                    // Asignar IDs temporales a los datos que vienen del servidor
+                    // Prioridad 2: Datos del servidor
+                    console.log(`[Portal] Usando filas del servidor.`);
                     this.rows = serverRows.map(r => ({
                         ...r,
                         id: this.nextId++
                     }));
-                    
-                    // Guardar inmediatamente en local para permitir edición
                     this.saveState();
 
                 } else {
                     // Prioridad 3: Inicio limpio
-                    console.log("[Portal] Iniciando desde cero (sin datos previos).");
+                    console.log("[Portal] Iniciando desde cero.");
                     if (this.products.length > 0) {
                         this.products.forEach(p => this.createRowInternal(p.id));
                     }
                 }
 
                 // 3. RENDERIZADO EN PANTALLA
-                this.fillHeaderForm(); // Pinta los datos en los inputs de cabecera
-                this.render();         // Pinta la tabla de filas
+                this.fillHeaderForm();
+                this.render();         
                 this.bindGlobalEvents();
 
                 console.log("[Portal] ✅ Interfaz lista.");
@@ -118,11 +106,10 @@
             if (saved) {
                 try {
                     const parsed = JSON.parse(saved);
-                    // Compatibilidad con versiones anteriores que solo guardaban arrays
                     if (Array.isArray(parsed)) {
                         return { rows: parsed, header: {} };
                     }
-                    return parsed; // Espera { rows: [], header: {} }
+                    return parsed;
                 } catch (e) {
                     console.error("Error leyendo localStorage", e);
                     return null;
@@ -135,7 +122,6 @@
             if (!this.data.token) return;
             const key = `pl_portal_${this.data.token}`;
             
-            // Guardamos el estado completo: Filas + Datos actuales de los inputs de cabecera
             const state = {
                 rows: this.rows,
                 header: this.getHeaderDataFromDOM() 
@@ -148,7 +134,6 @@
         // --- CABECERA (Lectura/Escritura DOM) ---
 
         fillHeaderForm() {
-            // Mapeo: ID del HTML -> Clave del JSON
             const map = {
                 'h-invoice': 'invoice_number',
                 'h-date': 'shipment_date',
@@ -171,8 +156,6 @@
 
             for (const [domId, dataKey] of Object.entries(map)) {
                 const el = document.getElementById(domId);
-                // Asignamos valor si existe en this.header y el input existe
-                // Verificamos !== null y !== undefined para permitir pintar el 0 si viene del servidor
                 if (el && this.header[dataKey] !== undefined && this.header[dataKey] !== null) {
                     el.value = this.header[dataKey];
                 }
@@ -180,7 +163,6 @@
         }
 
         getHeaderDataFromDOM() {
-            // Si el input está vacío, devuelve 0. Esto causaba el conflicto al recargar.
             return {
                 invoice_number: document.getElementById('h-invoice')?.value || "",
                 shipment_date: document.getElementById('h-date')?.value || "",
@@ -249,6 +231,38 @@
             }
         }
 
+        fillDownInternal(rowId, field) {
+            const sourceId = parseInt(rowId);
+            const sourceRow = this.rows.find(r => r.id === sourceId);
+            
+            if (!sourceRow) return;
+
+            const valueToCopy = sourceRow[field];
+            const productId = sourceRow.product_id;
+            let startCopying = false;
+
+            // Iteramos sobre las filas del mismo producto
+            // Empezamos a copiar SOLO después de encontrar la fila origen
+            let updatedCount = 0;
+
+            this.rows.forEach(r => {
+                if (r.id === sourceId) {
+                    startCopying = true; // Habilitar bandera, copiar en las SIGUIENTES
+                } else if (startCopying && r.product_id === productId) {
+                    r[field] = valueToCopy;
+                    updatedCount++;
+                }
+            });
+
+            if (updatedCount > 0) {
+                this.saveState();
+                this.render();
+                this.bindGlobalEvents();
+                // Feedback visual sutil (opcional)
+                console.log(`[Portal] Copiado '${valueToCopy}' a ${updatedCount} filas.`);
+            }
+        }
+
         // --- RENDERIZADO ---
 
         render() {
@@ -293,18 +307,34 @@
                                 <tbody>
                 `;
 
+                // Helper para generar el grupo input+botón
+                const renderInput = (rowId, field, value, placeholder = "", type = "text", step = "", cssClass = "") => {
+                    return `
+                        <div class="input-group-portal">
+                            <input type="${type}" step="${step}" class="input-field ${cssClass}" 
+                                   data-field="${field}" value="${value || ''}" placeholder="${placeholder}">
+                            <button type="button" class="btn-fill-down" data-row-id="${rowId}" data-field="${field}" title="Copiar hacia abajo">
+                                <i class="fa fa-arrow-down"></i>
+                            </button>
+                        </div>
+                    `;
+                };
+
                 productRows.forEach(row => {
                     const area = (row.alto * row.ancho).toFixed(2);
-                    // data-row-id es clave para identificar la fila en los eventos
+                    
                     html += `
                         <tr data-row-id="${row.id}">
-                            <td><input type="text" class="short text-uppercase input-field" data-field="contenedor" value="${row.contenedor || ''}" placeholder="CNT01"></td>
-                            <td><input type="text" class="short text-uppercase input-field" data-field="bloque" value="${row.bloque || ''}" placeholder="B-01"></td>
-                            <td><input type="number" step="0.01" class="short input-field" data-field="grosor" value="${row.grosor || ''}"></td>
-                            <td><input type="number" step="0.01" class="short input-field" data-field="alto" value="${row.alto || ''}"></td>
-                            <td><input type="number" step="0.01" class="short input-field" data-field="ancho" value="${row.ancho || ''}"></td>
+                            <td>${renderInput(row.id, 'contenedor', row.contenedor, 'CNT01', 'text', '', 'short text-uppercase')}</td>
+                            <td>${renderInput(row.id, 'bloque', row.bloque, 'B-01', 'text', '', 'short text-uppercase')}</td>
+                            <td>${renderInput(row.id, 'grosor', row.grosor, '', 'number', '0.01', 'short')}</td>
+                            <td>${renderInput(row.id, 'alto', row.alto, '', 'number', '0.01', 'short')}</td>
+                            <td>${renderInput(row.id, 'ancho', row.ancho, '', 'number', '0.01', 'short')}</td>
+                            
                             <td><span class="fw-bold text-white area-display">${area}</span></td>
-                            <td><input type="text" class="input-field" data-field="color" value="${row.color || ''}" placeholder="Opcional"></td>
+                            
+                            <td>${renderInput(row.id, 'color', row.color, 'Opcional')}</td>
+                            
                             <td class="text-center">
                                 <button class="btn-action btn-delete" type="button"><i class="fa fa-trash"></i></button>
                             </td>
@@ -362,10 +392,20 @@
                 }
             });
 
-            // 2. Click Buttons Tabla
+            // 2. Click Buttons Tabla (Delete, Add, AddMulti, FILL DOWN)
             activeContainer.addEventListener('click', (e) => {
                 const target = e.target;
                 
+                // --- BOTÓN FILL DOWN ---
+                const fillBtn = target.closest('.btn-fill-down');
+                if (fillBtn) {
+                    const rowId = fillBtn.dataset.rowId;
+                    const field = fillBtn.dataset.field;
+                    this.fillDownInternal(rowId, field);
+                    return;
+                }
+
+                // --- BOTÓN ELIMINAR ---
                 const delBtn = target.closest('.btn-delete');
                 if (delBtn) {
                     this.deleteRowInternal(delBtn.closest('tr').dataset.rowId);
@@ -375,6 +415,7 @@
                     return;
                 }
 
+                // --- BOTÓN AGREGAR ---
                 const addBtn = target.closest('.action-add');
                 if (addBtn) {
                     this.createRowInternal(parseInt(addBtn.dataset.productId));
@@ -384,6 +425,7 @@
                     return;
                 }
 
+                // --- BOTÓN AGREGAR MULTI ---
                 const addMulti = target.closest('.action-add-multi');
                 if (addMulti) {
                     const pid = parseInt(addMulti.dataset.productId);
@@ -396,7 +438,6 @@
 
             // 3. Inputs Header (Auto-save local al escribir)
             if (headerForm) {
-                // Clonar para limpiar eventos antiguos
                 const newHeaderForm = headerForm.cloneNode(true);
                 headerForm.parentNode.replaceChild(newHeaderForm, headerForm);
                 
@@ -453,7 +494,6 @@
                     tipo: 'placa'
                 }));
 
-            // Obtener cabecera
             const headerData = this.getHeaderDataFromDOM();
 
             try {

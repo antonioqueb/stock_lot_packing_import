@@ -24,7 +24,13 @@
                 <!-- HEADER ESTATICO -->
                 <header class="o_portal_header">
                     <div class="brand">
-                        <i class="fa fa-cubes me-2"/>PORTAL <span class="ms-1">PROVEEDOR</span>
+                        <!-- ICONO DE EMPRESA -->
+                        <img src="/stock_lot_packing_import/static/description/icon.png" 
+                             alt="Logo" 
+                             class="me-3" 
+                             style="height: 35px; width: auto; object-fit: contain;"/>
+                        
+                        <span>PORTAL <span class="ms-1">PROVEEDOR</span></span>
                     </div>
                     <div class="po-info">
                         <div><span class="label">Orden de Compra:</span> <span class="value" t-esc="picking.origin or 'N/A'"/></div>

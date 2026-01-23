@@ -4,7 +4,7 @@
 $bg-dark: #121212;
 $bg-card: #1e1e1e;
 $bg-input: #2a2a2a;
-$primary-brown: #d4af37; /* Dorado elegante en lugar de marrón plano */
+$primary-brown: #d4af37; /* Dorado elegante */
 $primary-hover: #b5952f;
 $text-white: #ffffff;
 $text-gray: #a0a0a0;
@@ -120,7 +120,6 @@ body {
             i { color: $primary-brown; opacity: 0.7; }
         }
 
-        /* --- CORRECCIÓN DE CONTRASTE INPUTS --- */
         .form-control {
             background-color: $bg-input !important;
             border: 1px solid $input-border !important;
@@ -146,14 +145,12 @@ body {
                 border-color: lighten($input-border, 15%) !important;
             }
             
-            /* Input date fix icon color */
             &[type="date"] {
                 color-scheme: dark;
             }
         }
     }
     
-    /* Span completo para textareas o campos grandes */
     .full-width {
         grid-column: 1 / -1;
     }
@@ -229,25 +226,6 @@ body {
         border-bottom: 1px solid #2a2a2a;
         vertical-align: middle;
         
-        input {
-            background: $bg-dark;
-            border: 1px solid $input-border;
-            color: $text-white;
-            padding: 8px 10px;
-            border-radius: 6px;
-            width: 100%;
-            transition: border-color 0.2s;
-            font-family: monospace; /* Para alinear números mejor */
-
-            &:focus {
-                outline: none;
-                border-color: $primary-brown;
-                background: lighten($bg-dark, 5%);
-            }
-            
-            &.short { width: 90px; }
-        }
-        
         .area-display {
             color: $primary-brown;
             font-weight: 700;
@@ -259,6 +237,52 @@ body {
     
     tr:hover td {
         background: rgba(255,255,255,0.02);
+    }
+
+    /* --- ESTILOS INPUT + FILL BUTTON --- */
+    .input-group-portal {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        
+        input {
+            background: $bg-dark;
+            border: 1px solid $input-border;
+            color: $text-white;
+            padding: 8px 10px;
+            border-radius: 6px;
+            width: 100%;
+            transition: border-color 0.2s;
+            font-family: monospace;
+
+            &:focus {
+                outline: none;
+                border-color: $primary-brown;
+                background: lighten($bg-dark, 5%);
+            }
+            
+            &.short { width: 90px; }
+        }
+
+        .btn-fill-down {
+            background: transparent;
+            border: none;
+            color: #555;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+
+            &:hover {
+                color: $primary-brown;
+                background: rgba(255,255,255,0.05);
+            }
+            
+            i { font-size: 0.85rem; }
+        }
     }
 
     .btn-action {
