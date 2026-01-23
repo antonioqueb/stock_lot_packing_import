@@ -27,16 +27,13 @@ from . import controllers
     ],
 
     'assets': {
-        # JS/CSS del portal (website)
-        'web.assets_frontend': [
-            'stock_lot_packing_import/static/src/scss/supplier_portal.scss',
-            'stock_lot_packing_import/static/src/js/supplier_portal.js',
-        ],
-        # Templates OWL/QWeb (CRÍTICO para evitar Missing template)
-        'web.assets_qweb': [
-            'stock_lot_packing_import/static/src/xml/supplier_portal.xml',
-        ],
-    },
+    'web.assets_frontend': [
+        'stock_lot_packing_import/static/src/scss/supplier_portal.scss',
+        'stock_lot_packing_import/static/src/xml/supplier_portal.xml',  # Mover aquí
+        'stock_lot_packing_import/static/src/js/supplier_portal.js',
+    ],
+    # Eliminar completamente web.assets_qweb
+},
 
     'installable': True,
     'application': True,
@@ -813,7 +810,7 @@ class SupplierAccess(models.Model):
 /** @odoo-module **/
 
 import { Component, useState, mount } from "@odoo/owl";
-import { templates } from "@web/core/assets";
+import { loadBundle } from "@web/core/assets";
 
 class SupplierPortalApp extends Component {
     static template = "stock_lot_packing_import.SupplierPortalApp";
@@ -950,6 +947,9 @@ class SupplierPortalApp extends Component {
 document.addEventListener('DOMContentLoaded', async () => {
     const root = document.getElementById("supplier-portal-app");
     if (root) {
+        // Esperar a que los templates estén cargados
+        await loadBundle("web.assets_frontend");
+        const { templates } = owl;
         mount(SupplierPortalApp, root, { templates });
     }
 });```

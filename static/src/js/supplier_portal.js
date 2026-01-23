@@ -1,7 +1,6 @@
 /** @odoo-module **/
 
 import { Component, useState, mount } from "@odoo/owl";
-import { loadBundle } from "@web/core/assets";
 
 class SupplierPortalApp extends Component {
     static template = "stock_lot_packing_import.SupplierPortalApp";
@@ -138,9 +137,8 @@ class SupplierPortalApp extends Component {
 document.addEventListener('DOMContentLoaded', async () => {
     const root = document.getElementById("supplier-portal-app");
     if (root) {
-        // Esperar a que los templates estén cargados
-        await loadBundle("web.assets_frontend");
-        const { templates } = owl;
-        mount(SupplierPortalApp, root, { templates });
+        // En Odoo 17/19 los templates se registran automáticamente al cargar el bundle.
+        // No pasamos { templates } explícitamente para que use el registro global.
+        mount(SupplierPortalApp, root);
     }
 });

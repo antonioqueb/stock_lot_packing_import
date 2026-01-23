@@ -19,10 +19,9 @@
     'assets': {
     'web.assets_frontend': [
         'stock_lot_packing_import/static/src/scss/supplier_portal.scss',
-        'stock_lot_packing_import/static/src/xml/supplier_portal.xml',  # Mover aquí
+        'stock_lot_packing_import/static/src/xml/supplier_portal.xml',
         'stock_lot_packing_import/static/src/js/supplier_portal.js',
     ],
-    # Eliminar completamente web.assets_qweb
 },
 
     'installable': True,

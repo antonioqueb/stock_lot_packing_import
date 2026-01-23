@@ -2,6 +2,7 @@
 import json
 from odoo import http
 from odoo.http import request
+from markupsafe import Markup
 
 
 class SupplierPortalController(http.Controller):
@@ -77,9 +78,12 @@ class SupplierPortalController(http.Controller):
 
         products = self._build_products_payload(picking)
 
+        # Usamos Markup para que el JSON no sea escapado en la vista (evita t-raw)
+        products_json = json.dumps(products, ensure_ascii=False)
+        
         portal_data = {
             'picking': picking,
-            'products_json': json.dumps(products, ensure_ascii=False),
+            'products_json': Markup(products_json),
             'token': token,
             'company': picking.company_id,
             # Mejor que origin: nombre de OC si existe
