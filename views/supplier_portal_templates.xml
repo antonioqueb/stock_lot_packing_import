@@ -6,7 +6,8 @@
             <t t-set="no_footer" t-value="True"/>
             <t t-set="head">
                 <t t-call-assets="web.assets_frontend" t-css="true" t-js="true"/>
-                <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600" rel="stylesheet"/>
+                <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&amp;display=swap" rel="stylesheet"/>
+                <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"/>
             </t>
             <div class="supplier-portal-body">
                 <t t-out="0"/>
@@ -20,138 +21,144 @@
             <div id="portal-data-store" style="display:none;" t-att-data-payload="portal_json"></div>
 
             <div class="o_portal_wrapper">
-                <!-- HEADER ESTATICO -->
+                <!-- HEADER -->
                 <header class="o_portal_header">
                     <div class="brand">
                         <i class="fa fa-cubes me-2"/>PORTAL <span class="ms-1">PROVEEDOR</span>
                     </div>
                     <div class="po-info">
-                        <div><span class="label">Orden de Compra:</span> <span class="value" t-esc="picking.origin or 'N/A'"/></div>
-                        <div><span class="label">Recepción:</span> <span class="value" t-esc="picking.name"/></div>
+                        <div><span class="label">Orden de Compra</span> <span class="value" t-esc="picking.origin or 'N/A'"/></div>
+                        <div><span class="label">Recepción</span> <span class="value" t-esc="picking.name"/></div>
                     </div>
                 </header>
 
                 <div class="o_portal_container pb-5 mb-5">
                     
-                    <!-- NUEVA SECCIÓN: DATOS DE EMBARQUE -->
-                    <div class="product-section mb-4">
-                        <div class="product-header">
-                            <h3><i class="fa fa-ship me-2"/> Datos de Embarque</h3>
+                    <!-- SECCIÓN 1: DATOS DE EMBARQUE -->
+                    <div class="shipment-card">
+                        <div class="card-header">
+                            <i class="fa fa-ship fa-lg"></i>
+                            <h3>Datos de Embarque</h3>
                         </div>
-                        <div class="p-4" id="shipment-info-form">
-                            <!-- Fila 1 -->
-                            <div class="row g-3 mb-3">
-                                <div class="col-md-3">
-                                    <label class="form-label text-muted small">No. de Factura</label>
-                                    <input type="text" id="h-invoice" class="form-control bg-dark text-white border-secondary"/>
-                                </div>
-                                <div class="col-md-3">
-                                    <label class="form-label text-muted small">Fecha Embarque</label>
-                                    <input type="date" id="h-date" class="form-control bg-dark text-white border-secondary"/>
-                                </div>
-                                <div class="col-md-3">
-                                    <label class="form-label text-muted small">No. Proforma (PI)</label>
-                                    <input type="text" id="h-proforma" class="form-control bg-dark text-white border-secondary"/>
-                                </div>
-                                <div class="col-md-3">
-                                    <label class="form-label text-muted small">No. B/L</label>
-                                    <input type="text" id="h-bl" class="form-control bg-dark text-white border-secondary"/>
-                                </div>
-                            </div>
+                        <div class="card-body" id="shipment-info-form">
                             
-                            <!-- Fila 2 -->
-                            <div class="row g-3 mb-3">
-                                <div class="col-md-3">
-                                    <label class="form-label text-muted small">Origen (Puerto)</label>
-                                    <input type="text" id="h-origin" class="form-control bg-dark text-white border-secondary"/>
+                            <div class="modern-form-grid">
+                                <!-- Documentación -->
+                                <div class="form-group">
+                                    <label><i class="fa fa-file-invoice"/> No. de Factura</label>
+                                    <input type="text" id="h-invoice" class="form-control" placeholder="Ej. INV-2024-001"/>
                                 </div>
-                                <div class="col-md-3">
-                                    <label class="form-label text-muted small">Destino (Puerto)</label>
-                                    <input type="text" id="h-dest" class="form-control bg-dark text-white border-secondary"/>
+                                <div class="form-group">
+                                    <label><i class="fa fa-calendar"/> Fecha Embarque</label>
+                                    <input type="date" id="h-date" class="form-control"/>
                                 </div>
-                                <div class="col-md-3">
-                                    <label class="form-label text-muted small">País de Origen</label>
-                                    <input type="text" id="h-country" class="form-control bg-dark text-white border-secondary"/>
+                                <div class="form-group">
+                                    <label><i class="fa fa-file-contract"/> No. Proforma (PI)</label>
+                                    <input type="text" id="h-proforma" class="form-control" placeholder="Ej. PI-9920"/>
                                 </div>
-                                <div class="col-md-3">
-                                    <label class="form-label text-muted small">Buque</label>
-                                    <input type="text" id="h-vessel" class="form-control bg-dark text-white border-secondary"/>
+                                <div class="form-group">
+                                    <label><i class="fa fa-file-alt"/> No. B/L</label>
+                                    <input type="text" id="h-bl" class="form-control" placeholder="Ej. COSU123456"/>
                                 </div>
-                            </div>
 
-                            <!-- Fila 3 -->
-                            <div class="row g-3 mb-3">
-                                <div class="col-md-4">
-                                    <label class="form-label text-muted small">Incoterm / Pago</label>
-                                    <input type="text" id="h-incoterm" class="form-control bg-dark text-white border-secondary"/>
-                                </div>
-                                <div class="col-md-8">
-                                    <label class="form-label text-muted small">Descripción Mercancía</label>
-                                    <input type="text" id="h-desc" class="form-control bg-dark text-white border-secondary"/>
-                                </div>
-                            </div>
+                                <!-- Separador Logística -->
+                                <div class="section-divider"><span>Logística</span></div>
 
-                            <hr class="border-secondary my-4"/>
+                                <div class="form-group">
+                                    <label><i class="fa fa-map-marker-alt"/> Origen (Puerto)</label>
+                                    <input type="text" id="h-origin" class="form-control" placeholder="Ej. Shanghai"/>
+                                </div>
+                                <div class="form-group">
+                                    <label><i class="fa fa-map-marker-alt"/> Destino (Puerto)</label>
+                                    <input type="text" id="h-dest" class="form-control" placeholder="Ej. Manzanillo"/>
+                                </div>
+                                <div class="form-group">
+                                    <label><i class="fa fa-globe"/> País Origen</label>
+                                    <input type="text" id="h-country" class="form-control" placeholder="Ej. China"/>
+                                </div>
+                                <div class="form-group">
+                                    <label><i class="fa fa-ship"/> Buque / Viaje</label>
+                                    <input type="text" id="h-vessel" class="form-control" placeholder="Ej. MAERSK SEALAND"/>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label><i class="fa fa-handshake"/> Incoterm / Pago</label>
+                                    <input type="text" id="h-incoterm" class="form-control" placeholder="Ej. CIF / T/T"/>
+                                </div>
+                                <div class="form-group">
+                                    <label><i class="fa fa-info-circle"/> Estatus</label>
+                                    <select id="h-status" class="form-control">
+                                        <option value="">Seleccionar...</option>
+                                        <option value="En Producción">En Producción</option>
+                                        <option value="En Puerto Origen">En Puerto Origen</option>
+                                        <option value="En Tránsito">En Tránsito</option>
+                                        <option value="En Puerto Destino">En Puerto Destino</option>
+                                    </select>
+                                </div>
 
-                            <!-- Fila 4 (Contenedor) -->
-                            <div class="row g-3 mb-3">
-                                <div class="col-md-3">
-                                    <label class="form-label text-muted small">No. Contenedor</label>
-                                    <input type="text" id="h-cont-no" class="form-control bg-dark text-white border-secondary"/>
-                                </div>
-                                <div class="col-md-3">
-                                    <label class="form-label text-muted small">No. Sello</label>
-                                    <input type="text" id="h-seal" class="form-control bg-dark text-white border-secondary"/>
-                                </div>
-                                <div class="col-md-3">
-                                    <label class="form-label text-muted small">Tipo Contenedor</label>
-                                    <input type="text" id="h-type" class="form-control bg-dark text-white border-secondary" placeholder="Ej. 20GP, 40HC"/>
-                                </div>
-                                <div class="col-md-3">
-                                    <label class="form-label text-muted small">Estatus</label>
-                                    <input type="text" id="h-status" class="form-control bg-dark text-white border-secondary"/>
-                                </div>
-                            </div>
+                                <!-- Separador Carga -->
+                                <div class="section-divider"><span>Detalles de Carga</span></div>
 
-                            <!-- Fila 5 (Totales) -->
-                            <div class="row g-3">
-                                <div class="col-md-4">
-                                    <label class="form-label text-muted small">Total Paquetes</label>
-                                    <input type="number" id="h-pkgs" class="form-control bg-dark text-white border-secondary"/>
+                                <div class="form-group">
+                                    <label><i class="fa fa-box-open"/> No. Contenedor</label>
+                                    <input type="text" id="h-cont-no" class="form-control" placeholder="Ej. MSKU1234567"/>
                                 </div>
-                                <div class="col-md-4">
-                                    <label class="form-label text-muted small">Peso Bruto (kg)</label>
-                                    <input type="number" step="0.01" id="h-weight" class="form-control bg-dark text-white border-secondary"/>
+                                <div class="form-group">
+                                    <label><i class="fa fa-lock"/> No. Sello</label>
+                                    <input type="text" id="h-seal" class="form-control" placeholder="Ej. 123456"/>
                                 </div>
-                                <div class="col-md-4">
-                                    <label class="form-label text-muted small">Volumen (m³)</label>
-                                    <input type="number" step="0.01" id="h-volume" class="form-control bg-dark text-white border-secondary"/>
+                                <div class="form-group">
+                                    <label><i class="fa fa-truck-loading"/> Tipo Contenedor</label>
+                                    <input type="text" id="h-type" class="form-control" placeholder="Ej. 40HC, 20GP"/>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label><i class="fa fa-boxes"/> Total Paquetes</label>
+                                    <input type="number" id="h-pkgs" class="form-control" placeholder="0"/>
+                                </div>
+                                <div class="form-group">
+                                    <label><i class="fa fa-weight-hanging"/> Peso Bruto (kg)</label>
+                                    <input type="number" step="0.01" id="h-weight" class="form-control" placeholder="0.00"/>
+                                </div>
+                                <div class="form-group">
+                                    <label><i class="fa fa-cube"/> Volumen (m³)</label>
+                                    <input type="number" step="0.01" id="h-volume" class="form-control" placeholder="0.00"/>
+                                </div>
+
+                                <div class="form-group full-width">
+                                    <label><i class="fa fa-align-left"/> Descripción Mercancía</label>
+                                    <textarea id="h-desc" class="form-control" rows="2" placeholder="Descripción general de la carga..."></textarea>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <div class="alert alert-info bg-dark border-secondary text-light mb-4">
-                        <i class="fa fa-info-circle me-2 text-warning"/>
-                        Por favor ingrese las dimensiones y detalles de cada placa o bloque a continuación.
+                    <!-- PACKING LIST TITLE -->
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h4 class="text-white m-0"><i class="fa fa-list-ul me-2 text-warning"/> Detalle de Placas (Packing List)</h4>
                     </div>
 
-                    <!-- AQUÍ EL JS DIBUJARÁ LAS TABLAS (PACKING LIST) -->
+                    <div class="alert alert-dark border border-secondary text-light mb-4" style="background: #1a1a1a;">
+                        <small><i class="fa fa-info-circle text-warning me-1"/> Ingrese las dimensiones de cada placa. El área se calculará automáticamente.</small>
+                    </div>
+
+                    <!-- CONTAINER TABLAS JS -->
                     <div id="portal-rows-container">
                         <div class="text-center py-5 text-muted">
                             <i class="fa fa-circle-o-notch fa-spin fa-2x"></i>
-                            <p class="mt-2">Cargando...</p>
+                            <p class="mt-2">Cargando productos...</p>
                         </div>
                     </div>
                 </div>
 
+                <!-- FOOTER -->
                 <div class="submit-footer">
                     <div class="summary">
-                        Total Placas: <span id="total-plates">0</span> | 
-                        Total Área: <span id="total-area">0.00</span> m²
+                        <div>Placas: <span id="total-plates">0</span></div>
+                        <div>Área Total: <span id="total-area">0.00</span> m²</div>
                     </div>
                     <button id="btn-submit-pl" class="btn-primary-custom" disabled="disabled">
-                        <i class="fa fa-paper-plane me-2"/> Guardar Todo
+                        <i class="fa fa-save me-2"/> Guardar y Enviar
                     </button>
                 </div>
             </div>
@@ -162,7 +169,7 @@
         <t t-call="stock_lot_packing_import.portal_layout">
             <div class="container text-center py-5">
                 <h1 class="display-1 text-danger">404</h1>
-                <p class="lead">Enlace no válido.</p>
+                <p class="lead">Enlace no válido o no encontrado.</p>
             </div>
         </t>
     </template>
@@ -172,6 +179,7 @@
             <div class="container text-center py-5">
                 <h1 class="display-1 text-warning"><i class="fa fa-clock-o"/></h1>
                 <p class="lead">Este enlace ha expirado.</p>
+                <p class="text-muted">Por favor contacte al administrador para generar uno nuevo.</p>
             </div>
         </t>
     </template>
