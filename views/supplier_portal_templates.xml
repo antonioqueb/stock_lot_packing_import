@@ -21,20 +21,20 @@
             <div id="portal-data-store" style="display:none;" t-att-data-payload="portal_json"></div>
 
             <div class="o_portal_wrapper">
-                <!-- HEADER -->
+                <!-- HEADER ESTATICO -->
                 <header class="o_portal_header">
                     <div class="brand">
                         <i class="fa fa-cubes me-2"/>PORTAL <span class="ms-1">PROVEEDOR</span>
                     </div>
                     <div class="po-info">
-                        <div><span class="label">Orden de Compra</span> <span class="value" t-esc="picking.origin or 'N/A'"/></div>
-                        <div><span class="label">Recepción</span> <span class="value" t-esc="picking.name"/></div>
+                        <div><span class="label">Orden de Compra:</span> <span class="value" t-esc="picking.origin or 'N/A'"/></div>
+                        <div><span class="label">Recepción:</span> <span class="value" t-esc="picking.name"/></div>
                     </div>
                 </header>
 
                 <div class="o_portal_container pb-5 mb-5">
                     
-                    <!-- SECCIÓN 1: DATOS DE EMBARQUE -->
+                    <!-- SECCIÓN: DATOS DE EMBARQUE -->
                     <div class="shipment-card">
                         <div class="card-header">
                             <i class="fa fa-ship fa-lg"></i>
@@ -61,7 +61,7 @@
                                     <input type="text" id="h-bl" class="form-control" placeholder="Ej. COSU123456"/>
                                 </div>
 
-                                <!-- Separador Logística -->
+                                <!-- Logística -->
                                 <div class="section-divider"><span>Logística</span></div>
 
                                 <div class="form-group">
@@ -96,7 +96,7 @@
                                     </select>
                                 </div>
 
-                                <!-- Separador Carga -->
+                                <!-- Carga -->
                                 <div class="section-divider"><span>Detalles de Carga</span></div>
 
                                 <div class="form-group">
@@ -133,7 +133,7 @@
                         </div>
                     </div>
 
-                    <!-- PACKING LIST TITLE -->
+                    <!-- TITULO PACKING LIST -->
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <h4 class="text-white m-0"><i class="fa fa-list-ul me-2 text-warning"/> Detalle de Placas (Packing List)</h4>
                     </div>
@@ -142,11 +142,11 @@
                         <small><i class="fa fa-info-circle text-warning me-1"/> Ingrese las dimensiones de cada placa. El área se calculará automáticamente.</small>
                     </div>
 
-                    <!-- CONTAINER TABLAS JS -->
+                    <!-- TABLAS JS -->
                     <div id="portal-rows-container">
                         <div class="text-center py-5 text-muted">
                             <i class="fa fa-circle-o-notch fa-spin fa-2x"></i>
-                            <p class="mt-2">Cargando productos...</p>
+                            <p class="mt-2">Cargando...</p>
                         </div>
                     </div>
                 </div>
@@ -154,11 +154,11 @@
                 <!-- FOOTER -->
                 <div class="submit-footer">
                     <div class="summary">
-                        <div>Placas: <span id="total-plates">0</span></div>
-                        <div>Área Total: <span id="total-area">0.00</span> m²</div>
+                        Total Placas: <span id="total-plates">0</span> | 
+                        Total Área: <span id="total-area">0.00</span> m²
                     </div>
                     <button id="btn-submit-pl" class="btn-primary-custom" disabled="disabled">
-                        <i class="fa fa-save me-2"/> Guardar y Enviar
+                        <i class="fa fa-paper-plane me-2"/> Guardar y Enviar
                     </button>
                 </div>
             </div>
@@ -169,7 +169,7 @@
         <t t-call="stock_lot_packing_import.portal_layout">
             <div class="container text-center py-5">
                 <h1 class="display-1 text-danger">404</h1>
-                <p class="lead">Enlace no válido o no encontrado.</p>
+                <p class="lead">Enlace no válido.</p>
             </div>
         </t>
     </template>
@@ -179,7 +179,6 @@
             <div class="container text-center py-5">
                 <h1 class="display-1 text-warning"><i class="fa fa-clock-o"/></h1>
                 <p class="lead">Este enlace ha expirado.</p>
-                <p class="text-muted">Por favor contacte al administrador para generar uno nuevo.</p>
             </div>
         </t>
     </template>

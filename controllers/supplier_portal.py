@@ -58,7 +58,7 @@ class SupplierPortalController(http.Controller):
         products = self._build_products_payload(picking)
         if not products: products = []
 
-        # --- DATOS EXISTENTES ---
+        # --- 1. DATOS DE FILAS (SPREADSHEET) ---
         existing_rows = []
         if picking.spreadsheet_id:
             try:
@@ -67,7 +67,8 @@ class SupplierPortalController(http.Controller):
                 _logger.error(f"Error recuperando datos del spreadsheet: {e}")
                 existing_rows = []
 
-        # --- DATOS DE CABECERA (CARGAR SI EXISTEN) ---
+        # --- 2. DATOS DE CABECERA (OBTENER DE ODOO) ---
+        # Estos datos se pre-cargan desde lo que ya tenga guardado el Picking
         header_data = {
             'invoice_number': picking.supplier_invoice_number or "",
             'shipment_date': str(picking.supplier_shipment_date) if picking.supplier_shipment_date else "",
@@ -91,7 +92,7 @@ class SupplierPortalController(http.Controller):
         full_data = {
             'products': products,
             'existing_rows': existing_rows,
-            'header': header_data, # <--- Enviamos la cabecera
+            'header': header_data, # Enviamos al JS lo que hay en la base de datos
             'token': token,
             'poName': access.purchase_id.name if access.purchase_id else (picking.origin or ""),
             'pickingName': picking.name or "",
@@ -108,19 +109,18 @@ class SupplierPortalController(http.Controller):
 
     @http.route('/supplier/pl/submit', type='json', auth='public', csrf=False)
     def submit_pl_data(self, token, rows, header=None):
-        """
-        Recibe filas y datos de cabecera.
-        """
         access = request.env['stock.picking.supplier.access'].sudo().search([('access_token', '=', token)], limit=1)
         if not access or access.is_expired:
             return {'success': False, 'message': 'Token inválido.'}
         
         picking = access.picking_id
         if not picking: return {'success': False, 'message': 'Picking no encontrado.'}
-        if picking.state in ('done', 'cancel'): return {'success': False, 'message': 'Recepción ya procesada.'}
+        
+        if picking.state in ('done', 'cancel'): 
+            return {'success': False, 'message': 'La recepción ya fue procesada y no se puede modificar.'}
 
         try:
-            # Actualizar Picking + Spreadsheet
+            # Guardamos tanto las filas (Spreadsheet) como la cabecera (Picking fields)
             picking.sudo().update_packing_list_from_portal(rows, header_data=header)
             return {'success': True}
         except Exception as e:
