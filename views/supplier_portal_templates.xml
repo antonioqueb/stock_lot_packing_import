@@ -28,13 +28,28 @@
                         <img src="/stock_lot_packing_import/static/description/icon.png" 
                              alt="Logo" 
                              class="me-3" 
-                             style="height: 35px; width: auto; object-fit: contain;"/>
+                             style="height: 45px; width: auto; object-fit: contain;"/>
                         
-                        <span>PORTAL <span class="ms-1">PROVEEDOR</span></span>
+                        <span>PORTAL <span class="ms-1" data-i18n="header_provider">PROVEEDOR</span></span>
                     </div>
-                    <div class="po-info">
-                        <div><span class="label">Orden de Compra:</span> <span class="value" t-esc="picking.origin or 'N/A'"/></div>
-                        <div><span class="label">Recepción:</span> <span class="value" t-esc="picking.name"/></div>
+
+                    <!-- SELECTOR DE IDIOMA & INFO -->
+                    <div class="d-flex align-items-center gap-4">
+                        <div class="lang-selector-wrapper">
+                            <i class="fa fa-globe text-muted me-2"></i>
+                            <select id="lang-selector" class="lang-select">
+                                <option value="en" selected="selected">English</option>
+                                <option value="es">Español</option>
+                                <option value="pt">Português</option>
+                                <option value="it">Italiano</option>
+                                <option value="zh">中文 (Chinese)</option>
+                            </select>
+                        </div>
+
+                        <div class="po-info">
+                            <div><span class="label" data-i18n="po_label">Orden de Compra:</span> <span class="value" t-esc="picking.origin or 'N/A'"/></div>
+                            <div><span class="label" data-i18n="receipt_label">Recepción:</span> <span class="value" t-esc="picking.name"/></div>
+                        </div>
                     </div>
                 </header>
 
@@ -44,96 +59,96 @@
                     <div class="shipment-card">
                         <div class="card-header">
                             <i class="fa fa-ship fa-lg"></i>
-                            <h3>Datos de Embarque</h3>
+                            <h3 data-i18n="shipment_data_title">Datos de Embarque</h3>
                         </div>
                         <div class="card-body" id="shipment-info-form">
                             
                             <div class="modern-form-grid">
                                 <!-- Documentación -->
                                 <div class="form-group">
-                                    <label><i class="fa fa-file-invoice"/> No. de Factura</label>
-                                    <input type="text" id="h-invoice" class="form-control" placeholder="Ej. INV-2024-001"/>
+                                    <label><i class="fa fa-file-invoice"/> <span data-i18n="lbl_invoice">No. de Factura</span></label>
+                                    <input type="text" id="h-invoice" class="form-control" data-i18n-placeholder="ph_invoice" placeholder="Ej. INV-2024-001"/>
                                 </div>
                                 <div class="form-group">
-                                    <label><i class="fa fa-calendar"/> Fecha Embarque</label>
+                                    <label><i class="fa fa-calendar"/> <span data-i18n="lbl_date">Fecha Embarque</span></label>
                                     <input type="date" id="h-date" class="form-control"/>
                                 </div>
                                 <div class="form-group">
-                                    <label><i class="fa fa-file-contract"/> No. Proforma (PI)</label>
-                                    <input type="text" id="h-proforma" class="form-control" placeholder="Ej. PI-9920"/>
+                                    <label><i class="fa fa-file-contract"/> <span data-i18n="lbl_proforma">No. Proforma (PI)</span></label>
+                                    <input type="text" id="h-proforma" class="form-control" data-i18n-placeholder="ph_proforma" placeholder="Ej. PI-9920"/>
                                 </div>
                                 <div class="form-group">
-                                    <label><i class="fa fa-file-alt"/> No. B/L</label>
-                                    <input type="text" id="h-bl" class="form-control" placeholder="Ej. COSU123456"/>
+                                    <label><i class="fa fa-file-alt"/> <span data-i18n="lbl_bl">No. B/L</span></label>
+                                    <input type="text" id="h-bl" class="form-control" data-i18n-placeholder="ph_bl" placeholder="Ej. COSU123456"/>
                                 </div>
 
                                 <!-- Logística -->
-                                <div class="section-divider"><span>Logística</span></div>
+                                <div class="section-divider"><span data-i18n="sec_logistics">Logística</span></div>
 
                                 <div class="form-group">
-                                    <label><i class="fa fa-map-marker-alt"/> Origen (Puerto)</label>
-                                    <input type="text" id="h-origin" class="form-control" placeholder="Ej. Shanghai"/>
+                                    <label><i class="fa fa-map-marker-alt"/> <span data-i18n="lbl_origin">Origen (Puerto)</span></label>
+                                    <input type="text" id="h-origin" class="form-control" data-i18n-placeholder="ph_origin" placeholder="Ej. Shanghai"/>
                                 </div>
                                 <div class="form-group">
-                                    <label><i class="fa fa-map-marker-alt"/> Destino (Puerto)</label>
-                                    <input type="text" id="h-dest" class="form-control" placeholder="Ej. Manzanillo"/>
+                                    <label><i class="fa fa-map-marker-alt"/> <span data-i18n="lbl_dest">Destino (Puerto)</span></label>
+                                    <input type="text" id="h-dest" class="form-control" data-i18n-placeholder="ph_dest" placeholder="Ej. Manzanillo"/>
                                 </div>
                                 <div class="form-group">
-                                    <label><i class="fa fa-globe"/> País Origen</label>
-                                    <input type="text" id="h-country" class="form-control" placeholder="Ej. China"/>
+                                    <label><i class="fa fa-globe"/> <span data-i18n="lbl_country">País Origen</span></label>
+                                    <input type="text" id="h-country" class="form-control" data-i18n-placeholder="ph_country" placeholder="Ej. China"/>
                                 </div>
                                 <div class="form-group">
-                                    <label><i class="fa fa-ship"/> Buque / Viaje</label>
-                                    <input type="text" id="h-vessel" class="form-control" placeholder="Ej. MAERSK SEALAND"/>
+                                    <label><i class="fa fa-ship"/> <span data-i18n="lbl_vessel">Buque / Viaje</span></label>
+                                    <input type="text" id="h-vessel" class="form-control" data-i18n-placeholder="ph_vessel" placeholder="Ej. MAERSK SEALAND"/>
                                 </div>
                                 
                                 <div class="form-group">
-                                    <label><i class="fa fa-handshake"/> Incoterm / Pago</label>
-                                    <input type="text" id="h-incoterm" class="form-control" placeholder="Ej. CIF / T/T"/>
+                                    <label><i class="fa fa-handshake"/> <span data-i18n="lbl_incoterm">Incoterm / Pago</span></label>
+                                    <input type="text" id="h-incoterm" class="form-control" data-i18n-placeholder="ph_incoterm" placeholder="Ej. CIF / T/T"/>
                                 </div>
                                 <div class="form-group">
-                                    <label><i class="fa fa-info-circle"/> Estatus</label>
+                                    <label><i class="fa fa-info-circle"/> <span data-i18n="lbl_status">Estatus</span></label>
                                     <select id="h-status" class="form-control">
-                                        <option value="">Seleccionar...</option>
-                                        <option value="En Producción">En Producción</option>
-                                        <option value="En Puerto Origen">En Puerto Origen</option>
-                                        <option value="En Tránsito">En Tránsito</option>
-                                        <option value="En Puerto Destino">En Puerto Destino</option>
+                                        <option value="" data-i18n="opt_select">Seleccionar...</option>
+                                        <option value="En Producción" data-i18n="opt_production">En Producción</option>
+                                        <option value="En Puerto Origen" data-i18n="opt_origin_port">En Puerto Origen</option>
+                                        <option value="En Tránsito" data-i18n="opt_transit">En Tránsito</option>
+                                        <option value="En Puerto Destino" data-i18n="opt_dest_port">En Puerto Destino</option>
                                     </select>
                                 </div>
 
                                 <!-- Carga -->
-                                <div class="section-divider"><span>Detalles de Carga</span></div>
+                                <div class="section-divider"><span data-i18n="sec_cargo">Detalles de Carga</span></div>
 
                                 <div class="form-group">
-                                    <label><i class="fa fa-box-open"/> No. Contenedor</label>
-                                    <input type="text" id="h-cont-no" class="form-control" placeholder="Ej. MSKU1234567"/>
+                                    <label><i class="fa fa-box-open"/> <span data-i18n="lbl_container">No. Contenedor</span></label>
+                                    <input type="text" id="h-cont-no" class="form-control" data-i18n-placeholder="ph_container" placeholder="Ej. MSKU1234567"/>
                                 </div>
                                 <div class="form-group">
-                                    <label><i class="fa fa-lock"/> No. Sello</label>
-                                    <input type="text" id="h-seal" class="form-control" placeholder="Ej. 123456"/>
+                                    <label><i class="fa fa-lock"/> <span data-i18n="lbl_seal">No. Sello</span></label>
+                                    <input type="text" id="h-seal" class="form-control" data-i18n-placeholder="ph_seal" placeholder="Ej. 123456"/>
                                 </div>
                                 <div class="form-group">
-                                    <label><i class="fa fa-truck-loading"/> Tipo Contenedor</label>
-                                    <input type="text" id="h-type" class="form-control" placeholder="Ej. 40HC, 20GP"/>
+                                    <label><i class="fa fa-truck-loading"/> <span data-i18n="lbl_cont_type">Tipo Contenedor</span></label>
+                                    <input type="text" id="h-type" class="form-control" data-i18n-placeholder="ph_cont_type" placeholder="Ej. 40HC, 20GP"/>
                                 </div>
                                 
                                 <div class="form-group">
-                                    <label><i class="fa fa-boxes"/> Total Paquetes</label>
+                                    <label><i class="fa fa-boxes"/> <span data-i18n="lbl_packages">Total Paquetes</span></label>
                                     <input type="number" id="h-pkgs" class="form-control" placeholder="0"/>
                                 </div>
                                 <div class="form-group">
-                                    <label><i class="fa fa-weight-hanging"/> Peso Bruto (kg)</label>
+                                    <label><i class="fa fa-weight-hanging"/> <span data-i18n="lbl_weight">Peso Bruto (kg)</span></label>
                                     <input type="number" step="0.01" id="h-weight" class="form-control" placeholder="0.00"/>
                                 </div>
                                 <div class="form-group">
-                                    <label><i class="fa fa-cube"/> Volumen (m³)</label>
+                                    <label><i class="fa fa-cube"/> <span data-i18n="lbl_volume">Volumen (m³)</span></label>
                                     <input type="number" step="0.01" id="h-volume" class="form-control" placeholder="0.00"/>
                                 </div>
 
                                 <div class="form-group full-width">
-                                    <label><i class="fa fa-align-left"/> Descripción Mercancía</label>
-                                    <textarea id="h-desc" class="form-control" rows="2" placeholder="Descripción general de la carga..."></textarea>
+                                    <label><i class="fa fa-align-left"/> <span data-i18n="lbl_desc">Descripción Mercancía</span></label>
+                                    <textarea id="h-desc" class="form-control" rows="2" data-i18n-placeholder="ph_desc" placeholder="Descripción general de la carga..."></textarea>
                                 </div>
                             </div>
                         </div>
@@ -141,18 +156,18 @@
 
                     <!-- TITULO PACKING LIST -->
                     <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h4 class="text-white m-0"><i class="fa fa-list-ul me-2 text-warning"/> Detalle de Placas (Packing List)</h4>
+                        <h4 class="text-white m-0"><i class="fa fa-list-ul me-2 text-warning"/> <span data-i18n="pl_title">Detalle de Placas (Packing List)</span></h4>
                     </div>
 
                     <div class="alert alert-dark border border-secondary text-light mb-4" style="background: #1a1a1a;">
-                        <small><i class="fa fa-info-circle text-warning me-1"/> Ingrese las dimensiones de cada placa. El área se calculará automáticamente.</small>
+                        <small><i class="fa fa-info-circle text-warning me-1"/> <span data-i18n="pl_instruction">Ingrese las dimensiones de cada placa. El área se calculará automáticamente.</span></small>
                     </div>
 
                     <!-- TABLAS JS -->
                     <div id="portal-rows-container">
                         <div class="text-center py-5 text-muted">
                             <i class="fa fa-circle-o-notch fa-spin fa-2x"></i>
-                            <p class="mt-2">Cargando...</p>
+                            <p class="mt-2" data-i18n="loading">Cargando...</p>
                         </div>
                     </div>
                 </div>
@@ -160,11 +175,11 @@
                 <!-- FOOTER -->
                 <div class="submit-footer">
                     <div class="summary">
-                        Total Placas: <span id="total-plates">0</span> | 
-                        Total Área: <span id="total-area">0.00</span> m²
+                        <span data-i18n="footer_total_plates">Total Placas:</span> <span id="total-plates">0</span> | 
+                        <span data-i18n="footer_total_area">Total Área:</span> <span id="total-area">0.00</span> m²
                     </div>
                     <button id="btn-submit-pl" class="btn-primary-custom" disabled="disabled">
-                        <i class="fa fa-paper-plane me-2"/> Guardar y Enviar
+                        <i class="fa fa-paper-plane me-2"/> <span data-i18n="btn_submit">Guardar y Enviar</span>
                     </button>
                 </div>
             </div>
@@ -175,7 +190,7 @@
         <t t-call="stock_lot_packing_import.portal_layout">
             <div class="container text-center py-5">
                 <h1 class="display-1 text-danger">404</h1>
-                <p class="lead">Enlace no válido.</p>
+                <p class="lead">Invalid Link.</p>
             </div>
         </t>
     </template>
@@ -184,7 +199,7 @@
         <t t-call="stock_lot_packing_import.portal_layout">
             <div class="container text-center py-5">
                 <h1 class="display-1 text-warning"><i class="fa fa-clock-o"/></h1>
-                <p class="lead">Este enlace ha expirado.</p>
+                <p class="lead">Link Expired.</p>
             </div>
         </t>
     </template>
