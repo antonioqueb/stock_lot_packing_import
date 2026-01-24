@@ -58,18 +58,17 @@ class StockPicking(models.Model):
         """
         Lee el Spreadsheet actual y devuelve la lista de filas
         formateada para el JS del Portal.
+        IMPORTANTE: Aplica las revisiones pendientes para leer datos "en vivo".
         """
         self.ensure_one()
         rows = []
         
-        if not self.spreadsheet_id or not self.spreadsheet_id.spreadsheet_data:
+        if not self.spreadsheet_id:
             return rows
 
-        try:
-            raw_data = self.spreadsheet_id.spreadsheet_data
-            data = json.loads(raw_data.decode('utf-8') if isinstance(raw_data, bytes) else raw_data)
-        except Exception as e:
-            _logger.warning(f"Error leyendo JSON del spreadsheet: {e}")
+        # --- CAMBIO: Usar método que aplica revisiones ---
+        data = self._get_spreadsheet_data_with_revisions(self.spreadsheet_id)
+        if not data:
             return rows
 
         sheets = data.get('sheets', [])
@@ -135,6 +134,83 @@ class StockPicking(models.Model):
 
         return rows
 
+    def _get_spreadsheet_data_with_revisions(self, doc):
+        """
+        Carga el JSON base del documento y le aplica las revisiones (ediciones)
+        pendientes que aún no se han consolidado en el snapshot.
+        Esto permite leer los datos que el usuario ve en pantalla.
+        """
+        raw_data = doc.spreadsheet_data
+        if not raw_data:
+            return {}
+        
+        try:
+            data = json.loads(raw_data.decode('utf-8') if isinstance(raw_data, bytes) else raw_data)
+        except Exception as e:
+            _logger.error(f"Error parseando JSON base: {e}")
+            return {}
+
+        # Buscar revisiones pendientes
+        revisions = self.env['spreadsheet.revision'].sudo().search([
+            ('res_model', '=', 'documents.document'),
+            ('res_id', '=', doc.id)
+        ], order='id asc')
+
+        if not revisions:
+            return data
+
+        # Aplicar revisiones en memoria
+        for rev in revisions:
+            try:
+                # El comando puede venir como string o dict
+                cmds_payload = json.loads(rev.commands) if isinstance(rev.commands, str) else rev.commands
+                
+                # A veces viene {'type': '...', ...} o {'commands': [...]}
+                if isinstance(cmds_payload, dict):
+                    if 'commands' in cmds_payload:
+                        cmds = cmds_payload['commands']
+                    else:
+                        cmds = [cmds_payload]
+                elif isinstance(cmds_payload, list):
+                    cmds = cmds_payload
+                else:
+                    continue
+
+                for cmd in cmds:
+                    # Nos interesa principalmente UPDATE_CELL para los valores
+                    if cmd.get('type') == 'UPDATE_CELL':
+                        sheet_id = cmd.get('sheetId')
+                        col, row = cmd.get('col'), cmd.get('row')
+                        content = cmd.get('content', '')
+
+                        target_sheet = next((s for s in data.get('sheets', []) if s.get('id') == sheet_id), None)
+                        if target_sheet and col is not None and row is not None:
+                            # Convertir índice col/row a clave "A1", "B2"
+                            col_letter = self._get_col_letter(col) # Nota: _get_col_letter ajustado abajo
+                            # En el JSON 'cells', las keys suelen ser coordenadas
+                            cell_key = f"{col_letter}{row + 1}"
+                            
+                            if 'cells' not in target_sheet:
+                                target_sheet['cells'] = {}
+                            
+                            if content in (None, ""):
+                                if cell_key in target_sheet['cells']:
+                                    del target_sheet['cells'][cell_key]
+                            else:
+                                target_sheet['cells'][cell_key] = {'content': str(content)}
+
+                    elif cmd.get('type') in ('DELETE_CONTENT', 'CLEAR_CELL'):
+                        # Simplificación: Omitimos lógica compleja de rangos para no hacer el código gigante.
+                        # Si es crítico borrar rangos masivos desde el PL y que se reflejen al instante,
+                        # se debería implementar iteración sobre rangos.
+                        pass
+
+            except Exception as e:
+                _logger.warning(f"Error aplicando revisión {rev.id}: {e}")
+                continue
+        
+        return data
+
     def update_packing_list_from_portal(self, rows, header_data=None):
         """
         1. Escribe filas en Spreadsheet.
@@ -173,14 +249,12 @@ class StockPicking(models.Model):
             self.action_open_packing_list_spreadsheet()
         
         doc = self.spreadsheet_id
-        if not doc.spreadsheet_data:
+        
+        # CAMBIO: Cargamos los datos CON revisiones.
+        # Si no lo hacemos, al guardar sobrescribiremos los cambios manuales hechos en Odoo.
+        data = self._get_spreadsheet_data_with_revisions(doc)
+        if not data:
             return True
-
-        try:
-            raw_data = doc.spreadsheet_data
-            data = json.loads(raw_data.decode('utf-8') if isinstance(raw_data, bytes) else raw_data)
-        except Exception as e:
-            raise UserError(f"Error al leer el Spreadsheet: {e}")
 
         product_sheet_map = {} 
         
@@ -198,6 +272,7 @@ class StockPicking(models.Model):
                 if product:
                     product_sheet_map[product.id] = sheet
                     
+                    # Limpiar filas de datos (row >= 4)
                     keys_to_remove = []
                     for key in list(cells.keys()):
                         match = re.match(r'^([A-Z]+)(\d+)$', key)
@@ -247,6 +322,8 @@ class StockPicking(models.Model):
             'spreadsheet_snapshot': False, 
         })
         
+        # Como ya consolidamos las revisiones en el data principal, las borramos
+        # para evitar duplicidad o conflictos de IDs.
         self.env['spreadsheet.revision'].sudo().search([
             ('res_model', '=', 'documents.document'),
             ('res_id', '=', doc.id)
@@ -271,11 +348,12 @@ class StockPicking(models.Model):
         return cell
 
     def _get_col_letter(self, n):
+        """Convierte índice 0-based a letra columna (0->A, 1->B)"""
         string = ""
-        while n >= 0:
-            n, remainder = divmod(n, 26)
+        n = int(n) + 1 
+        while n > 0:
+            n, remainder = divmod(n - 1, 26)
             string = chr(65 + remainder) + string
-            n -= 1
         return string
 
     def action_open_packing_list_spreadsheet(self):

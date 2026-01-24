@@ -452,25 +452,28 @@
                     }
                 }
 
-                // --- ESTRATEGIA DE CARGA DE FILAS ---
+                // --- ESTRATEGIA DE CARGA DE FILAS (PRIORIDAD ODOO) ---
                 const serverRows = this.data.existing_rows || [];
 
-                if (localData && localData.rows && localData.rows.length > 0) {
-                    // Prioridad 1: Datos locales
+                // MODIFICACIÓN CLAVE: Si Odoo trae filas, tienen prioridad sobre localStorage
+                // Esto permite que el usuario interno corrija el PL y el proveedor vea los cambios.
+                if (serverRows.length > 0) {
+                    console.log(`[Portal] Usando filas del SERVIDOR (Prioridad Odoo).`);
+                    this.rows = serverRows.map(r => ({
+                        ...r,
+                        id: this.nextId++
+                    }));
+                    
+                    // Actualizamos localStorage para sincronizar
+                    this.saveState();
+
+                } else if (localData && localData.rows && localData.rows.length > 0) {
+                    // Prioridad 2: Datos locales (trabajo en progreso del proveedor)
                     console.log("[Portal] Usando filas locales.");
                     this.rows = localData.rows;
                     
                     const maxId = this.rows.reduce((max, r) => Math.max(max, r.id || 0), 0);
                     this.nextId = maxId + 1;
-
-                } else if (serverRows.length > 0) {
-                    // Prioridad 2: Datos del servidor
-                    console.log(`[Portal] Usando filas del servidor.`);
-                    this.rows = serverRows.map(r => ({
-                        ...r,
-                        id: this.nextId++
-                    }));
-                    this.saveState();
 
                 } else {
                     // Prioridad 3: Inicio limpio
