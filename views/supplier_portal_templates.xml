@@ -4,6 +4,9 @@
         <t t-call="web.frontend_layout">
             <t t-set="no_header" t-value="True"/>
             <t t-set="no_footer" t-value="True"/>
+            <!-- Viewport esencial para que el CSS responsivo funcione en móviles -->
+            <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no"/>
+            
             <t t-set="head">
                 <t t-call-assets="web.assets_frontend" t-css="true" t-js="true"/>
                 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&amp;display=swap" rel="stylesheet"/>
@@ -18,6 +21,7 @@
     <template id="supplier_portal_view">
         <t t-call="stock_lot_packing_import.portal_layout">
             
+            <!-- Payload de datos para JS -->
             <div id="portal-data-store" style="display:none;" t-att-data-payload="portal_json"></div>
 
             <div class="o_portal_wrapper">
@@ -28,32 +32,34 @@
                         <img src="/stock_lot_packing_import/static/description/icon.png" 
                              alt="Logo" 
                              class="me-3" 
-                             style="height: 45px; width: auto; object-fit: contain;"/>
+                             style="height: 40px; width: auto; object-fit: contain;"/>
                         
                         <span>PORTAL <span class="ms-1" data-i18n="header_provider">PROVEEDOR</span></span>
                     </div>
 
-                    <!-- SELECTOR DE IDIOMA & INFO -->
-                    <div class="d-flex align-items-center gap-4">
+                    <!-- CONTROLES DERECHOS AGRUPADOS (Para CSS Responsivo) -->
+                    <div class="header-controls">
+                        <!-- SELECTOR DE IDIOMA -->
                         <div class="lang-selector-wrapper">
                             <i class="fa fa-globe text-muted me-2"></i>
                             <select id="lang-selector" class="lang-select">
-                                <option value="en" selected="selected">English</option>
-                                <option value="es">Español</option>
-                                <option value="pt">Português</option>
-                                <option value="it">Italiano</option>
-                                <option value="zh">中文 (Chinese)</option>
+                                <option value="en" selected="selected">EN</option>
+                                <option value="es">ES</option>
+                                <option value="pt">PT</option>
+                                <option value="it">IT</option>
+                                <option value="zh">ZH</option>
                             </select>
                         </div>
 
+                        <!-- INFO DE ORDEN -->
                         <div class="po-info">
-                            <div><span class="label" data-i18n="po_label">Orden de Compra:</span> <span class="value" t-esc="picking.origin or 'N/A'"/></div>
-                            <div><span class="label" data-i18n="receipt_label">Recepción:</span> <span class="value" t-esc="picking.name"/></div>
+                            <div><span class="label" data-i18n="po_label">Orden:</span> <span class="value" t-esc="picking.origin or 'N/A'"/></div>
+                            <div><span class="label" data-i18n="receipt_label">Recep:</span> <span class="value" t-esc="picking.name"/></div>
                         </div>
                     </div>
                 </header>
 
-                <div class="o_portal_container pb-5 mb-5">
+                <div class="o_portal_container">
                     
                     <!-- SECCIÓN: DATOS DE EMBARQUE -->
                     <div class="shipment-card">
@@ -163,7 +169,7 @@
                         <small><i class="fa fa-info-circle text-warning me-1"/> <span data-i18n="pl_instruction">Ingrese las dimensiones de cada placa. El área se calculará automáticamente.</span></small>
                     </div>
 
-                    <!-- TABLAS JS -->
+                    <!-- TABLAS JS (Contenedor vacío que el JS rellena) -->
                     <div id="portal-rows-container">
                         <div class="text-center py-5 text-muted">
                             <i class="fa fa-circle-o-notch fa-spin fa-2x"></i>
@@ -174,9 +180,10 @@
 
                 <!-- FOOTER -->
                 <div class="submit-footer">
+                    <!-- Estructura dividida en DIVs para mejor manejo flexbox en móvil -->
                     <div class="summary">
-                        <span data-i18n="footer_total_plates">Total Placas:</span> <span id="total-plates">0</span> | 
-                        <span data-i18n="footer_total_area">Total Área:</span> <span id="total-area">0.00</span> m²
+                        <div><span data-i18n="footer_total_plates">Total Placas:</span> <span id="total-plates">0</span></div>
+                        <div><span data-i18n="footer_total_area">Total Área:</span> <span id="total-area">0.00</span> m²</div>
                     </div>
                     <button id="btn-submit-pl" class="btn-primary-custom" disabled="disabled">
                         <i class="fa fa-paper-plane me-2"/> <span data-i18n="btn_submit">Guardar y Enviar</span>

@@ -663,7 +663,6 @@
         }
 
         // --- RENDERIZADO ---
-
         render() {
             const container = document.getElementById('portal-rows-container');
             if (!container) return;
@@ -706,9 +705,10 @@
                                 <tbody>
                 `;
 
-                // Helper para generar el grupo input+botón
-                const renderInput = (rowId, field, value, placeholderKey = "", type = "text", step = "", cssClass = "") => {
+                // Helper mejorado para incluir data-label
+                const renderInput = (rowId, field, value, labelKey, placeholderKey = "", type = "text", step = "", cssClass = "") => {
                     const ph = placeholderKey ? this.t(placeholderKey) : "";
+                    // labelKey se usa para el data-label del TD padre en CSS
                     return `
                         <div class="input-group-portal">
                             <input type="${type}" step="${step}" class="input-field ${cssClass}" 
@@ -723,17 +723,32 @@
                 productRows.forEach(row => {
                     const area = (row.alto * row.ancho).toFixed(2);
                     
+                    // AQUI ESTA LA MAGIA: data-label en cada TD
                     html += `
                         <tr data-row-id="${row.id}">
-                            <td>${renderInput(row.id, 'contenedor', row.contenedor, 'ph_cnt', 'text', '', 'short text-uppercase')}</td>
-                            <td>${renderInput(row.id, 'bloque', row.bloque, 'ph_block', 'text', '', 'short text-uppercase')}</td>
-                            <td>${renderInput(row.id, 'grosor', row.grosor, '', 'number', '0.01', 'short')}</td>
-                            <td>${renderInput(row.id, 'alto', row.alto, '', 'number', '0.01', 'short')}</td>
-                            <td>${renderInput(row.id, 'ancho', row.ancho, '', 'number', '0.01', 'short')}</td>
+                            <td data-label="${this.t('col_container')}">
+                                ${renderInput(row.id, 'contenedor', row.contenedor, 'col_container', 'ph_cnt', 'text', '', 'short text-uppercase')}
+                            </td>
+                            <td data-label="${this.t('col_block')}">
+                                ${renderInput(row.id, 'bloque', row.bloque, 'col_block', 'ph_block', 'text', '', 'short text-uppercase')}
+                            </td>
+                            <td data-label="${this.t('col_thickness')}">
+                                ${renderInput(row.id, 'grosor', row.grosor, 'col_thickness', '', 'number', '0.01', 'short')}
+                            </td>
+                            <td data-label="${this.t('col_height')}">
+                                ${renderInput(row.id, 'alto', row.alto, 'col_height', '', 'number', '0.01', 'short')}
+                            </td>
+                            <td data-label="${this.t('col_width')}">
+                                ${renderInput(row.id, 'ancho', row.ancho, 'col_width', '', 'number', '0.01', 'short')}
+                            </td>
                             
-                            <td><span class="fw-bold text-white area-display">${area}</span></td>
+                            <td data-label="${this.t('col_area')}">
+                                <span class="fw-bold text-white area-display">${area}</span>
+                            </td>
                             
-                            <td>${renderInput(row.id, 'color', row.color, 'ph_opt')}</td>
+                            <td data-label="${this.t('col_notes')}">
+                                ${renderInput(row.id, 'color', row.color, 'col_notes', 'ph_opt')}
+                            </td>
                             
                             <td class="text-center">
                                 <button class="btn-action btn-delete" type="button"><i class="fa fa-trash"></i></button>
@@ -745,7 +760,8 @@
                 html += `
                                 </tbody>
                             </table>
-                            <div class="mt-2">
+                            <!-- Contenedor de botones con clase table-actions para CSS -->
+                            <div class="table-actions">
                                 <button class="btn-add-row action-add" data-product-id="${product.id}" type="button">
                                     <i class="fa fa-plus-circle"></i> ${this.t('btn_add')}
                                 </button>
@@ -761,6 +777,8 @@
             container.innerHTML = html;
             this.updateTotalsUI();
         }
+
+// ... (Resto del código JS se mantiene igual) ...
 
         bindGlobalEvents() {
             const container = document.getElementById('portal-rows-container');
