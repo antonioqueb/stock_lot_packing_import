@@ -183,7 +183,11 @@
                     <!-- Estructura dividida en DIVs para mejor manejo flexbox en móvil -->
                     <div class="summary">
                         <div><span data-i18n="footer_total_plates">Total Placas:</span> <span id="total-plates">0</span></div>
-                        <div><span data-i18n="footer_total_area">Total Área:</span> <span id="total-area">0.00</span> m²</div>
+                        <div>
+    <span data-i18n="footer_total_area">Total Área:</span> 
+    <span id="total-area">0.00</span> 
+    <span>m²</span>
+</div>
                     </div>
                     <button id="btn-submit-pl" class="btn-primary-custom" disabled="disabled">
                         <i class="fa fa-paper-plane me-2"/> <span data-i18n="btn_submit">Guardar y Enviar</span>
