@@ -391,7 +391,9 @@ class StockPicking(models.Model):
 
     def action_open_packing_list_spreadsheet(self):
         self.ensure_one()
-        if self.picking_type_code != 'incoming': raise UserError('Solo para Recepciones.')
+        # MODIFICADO: Permitir Incoming O si ya tiene PL importado (caso tránsito/interno)
+        if self.picking_type_code != 'incoming' and not self.packing_list_imported: 
+            raise UserError('Solo disponible para Recepciones o Transferencias con Packing List ya cargado.')
         
         if not self.spreadsheet_id:
             products = self.move_ids.mapped('product_id')
@@ -450,7 +452,7 @@ class StockPicking(models.Model):
 
     def action_open_worksheet_spreadsheet(self):
         self.ensure_one()
-        if not self.packing_list_imported: raise UserError('Primero debe importar el Packing List.')
+        if not self.packing_list_imported: raise UserError('Primero debe importar (o heredar) el Packing List.')
         if not self.ws_spreadsheet_id:
             # Lógica de creación WS
             products = self.move_line_ids.mapped('product_id')
@@ -465,7 +467,10 @@ class StockPicking(models.Model):
                 for i, header in enumerate(headers):
                     col_letter = self._get_col_letter(i)
                     cells[f"{col_letter}3"] = self._make_cell(header, style=2)
+                
+                # MODIFICADO: Filtrar lineas con lote (compatible con Internal Transfer de tránsito)
                 move_lines = self.move_line_ids.filtered(lambda ml: ml.product_id == product and ml.lot_id)
+                
                 row_idx = 4
                 for ml in move_lines:
                     lot = ml.lot_id
@@ -572,6 +577,7 @@ class StockPicking(models.Model):
     def action_import_packing_list(self):
         self.ensure_one()
         if self.worksheet_imported: raise UserError('El Worksheet ya fue procesado.')
+        # MODIFICADO: Quitar restricción dura si ya tiene PL importado
         title = 'Aplicar Cambios al PL' if self.packing_list_imported else 'Importar Packing List'
         return {'name': title, 'type': 'ir.actions.act_window', 'res_model': 'packing.list.import.wizard', 'view_mode': 'form', 'target': 'new', 'context': {'default_picking_id': self.id}}
     

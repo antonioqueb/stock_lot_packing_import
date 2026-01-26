@@ -20,8 +20,10 @@ class WorksheetImportWizard(models.TransientModel):
     def action_import_worksheet(self):
         self.ensure_one()
         
-        if self.picking_id.picking_type_code != 'incoming':
-            raise UserError('Solo se puede importar en recepciones.')
+        # MODIFICADO: Se eliminó la validación estricta de 'incoming' para permitir transferencias internas
+        # derivadas del proceso de Tránsito.
+        # if self.picking_id.picking_type_code != 'incoming':
+        #    raise UserError('Solo se puede importar en recepciones.')
 
         if self.picking_id.state == 'done':
             raise UserError('La recepción ya está validada. No se puede procesar el Worksheet sobre lotes históricos.')
@@ -52,6 +54,7 @@ class WorksheetImportWizard(models.TransientModel):
             product = data['product']
             lot_name = data['lot_name']
 
+            # Buscamos el movimiento correspondiente al lote en ESTE picking
             move_line = self.env['stock.move.line'].search([
                 ('picking_id', '=', self.picking_id.id),
                 ('product_id', '=', product.id),
@@ -99,27 +102,24 @@ class WorksheetImportWizard(models.TransientModel):
                 lines_updated += 1
 
         # ELIMINAR LOTES QUE NO LLEGARON
-        # Primero poner qty_done = 0 para evitar que Odoo cree/mantenga quants
         for ml in move_lines_to_delete:
             ml.write({'qty_done': 0})
         
-        # Eliminar los quants asociados a los lotes
+        # Eliminar los quants asociados a los lotes (si existen y no tienen reserva)
         for lot in lots_to_delete:
             quants = self.env['stock.quant'].sudo().search([('lot_id', '=', lot.id)])
             if quants:
-                # Forzar eliminación de quants (solo funciona si qty=0 o reservado=0)
                 quants.sudo().write({'quantity': 0, 'reserved_quantity': 0})
                 quants.sudo().unlink()
         
-        # Eliminar move_lines
+        # Eliminar move_lines del picking
         for ml in move_lines_to_delete:
             ml.unlink()
         
-        # Eliminar lotes (solo si no tienen otras operaciones asociadas)
+        # Eliminar lotes físicos (solo si no tienen otras operaciones asociadas)
         for lot in lots_to_delete:
             other_ops = self.env['stock.move.line'].search([('lot_id', '=', lot.id)])
             if not other_ops:
-                # Verificar que no queden quants
                 remaining_quants = self.env['stock.quant'].sudo().search([('lot_id', '=', lot.id)])
                 if remaining_quants:
                     remaining_quants.sudo().unlink()
@@ -145,7 +145,6 @@ class WorksheetImportWizard(models.TransientModel):
         # Marcar Worksheet como procesado
         self.picking_id.write({'worksheet_imported': True})
 
-        # Notificación
         message = f'✓ Se actualizaron {lines_updated} lotes con medidas reales.'
         if total_missing_pieces > 0:
             message += f'\n⚠️ MATERIAL FALTANTE:\n• Piezas eliminadas: {total_missing_pieces}\n• Total m² reducidos: {total_missing_m2:.2f} m²'
@@ -212,7 +211,6 @@ class WorksheetImportWizard(models.TransientModel):
         return all_rows
 
     def _get_data_from_excel(self):
-        """Lógica para leer el archivo Excel del Worksheet"""
         try:
             from openpyxl import load_workbook
         except ImportError:
