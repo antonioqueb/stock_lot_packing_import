@@ -20,11 +20,8 @@ class WorksheetImportWizard(models.TransientModel):
     def action_import_worksheet(self):
         self.ensure_one()
         
-        # MODIFICADO: Se eliminó la validación estricta de 'incoming' para permitir transferencias internas
-        # derivadas del proceso de Tránsito.
-        # if self.picking_id.picking_type_code != 'incoming':
-        #    raise UserError('Solo se puede importar en recepciones.')
-
+        # MODIFICADO: Se eliminó la validación estricta de 'incoming' para permitir transferencias internas.
+        
         if self.picking_id.state == 'done':
             raise UserError('La recepción ya está validada. No se puede procesar el Worksheet sobre lotes históricos.')
 
@@ -44,9 +41,7 @@ class WorksheetImportWizard(models.TransientModel):
         total_missing_pieces = 0
         total_missing_m2 = 0
         
-        # Diccionario para agrupar lotes que SÍ llegaron por contenedor
         container_lots = {}
-        # Lista de lotes a eliminar (los que tienen medidas en 0)
         lots_to_delete = []
         move_lines_to_delete = []
 
@@ -54,15 +49,26 @@ class WorksheetImportWizard(models.TransientModel):
             product = data['product']
             lot_name = data['lot_name']
 
-            # Buscamos el movimiento correspondiente al lote en ESTE picking
-            move_line = self.env['stock.move.line'].search([
+            # --- CORRECCIÓN CRÍTICA DE BÚSQUEDA ---
+            # 1. Intentar búsqueda precisa: Picking + Lote + Producto
+            # Esto es lo ideal, pero puede fallar si la detección del producto en el spreadsheet (por nombre)
+            # no coincide exactamente con la variante guardada en la línea (e.g. variante vs plantilla).
+            
+            domain_base = [
                 ('picking_id', '=', self.picking_id.id),
-                ('product_id', '=', product.id),
                 ('lot_id.name', '=', lot_name)
-            ], limit=1)
+            ]
+            
+            move_line = self.env['stock.move.line'].search(domain_base + [('product_id', '=', product.id)], limit=1)
+
+            # 2. Fallback: Si no encuentra por producto, buscar solo por Picking + Lote
+            # Esto asume que el nombre del lote es único dentro de la misma recepción, lo cual es estándar.
+            if not move_line:
+                _logger.info(f"Fallback búsqueda lote: '{lot_name}' sin filtro de producto.")
+                move_line = self.env['stock.move.line'].search(domain_base, limit=1)
 
             if not move_line or not move_line.lot_id:
-                _logger.warning(f"No se encontró el lote '{lot_name}' para el producto {product.name} en esta recepción.")
+                _logger.warning(f"No se encontró el lote '{lot_name}' para el producto {product.name} en esta recepción (Picking ID: {self.picking_id.id}).")
                 continue
 
             lot = move_line.lot_id
@@ -75,7 +81,6 @@ class WorksheetImportWizard(models.TransientModel):
                 total_missing_pieces += 1
                 total_missing_m2 += m2_faltante
                 
-                # Guardar para eliminar después
                 move_lines_to_delete.append(move_line)
                 lots_to_delete.append(lot)
             
@@ -85,8 +90,10 @@ class WorksheetImportWizard(models.TransientModel):
                     'x_alto': alto_real,
                     'x_ancho': ancho_real
                 })
+                # Calcular cantidad hecha basada en medidas reales
+                new_qty = round(alto_real * ancho_real, 3)
                 move_line.write({
-                    'qty_done': round(alto_real * ancho_real, 3),
+                    'qty_done': new_qty,
                     'x_alto_temp': alto_real,
                     'x_ancho_temp': ancho_real,
                 })
@@ -105,18 +112,15 @@ class WorksheetImportWizard(models.TransientModel):
         for ml in move_lines_to_delete:
             ml.write({'qty_done': 0})
         
-        # Eliminar los quants asociados a los lotes (si existen y no tienen reserva)
         for lot in lots_to_delete:
             quants = self.env['stock.quant'].sudo().search([('lot_id', '=', lot.id)])
             if quants:
                 quants.sudo().write({'quantity': 0, 'reserved_quantity': 0})
                 quants.sudo().unlink()
         
-        # Eliminar move_lines del picking
         for ml in move_lines_to_delete:
             ml.unlink()
         
-        # Eliminar lotes físicos (solo si no tienen otras operaciones asociadas)
         for lot in lots_to_delete:
             other_ops = self.env['stock.move.line'].search([('lot_id', '=', lot.id)])
             if not other_ops:
@@ -130,19 +134,15 @@ class WorksheetImportWizard(models.TransientModel):
             if not lot_data_list:
                 continue
             
-            # Ordenar por el nombre original para mantener el orden
             lot_data_list.sort(key=lambda x: x['original_name'])
             
-            # Extraer prefijo del primer lote (ej: "100" de "100-01")
             first_name = lot_data_list[0]['original_name']
             prefix = first_name.split('-')[0] if '-' in first_name else "1"
             
-            # Renumerar secuencialmente
             for idx, lot_data in enumerate(lot_data_list, start=1):
                 new_name = f"{prefix}-{idx:02d}"
                 lot_data['lot'].write({'name': new_name})
 
-        # Marcar Worksheet como procesado
         self.picking_id.write({'worksheet_imported': True})
 
         message = f'✓ Se actualizaron {lines_updated} lotes con medidas reales.'
