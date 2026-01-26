@@ -55,17 +55,12 @@ class StockPicking(models.Model):
     # -------------------------------------------------------------------------
 
     def get_packing_list_data_for_portal(self):
-        """
-        Lee el Spreadsheet actual intentando reconstruir el estado "en vivo"
-        aplicando revisiones sobre el snapshot o la data base.
-        """
         self.ensure_one()
         rows = []
         
         if not self.spreadsheet_id:
             return rows
 
-        # Obtener el estado actual real del spreadsheet (Snapshot + Revisiones)
         data = self._get_current_spreadsheet_state(self.spreadsheet_id)
         if not data:
             return rows
@@ -74,7 +69,6 @@ class StockPicking(models.Model):
         
         for sheet in sheets:
             cells = sheet.get('cells', {})
-            # Buscar Producto en celda B1
             b1_val = cells.get("B1", {}).get("content", "")
             
             if not b1_val: continue
@@ -86,17 +80,14 @@ class StockPicking(models.Model):
             
             if not product: continue
 
-            # Leer filas desde la fila 4 (index 3)
             row_idx = 3
             while True:
                 idx_str = str(row_idx + 1)
                 
-                # Chequeo simple de fin de datos (si B y C están vacíos)
                 b_cell = cells.get(f"B{idx_str}", {})
                 if not b_cell or not b_cell.get("content"):
                     if not cells.get(f"C{idx_str}", {}).get("content"):
                         found_next = False
-                        # Lookahead de 3 filas para asegurar que no es un salto de línea accidental
                         for lookahead in range(1, 4):
                             if cells.get(f"B{row_idx + 1 + lookahead}", {}).get("content"):
                                 found_next = True
@@ -133,20 +124,12 @@ class StockPicking(models.Model):
                     })
                 
                 row_idx += 1
-                if row_idx > 2000: break # Safety break
+                if row_idx > 2000: break
 
         return rows
 
     def _get_current_spreadsheet_state(self, doc):
-        """
-        Estrategia híbrida para obtener los datos más recientes:
-        1. Intenta leer 'spreadsheet_snapshot' (La "foto" guardada más reciente).
-        2. Si falla, lee 'spreadsheet_data' (El archivo base).
-        3. Busca TODAS las revisiones en 'spreadsheet.revision' y las aplica en orden.
-        """
         data = {}
-        
-        # 1. Intentar cargar Snapshot (Suele tener los datos guardados)
         if doc.spreadsheet_snapshot:
             try:
                 raw = doc.spreadsheet_snapshot
@@ -155,7 +138,6 @@ class StockPicking(models.Model):
             except Exception as e:
                 _logger.warning(f"[PL_DEBUG] Error leyendo snapshot: {e}")
 
-        # 2. Si no hay snapshot o falló, cargar Data Base
         if not data and doc.spreadsheet_data:
             try:
                 raw = doc.spreadsheet_data
@@ -168,7 +150,6 @@ class StockPicking(models.Model):
         if not data:
             return {}
 
-        # 3. Obtener y Aplicar Revisiones (Lo crucial para estar "Conectado")
         revisions = self.env['spreadsheet.revision'].sudo().with_context(active_test=False).search([
             ('res_model', '=', 'documents.document'),
             ('res_id', '=', doc.id)
@@ -184,7 +165,6 @@ class StockPicking(models.Model):
             try:
                 cmds_payload = json.loads(rev.commands) if isinstance(rev.commands, str) else rev.commands
                 
-                # Normalizar estructura de comandos
                 cmds = []
                 if isinstance(cmds_payload, dict):
                     if 'commands' in cmds_payload:
@@ -200,7 +180,6 @@ class StockPicking(models.Model):
                     if cmd_type == 'UPDATE_CELL':
                         self._apply_update_cell(data, cmd)
                     elif cmd_type in ('DELETE_CONTENT', 'CLEAR_CELL'):
-                        # Implementación básica para limpiar celdas
                         self._apply_clear_cell(data, cmd)
 
             except Exception as e:
@@ -210,12 +189,10 @@ class StockPicking(models.Model):
         return data
 
     def _apply_update_cell(self, data, cmd):
-        """Aplica un cambio de celda al diccionario de datos en memoria"""
         sheet_id = cmd.get('sheetId')
         col, row = cmd.get('col'), cmd.get('row')
         content = cmd.get('content', '')
 
-        # Buscar la hoja por ID
         target_sheet = next((s for s in data.get('sheets', []) if s.get('id') == sheet_id), None)
         
         if target_sheet and col is not None and row is not None:
@@ -225,24 +202,20 @@ class StockPicking(models.Model):
             if 'cells' not in target_sheet:
                 target_sheet['cells'] = {}
             
-            # Si el contenido está vacío, borramos la entrada
             if content in (None, ""):
                 if cell_key in target_sheet['cells']:
                     del target_sheet['cells'][cell_key]
             else:
-                # Odoo guarda el contenido así: "cells": { "A1": { "content": "Valor" } }
                 target_sheet['cells'][cell_key] = {'content': str(content)}
 
     def _apply_clear_cell(self, data, cmd):
-        """Intenta limpiar celdas (versión simplificada para celdas individuales o rangos simples)"""
         sheet_id = cmd.get('sheetId')
         target_sheet = next((s for s in data.get('sheets', []) if s.get('id') == sheet_id), None)
         if not target_sheet or 'cells' not in target_sheet:
             return
 
-        # A veces viene como 'zones' o 'target'
         zones = cmd.get('zones') or cmd.get('target') or []
-        if isinstance(zones, dict): zones = [zones] # Unificar formato
+        if isinstance(zones, dict): zones = [zones]
 
         for zone in zones:
             top, bottom = zone.get('top', 0), zone.get('bottom', 0)
@@ -262,7 +235,6 @@ class StockPicking(models.Model):
     def update_packing_list_from_portal(self, rows, header_data=None):
         self.ensure_one()
         
-        # --- A. GUARDAR CABECERA ---
         if header_data:
             vals = {
                 'supplier_invoice_number': header_data.get('invoice_number'),
@@ -285,21 +257,17 @@ class StockPicking(models.Model):
             }
             self.write(vals)
 
-        # --- B. ACTUALIZAR SPREADSHEET ---
         if not rows: return True
         if not self.spreadsheet_id: self.action_open_packing_list_spreadsheet()
         
         doc = self.spreadsheet_id
         
-        # IMPORTANTE: Cargamos el estado ACTUAL (con revisiones aplicadas)
-        # para no perder ediciones manuales previas al guardar lo nuevo.
         data = self._get_current_spreadsheet_state(doc)
         if not data: return True
 
         product_sheet_map = {} 
         sheets = data.get('sheets', [])
         
-        # Mapear productos a hojas
         for sheet in sheets:
             cells = sheet.get('cells', {})
             b1_val = cells.get("B1", {}).get("content", "")
@@ -311,7 +279,6 @@ class StockPicking(models.Model):
                 
                 if product:
                     product_sheet_map[product.id] = sheet
-                    # Limpiamos datos viejos (filas >= 4)
                     keys_to_remove = []
                     for key in list(cells.keys()):
                         match = re.match(r'^([A-Z]+)(\d+)$', key)
@@ -330,7 +297,6 @@ class StockPicking(models.Model):
                 rows_by_product[pid].append(row)
             except: continue
 
-        # Escribir nuevos datos
         for pid, prod_rows in rows_by_product.items():
             sheet = product_sheet_map.get(pid)
             if not sheet: continue
@@ -351,24 +317,18 @@ class StockPicking(models.Model):
                 set_c("L", "Actualizado Portal")
                 current_row += 1
 
-        # Guardar el JSON consolidado
         new_json = json.dumps(data)
         doc.write({
             'spreadsheet_data': new_json,
-            'spreadsheet_snapshot': False, # Invalidar snapshot previo
+            'spreadsheet_snapshot': False,
         })
         
-        # Limpiar revisiones ya consolidadas para evitar conflictos
         self.env['spreadsheet.revision'].sudo().search([
             ('res_model', '=', 'documents.document'),
             ('res_id', '=', doc.id)
         ]).unlink()
 
         return True
-
-    # -------------------------------------------------------------------------
-    # UTILS
-    # -------------------------------------------------------------------------
 
     def _format_cell_val(self, val):
         if val is None or val is False: return ""
@@ -381,7 +341,6 @@ class StockPicking(models.Model):
         return cell
 
     def _get_col_letter(self, n):
-        """Convierte índice 0-based a letra (0->A, 1->B, 26->AA)"""
         string = ""
         n = int(n) + 1 
         while n > 0:
@@ -391,7 +350,6 @@ class StockPicking(models.Model):
 
     def action_open_packing_list_spreadsheet(self):
         self.ensure_one()
-        # MODIFICADO: Permitir Incoming O si ya tiene PL importado (caso tránsito/interno)
         if self.picking_type_code != 'incoming' and not self.packing_list_imported: 
             raise UserError('Solo disponible para Recepciones o Transferencias con Packing List ya cargado.')
         
@@ -454,7 +412,6 @@ class StockPicking(models.Model):
         self.ensure_one()
         if not self.packing_list_imported: raise UserError('Primero debe importar (o heredar) el Packing List.')
         if not self.ws_spreadsheet_id:
-            # Lógica de creación WS
             products = self.move_line_ids.mapped('product_id')
             folder = self.env['documents.document'].search([('type', '=', 'folder')], limit=1)
             headers = ['Nº Lote', 'Grosor', 'Alto Teo.', 'Ancho Teo.', 'Color', 'Bloque', 'Atado', 'Tipo', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Prov.', 'ALTO REAL (m)', 'ANCHO REAL (m)']
@@ -468,7 +425,6 @@ class StockPicking(models.Model):
                     col_letter = self._get_col_letter(i)
                     cells[f"{col_letter}3"] = self._make_cell(header, style=2)
                 
-                # MODIFICADO: Filtrar lineas con lote (compatible con Internal Transfer de tránsito)
                 move_lines = self.move_line_ids.filtered(lambda ml: ml.product_id == product and ml.lot_id)
                 
                 row_idx = 4
@@ -577,7 +533,6 @@ class StockPicking(models.Model):
     def action_import_packing_list(self):
         self.ensure_one()
         if self.worksheet_imported: raise UserError('El Worksheet ya fue procesado.')
-        # MODIFICADO: Quitar restricción dura si ya tiene PL importado
         title = 'Aplicar Cambios al PL' if self.packing_list_imported else 'Importar Packing List'
         return {'name': title, 'type': 'ir.actions.act_window', 'res_model': 'packing.list.import.wizard', 'view_mode': 'form', 'target': 'new', 'context': {'default_picking_id': self.id}}
     

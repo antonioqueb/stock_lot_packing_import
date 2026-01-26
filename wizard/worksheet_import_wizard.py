@@ -20,8 +20,6 @@ class WorksheetImportWizard(models.TransientModel):
     def action_import_worksheet(self):
         self.ensure_one()
         
-        # MODIFICADO: Se eliminó la validación estricta de 'incoming' para permitir transferencias internas.
-        
         if self.picking_id.state == 'done':
             raise UserError('La recepción ya está validada. No se puede procesar el Worksheet sobre lotes históricos.')
 
@@ -49,11 +47,6 @@ class WorksheetImportWizard(models.TransientModel):
             product = data['product']
             lot_name = data['lot_name']
 
-            # --- CORRECCIÓN CRÍTICA DE BÚSQUEDA ---
-            # 1. Intentar búsqueda precisa: Picking + Lote + Producto
-            # Esto es lo ideal, pero puede fallar si la detección del producto en el spreadsheet (por nombre)
-            # no coincide exactamente con la variante guardada en la línea (e.g. variante vs plantilla).
-            
             domain_base = [
                 ('picking_id', '=', self.picking_id.id),
                 ('lot_id.name', '=', lot_name)
@@ -61,8 +54,6 @@ class WorksheetImportWizard(models.TransientModel):
             
             move_line = self.env['stock.move.line'].search(domain_base + [('product_id', '=', product.id)], limit=1)
 
-            # 2. Fallback: Si no encuentra por producto, buscar solo por Picking + Lote
-            # Esto asume que el nombre del lote es único dentro de la misma recepción, lo cual es estándar.
             if not move_line:
                 _logger.info(f"Fallback búsqueda lote: '{lot_name}' sin filtro de producto.")
                 move_line = self.env['stock.move.line'].search(domain_base, limit=1)
@@ -75,7 +66,6 @@ class WorksheetImportWizard(models.TransientModel):
             alto_real = data['alto_real']
             ancho_real = data['ancho_real']
 
-            # CASO A: Material que NO llegó (Medidas en 0)
             if alto_real == 0.0 and ancho_real == 0.0:
                 m2_faltante = lot.x_alto * lot.x_ancho if lot.x_alto and lot.x_ancho else 0
                 total_missing_pieces += 1
@@ -83,14 +73,11 @@ class WorksheetImportWizard(models.TransientModel):
                 
                 move_lines_to_delete.append(move_line)
                 lots_to_delete.append(lot)
-            
-            # CASO B: Material que llegó (Se actualizan medidas reales)
             else:
                 lot.write({
                     'x_alto': alto_real,
                     'x_ancho': ancho_real
                 })
-                # Calcular cantidad hecha basada en medidas reales
                 new_qty = round(alto_real * ancho_real, 3)
                 move_line.write({
                     'qty_done': new_qty,
@@ -108,7 +95,6 @@ class WorksheetImportWizard(models.TransientModel):
                 })
                 lines_updated += 1
 
-        # ELIMINAR LOTES QUE NO LLEGARON
         for ml in move_lines_to_delete:
             ml.write({'qty_done': 0})
         
@@ -129,7 +115,6 @@ class WorksheetImportWizard(models.TransientModel):
                     remaining_quants.sudo().unlink()
                 lot.unlink()
 
-        # RENUMERACIÓN SECUENCIAL de los lotes que SÍ llegaron
         for cont, lot_data_list in container_lots.items():
             if not lot_data_list:
                 continue
@@ -162,7 +147,6 @@ class WorksheetImportWizard(models.TransientModel):
         }
 
     def _get_data_from_spreadsheet(self):
-        """Lee el documento ws_spreadsheet_id (Worksheet) detectando cambios manuales"""
         pl_wizard = self.env['packing.list.import.wizard'].create({'picking_id': self.picking_id.id})
         doc = self.ws_spreadsheet_id 
         
@@ -190,9 +174,6 @@ class WorksheetImportWizard(models.TransientModel):
             product = pl_wizard._identify_product_from_sheet(idx)
             if not product: continue
 
-            # Col A (0) = Nombre del Lote
-            # Col M (12) = Alto Real
-            # Col N (13) = Ancho Real
             for r in range(3, 250):
                 lot_name = str(idx.value(0, r) or '').strip()
                 if not lot_name or lot_name == 'Nº Lote': continue
@@ -200,7 +181,6 @@ class WorksheetImportWizard(models.TransientModel):
                 alto_r = self._to_float(idx.value(12, r))
                 ancho_r = self._to_float(idx.value(13, r))
                 
-                # Incluir TODOS los lotes encontrados (con o sin medidas)
                 all_rows.append({
                     'product': product,
                     'lot_name': lot_name,
