@@ -38,7 +38,7 @@ class StockPicking(models.Model):
     
     # --- MODIFICADO: Separación de Incoterm y Pago ---
     supplier_incoterm_payment = fields.Char(string="Incoterm") 
-    supplier_payment_terms = fields.Char(string="Forma de pago") # Nuevo campo
+    supplier_payment_terms = fields.Char(string="Términos de pago") # Nuevo campo
 
     supplier_merchandise_desc = fields.Text(string="Descripción de mercancía")
     supplier_container_no = fields.Char(string="No. de contenedor")

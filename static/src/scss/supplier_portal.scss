@@ -31,7 +31,7 @@ body {
 .o_portal_header {
     background: rgba(18, 18, 18, 0.95);
     border-bottom: 1px solid $border-color;
-    padding: 0.8rem 1.5rem;
+    padding: 0.5rem 1rem; /* Reducido ligeramente */
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -44,7 +44,7 @@ body {
     gap: 10px;
 
     .brand {
-        font-size: 1.3rem;
+        font-size: 1.2rem; /* Un poco mas pequeño */
         font-weight: 700;
         letter-spacing: 1px;
         color: $text-white;
@@ -53,7 +53,7 @@ body {
         white-space: nowrap;
         
         img {
-            height: 40px; 
+            height: 35px; /* Icono mas pequeño */
             width: auto; 
             margin-right: 10px;
         }
@@ -62,7 +62,7 @@ body {
     .header-controls {
         display: flex;
         align-items: center;
-        gap: 1.5rem;
+        gap: 1rem;
         flex-wrap: wrap;
     }
     
@@ -71,7 +71,7 @@ body {
         min-width: 120px;
 
         .label { 
-            font-size: 0.7rem; 
+            font-size: 0.65rem; 
             color: $text-gray; 
             text-transform: uppercase; 
             display: block;
@@ -79,7 +79,7 @@ body {
         .value { 
             font-weight: 600; 
             color: #fff; 
-            font-size: 0.9rem;
+            font-size: 0.85rem;
         }
     }
 
@@ -87,7 +87,7 @@ body {
         display: flex;
         align-items: center;
         background: #252525;
-        padding: 5px 10px;
+        padding: 4px 8px;
         border-radius: 6px;
         border: 1px solid #444;
 
@@ -95,7 +95,7 @@ body {
             background: transparent;
             color: #ccc;
             border: none;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             cursor: pointer;
             outline: none;
             max-width: 100px;
@@ -124,9 +124,10 @@ body {
 }
 
 .o_portal_container {
-    max-width: 1200px;
-    margin: 2rem auto;
-    padding: 0 1.5rem;
+    /* MODIFICADO: Aumentado el ancho máximo para evitar scroll horizontal */
+    max-width: 96%; 
+    margin: 1.5rem auto;
+    padding: 0 1rem;
     padding-bottom: 120px; 
 
     @include mobile {
@@ -140,13 +141,13 @@ body {
     background: $bg-card;
     border: 1px solid $border-color;
     border-radius: 12px;
-    margin-bottom: 2rem;
+    margin-bottom: 1.5rem;
     box-shadow: 0 10px 30px rgba(0,0,0,0.3);
     overflow: hidden;
 
     .card-header {
         background: linear-gradient(90deg, #252525 0%, #1e1e1e 100%);
-        padding: 1rem 1.5rem;
+        padding: 0.8rem 1.2rem; /* Padding reducido */
         border-bottom: 1px solid $border-color;
         display: flex;
         align-items: center;
@@ -154,12 +155,12 @@ body {
 
         i { color: $primary-brown; }
         h3 {
-            margin: 0; font-size: 1.1rem; color: $text-white; font-weight: 600;
+            margin: 0; font-size: 1rem; color: $text-white; font-weight: 600;
             text-transform: uppercase; letter-spacing: 0.5px;
         }
     }
 
-    .card-body { padding: 1.5rem; }
+    .card-body { padding: 1.2rem; }
     
     @include mobile {
         .card-body { padding: 1rem; }
@@ -169,13 +170,13 @@ body {
 /* Títulos de secciones internas */
 .form-section-title {
     color: $primary-brown;
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     text-transform: uppercase;
     font-weight: 700;
     border-bottom: 1px solid #333;
-    padding-bottom: 8px;
-    margin-bottom: 15px;
-    margin-top: 10px;
+    padding-bottom: 5px;
+    margin-bottom: 12px;
+    margin-top: 8px;
     letter-spacing: 0.5px;
     display: flex;
     align-items: center;
@@ -186,14 +187,13 @@ body {
     display: grid;
     /* Escritorio: 4 columnas para datos compactos */
     grid-template-columns: repeat(4, 1fr); 
-    gap: 1.2rem;
+    gap: 1rem; /* Gap reducido */
     
     @include tablet {
         grid-template-columns: repeat(2, 1fr);
     }
 
     @include mobile {
-        /* Móvil: 1 columna vertical (stack) */
         grid-template-columns: 1fr;
         gap: 1rem;
     }
@@ -204,8 +204,8 @@ body {
         
         label {
             color: $text-gray;
-            font-size: 0.8rem;
-            margin-bottom: 0.5rem;
+            font-size: 0.75rem; /* Etiqueta mas pequeña */
+            margin-bottom: 0.3rem;
             font-weight: 500;
             display: flex; align-items: center; gap: 6px;
         }
@@ -214,12 +214,12 @@ body {
             background-color: $bg-input !important;
             border: 1px solid $input-border !important;
             color: $text-white !important;
-            border-radius: 8px;
-            padding: 10px 12px;
-            font-size: 0.95rem;
+            border-radius: 6px;
+            padding: 6px 10px; /* Input mas compacto */
+            font-size: 0.85rem; /* Texto input mas pequeño */
             transition: all 0.2s ease;
             width: 100%;
-            box-sizing: border-box; /* Asegura que padding no rompa width */
+            box-sizing: border-box;
 
             &:focus {
                 border-color: $primary-brown !important;
@@ -240,12 +240,12 @@ body {
     background: $bg-card;
     border: 1px solid $border-color;
     border-radius: 12px;
-    margin-bottom: 2rem;
+    margin-bottom: 1.5rem;
     overflow: hidden;
 
     .product-header {
         background: #252525;
-        padding: 1rem;
+        padding: 0.8rem 1rem;
         display: flex;
         justify-content: space-between;
         align-items: center;
@@ -253,8 +253,8 @@ body {
         flex-wrap: wrap;
         gap: 10px;
 
-        h3 { margin: 0; font-size: 1rem; color: #fff; }
-        .meta { color: $primary-brown; font-size: 0.9rem; font-weight: 600; white-space: nowrap; }
+        h3 { margin: 0; font-size: 0.95rem; color: #fff; }
+        .meta { color: $primary-brown; font-size: 0.85rem; font-weight: 600; white-space: nowrap; }
     }
     .table-responsive { padding: 0; overflow-x: auto; }
 }
@@ -263,22 +263,26 @@ body {
     width: 100%;
     border-collapse: collapse;
     color: $text-gray;
-    min-width: 900px; /* Fuerza scroll horizontal en móvil si se usa vista de tabla */
+    /* MODIFICADO: Min-width reducido porque ahora es más compacto */
+    min-width: 800px; 
 
     thead {
         background: rgba(255,255,255,0.02);
         th {
             text-align: left;
-            padding: 0.8rem;
+            /* MODIFICADO: Padding y fuente reducidos para cabeceras */
+            padding: 0.5rem 0.6rem;
             color: lighten($text-gray, 10%);
-            font-size: 0.75rem;
+            font-size: 0.7rem; 
             text-transform: uppercase;
             border-bottom: 1px solid $border-color;
+            white-space: nowrap; /* Evita saltos de línea en títulos cortos */
         }
     }
 
     tbody td {
-        padding: 0.8rem;
+        /* MODIFICADO: Padding reducido en celdas para hacer filas mas angostas */
+        padding: 0.4rem 0.6rem;
         border-bottom: 1px solid #2a2a2a;
         vertical-align: middle;
         
@@ -286,7 +290,7 @@ body {
             color: $primary-brown;
             font-weight: 700;
             font-family: monospace;
-            font-size: 1rem;
+            font-size: 0.85rem; /* Área mas pequeña */
         }
     }
 
@@ -327,7 +331,6 @@ body {
         }
 
         td:last-child {
-            /* Botón eliminar */
             position: absolute;
             top: 10px; right: 10px;
             padding: 0; width: auto;
@@ -335,7 +338,6 @@ body {
             .btn-action { width: 30px; height: 30px; font-size: 1rem; }
         }
         
-        /* Highlight Área en móvil */
         td[data-label*="Área"], td[data-label*="Area"] { 
              background: rgba(212, 175, 55, 0.05);
              border-radius: 6px;
@@ -343,25 +345,27 @@ body {
              margin-top: 5px;
         }
 
-        .input-group-portal { width: 60%; } /* Input toma el 60% del ancho en la fila flex */
+        .input-group-portal { width: 60%; }
     }
 }
 
 .input-group-portal {
     display: flex;
     align-items: center;
-    gap: 6px;
+    /* MODIFICADO: Gap reducido */
+    gap: 3px; 
     width: 100%;
     
     input {
         background: $bg-dark;
         border: 1px solid $input-border;
         color: $text-white;
-        padding: 8px;
-        border-radius: 6px;
+        /* MODIFICADO: Input mas compacto */
+        padding: 4px 6px; 
+        border-radius: 4px;
         width: 100%;
         font-family: monospace;
-        font-size: 0.95rem;
+        font-size: 0.8rem; /* Fuente mas pequeña */
 
         &:focus {
             outline: none;
@@ -370,23 +374,26 @@ body {
         }
     }
 
+    /* MODIFICADO: Botón de copiar hacia abajo mas pequeño */
     .btn-fill-down {
         background: #333;
         border: 1px solid #444;
         color: #aaa;
-        padding: 6px;
-        border-radius: 6px;
-        min-width: 32px;
+        padding: 3px 6px;
+        border-radius: 4px;
+        min-width: 24px;
+        font-size: 0.75rem;
         cursor: pointer;
         
         &:hover { color: #fff; background: #444; }
         &:active { background: $primary-brown; color: #000; }
-        @include mobile { display: none; } /* Ocultar fill-down en móvil */
+        @include mobile { display: none; }
     }
 }
 
+/* MODIFICADO: Botón eliminar mas compacto */
 .btn-action {
-    width: 32px; height: 32px;
+    width: 28px; height: 28px;
     border-radius: 6px;
     display: inline-flex; align-items: center; justify-content: center;
     cursor: pointer;
@@ -394,24 +401,25 @@ body {
     color: #ff6b6b;
     border: 1px solid rgba(217, 83, 79, 0.3);
     transition: all 0.2s;
+    font-size: 0.85rem;
     
     &:hover { background: rgba(217, 83, 79, 0.3); }
 }
 
 .table-actions {
-    padding: 1rem;
+    padding: 0.8rem;
     display: flex;
-    gap: 10px;
+    gap: 8px;
     
     .btn-add-row {
         flex: 1;
         display: flex; justify-content: center; align-items: center;
-        padding: 10px;
-        border-radius: 8px;
+        padding: 8px;
+        border-radius: 6px;
         background: rgba(255,255,255,0.05);
         border: 1px dashed $border-color;
         color: $text-gray;
-        font-size: 0.9rem;
+        font-size: 0.85rem;
         cursor: pointer;
         transition: background 0.2s;
         
@@ -423,7 +431,7 @@ body {
     position: fixed;
     bottom: 0; left: 0; width: 100%;
     background: rgba(30, 30, 30, 0.98);
-    padding: 1rem 2rem;
+    padding: 0.8rem 2rem;
     border-top: 1px solid $primary-brown;
     display: flex;
     justify-content: space-between;
@@ -434,11 +442,11 @@ body {
 
     .summary {
         color: $text-gray;
-        font-size: 0.9rem;
+        font-size: 0.85rem;
         display: flex; gap: 20px;
         
         div { display: flex; align-items: center; gap: 5px; }
-        span { color: $primary-brown; font-weight: bold; font-size: 1.1rem; }
+        span { color: $primary-brown; font-weight: bold; font-size: 1rem; }
     }
 
     @include mobile {
@@ -462,11 +470,11 @@ body {
     background: $primary-brown;
     color: #000;
     border: none;
-    padding: 10px 30px;
+    padding: 8px 25px; /* Botón footer un poco mas compacto */
     border-radius: 30px;
     font-weight: 700;
     text-transform: uppercase;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     cursor: pointer;
     box-shadow: 0 4px 15px rgba(212, 175, 55, 0.3);
     transition: transform 0.2s, box-shadow 0.2s;

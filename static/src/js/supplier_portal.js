@@ -726,8 +726,8 @@
                                     <tr>
                                         <th>${this.t('col_container')}</th>
                                         <th>${this.t('col_block')}</th>
-                                        <th>${this.t('col_plate_num')}</th>
                                         <th>${this.t('col_atado')}</th>
+                                        <th>${this.t('col_plate_num')}</th>
                                         <th>${this.t('col_thickness')}</th>
                                         <th>${this.t('col_height')}</th>
                                         <th>${this.t('col_width')}</th>
@@ -763,11 +763,11 @@
                             <td data-label="${this.t('col_block')}">
                                 ${renderInput(row.id, 'bloque', row.bloque, 'col_block', 'ph_block', 'text', '', 'short text-uppercase')}
                             </td>
-                            <td data-label="${this.t('col_plate_num')}">
-                                ${renderInput(row.id, 'numero_placa', row.numero_placa, 'col_plate_num', 'ph_plate', 'text', '', 'short')}
-                            </td>
                             <td data-label="${this.t('col_atado')}">
                                 ${renderInput(row.id, 'atado', row.atado, 'col_atado', 'ph_atado', 'text', '', 'short text-uppercase')}
+                            </td>
+                            <td data-label="${this.t('col_plate_num')}">
+                                ${renderInput(row.id, 'numero_placa', row.numero_placa, 'col_plate_num', 'ph_plate', 'text', '', 'short')}
                             </td>
                             <td data-label="${this.t('col_thickness')}">
                                 ${renderInput(row.id, 'grosor', row.grosor, 'col_thickness', '', 'number', '0.01', 'short')}
