@@ -66,7 +66,7 @@ class SupplierPortalController(http.Controller):
                 _logger.error(f"Error recuperando datos del spreadsheet: {e}")
                 existing_rows = []
 
-        # --- 2. DATOS DE CABECERA (OBTENER DE ODOO) ---
+        # --- DATOS DE CABECERA (Lectura desde Odoo) ---
         header_data = {
             'invoice_number': picking.supplier_invoice_number or "",
             'shipment_date': str(picking.supplier_shipment_date) if picking.supplier_shipment_date else "",
@@ -77,9 +77,9 @@ class SupplierPortalController(http.Controller):
             'country_origin': picking.supplier_country_origin or "",
             'vessel': picking.supplier_vessel or "",
             
-            # MODIFICADO: Separación
+            # --- CAMPOS SEPARADOS ---
             'incoterm': picking.supplier_incoterm_payment or "",
-            'payment_terms': picking.supplier_payment_terms or "",
+            'payment_terms': picking.supplier_payment_terms or "", # <--- AQUI ESTÁ EL CAMPO
 
             'merchandise_desc': picking.supplier_merchandise_desc or "",
             'container_no': picking.supplier_container_no or "",
@@ -122,6 +122,7 @@ class SupplierPortalController(http.Controller):
             return {'success': False, 'message': 'La recepción ya fue procesada y no se puede modificar.'}
 
         try:
+            # header viene del JS con las claves que definimos en getHeaderDataFromDOM
             picking.sudo().update_packing_list_from_portal(rows, header_data=header)
             return {'success': True}
         except Exception as e:

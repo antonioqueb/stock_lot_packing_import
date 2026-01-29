@@ -29,8 +29,10 @@
             ph_vessel: "Ex. MAERSK SEALAND",
             lbl_incoterm: "Incoterm",
             ph_incoterm: "Ex. CIF",
+            // --- NUEVO CAMPO ---
             lbl_payment: "Payment Terms",
             ph_payment: "Ex. T/T 30%",
+            // -------------------
             lbl_status: "Status",
             opt_select: "Select...",
             opt_production: "In Production",
@@ -55,17 +57,16 @@
             footer_total_plates: "Total Plates:",
             footer_total_area: "Total Area:",
             btn_submit: "Save & Submit",
-            // JS Dynamic
             requested: "Requested:",
             col_container: "Container",
             col_block: "Block",
             col_plate_num: "Plate No.",
-            col_atado: "Bundle", // Nuevo
+            col_atado: "Bundle",
             col_thickness: "Thickness (cm)",
             col_height: "Height (m)",
             col_width: "Width (m)",
             col_area: "Area (m²)",
-            col_notes: "Notes", // Renombrado
+            col_notes: "Notes",
             ph_cnt: "CNT01",
             ph_block: "B-01",
             ph_plate: "1",
@@ -104,8 +105,10 @@
             ph_vessel: "Ej. MAERSK SEALAND",
             lbl_incoterm: "Incoterm",
             ph_incoterm: "Ej. CIF",
+            // --- NUEVO CAMPO ---
             lbl_payment: "Forma de Pago",
             ph_payment: "Ej. T/T 30%",
+            // -------------------
             lbl_status: "Estatus",
             opt_select: "Seleccionar...",
             opt_production: "En Producción",
@@ -130,17 +133,16 @@
             footer_total_plates: "Total Placas:",
             footer_total_area: "Total Área:",
             btn_submit: "Guardar y Enviar",
-            // JS Dynamic
             requested: "Solicitado:",
             col_container: "Contenedor",
             col_block: "Bloque",
             col_plate_num: "No. Placa",
-            col_atado: "Atado", // Nuevo
+            col_atado: "Atado",
             col_thickness: "Grosor (cm)",
             col_height: "Alto (m)",
             col_width: "Ancho (m)",
             col_area: "Área (m²)",
-            col_notes: "Notas", // Renombrado
+            col_notes: "Notas",
             ph_cnt: "CNT01",
             ph_block: "B-01",
             ph_plate: "1",
@@ -179,8 +181,10 @@
             ph_vessel: "Ex. MAERSK SEALAND",
             lbl_incoterm: "Incoterm",
             ph_incoterm: "Ex. CIF",
+            // --- NOVO CAMPO ---
             lbl_payment: "Cond. Pagamento",
             ph_payment: "Ex. T/T 30%",
+            // ------------------
             lbl_status: "Status",
             opt_select: "Selecionar...",
             opt_production: "Em Produção",
@@ -205,7 +209,6 @@
             footer_total_plates: "Total Placas:",
             footer_total_area: "Área Total:",
             btn_submit: "Salvar e Enviar",
-            // JS Dynamic
             requested: "Solicitado:",
             col_container: "Contêiner",
             col_block: "Bloco",
@@ -254,8 +257,10 @@
             ph_vessel: "Es. MAERSK SEALAND",
             lbl_incoterm: "Incoterm",
             ph_incoterm: "Es. CIF",
+            // --- NUOVO CAMPO ---
             lbl_payment: "Pagamento",
             ph_payment: "Es. T/T 30%",
+            // -------------------
             lbl_status: "Stato",
             opt_select: "Selezionare...",
             opt_production: "In Produzione",
@@ -280,7 +285,6 @@
             footer_total_plates: "Totale Lastre:",
             footer_total_area: "Area Totale:",
             btn_submit: "Salva e Invia",
-            // JS Dynamic
             requested: "Richiesto:",
             col_container: "Container",
             col_block: "Blocco",
@@ -329,8 +333,10 @@
             ph_vessel: "例如 MAERSK SEALAND",
             lbl_incoterm: "贸易条款",
             ph_incoterm: "例如 CIF",
+            // --- 新字段 ---
             lbl_payment: "付款方式",
             ph_payment: "例如 T/T 30%",
+            // -------------
             lbl_status: "状态",
             opt_select: "请选择...",
             opt_production: "生产中",
@@ -355,7 +361,6 @@
             footer_total_plates: "总板数:",
             footer_total_area: "总面积:",
             btn_submit: "保存并发送",
-            // JS Dynamic
             requested: "需求量:",
             col_container: "集装箱",
             col_block: "荒料号",
@@ -557,6 +562,7 @@
         // --- CABECERA (Lectura/Escritura DOM) ---
 
         fillHeaderForm() {
+            // Mapeo ID HTML -> Clave JSON Odoo
             const map = {
                 'h-invoice': 'invoice_number',
                 'h-date': 'shipment_date',
@@ -566,8 +572,8 @@
                 'h-dest': 'destination',
                 'h-country': 'country_origin',
                 'h-vessel': 'vessel',
-                'h-incoterm': 'incoterm', // Mapeo directo
-                'h-payment': 'payment_terms', // Nuevo
+                'h-incoterm': 'incoterm', 
+                'h-payment': 'payment_terms', // <--- MAPEO CRÍTICO
                 'h-desc': 'merchandise_desc',
                 'h-cont-no': 'container_no',
                 'h-seal': 'seal_no',
@@ -597,7 +603,7 @@
                 country_origin: document.getElementById('h-country')?.value || "",
                 vessel: document.getElementById('h-vessel')?.value || "",
                 incoterm: document.getElementById('h-incoterm')?.value || "",
-                payment_terms: document.getElementById('h-payment')?.value || "", // Nuevo
+                payment_terms: document.getElementById('h-payment')?.value || "", // <--- LECTURA
                 merchandise_desc: document.getElementById('h-desc')?.value || "",
                 container_no: document.getElementById('h-cont-no')?.value || "",
                 seal_no: document.getElementById('h-seal')?.value || "",
@@ -631,7 +637,7 @@
                 contenedor: defaults.contenedor,
                 bloque: defaults.bloque,
                 numero_placa: '', 
-                atado: defaults.atado, // Nuevo
+                atado: defaults.atado,
                 grosor: defaults.grosor,
                 alto: 0,
                 ancho: 0,
@@ -721,22 +727,20 @@
                                         <th>${this.t('col_container')}</th>
                                         <th>${this.t('col_block')}</th>
                                         <th>${this.t('col_plate_num')}</th>
-                                        <th>${this.t('col_atado')}</th> <!-- NUEVO HEADER -->
+                                        <th>${this.t('col_atado')}</th>
                                         <th>${this.t('col_thickness')}</th>
                                         <th>${this.t('col_height')}</th>
                                         <th>${this.t('col_width')}</th>
                                         <th>${this.t('col_area')}</th>
-                                        <th>${this.t('col_notes')}</th> <!-- RENOMBRADO -->
+                                        <th>${this.t('col_notes')}</th>
                                         <th style="width: 50px;"></th>
                                     </tr>
                                 </thead>
                                 <tbody>
                 `;
 
-                // Helper mejorado para incluir data-label
                 const renderInput = (rowId, field, value, labelKey, placeholderKey = "", type = "text", step = "", cssClass = "") => {
                     const ph = placeholderKey ? this.t(placeholderKey) : "";
-                    // labelKey se usa para el data-label del TD padre en CSS
                     return `
                         <div class="input-group-portal">
                             <input type="${type}" step="${step}" class="input-field ${cssClass}" 
@@ -751,7 +755,6 @@
                 productRows.forEach(row => {
                     const area = (row.alto * row.ancho).toFixed(2);
                     
-                    // AQUI ESTA LA MAGIA: data-label en cada TD
                     html += `
                         <tr data-row-id="${row.id}">
                             <td data-label="${this.t('col_container')}">
@@ -760,17 +763,12 @@
                             <td data-label="${this.t('col_block')}">
                                 ${renderInput(row.id, 'bloque', row.bloque, 'col_block', 'ph_block', 'text', '', 'short text-uppercase')}
                             </td>
-                            
-                            <!-- CELDA: NO. PLACA -->
                             <td data-label="${this.t('col_plate_num')}">
                                 ${renderInput(row.id, 'numero_placa', row.numero_placa, 'col_plate_num', 'ph_plate', 'text', '', 'short')}
                             </td>
-                            
-                            <!-- NUEVA CELDA: ATADO -->
                             <td data-label="${this.t('col_atado')}">
                                 ${renderInput(row.id, 'atado', row.atado, 'col_atado', 'ph_atado', 'text', '', 'short text-uppercase')}
                             </td>
-
                             <td data-label="${this.t('col_thickness')}">
                                 ${renderInput(row.id, 'grosor', row.grosor, 'col_thickness', '', 'number', '0.01', 'short')}
                             </td>
@@ -780,15 +778,12 @@
                             <td data-label="${this.t('col_width')}">
                                 ${renderInput(row.id, 'ancho', row.ancho, 'col_width', '', 'number', '0.01', 'short')}
                             </td>
-                            
                             <td data-label="${this.t('col_area')}">
-                                <span class="fw-bold text-white area-display">${area}</span>
+                                <span class="area-display">${area}</span>
                             </td>
-                            
                             <td data-label="${this.t('col_notes')}">
                                 ${renderInput(row.id, 'color', row.color, 'col_notes', 'ph_opt')}
                             </td>
-                            
                             <td class="text-center">
                                 <button class="btn-action btn-delete" type="button"><i class="fa fa-trash"></i></button>
                             </td>
@@ -799,10 +794,9 @@
                 html += `
                                 </tbody>
                             </table>
-                            <!-- Contenedor de botones con clase table-actions para CSS -->
                             <div class="table-actions">
                                 <button class="btn-add-row action-add" data-product-id="${product.id}" type="button">
-                                    <i class="fa fa-plus-circle"></i> ${this.t('btn_add')}
+                                    <i class="fa fa-plus-circle me-2"></i> ${this.t('btn_add')}
                                 </button>
                                 <button class="btn-add-row ms-2 action-add-multi" data-product-id="${product.id}" type="button">
                                     ${this.t('btn_add_multi')}
@@ -822,13 +816,12 @@
             const headerForm = document.getElementById('shipment-info-form');
             const submitBtn = document.getElementById('btn-submit-pl');
             
-            // Clonar nodos para limpiar eventos antiguos
             const newContainer = container.cloneNode(true);
             container.parentNode.replaceChild(newContainer, container);
             
             const activeContainer = document.getElementById('portal-rows-container');
 
-            // 1. Inputs Tabla (Change & Input)
+            // 1. Inputs Tabla
             activeContainer.addEventListener('input', (e) => {
                 if (e.target.classList.contains('input-field')) {
                     const tr = e.target.closest('tr');
@@ -847,11 +840,10 @@
                 }
             });
 
-            // 2. Click Buttons Tabla (Delete, Add, AddMulti, FILL DOWN)
+            // 2. Botones Tabla
             activeContainer.addEventListener('click', (e) => {
                 const target = e.target;
                 
-                // --- BOTÓN FILL DOWN ---
                 const fillBtn = target.closest('.btn-fill-down');
                 if (fillBtn) {
                     const rowId = fillBtn.dataset.rowId;
@@ -860,7 +852,6 @@
                     return;
                 }
 
-                // --- BOTÓN ELIMINAR ---
                 const delBtn = target.closest('.btn-delete');
                 if (delBtn) {
                     this.deleteRowInternal(delBtn.closest('tr').dataset.rowId);
@@ -870,7 +861,6 @@
                     return;
                 }
 
-                // --- BOTÓN AGREGAR ---
                 const addBtn = target.closest('.action-add');
                 if (addBtn) {
                     this.createRowInternal(parseInt(addBtn.dataset.productId));
@@ -880,7 +870,6 @@
                     return;
                 }
 
-                // --- BOTÓN AGREGAR MULTI ---
                 const addMulti = target.closest('.action-add-multi');
                 if (addMulti) {
                     const pid = parseInt(addMulti.dataset.productId);
@@ -891,7 +880,7 @@
                 }
             });
 
-            // 3. Inputs Header (Auto-save local al escribir)
+            // 3. Inputs Header (Auto-save)
             if (headerForm) {
                 const newHeaderForm = headerForm.cloneNode(true);
                 headerForm.parentNode.replaceChild(newHeaderForm, headerForm);
@@ -934,7 +923,6 @@
             const btn = document.getElementById('btn-submit-pl');
             const originalText = btn.querySelector('span') ? btn.querySelector('span').innerText : btn.innerText;
             
-            // Loader translation
             btn.innerHTML = `<i class="fa fa-spinner fa-spin me-2"></i> ${this.t('msg_saving')}`;
             btn.disabled = true;
 
@@ -945,7 +933,7 @@
                     contenedor: r.contenedor,
                     bloque: r.bloque,
                     numero_placa: r.numero_placa,
-                    atado: r.atado, // NUEVO: Enviar campo al backend
+                    atado: r.atado, 
                     grosor: r.grosor,
                     alto: r.alto,
                     ancho: r.ancho,
