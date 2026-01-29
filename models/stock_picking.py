@@ -128,8 +128,10 @@ class StockPicking(models.Model):
                         'ancho': ancho,
                         'color': get_val("D"),
                         'bloque': get_val("E"),
-                        'contenedor': get_val("J"),
-                        'tipo': get_val("G") or 'placa'
+                        'numero_placa': get_val("F"), # MODIFICADO: Columna F es No. Placa
+                        # Atado (G) no se suele editar en portal, pero existe en Spreadsheet
+                        'tipo': get_val("H") or 'placa', # MODIFICADO: Desplazado a H (antes G)
+                        'contenedor': get_val("K"),      # MODIFICADO: Desplazado a K (antes J)
                     })
                 
                 row_idx += 1
@@ -346,9 +348,15 @@ class StockPicking(models.Model):
                 set_c("C", row.get('ancho', ''))
                 set_c("D", row.get('color', ''))
                 set_c("E", row.get('bloque', ''))
-                set_c("G", row.get('tipo', 'placa'))
-                set_c("J", row.get('contenedor', ''))
-                set_c("L", "Actualizado Portal")
+                set_c("F", row.get('numero_placa', '')) # MODIFICADO: Columna F
+                
+                # Desplazamiento de columnas siguientes
+                # Antes G(Tipo) -> Ahora H
+                set_c("H", row.get('tipo', 'placa'))
+                # Antes J(Contenedor) -> Ahora K
+                set_c("K", row.get('contenedor', ''))
+                # Marca de actualización (antes L, ahora M)
+                set_c("M", "Actualizado Portal")
                 current_row += 1
 
         # Guardar el JSON consolidado
@@ -400,7 +408,9 @@ class StockPicking(models.Model):
             if not products: raise UserError('Sin productos.')
 
             folder = self.env['documents.document'].search([('type', '=', 'folder')], limit=1)
-            headers = ['Grosor (cm)', 'Alto (m)', 'Ancho (m)', 'Color', 'Bloque', 'Atado', 'Tipo', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Proveedor', 'Notas']
+            
+            # MODIFICADO: Agregada columna "No. Placa" después de Bloque
+            headers = ['Grosor (cm)', 'Alto (m)', 'Ancho (m)', 'Color', 'Bloque', 'No. Placa', 'Atado', 'Tipo', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Proveedor', 'Notas']
             
             sheets = []
             for index, product in enumerate(products):
@@ -424,10 +434,10 @@ class StockPicking(models.Model):
                     "id": f"pl_sheet_{product.id}",
                     "name": sheet_name,
                     "cells": cells,
-                    "colNumber": 12,
+                    "colNumber": 13, # MODIFICADO: Aumentado de 12 a 13
                     "rowNumber": 250,
                     "isProtected": True,
-                    "protectedRanges": [{"range": "A4:L250", "isProtected": False}]
+                    "protectedRanges": [{"range": "A4:M250", "isProtected": False}] # MODIFICADO: Rango hasta M
                 })
 
             spreadsheet_data = {
@@ -457,7 +467,8 @@ class StockPicking(models.Model):
             # Lógica de creación WS
             products = self.move_line_ids.mapped('product_id')
             folder = self.env['documents.document'].search([('type', '=', 'folder')], limit=1)
-            headers = ['Nº Lote', 'Grosor', 'Alto Teo.', 'Ancho Teo.', 'Color', 'Bloque', 'Atado', 'Tipo', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Prov.', 'ALTO REAL (m)', 'ANCHO REAL (m)']
+            # MODIFICADO: Se agrega No. Placa también al Worksheet para referencia
+            headers = ['Nº Lote', 'Grosor', 'Alto Teo.', 'Ancho Teo.', 'Color', 'Bloque', 'No. Placa', 'Atado', 'Tipo', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Prov.', 'ALTO REAL (m)', 'ANCHO REAL (m)']
             sheets = []
             for product in products:
                 cells = {}
@@ -480,18 +491,19 @@ class StockPicking(models.Model):
                     cells[f"D{row_idx}"] = self._make_cell(lot.x_ancho)
                     cells[f"E{row_idx}"] = self._make_cell(lot.x_color)
                     cells[f"F{row_idx}"] = self._make_cell(lot.x_bloque)
-                    cells[f"G{row_idx}"] = self._make_cell(lot.x_atado)
-                    cells[f"H{row_idx}"] = self._make_cell(lot.x_tipo)
-                    cells[f"I{row_idx}"] = self._make_cell(", ".join(lot.x_grupo.mapped('name')) if lot.x_grupo else "")
-                    cells[f"J{row_idx}"] = self._make_cell(lot.x_pedimento)
-                    cells[f"K{row_idx}"] = self._make_cell(lot.x_contenedor)
-                    cells[f"L{row_idx}"] = self._make_cell(lot.x_referencia_proveedor)
+                    cells[f"G{row_idx}"] = self._make_cell(lot.x_numero_placa) # Nuevo Campo
+                    cells[f"H{row_idx}"] = self._make_cell(lot.x_atado)
+                    cells[f"I{row_idx}"] = self._make_cell(lot.x_tipo)
+                    cells[f"J{row_idx}"] = self._make_cell(", ".join(lot.x_grupo.mapped('name')) if lot.x_grupo else "")
+                    cells[f"K{row_idx}"] = self._make_cell(lot.x_pedimento)
+                    cells[f"L{row_idx}"] = self._make_cell(lot.x_contenedor)
+                    cells[f"M{row_idx}"] = self._make_cell(lot.x_referencia_proveedor)
                     row_idx += 1
                 sheet_name = (product.default_code or product.name)[:31]
                 sheets.append({
                     "id": f"ws_sheet_{product.id}", "name": sheet_name, "cells": cells,
-                    "colNumber": 14, "rowNumber": max(row_idx+20, 100), "isProtected": True,
-                    "protectedRanges": [{"range": f"M4:N{row_idx+100}", "isProtected": False}]
+                    "colNumber": 15, "rowNumber": max(row_idx+20, 100), "isProtected": True,
+                    "protectedRanges": [{"range": f"N4:O{row_idx+100}", "isProtected": False}]
                 })
             vals = {
                 'name': f'WS: {self.name}.osheet', 'type': 'binary', 'handler': 'spreadsheet',
@@ -531,11 +543,12 @@ class StockPicking(models.Model):
         for product in self.move_ids.mapped('product_id'):
             ws = wb.create_sheet(title=(product.default_code or product.name)[:31])
             ws['A1'] = 'PRODUCTO:'; ws['B1'] = f'{product.name} ({product.default_code or ""})'
-            headers = ['Grosor (cm)', 'Alto (m)', 'Ancho (m)', 'Color', 'Bloque', 'Atado', 'Tipo', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Proveedor', 'Notas']
+            # MODIFICADO: Header Excel
+            headers = ['Grosor (cm)', 'Alto (m)', 'Ancho (m)', 'Color', 'Bloque', 'No. Placa', 'Atado', 'Tipo', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Proveedor', 'Notas']
             for col_num, header in enumerate(headers, 1):
                 cell = ws.cell(row=3, column=col_num); cell.value = header; cell.fill = header_fill; cell.font = header_font; cell.border = border
             for row in range(4, 54):
-                for col in range(1, 13): ws.cell(row=row, column=col).border = border
+                for col in range(1, 14): ws.cell(row=row, column=col).border = border
         output = io.BytesIO(); wb.save(output)
         filename = f'Plantilla_PL_{self.name}.xlsx'
         self.write({'packing_list_file': base64.b64encode(output.getvalue()), 'packing_list_filename': filename})
@@ -555,7 +568,8 @@ class StockPicking(models.Model):
         for product in self.move_line_ids.mapped('product_id'):
             ws = wb.create_sheet(title=(product.default_code or product.name)[:31])
             ws['A1'] = 'PRODUCTO:'; ws['B1'] = f'{product.name} ({product.default_code or ""})'
-            headers = ['Lote', 'Grosor', 'Alto Teo.', 'Ancho Teo.', 'Color', 'Bloque', 'Atado', 'Tipo', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Prov', 'Cantidad', 'Alto Real', 'Ancho Real']
+            # MODIFICADO: Headers WS Excel
+            headers = ['Lote', 'Grosor', 'Alto Teo.', 'Ancho Teo.', 'Color', 'Bloque', 'No. Placa', 'Atado', 'Tipo', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Prov', 'Cantidad', 'Alto Real', 'Ancho Real']
             for col_num, header in enumerate(headers, 1):
                 cell = ws.cell(row=3, column=col_num); cell.value = header; cell.fill = header_fill; cell.font = header_font; cell.border = border
             curr = 4
@@ -564,10 +578,10 @@ class StockPicking(models.Model):
                 ws.cell(row=curr, column=2, value=ml.lot_id.x_grosor).fill = data_fill
                 ws.cell(row=curr, column=3, value=ml.lot_id.x_alto).fill = data_fill
                 ws.cell(row=curr, column=4, value=ml.lot_id.x_ancho).fill = data_fill
-                ws.cell(row=curr, column=13, value=ml.qty_done).fill = data_fill
-                for col in range(1, 14): ws.cell(row=curr, column=col).border = border
-                ws.cell(row=curr, column=14).fill = editable_fill; ws.cell(row=curr, column=14).border = border
+                ws.cell(row=curr, column=14, value=ml.qty_done).fill = data_fill
+                for col in range(1, 15): ws.cell(row=curr, column=col).border = border
                 ws.cell(row=curr, column=15).fill = editable_fill; ws.cell(row=curr, column=15).border = border
+                ws.cell(row=curr, column=16).fill = editable_fill; ws.cell(row=curr, column=16).border = border
                 curr += 1
         output = io.BytesIO(); wb.save(output)
         filename = f'Worksheet_{self.name}.xlsx'

@@ -57,6 +57,7 @@
             requested: "Requested:",
             col_container: "Container",
             col_block: "Block",
+            col_plate_num: "Plate No.", // NUEVO
             col_thickness: "Thickness (cm)",
             col_height: "Height (m)",
             col_width: "Width (m)",
@@ -64,6 +65,7 @@
             col_notes: "Color / Notes",
             ph_cnt: "CNT01",
             ph_block: "B-01",
+            ph_plate: "1", // NUEVO
             ph_opt: "Optional",
             btn_add: "Add Item",
             btn_add_multi: "+5 Rows",
@@ -126,6 +128,7 @@
             requested: "Solicitado:",
             col_container: "Contenedor",
             col_block: "Bloque",
+            col_plate_num: "No. Placa", // NUEVO
             col_thickness: "Grosor (cm)",
             col_height: "Alto (m)",
             col_width: "Ancho (m)",
@@ -133,6 +136,7 @@
             col_notes: "Color / Notas",
             ph_cnt: "CNT01",
             ph_block: "B-01",
+            ph_plate: "1", // NUEVO
             ph_opt: "Opcional",
             btn_add: "Agregar Placa",
             btn_add_multi: "+5 Filas",
@@ -195,6 +199,7 @@
             requested: "Solicitado:",
             col_container: "Contêiner",
             col_block: "Bloco",
+            col_plate_num: "Nº Placa", // NUEVO
             col_thickness: "Espessura (cm)",
             col_height: "Altura (m)",
             col_width: "Largura (m)",
@@ -202,6 +207,7 @@
             col_notes: "Cor / Notas",
             ph_cnt: "CNT01",
             ph_block: "B-01",
+            ph_plate: "1", // NUEVO
             ph_opt: "Opcional",
             btn_add: "Adicionar Item",
             btn_add_multi: "+5 Linhas",
@@ -264,6 +270,7 @@
             requested: "Richiesto:",
             col_container: "Container",
             col_block: "Blocco",
+            col_plate_num: "N. Lastra", // NUEVO
             col_thickness: "Spessore (cm)",
             col_height: "Altezza (m)",
             col_width: "Larghezza (m)",
@@ -271,6 +278,7 @@
             col_notes: "Colore / Note",
             ph_cnt: "CNT01",
             ph_block: "B-01",
+            ph_plate: "1", // NUEVO
             ph_opt: "Opzionale",
             btn_add: "Aggiungi Voce",
             btn_add_multi: "+5 Righe",
@@ -333,6 +341,7 @@
             requested: "需求量:",
             col_container: "集装箱",
             col_block: "荒料号",
+            col_plate_num: "板号", // NUEVO
             col_thickness: "厚度 (cm)",
             col_height: "高度 (m)",
             col_width: "宽度 (m)",
@@ -340,6 +349,7 @@
             col_notes: "颜色 / 备注",
             ph_cnt: "CNT01",
             ph_block: "B-01",
+            ph_plate: "1", // NUEVO
             ph_opt: "选填",
             btn_add: "添加板材",
             btn_add_multi: "+5 行",
@@ -606,6 +616,7 @@
                 product_id: productId,
                 contenedor: defaults.contenedor,
                 bloque: defaults.bloque,
+                numero_placa: '', // NUEVO: Inicializar campo
                 grosor: defaults.grosor,
                 alto: 0,
                 ancho: 0,
@@ -694,6 +705,7 @@
                                     <tr>
                                         <th>${this.t('col_container')}</th>
                                         <th>${this.t('col_block')}</th>
+                                        <th>${this.t('col_plate_num')}</th> <!-- NUEVO HEADER -->
                                         <th>${this.t('col_thickness')}</th>
                                         <th>${this.t('col_height')}</th>
                                         <th>${this.t('col_width')}</th>
@@ -732,6 +744,12 @@
                             <td data-label="${this.t('col_block')}">
                                 ${renderInput(row.id, 'bloque', row.bloque, 'col_block', 'ph_block', 'text', '', 'short text-uppercase')}
                             </td>
+                            
+                            <!-- NUEVA CELDA: NO. PLACA -->
+                            <td data-label="${this.t('col_plate_num')}">
+                                ${renderInput(row.id, 'numero_placa', row.numero_placa, 'col_plate_num', 'ph_plate', 'text', '', 'short')}
+                            </td>
+
                             <td data-label="${this.t('col_thickness')}">
                                 ${renderInput(row.id, 'grosor', row.grosor, 'col_thickness', '', 'number', '0.01', 'short')}
                             </td>
@@ -777,8 +795,6 @@
             container.innerHTML = html;
             this.updateTotalsUI();
         }
-
-// ... (Resto del código JS se mantiene igual) ...
 
         bindGlobalEvents() {
             const container = document.getElementById('portal-rows-container');
@@ -907,6 +923,7 @@
                     product_id: r.product_id,
                     contenedor: r.contenedor,
                     bloque: r.bloque,
+                    numero_placa: r.numero_placa, // NUEVO: Enviar campo al backend
                     grosor: r.grosor,
                     alto: r.alto,
                     ancho: r.ancho,

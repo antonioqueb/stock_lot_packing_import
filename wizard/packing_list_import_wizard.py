@@ -180,7 +180,9 @@ class PackingListImportWizard(models.TransientModel):
             lot = self.env['stock.lot'].create({
                 'name': l_name, 'product_id': product.id, 'company_id': self.picking_id.company_id.id,
                 'x_grosor': data['grosor'], 'x_alto': data['alto'], 'x_ancho': data['ancho'],
-                'x_color': data.get('color'), 'x_bloque': data['bloque'], 'x_atado': data['atado'],
+                'x_color': data.get('color'), 'x_bloque': data['bloque'], 
+                'x_numero_placa': data.get('numero_placa'), # MODIFICADO: Campo nuevo
+                'x_atado': data['atado'],
                 'x_tipo': data['tipo'], 'x_grupo': [(6, 0, grupo_ids)], 'x_pedimento': data['pedimento'],
                 'x_contenedor': cont, 'x_referencia_proveedor': data['ref_proveedor'],
             })
@@ -191,8 +193,11 @@ class PackingListImportWizard(models.TransientModel):
                 'location_id': self.picking_id.location_id.id, 'location_dest_id': self.picking_id.location_dest_id.id,
                 'picking_id': self.picking_id.id, 'x_grosor_temp': data['grosor'], 'x_alto_temp': data['alto'],
                 'x_ancho_temp': data['ancho'], 'x_color_temp': data.get('color'), 'x_tipo_temp': data['tipo'],
-                'x_bloque_temp': data['bloque'], 'x_atado_temp': data['atado'], 'x_pedimento_temp': data['pedimento'],
+                'x_bloque_temp': data['bloque'], 
+                'x_atado_temp': data['atado'], 'x_pedimento_temp': data['pedimento'],
                 'x_contenedor_temp': cont, 'x_referencia_proveedor_temp': data['ref_proveedor'], 'x_grupo_temp': [(6, 0, grupo_ids)],
+                # Opcional: si tienes el campo temp en move.line
+                # 'x_numero_placa_temp': data.get('numero_placa'), 
             })
             containers[cont]['num'] += 1
             move_lines_created += 1
@@ -384,17 +389,24 @@ class PackingListImportWizard(models.TransientModel):
     def _extract_rows_from_index(self, idx, product):
         rows = []
         for r in range(3, 200):
-            alto = self._to_float(idx.value(1, r))
-            ancho = self._to_float(idx.value(2, r))
+            alto = self._to_float(idx.value(1, r)) # B
+            ancho = self._to_float(idx.value(2, r)) # C
             
             if alto > 0 and ancho > 0:
                 rows.append({
-                    'product': product, 'grosor': self._to_float(idx.value(0, r)),
-                    'alto': alto, 'ancho': ancho, 'color': str(idx.value(3, r) or '').strip(),
-                    'bloque': str(idx.value(4, r) or '').strip(), 'atado': str(idx.value(5, r) or '').strip(),
-                    'tipo': self._parse_tipo(idx.value(6, r)), 'grupo_name': str(idx.value(7, r) or '').strip(),
-                    'pedimento': str(idx.value(8, r) or '').strip(), 'contenedor': str(idx.value(9, r) or 'SN').strip(),
-                    'ref_proveedor': str(idx.value(10, r) or '').strip(),
+                    'product': product, 
+                    'grosor': self._to_float(idx.value(0, r)), # A
+                    'alto': alto, 
+                    'ancho': ancho, 
+                    'color': str(idx.value(3, r) or '').strip(), # D
+                    'bloque': str(idx.value(4, r) or '').strip(), # E
+                    'numero_placa': str(idx.value(5, r) or '').strip(), # F (MODIFICADO: Campo nuevo en col 5)
+                    'atado': str(idx.value(6, r) or '').strip(), # G (Antes 5)
+                    'tipo': self._parse_tipo(idx.value(7, r)),   # H (Antes 6)
+                    'grupo_name': str(idx.value(8, r) or '').strip(), # I
+                    'pedimento': str(idx.value(9, r) or '').strip(),  # J
+                    'contenedor': str(idx.value(10, r) or 'SN').strip(), # K
+                    'ref_proveedor': str(idx.value(11, r) or '').strip(), # L
                 })
                 _logger.info(f"[PL_EXTRACT] Fila {r+1} procesada OK.")
             else:
@@ -442,11 +454,18 @@ class PackingListImportWizard(models.TransientModel):
                 alto, ancho = self._to_float(sheet.cell(r, 2).value), self._to_float(sheet.cell(r, 3).value)
                 if alto > 0 and ancho > 0:
                     rows.append({
-                        'product': product, 'grosor': self._to_float(sheet.cell(r, 1).value),
-                        'alto': alto, 'ancho': ancho, 'color': str(sheet.cell(r, 4).value or '').strip(),
-                        'bloque': str(sheet.cell(r, 5).value or '').strip(), 'atado': str(sheet.cell(r, 6).value or '').strip(),
-                        'tipo': self._parse_tipo(sheet.cell(r, 7).value), 'grupo_name': str(sheet.cell(r, 8).value or '').strip(),
-                        'pedimento': str(sheet.cell(r, 9).value or '').strip(), 'contenedor': str(sheet.cell(r, 10).value or 'SN').strip(),
-                        'ref_proveedor': str(sheet.cell(r, 11).value or '').strip(),
+                        'product': product, 
+                        'grosor': self._to_float(sheet.cell(r, 1).value),
+                        'alto': alto, 
+                        'ancho': ancho, 
+                        'color': str(sheet.cell(r, 4).value or '').strip(),
+                        'bloque': str(sheet.cell(r, 5).value or '').strip(),
+                        'numero_placa': str(sheet.cell(r, 6).value or '').strip(), # MODIFICADO: Col 6
+                        'atado': str(sheet.cell(r, 7).value or '').strip(), # Col 7
+                        'tipo': self._parse_tipo(sheet.cell(r, 8).value),   # Col 8
+                        'grupo_name': str(sheet.cell(r, 9).value or '').strip(),
+                        'pedimento': str(sheet.cell(r, 10).value or '').strip(),
+                        'contenedor': str(sheet.cell(r, 11).value or 'SN').strip(),
+                        'ref_proveedor': str(sheet.cell(r, 12).value or '').strip(),
                     })
         return rows
