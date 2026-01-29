@@ -12,7 +12,11 @@ $border-color: #333;
 $input-border: #444;
 
 @mixin mobile {
-    @media (max-width: 991.98px) { @content; }
+    @media (max-width: 767.98px) { @content; }
+}
+
+@mixin tablet {
+    @media (min-width: 768px) and (max-width: 1024px) { @content; }
 }
 
 body {
@@ -21,6 +25,7 @@ body {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     font-size: 0.95rem;
     overflow-x: hidden;
+    margin: 0;
 }
 
 .o_portal_header {
@@ -46,8 +51,6 @@ body {
         display: flex;
         align-items: center;
         white-space: nowrap;
-        
-        i { color: $primary-brown; font-size: 1.2rem; }
         
         img {
             height: 40px; 
@@ -103,16 +106,17 @@ body {
     @include mobile {
         padding: 0.8rem 1rem;
         flex-direction: column;
-        align-items: stretch;
+        align-items: flex-start;
         
         .brand { 
+            width: 100%;
             justify-content: center; 
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.8rem;
         }
         
         .header-controls {
-            justify-content: space-between;
             width: 100%;
+            justify-content: space-between;
             gap: 10px;
         }
         .po-info { text-align: right; }
@@ -120,13 +124,13 @@ body {
 }
 
 .o_portal_container {
-    max-width: 1400px;
+    max-width: 1200px;
     margin: 2rem auto;
     padding: 0 1.5rem;
-    padding-bottom: 100px; 
+    padding-bottom: 120px; 
 
     @include mobile {
-        padding: 0 1rem 120px 1rem;
+        padding: 0 1rem 140px 1rem;
         margin-top: 1rem;
     }
 }
@@ -146,34 +150,53 @@ body {
         border-bottom: 1px solid $border-color;
         display: flex;
         align-items: center;
-        gap: 10px;
+        gap: 12px;
 
+        i { color: $primary-brown; }
         h3 {
-            margin: 0; font-size: 1.1rem; color: $primary-brown; font-weight: 600;
-            text-transform: uppercase;
+            margin: 0; font-size: 1.1rem; color: $text-white; font-weight: 600;
+            text-transform: uppercase; letter-spacing: 0.5px;
         }
     }
 
     .card-body { padding: 1.5rem; }
+    
+    @include mobile {
+        .card-body { padding: 1rem; }
+    }
 }
 
-/* Estilo para los títulos de secciones internas (Logística, Carga) */
+/* Títulos de secciones internas */
 .form-section-title {
     color: $primary-brown;
-    font-size: 0.95rem;
+    font-size: 0.85rem;
     text-transform: uppercase;
     font-weight: 700;
     border-bottom: 1px solid #333;
-    padding-bottom: 5px;
-    margin-bottom: 10px;
+    padding-bottom: 8px;
+    margin-bottom: 15px;
+    margin-top: 10px;
     letter-spacing: 0.5px;
-    opacity: 0.9;
+    display: flex;
+    align-items: center;
+    width: 100%;
 }
 
 .modern-form-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    /* Escritorio: 4 columnas para datos compactos */
+    grid-template-columns: repeat(4, 1fr); 
     gap: 1.2rem;
+    
+    @include tablet {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    @include mobile {
+        /* Móvil: 1 columna vertical (stack) */
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
     
     .form-group {
         display: flex;
@@ -182,7 +205,7 @@ body {
         label {
             color: $text-gray;
             font-size: 0.8rem;
-            margin-bottom: 0.4rem;
+            margin-bottom: 0.5rem;
             font-weight: 500;
             display: flex; align-items: center; gap: 6px;
         }
@@ -192,20 +215,24 @@ body {
             border: 1px solid $input-border !important;
             color: $text-white !important;
             border-radius: 8px;
-            padding: 12px;
-            font-size: 1rem;
-            transition: all 0.3s ease;
+            padding: 10px 12px;
+            font-size: 0.95rem;
+            transition: all 0.2s ease;
             width: 100%;
-            box-sizing: border-box;
+            box-sizing: border-box; /* Asegura que padding no rompa width */
 
             &:focus {
                 border-color: $primary-brown !important;
                 box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.15);
                 outline: none;
             }
+            &::placeholder { color: #555; }
         }
     }
-    .full-width { grid-column: 1 / -1; }
+
+    .full-width { 
+        grid-column: 1 / -1; 
+    }
 }
 
 /* --- TABLAS RESPONSIVAS --- */
@@ -229,19 +256,20 @@ body {
         h3 { margin: 0; font-size: 1rem; color: #fff; }
         .meta { color: $primary-brown; font-size: 0.9rem; font-weight: 600; white-space: nowrap; }
     }
-    .table-responsive { padding: 0; }
+    .table-responsive { padding: 0; overflow-x: auto; }
 }
 
 .portal-table {
     width: 100%;
     border-collapse: collapse;
     color: $text-gray;
+    min-width: 900px; /* Fuerza scroll horizontal en móvil si se usa vista de tabla */
 
     thead {
         background: rgba(255,255,255,0.02);
         th {
             text-align: left;
-            padding: 1rem;
+            padding: 0.8rem;
             color: lighten($text-gray, 10%);
             font-size: 0.75rem;
             text-transform: uppercase;
@@ -250,7 +278,7 @@ body {
     }
 
     tbody td {
-        padding: 0.8rem 1rem;
+        padding: 0.8rem;
         border-bottom: 1px solid #2a2a2a;
         vertical-align: middle;
         
@@ -258,136 +286,136 @@ body {
             color: $primary-brown;
             font-weight: 700;
             font-family: monospace;
-            font-size: 1.1rem;
+            font-size: 1rem;
         }
     }
 
     @include mobile {
         display: block;
+        min-width: auto;
+        
         thead { display: none; }
         tbody { display: block; }
         
         tr {
             display: block;
             background: #252525;
-            margin: 1rem;
-            border-radius: 10px;
+            margin: 1rem 0;
+            border-radius: 8px;
             border: 1px solid $border-color;
             padding: 1rem;
             position: relative;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
         }
 
         td {
             display: flex;
-            flex-direction: column; 
-            align-items: stretch;
+            justify-content: space-between;
+            align-items: center;
             padding: 0.5rem 0;
             border: none;
+            text-align: right;
             
             &::before {
                 content: attr(data-label);
                 font-size: 0.75rem;
                 text-transform: uppercase;
                 color: $text-gray;
-                margin-bottom: 4px;
                 font-weight: 600;
+                margin-right: 15px;
+                text-align: left;
             }
         }
 
         td:last-child {
+            /* Botón eliminar */
             position: absolute;
-            top: 5px; right: 5px;
-            width: auto; padding: 0;
+            top: 10px; right: 10px;
+            padding: 0; width: auto;
             &::before { content: none; }
-            
-            .btn-action {
-                background: transparent;
-                border: none;
-                color: #d9534f;
-                font-size: 1.2rem;
-            }
+            .btn-action { width: 30px; height: 30px; font-size: 1rem; }
         }
         
-        /* Área destacada */
-        td:nth-last-child(3) { 
+        /* Highlight Área en móvil */
+        td[data-label*="Área"], td[data-label*="Area"] { 
              background: rgba(212, 175, 55, 0.05);
              border-radius: 6px;
-             padding: 0.5rem;
+             padding: 8px;
              margin-top: 5px;
-             flex-direction: row;
-             justify-content: space-between;
-             align-items: center;
         }
 
-        .input-group-portal input { width: 100% !important; } 
+        .input-group-portal { width: 60%; } /* Input toma el 60% del ancho en la fila flex */
     }
 }
 
 .input-group-portal {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     width: 100%;
     
     input {
         background: $bg-dark;
         border: 1px solid $input-border;
         color: $text-white;
-        padding: 10px;
+        padding: 8px;
         border-radius: 6px;
         width: 100%;
         font-family: monospace;
-        font-size: 1rem;
+        font-size: 0.95rem;
 
         &:focus {
             outline: none;
             border-color: $primary-brown;
             background: lighten($bg-dark, 5%);
         }
-        &.short { width: 100px; }
     }
 
     .btn-fill-down {
         background: #333;
         border: 1px solid #444;
         color: #aaa;
-        padding: 8px;
+        padding: 6px;
         border-radius: 6px;
-        min-width: 36px;
+        min-width: 32px;
+        cursor: pointer;
         
+        &:hover { color: #fff; background: #444; }
         &:active { background: $primary-brown; color: #000; }
-        @include mobile { display: none; }
+        @include mobile { display: none; } /* Ocultar fill-down en móvil */
     }
 }
 
 .btn-action {
-    width: 36px; height: 36px;
+    width: 32px; height: 32px;
     border-radius: 6px;
     display: inline-flex; align-items: center; justify-content: center;
     cursor: pointer;
     background: rgba(217, 83, 79, 0.1);
     color: #ff6b6b;
     border: 1px solid rgba(217, 83, 79, 0.3);
+    transition: all 0.2s;
+    
+    &:hover { background: rgba(217, 83, 79, 0.3); }
 }
 
 .table-actions {
     padding: 1rem;
     display: flex;
     gap: 10px;
-    flex-wrap: wrap;
     
     .btn-add-row {
         flex: 1;
-        justify-content: center;
-        padding: 12px;
+        display: flex; justify-content: center; align-items: center;
+        padding: 10px;
         border-radius: 8px;
         background: rgba(255,255,255,0.05);
-        border: 1px dashed $text-gray;
+        border: 1px dashed $border-color;
         color: $text-gray;
-        font-weight: 500;
+        font-size: 0.9rem;
+        cursor: pointer;
+        transition: background 0.2s;
         
-        &:active { background: rgba(255,255,255,0.1); }
+        &:hover { background: rgba(255,255,255,0.1); color: #fff; }
     }
 }
 
@@ -406,24 +434,27 @@ body {
 
     .summary {
         color: $text-gray;
-        font-size: 0.5rem;
-        display: flex; gap: 13px;
-        span { color: $primary-brown; font-weight: bold; font-size: 1.1rem; margin-left: 5px; }
+        font-size: 0.9rem;
+        display: flex; gap: 20px;
+        
+        div { display: flex; align-items: center; gap: 5px; }
+        span { color: $primary-brown; font-weight: bold; font-size: 1.1rem; }
     }
 
     @include mobile {
         flex-direction: column;
-        gap: 15px;
+        gap: 12px;
         padding: 1rem;
+        
         .summary {
             width: 100%;
             justify-content: space-between;
-            font-size: 0.85rem;
-            background: rgba(0,0,0,0.2);
-            padding: 8px 12px;
+            font-size: 0.8rem;
+            background: rgba(0,0,0,0.3);
+            padding: 8px 10px;
             border-radius: 8px;
         }
-        .btn-primary-custom { width: 100%; padding: 14px; font-size: 1rem; }
+        .btn-primary-custom { width: 100%; padding: 12px; font-size: 1rem; }
     }
 }
 
@@ -431,15 +462,16 @@ body {
     background: $primary-brown;
     color: #000;
     border: none;
-    padding: 12px 40px;
+    padding: 10px 30px;
     border-radius: 30px;
     font-weight: 700;
     text-transform: uppercase;
-    font-size: 0.95rem;
+    font-size: 0.9rem;
     cursor: pointer;
     box-shadow: 0 4px 15px rgba(212, 175, 55, 0.3);
-    transition: transform 0.2s;
+    transition: transform 0.2s, box-shadow 0.2s;
     
+    &:hover { background: $primary-hover; }
     &:active { transform: scale(0.98); }
-    &:disabled { background: #444; color: #777; box-shadow: none; }
+    &:disabled { background: #444; color: #777; box-shadow: none; cursor: not-allowed; }
 }
