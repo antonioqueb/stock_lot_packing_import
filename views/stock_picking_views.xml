@@ -20,8 +20,6 @@
             </field>
             
             <xpath expr="//header/button[@name='action_assign']" position="after">
-                <!-- Botones de Acción (Spreadsheets y Wizards) -->
-                <!-- MODIFICADO: Lógica de visibilidad para soportar transferencias internas con PL importado (Tránsito) -->
                 <button name="action_open_packing_list_spreadsheet"
                         string="Abrir PL"
                         type="object"
@@ -74,13 +72,14 @@
                             <field name="supplier_shipment_date"/>
                             <field name="supplier_proforma_number"/>
                             <field name="supplier_bl_number"/>
-                            <field name="supplier_incoterm_payment"/>
+                            <field name="supplier_payment_terms"/> <!-- Nuevo Campo -->
                         </group>
                         <group string="Logística">
                             <field name="supplier_origin"/>
                             <field name="supplier_destination"/>
                             <field name="supplier_country_origin"/>
                             <field name="supplier_vessel"/>
+                            <field name="supplier_incoterm_payment" string="Incoterm"/> <!-- Renombrado String -->
                             <field name="supplier_status"/>
                         </group>
                     </group>

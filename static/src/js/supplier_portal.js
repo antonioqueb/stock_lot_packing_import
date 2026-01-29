@@ -27,8 +27,10 @@
             ph_country: "Ex. China",
             lbl_vessel: "Vessel / Voyage",
             ph_vessel: "Ex. MAERSK SEALAND",
-            lbl_incoterm: "Incoterm / Payment",
-            ph_incoterm: "Ex. CIF / T/T",
+            lbl_incoterm: "Incoterm",
+            ph_incoterm: "Ex. CIF",
+            lbl_payment: "Payment Terms",
+            ph_payment: "Ex. T/T 30%",
             lbl_status: "Status",
             opt_select: "Select...",
             opt_production: "In Production",
@@ -57,16 +59,18 @@
             requested: "Requested:",
             col_container: "Container",
             col_block: "Block",
-            col_plate_num: "Plate No.", // NUEVO
+            col_plate_num: "Plate No.",
+            col_atado: "Bundle", // Nuevo
             col_thickness: "Thickness (cm)",
             col_height: "Height (m)",
             col_width: "Width (m)",
             col_area: "Area (m²)",
-            col_notes: "Color / Notes",
+            col_notes: "Notes", // Renombrado
             ph_cnt: "CNT01",
             ph_block: "B-01",
-            ph_plate: "1", // NUEVO
-            ph_opt: "Optional",
+            ph_plate: "1",
+            ph_atado: "A-1",
+            ph_opt: "Notes",
             btn_add: "Add Item",
             btn_add_multi: "+5 Rows",
             msg_saving: "Saving...",
@@ -98,8 +102,10 @@
             ph_country: "Ej. China",
             lbl_vessel: "Buque / Viaje",
             ph_vessel: "Ej. MAERSK SEALAND",
-            lbl_incoterm: "Incoterm / Pago",
-            ph_incoterm: "Ej. CIF / T/T",
+            lbl_incoterm: "Incoterm",
+            ph_incoterm: "Ej. CIF",
+            lbl_payment: "Forma de Pago",
+            ph_payment: "Ej. T/T 30%",
             lbl_status: "Estatus",
             opt_select: "Seleccionar...",
             opt_production: "En Producción",
@@ -128,16 +134,18 @@
             requested: "Solicitado:",
             col_container: "Contenedor",
             col_block: "Bloque",
-            col_plate_num: "No. Placa", // NUEVO
+            col_plate_num: "No. Placa",
+            col_atado: "Atado", // Nuevo
             col_thickness: "Grosor (cm)",
             col_height: "Alto (m)",
             col_width: "Ancho (m)",
             col_area: "Área (m²)",
-            col_notes: "Color / Notas",
+            col_notes: "Notas", // Renombrado
             ph_cnt: "CNT01",
             ph_block: "B-01",
-            ph_plate: "1", // NUEVO
-            ph_opt: "Opcional",
+            ph_plate: "1",
+            ph_atado: "A-1",
+            ph_opt: "Notas",
             btn_add: "Agregar Placa",
             btn_add_multi: "+5 Filas",
             msg_saving: "Guardando...",
@@ -169,8 +177,10 @@
             ph_country: "Ex. China",
             lbl_vessel: "Navio / Viagem",
             ph_vessel: "Ex. MAERSK SEALAND",
-            lbl_incoterm: "Incoterm / Pagamento",
-            ph_incoterm: "Ex. CIF / T/T",
+            lbl_incoterm: "Incoterm",
+            ph_incoterm: "Ex. CIF",
+            lbl_payment: "Cond. Pagamento",
+            ph_payment: "Ex. T/T 30%",
             lbl_status: "Status",
             opt_select: "Selecionar...",
             opt_production: "Em Produção",
@@ -199,16 +209,18 @@
             requested: "Solicitado:",
             col_container: "Contêiner",
             col_block: "Bloco",
-            col_plate_num: "Nº Placa", // NUEVO
+            col_plate_num: "Nº Placa",
+            col_atado: "Atado",
             col_thickness: "Espessura (cm)",
             col_height: "Altura (m)",
             col_width: "Largura (m)",
             col_area: "Área (m²)",
-            col_notes: "Cor / Notas",
+            col_notes: "Notas",
             ph_cnt: "CNT01",
             ph_block: "B-01",
-            ph_plate: "1", // NUEVO
-            ph_opt: "Opcional",
+            ph_plate: "1",
+            ph_atado: "A-1",
+            ph_opt: "Notas",
             btn_add: "Adicionar Item",
             btn_add_multi: "+5 Linhas",
             msg_saving: "Salvando...",
@@ -240,8 +252,10 @@
             ph_country: "Es. Cina",
             lbl_vessel: "Nave / Viaggio",
             ph_vessel: "Es. MAERSK SEALAND",
-            lbl_incoterm: "Incoterm / Pagamento",
-            ph_incoterm: "Es. CIF / T/T",
+            lbl_incoterm: "Incoterm",
+            ph_incoterm: "Es. CIF",
+            lbl_payment: "Pagamento",
+            ph_payment: "Es. T/T 30%",
             lbl_status: "Stato",
             opt_select: "Selezionare...",
             opt_production: "In Produzione",
@@ -270,16 +284,18 @@
             requested: "Richiesto:",
             col_container: "Container",
             col_block: "Blocco",
-            col_plate_num: "N. Lastra", // NUEVO
+            col_plate_num: "N. Lastra",
+            col_atado: "Fascio",
             col_thickness: "Spessore (cm)",
             col_height: "Altezza (m)",
             col_width: "Larghezza (m)",
             col_area: "Area (m²)",
-            col_notes: "Colore / Note",
+            col_notes: "Note",
             ph_cnt: "CNT01",
             ph_block: "B-01",
-            ph_plate: "1", // NUEVO
-            ph_opt: "Opzionale",
+            ph_plate: "1",
+            ph_atado: "A-1",
+            ph_opt: "Note",
             btn_add: "Aggiungi Voce",
             btn_add_multi: "+5 Righe",
             msg_saving: "Salvataggio...",
@@ -311,8 +327,10 @@
             ph_country: "例如 China",
             lbl_vessel: "船名 / 航次",
             ph_vessel: "例如 MAERSK SEALAND",
-            lbl_incoterm: "贸易条款 / 付款方式",
-            ph_incoterm: "例如 CIF / T/T",
+            lbl_incoterm: "贸易条款",
+            ph_incoterm: "例如 CIF",
+            lbl_payment: "付款方式",
+            ph_payment: "例如 T/T 30%",
             lbl_status: "状态",
             opt_select: "请选择...",
             opt_production: "生产中",
@@ -341,16 +359,18 @@
             requested: "需求量:",
             col_container: "集装箱",
             col_block: "荒料号",
-            col_plate_num: "板号", // NUEVO
+            col_plate_num: "板号",
+            col_atado: "捆包号",
             col_thickness: "厚度 (cm)",
             col_height: "高度 (m)",
             col_width: "宽度 (m)",
             col_area: "面积 (m²)",
-            col_notes: "颜色 / 备注",
+            col_notes: "备注",
             ph_cnt: "CNT01",
             ph_block: "B-01",
-            ph_plate: "1", // NUEVO
-            ph_opt: "选填",
+            ph_plate: "1",
+            ph_atado: "A-1",
+            ph_opt: "备注",
             btn_add: "添加板材",
             btn_add_multi: "+5 行",
             msg_saving: "保存中...",
@@ -371,7 +391,6 @@
             this.header = {}; 
             this.nextId = 1;
             
-            // Idioma por defecto: Inglés
             this.currentLang = localStorage.getItem('portal_lang') || 'en';
             
             if (document.readyState === 'loading') {
@@ -383,7 +402,7 @@
 
         // --- TRADUCCIÓN ---
         t(key) {
-            return TRANSLATIONS[this.currentLang][key] || key;
+            return (TRANSLATIONS[this.currentLang] || TRANSLATIONS['en'])[key] || key;
         }
 
         changeLanguage(lang) {
@@ -410,7 +429,6 @@
             // Actualizar Botón Submit si existe
             const btnSubmit = document.getElementById('btn-submit-pl');
             if(btnSubmit) {
-                // Buscamos el span dentro del botón si queremos mantener el icono
                 const span = btnSubmit.querySelector('span');
                 if(span) span.innerText = this.t('btn_submit');
             }
@@ -465,28 +483,21 @@
                 // --- ESTRATEGIA DE CARGA DE FILAS (PRIORIDAD ODOO) ---
                 const serverRows = this.data.existing_rows || [];
 
-                // MODIFICACIÓN CLAVE: Si Odoo trae filas, tienen prioridad sobre localStorage
-                // Esto permite que el usuario interno corrija el PL y el proveedor vea los cambios.
                 if (serverRows.length > 0) {
                     console.log(`[Portal] Usando filas del SERVIDOR (Prioridad Odoo).`);
                     this.rows = serverRows.map(r => ({
                         ...r,
                         id: this.nextId++
                     }));
-                    
-                    // Actualizamos localStorage para sincronizar
                     this.saveState();
 
                 } else if (localData && localData.rows && localData.rows.length > 0) {
-                    // Prioridad 2: Datos locales (trabajo en progreso del proveedor)
                     console.log("[Portal] Usando filas locales.");
                     this.rows = localData.rows;
-                    
                     const maxId = this.rows.reduce((max, r) => Math.max(max, r.id || 0), 0);
                     this.nextId = maxId + 1;
 
                 } else {
-                    // Prioridad 3: Inicio limpio
                     console.log("[Portal] Iniciando desde cero.");
                     if (this.products.length > 0) {
                         this.products.forEach(p => this.createRowInternal(p.id));
@@ -555,7 +566,8 @@
                 'h-dest': 'destination',
                 'h-country': 'country_origin',
                 'h-vessel': 'vessel',
-                'h-incoterm': 'incoterm_payment',
+                'h-incoterm': 'incoterm', // Mapeo directo
+                'h-payment': 'payment_terms', // Nuevo
                 'h-desc': 'merchandise_desc',
                 'h-cont-no': 'container_no',
                 'h-seal': 'seal_no',
@@ -584,7 +596,8 @@
                 destination: document.getElementById('h-dest')?.value || "",
                 country_origin: document.getElementById('h-country')?.value || "",
                 vessel: document.getElementById('h-vessel')?.value || "",
-                incoterm_payment: document.getElementById('h-incoterm')?.value || "",
+                incoterm: document.getElementById('h-incoterm')?.value || "",
+                payment_terms: document.getElementById('h-payment')?.value || "", // Nuevo
                 merchandise_desc: document.getElementById('h-desc')?.value || "",
                 container_no: document.getElementById('h-cont-no')?.value || "",
                 seal_no: document.getElementById('h-seal')?.value || "",
@@ -600,14 +613,15 @@
 
         createRowInternal(productId) {
             const productRows = this.rows.filter(r => r.product_id === productId);
-            let defaults = { contenedor: '', bloque: '', grosor: 0 };
+            let defaults = { contenedor: '', bloque: '', grosor: 0, atado: '' };
             
             if (productRows.length > 0) {
                 const last = productRows[productRows.length - 1];
                 defaults = { 
                     contenedor: last.contenedor, 
                     bloque: last.bloque, 
-                    grosor: last.grosor 
+                    grosor: last.grosor,
+                    atado: last.atado
                 };
             }
 
@@ -616,7 +630,8 @@
                 product_id: productId,
                 contenedor: defaults.contenedor,
                 bloque: defaults.bloque,
-                numero_placa: '', // NUEVO: Inicializar campo
+                numero_placa: '', 
+                atado: defaults.atado, // Nuevo
                 grosor: defaults.grosor,
                 alto: 0,
                 ancho: 0,
@@ -705,12 +720,13 @@
                                     <tr>
                                         <th>${this.t('col_container')}</th>
                                         <th>${this.t('col_block')}</th>
-                                        <th>${this.t('col_plate_num')}</th> <!-- NUEVO HEADER -->
+                                        <th>${this.t('col_plate_num')}</th>
+                                        <th>${this.t('col_atado')}</th> <!-- NUEVO HEADER -->
                                         <th>${this.t('col_thickness')}</th>
                                         <th>${this.t('col_height')}</th>
                                         <th>${this.t('col_width')}</th>
                                         <th>${this.t('col_area')}</th>
-                                        <th>${this.t('col_notes')}</th>
+                                        <th>${this.t('col_notes')}</th> <!-- RENOMBRADO -->
                                         <th style="width: 50px;"></th>
                                     </tr>
                                 </thead>
@@ -745,9 +761,14 @@
                                 ${renderInput(row.id, 'bloque', row.bloque, 'col_block', 'ph_block', 'text', '', 'short text-uppercase')}
                             </td>
                             
-                            <!-- NUEVA CELDA: NO. PLACA -->
+                            <!-- CELDA: NO. PLACA -->
                             <td data-label="${this.t('col_plate_num')}">
                                 ${renderInput(row.id, 'numero_placa', row.numero_placa, 'col_plate_num', 'ph_plate', 'text', '', 'short')}
+                            </td>
+                            
+                            <!-- NUEVA CELDA: ATADO -->
+                            <td data-label="${this.t('col_atado')}">
+                                ${renderInput(row.id, 'atado', row.atado, 'col_atado', 'ph_atado', 'text', '', 'short text-uppercase')}
                             </td>
 
                             <td data-label="${this.t('col_thickness')}">
@@ -923,7 +944,8 @@
                     product_id: r.product_id,
                     contenedor: r.contenedor,
                     bloque: r.bloque,
-                    numero_placa: r.numero_placa, // NUEVO: Enviar campo al backend
+                    numero_placa: r.numero_placa,
+                    atado: r.atado, // NUEVO: Enviar campo al backend
                     grosor: r.grosor,
                     alto: r.alto,
                     ancho: r.ancho,

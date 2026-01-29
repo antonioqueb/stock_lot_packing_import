@@ -17,114 +17,147 @@
             <!-- CONTENIDO -->
             <div class="o_portal_container pb-5 mb-5">
                 
-                <div class="alert alert-info bg-dark border-secondary text-light mb-4">
-                    <i class="fa fa-info-circle me-2 text-warning"/>
-                    Por favor ingrese las dimensiones y detalles de cada placa o bloque. No necesita agrupar, el sistema lo hará automáticamente.
-                </div>
-
-                <!-- LISTA DE PRODUCTOS -->
-                <t t-foreach="state.products" t-as="product" t-key="product.id">
-                    <div class="product-section">
-                        <div class="product-header">
-                            <div>
-                                <h3><t t-esc="product.name"/> <span class="text-muted small ms-2">(<t t-esc="product.code"/>)</span></h3>
-                            </div>
-                            <div class="meta">
-                                Solicitado: <strong class="text-white"><t t-esc="product.qty_ordered"/> <t t-esc="product.uom"/></strong>
-                            </div>
-                        </div>
-
-                        <div class="table-responsive">
-                            <table class="portal-table">
-                                <thead>
-                                    <tr>
-                                        <th>Contenedor</th>
-                                        <th>Bloque</th>
-                                        <th>No. Placa</th> <!-- NUEVO HEADER -->
-                                        <th>Grosor (cm)</th>
-                                        <th>Alto (m)</th>
-                                        <th>Ancho (m)</th>
-                                        <th>Área (m²)</th>
-                                        <th>Color / Notas</th>
-                                        <th style="width: 50px;"></th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <t t-foreach="getProductRows(product.id)" t-as="row" t-key="row.id">
-                                        <tr>
-                                            <td>
-                                                <input type="text" class="short text-uppercase" placeholder="CNT01" 
-                                                       t-model="row.contenedor" t-on-change="saveState"/>
-                                            </td>
-                                            <td>
-                                                <input type="text" class="short text-uppercase" placeholder="B-01" 
-                                                       t-model="row.bloque" t-on-change="saveState"/>
-                                            </td>
-                                            
-                                            <!-- NUEVA COLUMNA INPUT -->
-                                            <td>
-                                                <input type="text" class="short" placeholder="1" 
-                                                       t-model="row.numero_placa" t-on-change="saveState"/>
-                                            </td>
-
-                                            <td>
-                                                <input type="number" step="0.01" class="short" 
-                                                       t-model.number="row.grosor" t-on-change="saveState"/>
-                                            </td>
-                                            <td>
-                                                <input type="number" step="0.01" class="short" 
-                                                       t-model.number="row.alto" t-on-change="saveState"/>
-                                            </td>
-                                            <td>
-                                                <input type="number" step="0.01" class="short" 
-                                                       t-model.number="row.ancho" t-on-change="saveState"/>
-                                            </td>
-                                            <td>
-                                                <span class="fw-bold text-white">
-                                                    <t t-esc="(row.alto * row.ancho).toFixed(2)"/>
-                                                </span>
-                                            </td>
-                                            <td>
-                                                <input type="text" placeholder="Opcional" t-model="row.color" t-on-change="saveState"/>
-                                            </td>
-                                            <td class="text-center">
-                                                <button class="btn-action" t-on-click="() => this.deleteRow(row.id)">
-                                                    <i class="fa fa-trash"/>
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    </t>
-                                </tbody>
-                            </table>
+                <!-- SECCIÓN: DATOS DE EMBARQUE REORGANIZADA -->
+                <div class="shipment-card">
+                    <div class="card-header">
+                        <i class="fa fa-ship fa-lg"></i>
+                        <h3 data-i18n="shipment_data_title">Datos de Embarque</h3>
+                    </div>
+                    <div class="card-body" id="shipment-info-form">
+                        
+                        <div class="modern-form-grid">
                             
-                            <div class="mt-2">
-                                <button class="btn-add-row" t-on-click="() => this.addRow(product.id)">
-                                    <i class="fa fa-plus-circle"/> Agregar Placa
-                                </button>
-                                <button class="btn-add-row ms-2" t-on-click="() => this.addMultipleRows(product.id, 5)">
-                                    +5 Filas
-                                </button>
+                            <!-- SECCIÓN DOCUMENTACIÓN -->
+                            <div class="full-width form-section-title">
+                                <i class="fa fa-file-text-o me-2"></i> Documentación
+                            </div>
+                            
+                            <div class="form-group">
+                                <label><span data-i18n="lbl_invoice">No. de Factura</span></label>
+                                <input type="text" id="h-invoice" class="form-control" data-i18n-placeholder="ph_invoice" placeholder="Ej. INV-2024-001"/>
+                            </div>
+                            <div class="form-group">
+                                <label><span data-i18n="lbl_date">Fecha Embarque</span></label>
+                                <input type="date" id="h-date" class="form-control"/>
+                            </div>
+                            <div class="form-group">
+                                <label><span data-i18n="lbl_proforma">No. Proforma (PI)</span></label>
+                                <input type="text" id="h-proforma" class="form-control" data-i18n-placeholder="ph_proforma" placeholder="Ej. PI-9920"/>
+                            </div>
+                            <div class="form-group">
+                                <label><span data-i18n="lbl_bl">No. B/L</span></label>
+                                <input type="text" id="h-bl" class="form-control" data-i18n-placeholder="ph_bl" placeholder="Ej. COSU123456"/>
+                            </div>
+                            <!-- NUEVO: Pago -->
+                            <div class="form-group">
+                                <label><span data-i18n="lbl_payment">Forma de Pago</span></label>
+                                <input type="text" id="h-payment" class="form-control" data-i18n-placeholder="ph_payment" placeholder="Ej. T/T 30%"/>
+                            </div>
+
+                            <!-- SECCIÓN LOGÍSTICA -->
+                            <div class="full-width form-section-title mt-3">
+                                <i class="fa fa-globe me-2"></i> <span data-i18n="sec_logistics">Logística</span>
+                            </div>
+
+                            <div class="form-group">
+                                <label><span data-i18n="lbl_origin">Origen (Puerto)</span></label>
+                                <input type="text" id="h-origin" class="form-control" data-i18n-placeholder="ph_origin" placeholder="Ej. Shanghai"/>
+                            </div>
+                            <div class="form-group">
+                                <label><span data-i18n="lbl_dest">Destino (Puerto)</span></label>
+                                <input type="text" id="h-dest" class="form-control" data-i18n-placeholder="ph_dest" placeholder="Ej. Manzanillo"/>
+                            </div>
+                            <div class="form-group">
+                                <label><span data-i18n="lbl_country">País Origen</span></label>
+                                <input type="text" id="h-country" class="form-control" data-i18n-placeholder="ph_country" placeholder="Ej. China"/>
+                            </div>
+                            <div class="form-group">
+                                <label><span data-i18n="lbl_vessel">Buque / Viaje</span></label>
+                                <input type="text" id="h-vessel" class="form-control" data-i18n-placeholder="ph_vessel" placeholder="Ej. MAERSK SEALAND"/>
+                            </div>
+                            <div class="form-group">
+                                <label><span data-i18n="lbl_incoterm">Incoterm</span></label>
+                                <input type="text" id="h-incoterm" class="form-control" data-i18n-placeholder="ph_incoterm" placeholder="Ej. CIF"/>
+                            </div>
+                            <div class="form-group">
+                                <label><span data-i18n="lbl_status">Estatus</span></label>
+                                <select id="h-status" class="form-control">
+                                    <option value="" data-i18n="opt_select">Seleccionar...</option>
+                                    <option value="En Producción" data-i18n="opt_production">En Producción</option>
+                                    <option value="En Puerto Origen" data-i18n="opt_origin_port">En Puerto Origen</option>
+                                    <option value="En Tránsito" data-i18n="opt_transit">En Tránsito</option>
+                                    <option value="En Puerto Destino" data-i18n="opt_dest_port">En Puerto Destino</option>
+                                </select>
+                            </div>
+
+                            <!-- SECCIÓN CARGA -->
+                            <div class="full-width form-section-title mt-3">
+                                <i class="fa fa-cubes me-2"></i> <span data-i18n="sec_cargo">Detalles de Carga</span>
+                            </div>
+
+                            <div class="form-group">
+                                <label><span data-i18n="lbl_container">No. Contenedor</span></label>
+                                <input type="text" id="h-cont-no" class="form-control" data-i18n-placeholder="ph_container" placeholder="Ej. MSKU1234567"/>
+                            </div>
+                            <div class="form-group">
+                                <label><span data-i18n="lbl_seal">No. Sello</span></label>
+                                <input type="text" id="h-seal" class="form-control" data-i18n-placeholder="ph_seal" placeholder="Ej. 123456"/>
+                            </div>
+                            <div class="form-group">
+                                <label><span data-i18n="lbl_cont_type">Tipo Contenedor</span></label>
+                                <input type="text" id="h-type" class="form-control" data-i18n-placeholder="ph_cont_type" placeholder="Ej. 40HC, 20GP"/>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label><span data-i18n="lbl_packages">Total Paquetes</span></label>
+                                <input type="number" id="h-pkgs" class="form-control" placeholder="0"/>
+                            </div>
+                            <div class="form-group">
+                                <label><span data-i18n="lbl_weight">Peso Bruto (kg)</span></label>
+                                <input type="number" step="0.01" id="h-weight" class="form-control" placeholder="0.00"/>
+                            </div>
+                            <div class="form-group">
+                                <label><span data-i18n="lbl_volume">Volumen (m³)</span></label>
+                                <input type="number" step="0.01" id="h-volume" class="form-control" placeholder="0.00"/>
+                            </div>
+
+                            <div class="form-group full-width">
+                                <label><span data-i18n="lbl_desc">Descripción Mercancía</span></label>
+                                <textarea id="h-desc" class="form-control" rows="2" data-i18n-placeholder="ph_desc" placeholder="Descripción general de la carga..."></textarea>
                             </div>
                         </div>
                     </div>
-                </t>
+                </div>
+
+                <!-- PACKING LIST -->
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h4 class="text-white m-0"><i class="fa fa-list-ul me-2 text-warning"/> <span data-i18n="pl_title">Detalle de Placas (Packing List)</span></h4>
+                </div>
+
+                <div class="alert alert-dark border border-secondary text-light mb-4" style="background: #1a1a1a;">
+                    <small><i class="fa fa-info-circle text-warning me-1"/> <span data-i18n="pl_instruction">Ingrese las dimensiones de cada placa. El área se calculará automáticamente.</span></small>
+                </div>
+
+                <div id="portal-rows-container">
+                    <div class="text-center py-5 text-muted">
+                        <i class="fa fa-circle-o-notch fa-spin fa-2x"></i>
+                        <p class="mt-2" data-i18n="loading">Cargando...</p>
+                    </div>
+                </div>
             </div>
 
-            <!-- FOOTER FLOTANTE -->
+            <!-- FOOTER -->
             <div class="submit-footer">
                 <div class="summary">
-                    Total Placas: <span t-esc="totalPlates"/> | 
-                    Total Área: <span t-esc="totalArea"/> m²
+                    <div><span data-i18n="footer_total_plates">Total Placas:</span> <span id="total-plates">0</span></div>
+                    <div>
+                        <span data-i18n="footer_total_area">Total Área:</span> 
+                        <span id="total-area">0.00</span> 
+                        <span>m²</span>
+                    </div>
                 </div>
-                <button class="btn-primary-custom" 
-                        t-on-click="submitData" 
-                        t-att-disabled="state.isSubmitting or totalPlates == 0">
-                    <t t-if="state.isSubmitting">
-                        <i class="fa fa-spinner fa-spin me-2"/> Enviando...
-                    </t>
-                    <t t-else="">
-                        <i class="fa fa-paper-plane me-2"/> Enviar Packing List
-                    </t>
+                <button id="btn-submit-pl" class="btn-primary-custom" disabled="disabled">
+                    <i class="fa fa-paper-plane me-2"/> <span data-i18n="btn_submit">Guardar y Enviar</span>
                 </button>
             </div>
 

@@ -11,7 +11,6 @@ $text-gray: #a0a0a0;
 $border-color: #333;
 $input-border: #444;
 
-/* Mixin para breakpoints */
 @mixin mobile {
     @media (max-width: 991.98px) { @content; }
 }
@@ -21,10 +20,9 @@ body {
     color: $text-white;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     font-size: 0.95rem;
-    overflow-x: hidden; /* Evita scroll horizontal general */
+    overflow-x: hidden;
 }
 
-/* --- Header Fijo --- */
 .o_portal_header {
     background: rgba(18, 18, 18, 0.95);
     border-bottom: 1px solid $border-color;
@@ -37,7 +35,7 @@ body {
     z-index: 1000;
     backdrop-filter: blur(10px);
     box-shadow: 0 4px 20px rgba(0,0,0,0.4);
-    flex-wrap: wrap; /* Permitir wrap en móviles */
+    flex-wrap: wrap;
     gap: 10px;
 
     .brand {
@@ -58,7 +56,6 @@ body {
         }
     }
 
-    /* Contenedor derecho (Idioma + Info) */
     .header-controls {
         display: flex;
         align-items: center;
@@ -99,12 +96,10 @@ body {
             cursor: pointer;
             outline: none;
             max-width: 100px;
-            
             option { background: #1a1a1a; color: #fff; }
         }
     }
 
-    /* Ajustes Mobile Header */
     @include mobile {
         padding: 0.8rem 1rem;
         flex-direction: column;
@@ -120,7 +115,6 @@ body {
             width: 100%;
             gap: 10px;
         }
-
         .po-info { text-align: right; }
     }
 }
@@ -129,7 +123,7 @@ body {
     max-width: 1400px;
     margin: 2rem auto;
     padding: 0 1.5rem;
-    padding-bottom: 100px; /* Espacio para el footer fijo */
+    padding-bottom: 100px; 
 
     @include mobile {
         padding: 0 1rem 120px 1rem;
@@ -137,7 +131,7 @@ body {
     }
 }
 
-/* --- SHIPMENT CARD --- */
+/* --- SHIPMENT CARD & FORMS --- */
 .shipment-card {
     background: $bg-card;
     border: 1px solid $border-color;
@@ -163,9 +157,22 @@ body {
     .card-body { padding: 1.5rem; }
 }
 
+/* Estilo para los títulos de secciones internas (Logística, Carga) */
+.form-section-title {
+    color: $primary-brown;
+    font-size: 0.95rem;
+    text-transform: uppercase;
+    font-weight: 700;
+    border-bottom: 1px solid #333;
+    padding-bottom: 5px;
+    margin-bottom: 10px;
+    letter-spacing: 0.5px;
+    opacity: 0.9;
+}
+
 .modern-form-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); /* Más flexible */
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
     gap: 1.2rem;
     
     .form-group {
@@ -178,16 +185,15 @@ body {
             margin-bottom: 0.4rem;
             font-weight: 500;
             display: flex; align-items: center; gap: 6px;
-            i { color: $primary-brown; opacity: 0.8; }
         }
 
         .form-control {
             background-color: $bg-input !important;
             border: 1px solid $input-border !important;
             color: $text-white !important;
-            border-radius: 8px; /* Bordes más suaves para touch */
-            padding: 12px; /* Mayor padding para dedos */
-            font-size: 1rem; /* Texto legible en móvil */
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 1rem;
             transition: all 0.3s ease;
             width: 100%;
             box-sizing: border-box;
@@ -202,7 +208,7 @@ body {
     .full-width { grid-column: 1 / -1; }
 }
 
-/* --- TABLAS RESPONSIVAS (CARD VIEW) --- */
+/* --- TABLAS RESPONSIVAS --- */
 .product-section {
     background: $bg-card;
     border: 1px solid $border-color;
@@ -223,7 +229,6 @@ body {
         h3 { margin: 0; font-size: 1rem; color: #fff; }
         .meta { color: $primary-brown; font-size: 0.9rem; font-weight: 600; white-space: nowrap; }
     }
-
     .table-responsive { padding: 0; }
 }
 
@@ -257,11 +262,9 @@ body {
         }
     }
 
-    /* --- RESPONSIVIDAD EXTREMA (MOBILE CARDS) --- */
     @include mobile {
         display: block;
-        
-        thead { display: none; } /* Ocultar cabeceras reales */
+        thead { display: none; }
         tbody { display: block; }
         
         tr {
@@ -277,12 +280,11 @@ body {
 
         td {
             display: flex;
-            flex-direction: column; /* Stack label e input */
+            flex-direction: column; 
             align-items: stretch;
             padding: 0.5rem 0;
             border: none;
             
-            /* Usamos el data-label del JS para poner el título */
             &::before {
                 content: attr(data-label);
                 font-size: 0.75rem;
@@ -293,17 +295,11 @@ body {
             }
         }
 
-        /* Ajustes específicos de celdas en modo tarjeta */
-        
-        /* El botón de eliminar se mueve a la esquina superior derecha */
         td:last-child {
             position: absolute;
-            top: 5px;
-            right: 5px;
-            width: auto;
-            padding: 0;
-            
-            &::before { content: none; } /* Sin label para el botón */
+            top: 5px; right: 5px;
+            width: auto; padding: 0;
+            &::before { content: none; }
             
             .btn-action {
                 background: transparent;
@@ -314,7 +310,7 @@ body {
         }
         
         /* Área destacada */
-        td:nth-last-child(3) { /* Asumiendo que Área es la antepenúltima */
+        td:nth-last-child(3) { 
              background: rgba(212, 175, 55, 0.05);
              border-radius: 6px;
              padding: 0.5rem;
@@ -324,13 +320,10 @@ body {
              align-items: center;
         }
 
-        .input-group-portal {
-            input { width: 100% !important; } /* Full width inputs */
-        }
+        .input-group-portal input { width: 100% !important; } 
     }
 }
 
-/* Input Styles */
 .input-group-portal {
     display: flex;
     align-items: center;
@@ -341,7 +334,7 @@ body {
         background: $bg-dark;
         border: 1px solid $input-border;
         color: $text-white;
-        padding: 10px; /* Touch friendly */
+        padding: 10px;
         border-radius: 6px;
         width: 100%;
         font-family: monospace;
@@ -352,8 +345,7 @@ body {
             border-color: $primary-brown;
             background: lighten($bg-dark, 5%);
         }
-        
-        &.short { width: 100px; } /* Solo en desktop */
+        &.short { width: 100px; }
     }
 
     .btn-fill-down {
@@ -362,13 +354,10 @@ body {
         color: #aaa;
         padding: 8px;
         border-radius: 6px;
-        min-width: 36px; /* Touch target */
+        min-width: 36px;
         
         &:active { background: $primary-brown; color: #000; }
-        
-        @include mobile {
-            display: none; /* Ocultar fill-down en móvil para limpiar interfaz */
-        }
+        @include mobile { display: none; }
     }
 }
 
@@ -382,7 +371,6 @@ body {
     border: 1px solid rgba(217, 83, 79, 0.3);
 }
 
-/* Botones de acción (Agregar fila) */
 .table-actions {
     padding: 1rem;
     display: flex;
@@ -390,7 +378,7 @@ body {
     flex-wrap: wrap;
     
     .btn-add-row {
-        flex: 1; /* Botones grandes en móvil */
+        flex: 1;
         justify-content: center;
         padding: 12px;
         border-radius: 8px;
@@ -403,7 +391,6 @@ body {
     }
 }
 
-/* --- FOOTER FLOTANTE --- */
 .submit-footer {
     position: fixed;
     bottom: 0; left: 0; width: 100%;
@@ -421,7 +408,6 @@ body {
         color: $text-gray;
         font-size: 0.5rem;
         display: flex; gap: 13px;
-        
         span { color: $primary-brown; font-weight: bold; font-size: 1.1rem; margin-left: 5px; }
     }
 
@@ -429,7 +415,6 @@ body {
         flex-direction: column;
         gap: 15px;
         padding: 1rem;
-        
         .summary {
             width: 100%;
             justify-content: space-between;
@@ -438,7 +423,6 @@ body {
             padding: 8px 12px;
             border-radius: 8px;
         }
-        
         .btn-primary-custom { width: 100%; padding: 14px; font-size: 1rem; }
     }
 }

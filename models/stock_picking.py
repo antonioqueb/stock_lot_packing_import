@@ -35,7 +35,11 @@ class StockPicking(models.Model):
     supplier_destination = fields.Char(string="Destino (puerto/ciudad)")
     supplier_country_origin = fields.Char(string="País de origen de la mercancía")
     supplier_vessel = fields.Char(string="Buque")
-    supplier_incoterm_payment = fields.Char(string="Incoterm y forma de pago")
+    
+    # --- MODIFICADO: Separación de Incoterm y Pago ---
+    supplier_incoterm_payment = fields.Char(string="Incoterm") 
+    supplier_payment_terms = fields.Char(string="Forma de pago") # Nuevo campo
+
     supplier_merchandise_desc = fields.Text(string="Descripción de mercancía")
     supplier_container_no = fields.Char(string="No. de contenedor")
     supplier_seal_no = fields.Char(string="No. de sello")
@@ -126,12 +130,12 @@ class StockPicking(models.Model):
                         'grosor': get_val("A", float),
                         'alto': alto,
                         'ancho': ancho,
-                        'color': get_val("D"),
+                        'color': get_val("D"), # Usado para Notas
                         'bloque': get_val("E"),
-                        'numero_placa': get_val("F"), # MODIFICADO: Columna F es No. Placa
-                        # Atado (G) no se suele editar en portal, pero existe en Spreadsheet
-                        'tipo': get_val("H") or 'placa', # MODIFICADO: Desplazado a H (antes G)
-                        'contenedor': get_val("K"),      # MODIFICADO: Desplazado a K (antes J)
+                        'numero_placa': get_val("F"),
+                        'atado': get_val("G"),           # MODIFICADO: Lectura Col G (Atado)
+                        'tipo': get_val("H") or 'placa', 
+                        'contenedor': get_val("K"),      
                     })
                 
                 row_idx += 1
@@ -275,7 +279,11 @@ class StockPicking(models.Model):
                 'supplier_destination': header_data.get('destination'),
                 'supplier_country_origin': header_data.get('country_origin'),
                 'supplier_vessel': header_data.get('vessel'),
-                'supplier_incoterm_payment': header_data.get('incoterm_payment'),
+                
+                # MODIFICADO: Mapeo de campos separados
+                'supplier_incoterm_payment': header_data.get('incoterm'),
+                'supplier_payment_terms': header_data.get('payment_terms'),
+
                 'supplier_merchandise_desc': header_data.get('merchandise_desc'),
                 'supplier_container_no': header_data.get('container_no'),
                 'supplier_seal_no': header_data.get('seal_no'),
@@ -294,7 +302,6 @@ class StockPicking(models.Model):
         doc = self.spreadsheet_id
         
         # IMPORTANTE: Cargamos el estado ACTUAL (con revisiones aplicadas)
-        # para no perder ediciones manuales previas al guardar lo nuevo.
         data = self._get_current_spreadsheet_state(doc)
         if not data: return True
 
@@ -346,16 +353,15 @@ class StockPicking(models.Model):
                 set_c("A", row.get('grosor', ''))
                 set_c("B", row.get('alto', ''))
                 set_c("C", row.get('ancho', ''))
-                set_c("D", row.get('color', ''))
+                set_c("D", row.get('color', '')) # Notas
                 set_c("E", row.get('bloque', ''))
-                set_c("F", row.get('numero_placa', '')) # MODIFICADO: Columna F
+                set_c("F", row.get('numero_placa', '')) 
                 
-                # Desplazamiento de columnas siguientes
-                # Antes G(Tipo) -> Ahora H
+                # MODIFICADO: Escritura columna G (Atado)
+                set_c("G", row.get('atado', ''))
+
                 set_c("H", row.get('tipo', 'placa'))
-                # Antes J(Contenedor) -> Ahora K
                 set_c("K", row.get('contenedor', ''))
-                # Marca de actualización (antes L, ahora M)
                 set_c("M", "Actualizado Portal")
                 current_row += 1
 
@@ -409,8 +415,8 @@ class StockPicking(models.Model):
 
             folder = self.env['documents.document'].search([('type', '=', 'folder')], limit=1)
             
-            # MODIFICADO: Agregada columna "No. Placa" después de Bloque
-            headers = ['Grosor (cm)', 'Alto (m)', 'Ancho (m)', 'Color', 'Bloque', 'No. Placa', 'Atado', 'Tipo', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Proveedor', 'Notas']
+            # MODIFICADO: Headers incluyen Atado (ya estaba en lista, pero ahora se usa activamente)
+            headers = ['Grosor (cm)', 'Alto (m)', 'Ancho (m)', 'Notas', 'Bloque', 'No. Placa', 'Atado', 'Tipo', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Proveedor', 'Ref. Interna']
             
             sheets = []
             for index, product in enumerate(products):
@@ -434,10 +440,10 @@ class StockPicking(models.Model):
                     "id": f"pl_sheet_{product.id}",
                     "name": sheet_name,
                     "cells": cells,
-                    "colNumber": 13, # MODIFICADO: Aumentado de 12 a 13
+                    "colNumber": 13, 
                     "rowNumber": 250,
                     "isProtected": True,
-                    "protectedRanges": [{"range": "A4:M250", "isProtected": False}] # MODIFICADO: Rango hasta M
+                    "protectedRanges": [{"range": "A4:M250", "isProtected": False}] 
                 })
 
             spreadsheet_data = {

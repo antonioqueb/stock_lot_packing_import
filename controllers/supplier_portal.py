@@ -58,7 +58,6 @@ class SupplierPortalController(http.Controller):
         products = self._build_products_payload(picking)
         if not products: products = []
 
-        # --- 1. DATOS DE FILAS (SPREADSHEET) ---
         existing_rows = []
         if picking.spreadsheet_id:
             try:
@@ -68,7 +67,6 @@ class SupplierPortalController(http.Controller):
                 existing_rows = []
 
         # --- 2. DATOS DE CABECERA (OBTENER DE ODOO) ---
-        # Estos datos se pre-cargan desde lo que ya tenga guardado el Picking
         header_data = {
             'invoice_number': picking.supplier_invoice_number or "",
             'shipment_date': str(picking.supplier_shipment_date) if picking.supplier_shipment_date else "",
@@ -78,7 +76,11 @@ class SupplierPortalController(http.Controller):
             'destination': picking.supplier_destination or "",
             'country_origin': picking.supplier_country_origin or "",
             'vessel': picking.supplier_vessel or "",
-            'incoterm_payment': picking.supplier_incoterm_payment or "",
+            
+            # MODIFICADO: Separación
+            'incoterm': picking.supplier_incoterm_payment or "",
+            'payment_terms': picking.supplier_payment_terms or "",
+
             'merchandise_desc': picking.supplier_merchandise_desc or "",
             'container_no': picking.supplier_container_no or "",
             'seal_no': picking.supplier_seal_no or "",
@@ -92,7 +94,7 @@ class SupplierPortalController(http.Controller):
         full_data = {
             'products': products,
             'existing_rows': existing_rows,
-            'header': header_data, # Enviamos al JS lo que hay en la base de datos
+            'header': header_data,
             'token': token,
             'poName': access.purchase_id.name if access.purchase_id else (picking.origin or ""),
             'pickingName': picking.name or "",
@@ -120,7 +122,6 @@ class SupplierPortalController(http.Controller):
             return {'success': False, 'message': 'La recepción ya fue procesada y no se puede modificar.'}
 
         try:
-            # Guardamos tanto las filas (Spreadsheet) como la cabecera (Picking fields)
             picking.sudo().update_packing_list_from_portal(rows, header_data=header)
             return {'success': True}
         except Exception as e:
