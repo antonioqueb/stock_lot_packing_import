@@ -1,6 +1,7 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
-access_packing_list_import_wizard,packing.list.import.wizard,model_packing_list_import_wizard,stock.group_stock_user,1,1,1,1
-access_worksheet_import_wizard,worksheet.import.wizard,model_worksheet_import_wizard,stock.group_stock_user,1,1,1,1
-access_stock_picking_supplier_access,stock.picking.supplier.access,model_stock_picking_supplier_access,stock.group_stock_user,1,1,1,1
-access_purchase_supplier_portal_link_wizard_purchase_user,purchase.supplier.portal.link.wizard,model_purchase_supplier_portal_link_wizard,purchase.group_purchase_user,1,0,1,0
-access_purchase_supplier_portal_link_wizard_stock_user,purchase.supplier.portal.link.wizard,model_purchase_supplier_portal_link_wizard,stock.group_stock_user,1,0,1,0
+access_stock_picking_supplier_access,stock.picking.supplier.access,model_stock_picking_supplier_access,base.group_user,1,1,1,1
+access_packing_list_import_wizard,packing.list.import.wizard,model_packing_list_import_wizard,base.group_user,1,1,1,1
+access_worksheet_import_wizard,worksheet.import.wizard,model_worksheet_import_wizard,base.group_user,1,1,1,1
+access_purchase_supplier_portal_link_wizard,purchase.supplier.portal.link.wizard,model_purchase_supplier_portal_link_wizard,base.group_user,1,1,1,1
+# Permitir acceso público (lectura) al token para validar en el controlador sin estar logueado
+access_stock_picking_supplier_access_public,stock.picking.supplier.access public,model_stock_picking_supplier_access,base.group_public,1,0,0,0

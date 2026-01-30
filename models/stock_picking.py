@@ -92,9 +92,9 @@ class StockPicking(models.Model):
             
             if not product: continue
 
-            # --- LOGICA AUTOMATICA: Obtener tipo de unidad del producto ---
-            # Si x_unidad_del_producto está vacío, usa 'Placa' como fallback
-            default_type = product.x_unidad_del_producto or 'Placa'
+            # --- LOGICA AUTOMATICA: Obtener tipo desde el TEMPLATE del producto ---
+            # Se usa product_tmpl_id porque el campo x_unidad_del_producto está en el modelo product.template
+            default_type = product.product_tmpl_id.x_unidad_del_producto or 'Placa'
 
             # Leer filas desde la fila 4 (index 3)
             row_idx = 3
@@ -140,7 +140,7 @@ class StockPicking(models.Model):
                         'bloque': get_val("E"),
                         'numero_placa': get_val("F"),
                         'atado': get_val("G"),   
-                        # AQUI SE APLICA: Si la celda H está vacía, usa el del producto
+                        # AQUI SE APLICA: Si la celda H está vacía, usa el del template
                         'tipo': get_val("H") or default_type, 
                         'contenedor': get_val("K"), # Recuperar contenedor asignado     
                     })
@@ -313,9 +313,9 @@ class StockPicking(models.Model):
             sheet = product_sheet_map.get(pid)
             if not sheet: continue
             
-            # --- LOGICA AUTOMATICA: Buscar el tipo por defecto del producto ---
+            # --- LOGICA AUTOMATICA: Buscar el tipo por defecto del producto (TEMPLATE) ---
             product_obj = self.env['product.product'].browse(pid)
-            default_type = product_obj.x_unidad_del_producto or 'Placa'
+            default_type = product_obj.product_tmpl_id.x_unidad_del_producto or 'Placa'
 
             current_row = 4
             for row in prod_rows:
@@ -332,7 +332,7 @@ class StockPicking(models.Model):
                 set_c("F", row.get('numero_placa', '')) 
                 set_c("G", row.get('atado', ''))
                 
-                # AQUI SE APLICA: Si el valor 'tipo' viene vacio del portal, asignamos el del producto
+                # AQUI SE APLICA: Si el valor 'tipo' viene vacio del portal, asignamos el del template
                 tipo_val = row.get('tipo')
                 if not tipo_val:
                     tipo_val = default_type

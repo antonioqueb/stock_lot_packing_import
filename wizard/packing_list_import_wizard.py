@@ -381,8 +381,8 @@ class PackingListImportWizard(models.TransientModel):
     def _extract_rows_from_index(self, idx, product):
         rows = []
         
-        # Obtener tipo por defecto desde el producto
-        default_type = product.x_unidad_del_producto or 'Placa'
+        # Obtener tipo por defecto desde el producto TEMPLATE
+        default_type = product.product_tmpl_id.x_unidad_del_producto or 'Placa'
         
         for r in range(3, 200):
             alto = self._to_float(idx.value(1, r)) # B
@@ -455,8 +455,8 @@ class PackingListImportWizard(models.TransientModel):
             product = self.env['product.product'].search([('name', 'ilike', str(p_info).split('(')[0].strip())], limit=1)
             if not product: continue
             
-            # Obtener tipo por defecto desde el producto
-            default_type = product.x_unidad_del_producto or 'Placa'
+            # Obtener tipo por defecto desde el producto TEMPLATE
+            default_type = product.product_tmpl_id.x_unidad_del_producto or 'Placa'
             
             for r in range(4, sheet.max_row + 1):
                 alto, ancho = self._to_float(sheet.cell(r, 2).value), self._to_float(sheet.cell(r, 3).value)
