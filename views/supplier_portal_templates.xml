@@ -4,7 +4,6 @@
         <t t-call="web.frontend_layout">
             <t t-set="no_header" t-value="True"/>
             <t t-set="no_footer" t-value="True"/>
-            <!-- Viewport esencial para responsive -->
             <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no"/>
             
             <t t-set="head">
@@ -66,9 +65,15 @@
                         </div>
                         <div class="card-body" id="shipment-info-form">
                             
-                            <!-- SECCIÓN 1: DOCUMENTACIÓN -->
+                            <!-- NOTA INFORMATIVA MULTI-CONTENEDOR -->
+                            <div class="alert alert-info mb-3 p-2" style="font-size: 0.85rem;">
+                                <i class="fa fa-info-circle me-1"></i> 
+                                <span data-i18n="msg_multi_pl_info">Los datos de Documentación y Logística se mantendrán para todos los contenedores. Solo debe actualizar la sección 'Detalles de Carga' y 'Productos' por cada Packing List.</span>
+                            </div>
+
+                            <!-- SECCIÓN 1: DOCUMENTACIÓN (GLOBAL) -->
                             <div class="form-section-title">
-                                <i class="fa fa-file-invoice me-2"></i> Documentación
+                                <i class="fa fa-file-invoice me-2"></i> Documentación (Global)
                             </div>
                             <div class="modern-form-grid mb-4">
                                 <div class="form-group">
@@ -93,9 +98,9 @@
                                 </div>
                             </div>
 
-                            <!-- SECCIÓN 2: LOGÍSTICA -->
+                            <!-- SECCIÓN 2: LOGÍSTICA (GLOBAL) -->
                             <div class="form-section-title">
-                                <i class="fa fa-globe me-2"></i> <span data-i18n="sec_logistics">Logística</span>
+                                <i class="fa fa-globe me-2"></i> <span data-i18n="sec_logistics">Logística (Global)</span>
                             </div>
                             <div class="modern-form-grid mb-4">
                                 <div class="form-group">
@@ -130,14 +135,14 @@
                                 </div>
                             </div>
 
-                            <!-- SECCIÓN 3: DETALLES DE CARGA -->
-                            <div class="form-section-title">
-                                <i class="fa fa-cubes me-2"></i> <span data-i18n="sec_cargo">Detalles de Carga</span>
+                            <!-- SECCIÓN 3: DETALLES DE CARGA (VARIABLE) -->
+                            <div class="form-section-title text-warning">
+                                <i class="fa fa-cubes me-2"></i> <span data-i18n="sec_cargo">Detalles de Carga (Contenedor Actual)</span>
                             </div>
                             <div class="modern-form-grid">
                                 <div class="form-group">
-                                    <label><span data-i18n="lbl_container">No. Contenedor</span></label>
-                                    <input type="text" id="h-cont-no" class="form-control" data-i18n-placeholder="ph_container" placeholder="Ej. MSKU1234567"/>
+                                    <label class="text-warning"><span data-i18n="lbl_container">No. Contenedor</span> *</label>
+                                    <input type="text" id="h-cont-no" class="form-control border-warning" data-i18n-placeholder="ph_container" placeholder="Ej. MSKU1234567"/>
                                 </div>
                                 <div class="form-group">
                                     <label><span data-i18n="lbl_seal">No. Sello</span></label>
@@ -165,8 +170,39 @@
                                     <label><span data-i18n="lbl_desc">Descripción Mercancía</span></label>
                                     <textarea id="h-desc" class="form-control" rows="2" data-i18n-placeholder="ph_desc" placeholder="Descripción general de la carga..."></textarea>
                                 </div>
+
+                                <!-- SUBIDA DE ARCHIVOS -->
+                                <div class="form-group full-width mt-2">
+                                    <label><i class="fa fa-paperclip me-1"></i> <span data-i18n="lbl_files">Adjuntar Documentos del Contenedor (PDF, Imágenes, Excel)</span></label>
+                                    <input type="file" id="h-files" class="form-control" multiple="multiple" accept=".pdf,.jpg,.jpeg,.png,.xlsx,.xls"/>
+                                    <small class="text-muted">Seleccione múltiples archivos si es necesario.</small>
+                                </div>
                             </div>
                             
+                        </div>
+                    </div>
+
+                    <!-- NUEVO: LISTA DE CONTENEDORES YA AGREGADOS (STAGED) -->
+                    <!-- El JS le quita el d-none cuando agregas el primero -->
+                    <div id="staged-containers-area" class="mb-4 d-none">
+                        <h5 class="text-white mb-2"><i class="fa fa-check-square-o me-2 text-success"></i> <span data-i18n="lbl_staged_title">Contenedores Listos para Enviar</span></h5>
+                        <div class="table-responsive">
+                            <table class="table table-dark table-sm table-bordered">
+                                <thead>
+                                    <tr class="bg-secondary">
+                                        <th>Contenedor</th>
+                                        <th>Tipo</th>
+                                        <th>Peso (kg)</th>
+                                        <th>Vol (m³)</th>
+                                        <th>Líneas</th>
+                                        <th>Archivos</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="staged-containers-tbody">
+                                    <!-- JS llenará esto -->
+                                </tbody>
+                            </table>
                         </div>
                     </div>
 
@@ -176,7 +212,7 @@
                     </div>
 
                     <div class="alert alert-dark border border-secondary text-light mb-4" style="background: #1a1a1a;">
-                        <small><i class="fa fa-info-circle text-warning me-1"/> <span data-i18n="pl_instruction">Ingrese las dimensiones de cada placa. El área se calculará automáticamente.</span></small>
+                        <small><i class="fa fa-info-circle text-warning me-1"/> <span data-i18n="pl_instruction">Ingrese las dimensiones de cada placa. El campo 'Contenedor' se llenará automáticamente al agregar el Packing List.</span></small>
                     </div>
 
                     <!-- TABLAS JS -->
@@ -188,19 +224,28 @@
                     </div>
                 </div>
 
-                <!-- FOOTER -->
+                <!-- FOOTER CON DOS BOTONES -->
                 <div class="submit-footer">
                     <div class="summary">
-                        <div><span data-i18n="footer_total_plates">Total Placas:</span> <span id="total-plates">0</span></div>
+                        <div><span data-i18n="footer_total_plates">Total Placas (Actual):</span> <span id="total-plates">0</span></div>
                         <div>
-                            <span data-i18n="footer_total_area">Total Área:</span> 
+                            <span data-i18n="footer_total_area">Total Área (Actual):</span> 
                             <span id="total-area">0.00</span> 
                             <span>m²</span>
                         </div>
                     </div>
-                    <button id="btn-submit-pl" class="btn-primary-custom" disabled="disabled">
-                        <i class="fa fa-paper-plane me-2"/> <span data-i18n="btn_submit">Guardar y Enviar</span>
-                    </button>
+                    
+                    <div class="d-flex gap-2">
+                        <!-- BOTÓN MAGICO -->
+                        <button id="btn-add-next" type="button" class="btn btn-warning rounded-pill px-4 fw-bold">
+                            <i class="fa fa-plus me-2"/> <span data-i18n="btn_add_next">Guardar Contenedor y Agregar Otro</span>
+                        </button>
+
+                        <!-- BOTÓN FINALIZAR -->
+                        <button id="btn-submit-pl" type="button" class="btn-primary-custom" disabled="disabled">
+                            <i class="fa fa-paper-plane me-2"/> <span data-i18n="btn_submit">Finalizar y Enviar Todo</span>
+                        </button>
+                    </div>
                 </div>
             </div>
         </t>
