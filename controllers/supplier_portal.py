@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import json
+import base64
 from odoo import http
 from odoo.http import request
 from markupsafe import Markup
@@ -8,6 +9,8 @@ import logging
 _logger = logging.getLogger(__name__)
 
 class SupplierPortalController(http.Controller):
+
+    # ... (Métodos _get_picking_moves_for_portal y _build_products_payload sin cambios) ...
 
     def _get_picking_moves_for_portal(self, picking):
         moves = False
@@ -44,6 +47,7 @@ class SupplierPortalController(http.Controller):
         if not access: return request.render('stock_lot_packing_import.portal_not_found')
         if access.is_expired: return request.render('stock_lot_packing_import.portal_expired')
 
+        # Lógica de actualización de picking vigente (sin cambios)
         if access.purchase_id:
             po = access.purchase_id
             pickings = po.picking_ids.filtered(lambda p: p.picking_type_code == 'incoming' and p.state not in ('done', 'cancel'))
@@ -66,7 +70,6 @@ class SupplierPortalController(http.Controller):
                 _logger.error(f"Error recuperando datos del spreadsheet: {e}")
                 existing_rows = []
 
-        # --- DATOS DE CABECERA (Lectura desde Odoo) ---
         header_data = {
             'invoice_number': picking.supplier_invoice_number or "",
             'shipment_date': str(picking.supplier_shipment_date) if picking.supplier_shipment_date else "",
@@ -76,12 +79,11 @@ class SupplierPortalController(http.Controller):
             'destination': picking.supplier_destination or "",
             'country_origin': picking.supplier_country_origin or "",
             'vessel': picking.supplier_vessel or "",
-            
-            # --- CAMPOS SEPARADOS ---
             'incoterm': picking.supplier_incoterm_payment or "",
-            'payment_terms': picking.supplier_payment_terms or "", # <--- AQUI ESTÁ EL CAMPO
-
+            'payment_terms': picking.supplier_payment_terms or "",
             'merchandise_desc': picking.supplier_merchandise_desc or "",
+            # Estos campos ahora serán la concatenación/suma si ya hay datos, 
+            # pero para la carga inicial se muestran tal cual están en la base.
             'container_no': picking.supplier_container_no or "",
             'seal_no': picking.supplier_seal_no or "",
             'container_type': picking.supplier_container_type or "",
@@ -101,16 +103,14 @@ class SupplierPortalController(http.Controller):
             'companyName': picking.company_id.name or ""
         }
 
-        json_payload = json.dumps(full_data, ensure_ascii=False)
-
         values = {
             'picking': picking,
-            'portal_json': Markup(json_payload),
+            'portal_json': Markup(json.dumps(full_data, ensure_ascii=False)),
         }
         return request.render('stock_lot_packing_import.supplier_portal_view', values)
 
     @http.route('/supplier/pl/submit', type='json', auth='public', csrf=False)
-    def submit_pl_data(self, token, rows, header=None):
+    def submit_pl_data(self, token, rows, header=None, files=None):
         access = request.env['stock.picking.supplier.access'].sudo().search([('access_token', '=', token)], limit=1)
         if not access or access.is_expired:
             return {'success': False, 'message': 'Token inválido.'}
@@ -122,8 +122,14 @@ class SupplierPortalController(http.Controller):
             return {'success': False, 'message': 'La recepción ya fue procesada y no se puede modificar.'}
 
         try:
-            # header viene del JS con las claves que definimos en getHeaderDataFromDOM
+            # 1. Actualizar Datos (Header y Spreadsheet)
             picking.sudo().update_packing_list_from_portal(rows, header_data=header)
+            
+            # 2. Procesar Archivos (Si existen)
+            if files:
+                picking.sudo()._process_portal_attachments(files)
+
             return {'success': True}
         except Exception as e:
+            _logger.exception("Error en submit_pl_data")
             return {'success': False, 'message': str(e)}

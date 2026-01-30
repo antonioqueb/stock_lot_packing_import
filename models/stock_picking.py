@@ -36,11 +36,13 @@ class StockPicking(models.Model):
     supplier_country_origin = fields.Char(string="País de origen de la mercancía")
     supplier_vessel = fields.Char(string="Buque")
     
-    # --- MODIFICADO: Separación de Incoterm y Pago ---
+    # Separación de Incoterm y Pago
     supplier_incoterm_payment = fields.Char(string="Incoterm") 
-    supplier_payment_terms = fields.Char(string="Términos de pago") # Nuevo campo
+    supplier_payment_terms = fields.Char(string="Términos de pago")
 
     supplier_merchandise_desc = fields.Text(string="Descripción de mercancía")
+    
+    # Estos campos almacenarán la concatenación/suma de todos los contenedores
     supplier_container_no = fields.Char(string="No. de contenedor")
     supplier_seal_no = fields.Char(string="No. de sello")
     supplier_container_type = fields.Char(string="Tipo de contenedor")
@@ -55,13 +57,13 @@ class StockPicking(models.Model):
             rec.has_packing_list = bool(rec.packing_list_file or rec.spreadsheet_id or rec.supplier_access_ids)
 
     # -------------------------------------------------------------------------
-    #  LOGICA DE LECTURA (Server -> Portal) ROBUSTA
+    #  LOGICA DE LECTURA (Server -> Portal)
     # -------------------------------------------------------------------------
 
     def get_packing_list_data_for_portal(self):
         """
-        Lee el Spreadsheet actual intentando reconstruir el estado "en vivo"
-        aplicando revisiones sobre el snapshot o la data base.
+        Lee el Spreadsheet actual para mostrar al proveedor lo que ya ha llenado.
+        Recupera filas y datos de cabecera implícitos en las columnas.
         """
         self.ensure_one()
         rows = []
@@ -95,12 +97,12 @@ class StockPicking(models.Model):
             while True:
                 idx_str = str(row_idx + 1)
                 
-                # Chequeo simple de fin de datos (si B y C están vacíos)
+                # Chequeo simple de fin de datos
                 b_cell = cells.get(f"B{idx_str}", {})
                 if not b_cell or not b_cell.get("content"):
                     if not cells.get(f"C{idx_str}", {}).get("content"):
+                        # Lookahead para evitar falsos positivos por filas vacías intermedias
                         found_next = False
-                        # Lookahead de 3 filas para asegurar que no es un salto de línea accidental
                         for lookahead in range(1, 4):
                             if cells.get(f"B{row_idx + 1 + lookahead}", {}).get("content"):
                                 found_next = True
@@ -130,12 +132,12 @@ class StockPicking(models.Model):
                         'grosor': get_val("A", float),
                         'alto': alto,
                         'ancho': ancho,
-                        'color': get_val("D"), # Usado para Notas
+                        'color': get_val("D"),   # Notas
                         'bloque': get_val("E"),
                         'numero_placa': get_val("F"),
-                        'atado': get_val("G"),           # MODIFICADO: Lectura Col G (Atado)
+                        'atado': get_val("G"),   
                         'tipo': get_val("H") or 'placa', 
-                        'contenedor': get_val("K"),      
+                        'contenedor': get_val("K"), # Recuperar contenedor asignado     
                     })
                 
                 row_idx += 1
@@ -145,119 +147,77 @@ class StockPicking(models.Model):
 
     def _get_current_spreadsheet_state(self, doc):
         """
-        Estrategia híbrida para obtener los datos más recientes:
-        1. Intenta leer 'spreadsheet_snapshot' (La "foto" guardada más reciente).
-        2. Si falla, lee 'spreadsheet_data' (El archivo base).
-        3. Busca TODAS las revisiones en 'spreadsheet.revision' y las aplica en orden.
+        Obtiene los datos más recientes combinando Snapshot y Revisiones pendientes.
         """
         data = {}
         
-        # 1. Intentar cargar Snapshot (Suele tener los datos guardados)
+        # 1. Intentar cargar Snapshot
         if doc.spreadsheet_snapshot:
             try:
                 raw = doc.spreadsheet_snapshot
                 data = json.loads(raw.decode('utf-8') if isinstance(raw, bytes) else raw)
-                _logger.info(f"[PL_DEBUG] Cargado desde SNAPSHOT. Hojas: {len(data.get('sheets', []))}")
             except Exception as e:
                 _logger.warning(f"[PL_DEBUG] Error leyendo snapshot: {e}")
 
-        # 2. Si no hay snapshot o falló, cargar Data Base
+        # 2. Si falla, cargar Data Base
         if not data and doc.spreadsheet_data:
             try:
                 raw = doc.spreadsheet_data
                 data = json.loads(raw.decode('utf-8') if isinstance(raw, bytes) else raw)
-                _logger.info(f"[PL_DEBUG] Cargado desde DATA BASE. Hojas: {len(data.get('sheets', []))}")
             except Exception as e:
-                _logger.error(f"[PL_DEBUG] Error fatal leyendo spreadsheet_data: {e}")
                 return {}
 
-        if not data:
-            return {}
+        if not data: return {}
 
-        # 3. Obtener y Aplicar Revisiones (Lo crucial para estar "Conectado")
+        # 3. Obtener y Aplicar Revisiones
         revisions = self.env['spreadsheet.revision'].sudo().with_context(active_test=False).search([
             ('res_model', '=', 'documents.document'),
             ('res_id', '=', doc.id)
         ], order='id asc')
 
-        if not revisions:
-            _logger.info("[PL_DEBUG] No se encontraron revisiones pendientes.")
-            return data
-
-        _logger.info(f"[PL_DEBUG] Aplicando {len(revisions)} revisiones...")
+        if not revisions: return data
 
         for rev in revisions:
             try:
                 cmds_payload = json.loads(rev.commands) if isinstance(rev.commands, str) else rev.commands
-                
-                # Normalizar estructura de comandos
-                cmds = []
-                if isinstance(cmds_payload, dict):
-                    if 'commands' in cmds_payload:
-                        cmds = cmds_payload['commands']
-                    else:
-                        cmds = [cmds_payload]
-                elif isinstance(cmds_payload, list):
-                    cmds = cmds_payload
+                cmds = cmds_payload.get('commands', []) if isinstance(cmds_payload, dict) else (cmds_payload if isinstance(cmds_payload, list) else [cmds_payload])
 
                 for cmd in cmds:
-                    cmd_type = cmd.get('type')
-                    
-                    if cmd_type == 'UPDATE_CELL':
+                    if cmd.get('type') == 'UPDATE_CELL':
                         self._apply_update_cell(data, cmd)
-                    elif cmd_type in ('DELETE_CONTENT', 'CLEAR_CELL'):
-                        # Implementación básica para limpiar celdas
+                    elif cmd.get('type') in ('DELETE_CONTENT', 'CLEAR_CELL'):
                         self._apply_clear_cell(data, cmd)
-
-            except Exception as e:
-                _logger.warning(f"[PL_DEBUG] Fallo aplicando revisión {rev.id}: {e}")
+            except Exception:
                 continue
         
         return data
 
     def _apply_update_cell(self, data, cmd):
-        """Aplica un cambio de celda al diccionario de datos en memoria"""
         sheet_id = cmd.get('sheetId')
         col, row = cmd.get('col'), cmd.get('row')
         content = cmd.get('content', '')
-
-        # Buscar la hoja por ID
         target_sheet = next((s for s in data.get('sheets', []) if s.get('id') == sheet_id), None)
         
         if target_sheet and col is not None and row is not None:
             col_letter = self._get_col_letter(col)
             cell_key = f"{col_letter}{row + 1}"
-            
-            if 'cells' not in target_sheet:
-                target_sheet['cells'] = {}
-            
-            # Si el contenido está vacío, borramos la entrada
+            if 'cells' not in target_sheet: target_sheet['cells'] = {}
             if content in (None, ""):
-                if cell_key in target_sheet['cells']:
-                    del target_sheet['cells'][cell_key]
+                if cell_key in target_sheet['cells']: del target_sheet['cells'][cell_key]
             else:
-                # Odoo guarda el contenido así: "cells": { "A1": { "content": "Valor" } }
                 target_sheet['cells'][cell_key] = {'content': str(content)}
 
     def _apply_clear_cell(self, data, cmd):
-        """Intenta limpiar celdas (versión simplificada para celdas individuales o rangos simples)"""
         sheet_id = cmd.get('sheetId')
         target_sheet = next((s for s in data.get('sheets', []) if s.get('id') == sheet_id), None)
-        if not target_sheet or 'cells' not in target_sheet:
-            return
-
-        # A veces viene como 'zones' o 'target'
+        if not target_sheet or 'cells' not in target_sheet: return
         zones = cmd.get('zones') or cmd.get('target') or []
-        if isinstance(zones, dict): zones = [zones] # Unificar formato
+        if isinstance(zones, dict): zones = [zones]
 
         for zone in zones:
-            top, bottom = zone.get('top', 0), zone.get('bottom', 0)
-            left, right = zone.get('left', 0), zone.get('right', 0)
-            
-            for r in range(top, bottom + 1):
-                for c in range(left, right + 1):
-                    col_letter = self._get_col_letter(c)
-                    cell_key = f"{col_letter}{r + 1}"
+            for r in range(zone.get('top', 0), zone.get('bottom', 0) + 1):
+                for c in range(zone.get('left', 0), zone.get('right', 0) + 1):
+                    cell_key = f"{self._get_col_letter(c)}{r + 1}"
                     if cell_key in target_sheet['cells']:
                         del target_sheet['cells'][cell_key]
 
@@ -266,9 +226,13 @@ class StockPicking(models.Model):
     # -------------------------------------------------------------------------
 
     def update_packing_list_from_portal(self, rows, header_data=None):
+        """
+        Recibe filas consolidadas (lista plana de todos los contenedores).
+        El JS ya asignó el campo 'contenedor' correcto a cada fila.
+        """
         self.ensure_one()
         
-        # --- A. GUARDAR CABECERA ---
+        # --- A. GUARDAR CABECERA CONSOLIDADA ---
         if header_data:
             vals = {
                 'supplier_invoice_number': header_data.get('invoice_number'),
@@ -279,12 +243,11 @@ class StockPicking(models.Model):
                 'supplier_destination': header_data.get('destination'),
                 'supplier_country_origin': header_data.get('country_origin'),
                 'supplier_vessel': header_data.get('vessel'),
-                
-                # MODIFICADO: Mapeo de campos separados
                 'supplier_incoterm_payment': header_data.get('incoterm'),
                 'supplier_payment_terms': header_data.get('payment_terms'),
-
                 'supplier_merchandise_desc': header_data.get('merchandise_desc'),
+                
+                # Campos acumulados/concatenados
                 'supplier_container_no': header_data.get('container_no'),
                 'supplier_seal_no': header_data.get('seal_no'),
                 'supplier_container_type': header_data.get('container_type'),
@@ -301,14 +264,14 @@ class StockPicking(models.Model):
         
         doc = self.spreadsheet_id
         
-        # IMPORTANTE: Cargamos el estado ACTUAL (con revisiones aplicadas)
+        # Cargar estado actual
         data = self._get_current_spreadsheet_state(doc)
         if not data: return True
 
         product_sheet_map = {} 
         sheets = data.get('sheets', [])
         
-        # Mapear productos a hojas
+        # Mapear productos a hojas y limpiar datos viejos
         for sheet in sheets:
             cells = sheet.get('cells', {})
             b1_val = cells.get("B1", {}).get("content", "")
@@ -320,7 +283,7 @@ class StockPicking(models.Model):
                 
                 if product:
                     product_sheet_map[product.id] = sheet
-                    # Limpiamos datos viejos (filas >= 4)
+                    # Limpieza segura de datos viejos (filas >= 4)
                     keys_to_remove = []
                     for key in list(cells.keys()):
                         match = re.match(r'^([A-Z]+)(\d+)$', key)
@@ -331,6 +294,7 @@ class StockPicking(models.Model):
                     for k in keys_to_remove:
                         del cells[k]
 
+        # Agrupar filas recibidas por producto
         rows_by_product = {}
         for row in rows:
             try:
@@ -339,7 +303,7 @@ class StockPicking(models.Model):
                 rows_by_product[pid].append(row)
             except: continue
 
-        # Escribir nuevos datos
+        # Escribir en el JSON
         for pid, prod_rows in rows_by_product.items():
             sheet = product_sheet_map.get(pid)
             if not sheet: continue
@@ -353,26 +317,26 @@ class StockPicking(models.Model):
                 set_c("A", row.get('grosor', ''))
                 set_c("B", row.get('alto', ''))
                 set_c("C", row.get('ancho', ''))
-                set_c("D", row.get('color', '')) # Notas
+                set_c("D", row.get('color', ''))
                 set_c("E", row.get('bloque', ''))
                 set_c("F", row.get('numero_placa', '')) 
-                
-                # MODIFICADO: Escritura columna G (Atado)
                 set_c("G", row.get('atado', ''))
-
                 set_c("H", row.get('tipo', 'placa'))
-                set_c("K", row.get('contenedor', ''))
+                
+                # CRITICO: Escribir el contenedor en Columna K
+                set_c("K", row.get('contenedor', '')) 
+                
                 set_c("M", "Actualizado Portal")
                 current_row += 1
 
-        # Guardar el JSON consolidado
+        # Guardar cambios
         new_json = json.dumps(data)
         doc.write({
             'spreadsheet_data': new_json,
-            'spreadsheet_snapshot': False, # Invalidar snapshot previo
+            'spreadsheet_snapshot': False, 
         })
         
-        # Limpiar revisiones ya consolidadas para evitar conflictos
+        # Eliminar revisiones pendientes para consolidar
         self.env['spreadsheet.revision'].sudo().search([
             ('res_model', '=', 'documents.document'),
             ('res_id', '=', doc.id)
@@ -380,8 +344,33 @@ class StockPicking(models.Model):
 
         return True
 
+    def _process_portal_attachments(self, files_list):
+        """
+        Procesa la lista de archivos adjuntos enviada desde el portal.
+        files_list = [{'name': '...', 'type': '...', 'data': 'base64...', 'container_ref': '...'}, ...]
+        """
+        Attachment = self.env['ir.attachment']
+        for file_data in files_list:
+            try:
+                raw_name = file_data.get('name', 'unknown')
+                container_ref = file_data.get('container_ref', '')
+                
+                # Prefijo para organizar archivos por contenedor
+                final_name = f"[{container_ref}] {raw_name}" if container_ref else raw_name
+                
+                Attachment.create({
+                    'name': final_name,
+                    'type': 'binary',
+                    'datas': file_data.get('data'), # Ya viene en base64 puro desde JS
+                    'res_model': 'stock.picking',
+                    'res_id': self.id,
+                    'mimetype': file_data.get('type')
+                })
+            except Exception as e:
+                _logger.warning(f"Error guardando adjunto {file_data.get('name')}: {e}")
+
     # -------------------------------------------------------------------------
-    # UTILS
+    # UTILS Y ACCIONES
     # -------------------------------------------------------------------------
 
     def _format_cell_val(self, val):
@@ -395,7 +384,6 @@ class StockPicking(models.Model):
         return cell
 
     def _get_col_letter(self, n):
-        """Convierte índice 0-based a letra (0->A, 1->B, 26->AA)"""
         string = ""
         n = int(n) + 1 
         while n > 0:
@@ -405,7 +393,6 @@ class StockPicking(models.Model):
 
     def action_open_packing_list_spreadsheet(self):
         self.ensure_one()
-        # MODIFICADO: Permitir Incoming O si ya tiene PL importado (caso tránsito/interno)
         if self.picking_type_code != 'incoming' and not self.packing_list_imported: 
             raise UserError('Solo disponible para Recepciones o Transferencias con Packing List ya cargado.')
         
@@ -415,7 +402,7 @@ class StockPicking(models.Model):
 
             folder = self.env['documents.document'].search([('type', '=', 'folder')], limit=1)
             
-            # MODIFICADO: Headers incluyen Atado (ya estaba en lista, pero ahora se usa activamente)
+            # Headers Spreadsheet (Index 10 = Contenedor)
             headers = ['Grosor (cm)', 'Alto (m)', 'Ancho (m)', 'Notas', 'Bloque', 'No. Placa', 'Atado', 'Tipo', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Proveedor', 'Ref. Interna']
             
             sheets = []
@@ -430,6 +417,7 @@ class StockPicking(models.Model):
                     cells[f"{col_letter}3"] = self._make_cell(header, style=1)
 
                 sheet_name = (product.default_code or product.name)[:31]
+                # Manejo de nombres duplicados de hojas
                 count = 1
                 base_name = sheet_name
                 while any(s['name'] == sheet_name for s in sheets):
@@ -470,10 +458,9 @@ class StockPicking(models.Model):
         self.ensure_one()
         if not self.packing_list_imported: raise UserError('Primero debe importar (o heredar) el Packing List.')
         if not self.ws_spreadsheet_id:
-            # Lógica de creación WS
             products = self.move_line_ids.mapped('product_id')
             folder = self.env['documents.document'].search([('type', '=', 'folder')], limit=1)
-            # MODIFICADO: Se agrega No. Placa también al Worksheet para referencia
+            
             headers = ['Nº Lote', 'Grosor', 'Alto Teo.', 'Ancho Teo.', 'Color', 'Bloque', 'No. Placa', 'Atado', 'Tipo', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Prov.', 'ALTO REAL (m)', 'ANCHO REAL (m)']
             sheets = []
             for product in products:
@@ -485,7 +472,6 @@ class StockPicking(models.Model):
                     col_letter = self._get_col_letter(i)
                     cells[f"{col_letter}3"] = self._make_cell(header, style=2)
                 
-                # MODIFICADO: Filtrar lineas con lote (compatible con Internal Transfer de tránsito)
                 move_lines = self.move_line_ids.filtered(lambda ml: ml.product_id == product and ml.lot_id)
                 
                 row_idx = 4
@@ -497,7 +483,7 @@ class StockPicking(models.Model):
                     cells[f"D{row_idx}"] = self._make_cell(lot.x_ancho)
                     cells[f"E{row_idx}"] = self._make_cell(lot.x_color)
                     cells[f"F{row_idx}"] = self._make_cell(lot.x_bloque)
-                    cells[f"G{row_idx}"] = self._make_cell(lot.x_numero_placa) # Nuevo Campo
+                    cells[f"G{row_idx}"] = self._make_cell(lot.x_numero_placa) 
                     cells[f"H{row_idx}"] = self._make_cell(lot.x_atado)
                     cells[f"I{row_idx}"] = self._make_cell(lot.x_tipo)
                     cells[f"J{row_idx}"] = self._make_cell(", ".join(lot.x_grupo.mapped('name')) if lot.x_grupo else "")
@@ -549,7 +535,6 @@ class StockPicking(models.Model):
         for product in self.move_ids.mapped('product_id'):
             ws = wb.create_sheet(title=(product.default_code or product.name)[:31])
             ws['A1'] = 'PRODUCTO:'; ws['B1'] = f'{product.name} ({product.default_code or ""})'
-            # MODIFICADO: Header Excel
             headers = ['Grosor (cm)', 'Alto (m)', 'Ancho (m)', 'Color', 'Bloque', 'No. Placa', 'Atado', 'Tipo', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Proveedor', 'Notas']
             for col_num, header in enumerate(headers, 1):
                 cell = ws.cell(row=3, column=col_num); cell.value = header; cell.fill = header_fill; cell.font = header_font; cell.border = border
@@ -574,7 +559,6 @@ class StockPicking(models.Model):
         for product in self.move_line_ids.mapped('product_id'):
             ws = wb.create_sheet(title=(product.default_code or product.name)[:31])
             ws['A1'] = 'PRODUCTO:'; ws['B1'] = f'{product.name} ({product.default_code or ""})'
-            # MODIFICADO: Headers WS Excel
             headers = ['Lote', 'Grosor', 'Alto Teo.', 'Ancho Teo.', 'Color', 'Bloque', 'No. Placa', 'Atado', 'Tipo', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Prov', 'Cantidad', 'Alto Real', 'Ancho Real']
             for col_num, header in enumerate(headers, 1):
                 cell = ws.cell(row=3, column=col_num); cell.value = header; cell.fill = header_fill; cell.font = header_font; cell.border = border
@@ -597,7 +581,6 @@ class StockPicking(models.Model):
     def action_import_packing_list(self):
         self.ensure_one()
         if self.worksheet_imported: raise UserError('El Worksheet ya fue procesado.')
-        # MODIFICADO: Quitar restricción dura si ya tiene PL importado
         title = 'Aplicar Cambios al PL' if self.packing_list_imported else 'Importar Packing List'
         return {'name': title, 'type': 'ir.actions.act_window', 'res_model': 'packing.list.import.wizard', 'view_mode': 'form', 'target': 'new', 'context': {'default_picking_id': self.id}}
     
