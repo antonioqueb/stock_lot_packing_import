@@ -92,6 +92,10 @@ class StockPicking(models.Model):
             
             if not product: continue
 
+            # --- LOGICA AUTOMATICA: Obtener tipo de unidad del producto ---
+            # Si x_unidad_del_producto está vacío, usa 'Placa' como fallback
+            default_type = product.x_unidad_del_producto or 'Placa'
+
             # Leer filas desde la fila 4 (index 3)
             row_idx = 3
             while True:
@@ -136,7 +140,8 @@ class StockPicking(models.Model):
                         'bloque': get_val("E"),
                         'numero_placa': get_val("F"),
                         'atado': get_val("G"),   
-                        'tipo': get_val("H") or 'placa', 
+                        # AQUI SE APLICA: Si la celda H está vacía, usa el del producto
+                        'tipo': get_val("H") or default_type, 
                         'contenedor': get_val("K"), # Recuperar contenedor asignado     
                     })
                 
@@ -307,6 +312,11 @@ class StockPicking(models.Model):
         for pid, prod_rows in rows_by_product.items():
             sheet = product_sheet_map.get(pid)
             if not sheet: continue
+            
+            # --- LOGICA AUTOMATICA: Buscar el tipo por defecto del producto ---
+            product_obj = self.env['product.product'].browse(pid)
+            default_type = product_obj.x_unidad_del_producto or 'Placa'
+
             current_row = 4
             for row in prod_rows:
                 def set_c(col_letter, val):
@@ -321,7 +331,12 @@ class StockPicking(models.Model):
                 set_c("E", row.get('bloque', ''))
                 set_c("F", row.get('numero_placa', '')) 
                 set_c("G", row.get('atado', ''))
-                set_c("H", row.get('tipo', 'placa'))
+                
+                # AQUI SE APLICA: Si el valor 'tipo' viene vacio del portal, asignamos el del producto
+                tipo_val = row.get('tipo')
+                if not tipo_val:
+                    tipo_val = default_type
+                set_c("H", tipo_val)
                 
                 # CRITICO: Escribir el contenedor en Columna K
                 set_c("K", row.get('contenedor', '')) 

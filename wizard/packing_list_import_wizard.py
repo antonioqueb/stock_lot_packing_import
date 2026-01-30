@@ -177,11 +177,12 @@ class PackingListImportWizard(models.TransientModel):
                 if not grupo: grupo = self.env['stock.lot.group'].create({'name': data['grupo_name'].strip()})
                 grupo_ids = [grupo.id]
 
+            # data['tipo'] ya viene resuelto (Celda o Producto por defecto)
             lot = self.env['stock.lot'].create({
                 'name': l_name, 'product_id': product.id, 'company_id': self.picking_id.company_id.id,
                 'x_grosor': data['grosor'], 'x_alto': data['alto'], 'x_ancho': data['ancho'],
                 'x_color': data.get('color'), 'x_bloque': data['bloque'], 
-                'x_numero_placa': data.get('numero_placa'), # MODIFICADO: Campo nuevo
+                'x_numero_placa': data.get('numero_placa'), 
                 'x_atado': data['atado'],
                 'x_tipo': data['tipo'], 'x_grupo': [(6, 0, grupo_ids)], 'x_pedimento': data['pedimento'],
                 'x_contenedor': cont, 'x_referencia_proveedor': data['ref_proveedor'],
@@ -196,8 +197,6 @@ class PackingListImportWizard(models.TransientModel):
                 'x_bloque_temp': data['bloque'], 
                 'x_atado_temp': data['atado'], 'x_pedimento_temp': data['pedimento'],
                 'x_contenedor_temp': cont, 'x_referencia_proveedor_temp': data['ref_proveedor'], 'x_grupo_temp': [(6, 0, grupo_ids)],
-                # Opcional: si tienes el campo temp en move.line
-                # 'x_numero_placa_temp': data.get('numero_placa'), 
             })
             containers[cont]['num'] += 1
             move_lines_created += 1
@@ -331,6 +330,9 @@ class PackingListImportWizard(models.TransientModel):
         for rev in revisions:
             rev_data = json.loads(rev.commands) if isinstance(rev.commands, str) else rev.commands
             
+            if not start_applying: # Corrección lógica básica, aunque aquí asumo start_applying es True siempre en all revisions
+                 pass 
+            
             # Saltar SNAPSHOT_CREATED (no tienen comandos útiles)
             if isinstance(rev_data, dict) and rev_data.get('type') == 'SNAPSHOT_CREATED':
                 continue
@@ -342,21 +344,11 @@ class PackingListImportWizard(models.TransientModel):
         
         _logger.info(f"[PL_IMPORT] Aplicando {len(all_cmds)} comandos totales")
         
-        cmd_types = {}
-        for cmd in all_cmds:
-            if isinstance(cmd, dict):
-                t = cmd.get('type', 'UNKNOWN')
-                cmd_types[t] = cmd_types.get(t, 0) + 1
-        _logger.info(f"[PL_DEBUG] Tipos de comandos: {cmd_types}")
-        
         for sheet in spreadsheet_json.get('sheets', []):
             sheet_id = sheet.get('id')
             idx = _PLCellsIndex()
             idx.ingest_cells(sheet.get('cells', {}))
-            
-            _logger.info(f"[PL_DEBUG] Sheet {sheet_id}: {len(idx._cells)} celdas antes")
-            applied = idx.apply_revision_commands(all_cmds, sheet_id)
-            _logger.info(f"[PL_DEBUG] Sheet {sheet_id}: {applied} aplicados, {len(idx._cells)} celdas después")
+            idx.apply_revision_commands(all_cmds, sheet_id)
             
             sheet['cells'] = {f"{self._col_to_letter(c)}{r+1}": {'content': v} 
                              for (c, r), v in idx._cells.items()}
@@ -388,6 +380,10 @@ class PackingListImportWizard(models.TransientModel):
 
     def _extract_rows_from_index(self, idx, product):
         rows = []
+        
+        # Obtener tipo por defecto desde el producto
+        default_type = product.x_unidad_del_producto or 'Placa'
+        
         for r in range(3, 200):
             alto = self._to_float(idx.value(1, r)) # B
             ancho = self._to_float(idx.value(2, r)) # C
@@ -400,9 +396,12 @@ class PackingListImportWizard(models.TransientModel):
                     'ancho': ancho, 
                     'color': str(idx.value(3, r) or '').strip(), # D
                     'bloque': str(idx.value(4, r) or '').strip(), # E
-                    'numero_placa': str(idx.value(5, r) or '').strip(), # F (MODIFICADO: Campo nuevo en col 5)
-                    'atado': str(idx.value(6, r) or '').strip(), # G (Antes 5)
-                    'tipo': self._parse_tipo(idx.value(7, r)),   # H (Antes 6)
+                    'numero_placa': str(idx.value(5, r) or '').strip(), # F 
+                    'atado': str(idx.value(6, r) or '').strip(), # G
+                    
+                    # LOGICA APLICADA: Pasar el valor de celda y el default
+                    'tipo': self._resolve_type_val(idx.value(7, r), default_type),   # H
+                    
                     'grupo_name': str(idx.value(8, r) or '').strip(), # I
                     'pedimento': str(idx.value(9, r) or '').strip(),  # J
                     'contenedor': str(idx.value(10, r) or 'SN').strip(), # K
@@ -419,9 +418,14 @@ class PackingListImportWizard(models.TransientModel):
         try: return float(str(val).replace(',', '.').strip())
         except: return 0.0
 
-    def _parse_tipo(self, val):
-        v = str(val or '').lower().strip()
-        return 'formato' if v == 'formato' else 'placa'
+    def _resolve_type_val(self, val, default_type):
+        """
+        Si el valor viene vacío, usa el default del producto.
+        Si viene lleno, lo normaliza (strip).
+        """
+        if not val:
+            return default_type
+        return str(val).strip()
 
     def _get_next_global_prefix(self):
         self.env.cr.execute("""SELECT CAST(SUBSTRING(name FROM '^([0-9]+)-') AS INTEGER) as prefix_num FROM stock_lot WHERE name ~ '^[0-9]+-[0-9]+$' AND company_id = %s ORDER BY prefix_num DESC LIMIT 1""", (self.picking_id.company_id.id,))
@@ -450,6 +454,10 @@ class PackingListImportWizard(models.TransientModel):
             if not p_info: continue
             product = self.env['product.product'].search([('name', 'ilike', str(p_info).split('(')[0].strip())], limit=1)
             if not product: continue
+            
+            # Obtener tipo por defecto desde el producto
+            default_type = product.x_unidad_del_producto or 'Placa'
+            
             for r in range(4, sheet.max_row + 1):
                 alto, ancho = self._to_float(sheet.cell(r, 2).value), self._to_float(sheet.cell(r, 3).value)
                 if alto > 0 and ancho > 0:
@@ -460,9 +468,12 @@ class PackingListImportWizard(models.TransientModel):
                         'ancho': ancho, 
                         'color': str(sheet.cell(r, 4).value or '').strip(),
                         'bloque': str(sheet.cell(r, 5).value or '').strip(),
-                        'numero_placa': str(sheet.cell(r, 6).value or '').strip(), # MODIFICADO: Col 6
-                        'atado': str(sheet.cell(r, 7).value or '').strip(), # Col 7
-                        'tipo': self._parse_tipo(sheet.cell(r, 8).value),   # Col 8
+                        'numero_placa': str(sheet.cell(r, 6).value or '').strip(),
+                        'atado': str(sheet.cell(r, 7).value or '').strip(),
+                        
+                        # LOGICA APLICADA
+                        'tipo': self._resolve_type_val(sheet.cell(r, 8).value, default_type),
+                        
                         'grupo_name': str(sheet.cell(r, 9).value or '').strip(),
                         'pedimento': str(sheet.cell(r, 10).value or '').strip(),
                         'contenedor': str(sheet.cell(r, 11).value or 'SN').strip(),
