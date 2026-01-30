@@ -2,7 +2,7 @@
 (function () {
     "use strict";
 
-    console.log("[Portal] 🚀 Script Multi-Contenedor cargado.");
+    console.log("[Portal] 🚀 Script Multi-Contenedor (Tipos Unidades) cargado.");
 
     // --- DICCIONARIO DE TRADUCCIONES COMPLETO ---
     const TRANSLATIONS = {
@@ -57,19 +57,24 @@
             pl_title: "Packing List Details",
             pl_instruction: "Enter dimensions. 'Container' field is auto-filled based on Cargo Details.",
             loading: "Loading...",
-            footer_total_plates: "Current Plates:",
-            footer_total_area: "Current Area:",
+            
+            // Totales Nuevos
+            footer_total_plates: "Total Items:",
+            footer_total_area: "Total Area (m²):",
+            footer_total_pieces: "Total Pieces:",
             
             btn_add_next: "Save Container & Add Next",
             btn_submit: "Finish & Submit All",
             
             msg_confirm_stage: "Are you sure you want to save this container and add another one?",
             msg_container_required: "Container Number is required in Cargo Details.",
-            msg_rows_required: "Please add at least one product line with dimensions.",
+            msg_rows_required: "Please add at least one product line with dimensions/quantity.",
             msg_staged_success: "Container added to list. You can now enter the next one.",
             msg_remove_staged: "Remove this container?",
             
             requested: "Requested:",
+            
+            // Columnas Nuevas
             col_container: "Container",
             col_block: "Block",
             col_plate_num: "Plate No.",
@@ -78,7 +83,14 @@
             col_height: "Height (m)",
             col_width: "Width (m)",
             col_area: "Area (m²)",
+            col_qty: "Quantity",
             col_notes: "Notes",
+            
+            // Tipos
+            lbl_type_placa: "Plate",
+            lbl_type_formato: "Tile/Format",
+            lbl_type_pieza: "Piece",
+
             ph_cnt: "CNT01",
             ph_block: "B-01",
             ph_plate: "1",
@@ -145,19 +157,23 @@
             pl_title: "Detalle de Placas (Packing List)",
             pl_instruction: "Ingrese dimensiones. El campo 'Contenedor' se asignará automáticamente.",
             loading: "Cargando...",
-            footer_total_plates: "Placas (Actual):",
-            footer_total_area: "Área (Actual):",
             
+            // Totales Nuevos
+            footer_total_plates: "Items (Actual):",
+            footer_total_area: "Total Área (m²):",
+            footer_total_pieces: "Total Piezas:",
+
             btn_add_next: "Guardar Contenedor y Agregar Otro",
             btn_submit: "Finalizar y Enviar Todo",
             
             msg_confirm_stage: "¿Seguro que desea guardar este contenedor y agregar otro?",
             msg_container_required: "El Número de Contenedor es obligatorio.",
-            msg_rows_required: "Agregue al menos una línea de producto con dimensiones.",
+            msg_rows_required: "Agregue al menos una línea de producto con dimensiones/cantidad.",
             msg_staged_success: "Contenedor agregado a la lista. Ahora puede ingresar el siguiente.",
             msg_remove_staged: "¿Eliminar este contenedor de la lista?",
             
             requested: "Solicitado:",
+            
             col_container: "Contenedor",
             col_block: "Bloque",
             col_plate_num: "No. Placa",
@@ -166,13 +182,20 @@
             col_height: "Alto (m)",
             col_width: "Ancho (m)",
             col_area: "Área (m²)",
+            col_qty: "Cantidad",
             col_notes: "Notas",
+
+            // Tipos
+            lbl_type_placa: "Placa",
+            lbl_type_formato: "Formato",
+            lbl_type_pieza: "Pieza",
+
             ph_cnt: "CNT01",
             ph_block: "B-01",
             ph_plate: "1",
             ph_atado: "A-1",
             ph_opt: "Notas",
-            btn_add: "Agregar Placa",
+            btn_add: "Agregar Item",
             btn_add_multi: "+5 Filas",
             msg_saving: "Guardando...",
             msg_success: "✅ Guardado correctamente.",
@@ -233,8 +256,11 @@
             pl_title: "装箱单明细",
             pl_instruction: "输入尺寸。“集装箱”字段将根据货物详情自动填写。",
             loading: "加载中...",
-            footer_total_plates: "当前板数:",
+            
+            // Totales Nuevos
+            footer_total_plates: "当前项目数:",
             footer_total_area: "当前面积:",
+            footer_total_pieces: "当前件数:",
             
             btn_add_next: "保存集装箱并添加下一个",
             btn_submit: "完成并全部提交",
@@ -246,6 +272,7 @@
             msg_remove_staged: "删除此集装箱？",
             
             requested: "需求量:",
+            
             col_container: "集装箱",
             col_block: "荒料号",
             col_plate_num: "板号",
@@ -254,7 +281,14 @@
             col_height: "高度 (m)",
             col_width: "宽度 (m)",
             col_area: "面积 (m²)",
+            col_qty: "数量",
             col_notes: "备注",
+
+            // Tipos
+            lbl_type_placa: "大板",
+            lbl_type_formato: "规格板",
+            lbl_type_pieza: "件",
+
             ph_cnt: "CNT01",
             ph_block: "B-01",
             ph_plate: "1",
@@ -280,8 +314,7 @@
             this.header = {};     // Datos de cabecera (mezcla de Global y Actual)
             this.nextId = 1;
             
-            // NUEVO: Almacén de contenedores confirmados ("Staged")
-            // Estructura: { id: timestamp, header: {}, rows: [], files: [], summary: {} }
+            // Almacén de contenedores confirmados ("Staged")
             this.stagedContainers = []; 
             
             this.currentLang = localStorage.getItem('portal_lang') || 'en';
@@ -449,6 +482,9 @@
 
         // --- CRUD FILAS PRODUCTOS ---
         createRowInternal(productId) {
+            const product = this.products.find(p => p.id === productId);
+            const unitType = product ? (product.unit_type || 'Placa') : 'Placa';
+
             // Heredar valores de la última fila de ese producto para agilizar captura
             const productRows = this.rows.filter(r => r.product_id === productId);
             let defaults = { bloque: '', grosor: 0, atado: '' };
@@ -465,8 +501,15 @@
                 contenedor: '', // Se llenará al guardar/stager
                 bloque: defaults.bloque,
                 numero_placa: '', atado: defaults.atado,
-                grosor: defaults.grosor, alto: 0, ancho: 0, color: '', ref_prov: ''
+                grosor: defaults.grosor, alto: 0, ancho: 0, color: '', ref_prov: '',
+                tipo: unitType // Guardamos el tipo para referencia lógica
             };
+
+            // Ajuste para Pieza: Ancho fijo en 1 para que Alto sirva de Cantidad
+            if (unitType === 'Pieza') {
+                newRow.ancho = 1;
+            }
+
             this.rows.push(newRow);
             return newRow;
         }
@@ -493,7 +536,7 @@
                 return;
             }
 
-            // Validar al menos una fila con dimensiones
+            // Validar al menos una fila con dimensiones/cantidad
             const validRows = this.rows.filter(r => r.alto > 0 && r.ancho > 0);
             if (validRows.length === 0) {
                 alert(this.t('msg_rows_required'));
@@ -781,32 +824,53 @@
 
             let html = '';
             this.products.forEach(product => {
+                const unitType = product.unit_type || 'Placa';
+                const typeLabelKey = `lbl_type_${unitType.toLowerCase()}`;
+                const typeLabel = this.t(typeLabelKey);
+
                 const productRows = this.rows.filter(r => r.product_id === product.id);
                 
                 html += `
                     <div class="product-section">
                         <div class="product-header">
-                            <div><h3>${product.name} <span class="text-muted small ms-2">(${product.code})</span></h3></div>
+                            <div>
+                                <h3>${product.name} 
+                                    <span class="text-muted small ms-2">(${product.code})</span>
+                                    <span class="badge bg-secondary ms-2" style="font-size:0.7em">${typeLabel}</span>
+                                </h3>
+                            </div>
                             <div class="meta">${this.t('requested')} <strong class="text-white">${product.qty_ordered} ${product.uom}</strong></div>
                         </div>
                         <div class="table-responsive">
                             <table class="portal-table">
                                 <thead>
-                                    <tr>
-                                        <!-- No mostramos Contenedor aquí porque es global para la vista, 
-                                             pero se asigna internamente -->
-                                        <th>${this.t('col_block')}</th>
-                                        <th>${this.t('col_atado')}</th>
-                                        <th>${this.t('col_plate_num')}</th>
-                                        <th>${this.t('col_thickness')}</th>
-                                        <th>${this.t('col_height')}</th>
-                                        <th>${this.t('col_width')}</th>
-                                        <th>${this.t('col_area')}</th>
-                                        <th>${this.t('col_notes')}</th>
-                                        <th style="width: 50px;"></th>
-                                    </tr>
-                                </thead>
-                                <tbody>`;
+                                    <tr>`;
+                
+                // --- CABECERAS DINÁMICAS POR TIPO ---
+                if (unitType === 'Placa') {
+                    html += `
+                        <th>${this.t('col_block')}</th>
+                        <th>${this.t('col_atado')}</th>
+                        <th>${this.t('col_plate_num')}</th>
+                        <th>${this.t('col_thickness')}</th>
+                        <th>${this.t('col_height')}</th>
+                        <th>${this.t('col_width')}</th>
+                        <th>${this.t('col_area')}</th>`;
+                } else if (unitType === 'Formato') {
+                    html += `
+                        <th>${this.t('col_height')}</th>
+                        <th>${this.t('col_width')}</th>
+                        <th>${this.t('col_area')}</th>`;
+                } else if (unitType === 'Pieza') {
+                    html += `
+                        <th>${this.t('col_qty')}</th>`;
+                }
+
+                html += `       <th>${this.t('col_notes')}</th>
+                                <th style="width: 50px;"></th>
+                            </tr>
+                        </thead>
+                        <tbody>`;
                 
                 const renderInput = (rowId, field, value, ph, type="text", step="") => `
                     <div class="input-group-portal">
@@ -819,15 +883,30 @@
 
                 productRows.forEach(row => {
                     const area = (row.alto * row.ancho).toFixed(2);
-                    html += `
-                        <tr data-row-id="${row.id}">
+                    html += `<tr data-row-id="${row.id}">`;
+                    
+                    // --- CELDAS DINÁMICAS POR TIPO ---
+                    if (unitType === 'Placa') {
+                        html += `
                             <td data-label="${this.t('col_block')}">${renderInput(row.id, 'bloque', row.bloque, 'ph_block', 'text', '', 'short text-uppercase')}</td>
                             <td data-label="${this.t('col_atado')}">${renderInput(row.id, 'atado', row.atado, 'ph_atado', 'text', '', 'short text-uppercase')}</td>
                             <td data-label="${this.t('col_plate_num')}">${renderInput(row.id, 'numero_placa', row.numero_placa, 'ph_plate', 'text', '', 'short')}</td>
                             <td data-label="${this.t('col_thickness')}">${renderInput(row.id, 'grosor', row.grosor, '', 'number', '0.01', 'short')}</td>
                             <td data-label="${this.t('col_height')}">${renderInput(row.id, 'alto', row.alto, '', 'number', '0.01', 'short')}</td>
                             <td data-label="${this.t('col_width')}">${renderInput(row.id, 'ancho', row.ancho, '', 'number', '0.01', 'short')}</td>
-                            <td data-label="${this.t('col_area')}"><span class="area-display">${area}</span></td>
+                            <td data-label="${this.t('col_area')}"><span class="area-display">${area}</span></td>`;
+                    } else if (unitType === 'Formato') {
+                        html += `
+                            <td data-label="${this.t('col_height')}">${renderInput(row.id, 'alto', row.alto, '', 'number', '0.01', 'short')}</td>
+                            <td data-label="${this.t('col_width')}">${renderInput(row.id, 'ancho', row.ancho, '', 'number', '0.01', 'short')}</td>
+                            <td data-label="${this.t('col_area')}"><span class="area-display">${area}</span></td>`;
+                    } else if (unitType === 'Pieza') {
+                        // Hack: Mapeamos Cantidad -> 'alto', y 'ancho' fijo en 1 (oculto)
+                        html += `
+                            <td data-label="${this.t('col_qty')}">${renderInput(row.id, 'alto', row.alto, '', 'number', '1', 'short')}</td>`;
+                    }
+
+                    html += `
                             <td data-label="${this.t('col_notes')}">${renderInput(row.id, 'color', row.color, 'ph_opt')}</td>
                             <td class="text-center"><button class="btn-action btn-delete" type="button"><i class="fa fa-trash"></i></button></td>
                         </tr>`;
@@ -859,7 +938,11 @@
                         this.updateRowData(rowId, field, e.target.value);
                         if (field === 'alto' || field === 'ancho') {
                             const r = this.rows.find(x => x.id == rowId);
-                            if(r) tr.querySelector('.area-display').innerText = (r.alto * r.ancho).toFixed(2);
+                            if(r) {
+                                // Solo actualizar display si existe el span (Formato/Placa)
+                                const areaSpan = tr.querySelector('.area-display');
+                                if(areaSpan) areaSpan.innerText = (r.alto * r.ancho).toFixed(2);
+                            }
                             this.updateTotalsUI();
                         }
                     }
@@ -935,10 +1018,46 @@
         updateTotalsUI() {
             // Contar líneas válidas actuales
             const validRows = this.rows.filter(r => r.alto > 0 && r.ancho > 0);
-            const currentArea = validRows.reduce((acc, r) => acc + (r.alto * r.ancho), 0);
             
-            document.getElementById('total-plates').innerText = validRows.length;
-            document.getElementById('total-area').innerText = currentArea.toFixed(2);
+            // Separar totales por lógica
+            let totalM2 = 0;
+            let totalItems = 0; // Items de Placa/Formato
+            let totalPieces = 0; // Cantidad de Piezas
+
+            validRows.forEach(r => {
+                const product = this.products.find(p => p.id === r.product_id);
+                const unitType = product ? (product.unit_type || 'Placa') : 'Placa';
+
+                if (unitType === 'Pieza') {
+                    // En Pieza, 'alto' guarda la Cantidad. 'ancho' es 1.
+                    totalPieces += r.alto;
+                } else {
+                    // Placa o Formato
+                    totalM2 += (r.alto * r.ancho);
+                    totalItems++;
+                }
+            });
+            
+            document.getElementById('total-plates').innerText = totalItems;
+            document.getElementById('total-area').innerText = totalM2.toFixed(2);
+            
+            // Inyectar el contenedor de piezas si no existe (ya que el HTML base quizás no lo tiene)
+            let piecesContainer = document.getElementById('summary-pieces-container');
+            if (!piecesContainer) {
+                const summaryDiv = document.querySelector('.submit-footer .summary');
+                if (summaryDiv) {
+                    piecesContainer = document.createElement('div');
+                    piecesContainer.id = 'summary-pieces-container';
+                    // Separador visual
+                    piecesContainer.style.borderLeft = "1px solid #444";
+                    piecesContainer.style.paddingLeft = "20px";
+                    
+                    piecesContainer.innerHTML = `<span data-i18n="footer_total_pieces">${this.t('footer_total_pieces')}</span> <span id="total-pieces" class="text-warning fw-bold">0</span>`;
+                    summaryDiv.appendChild(piecesContainer);
+                }
+            }
+            const piecesVal = document.getElementById('total-pieces');
+            if(piecesVal) piecesVal.innerText = totalPieces;
             
             // Habilitar botones si hay algo en Staged o en Actual
             const hasStaged = this.stagedContainers.length > 0;

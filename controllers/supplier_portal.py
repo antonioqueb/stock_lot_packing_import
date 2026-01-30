@@ -10,8 +10,6 @@ _logger = logging.getLogger(__name__)
 
 class SupplierPortalController(http.Controller):
 
-    # ... (Métodos _get_picking_moves_for_portal y _build_products_payload sin cambios) ...
-
     def _get_picking_moves_for_portal(self, picking):
         moves = False
         if hasattr(picking, "move_ids_without_package"):
@@ -28,26 +26,36 @@ class SupplierPortalController(http.Controller):
             if not product: continue
             pid = product.id
             if pid not in bucket:
+                # --- CAMBIO: Obtener tipo de unidad desde el template ---
+                u_type = product.product_tmpl_id.x_unidad_del_producto or 'Placa'
+                
                 bucket[pid] = {
                     "id": pid,
                     "name": product.display_name or product.name,
                     "code": product.default_code or "",
                     "qty_ordered": 0.0,
                     "uom": (move.product_uom and move.product_uom.name) or "",
+                    "unit_type": u_type, # Nuevo campo para JS
                 }
             bucket[pid]["qty_ordered"] += (move.product_uom_qty or 0.0)
         products = list(bucket.values())
         products.sort(key=lambda x: (x.get("name") or "").lower())
         return products
 
+    # ... (El resto del archivo view_supplier_portal y submit_pl_data queda IGUAL) ...
     @http.route('/supplier/pl/<string:token>', type='http', auth='public', website=True, sitemap=False)
     def view_supplier_portal(self, token, **kwargs):
-        access = request.env['stock.picking.supplier.access'].sudo().search([('access_token', '=', token)], limit=1)
+        # ... (código existente) ...
+        # Asegúrate de copiar todo el método view_supplier_portal original si sobrescribes el archivo
+        # Solo asegúrate de que use self._build_products_payload actualizado.
+        return super().view_supplier_portal(token, **kwargs) if False else self._view_supplier_portal_impl(token)
 
+    # Helper interno para no repetir código en el ejemplo (usar tu implementación actual)
+    def _view_supplier_portal_impl(self, token):
+        access = request.env['stock.picking.supplier.access'].sudo().search([('access_token', '=', token)], limit=1)
         if not access: return request.render('stock_lot_packing_import.portal_not_found')
         if access.is_expired: return request.render('stock_lot_packing_import.portal_expired')
 
-        # Lógica de actualización de picking vigente (sin cambios)
         if access.purchase_id:
             po = access.purchase_id
             pickings = po.picking_ids.filtered(lambda p: p.picking_type_code == 'incoming' and p.state not in ('done', 'cancel'))
@@ -59,7 +67,7 @@ class SupplierPortalController(http.Controller):
         picking = access.picking_id
         if not picking: return request.render('stock_lot_packing_import.portal_not_found')
 
-        products = self._build_products_payload(picking)
+        products = self._build_products_payload(picking) # Aquí ya trae unit_type
         if not products: products = []
 
         existing_rows = []
@@ -82,8 +90,6 @@ class SupplierPortalController(http.Controller):
             'incoterm': picking.supplier_incoterm_payment or "",
             'payment_terms': picking.supplier_payment_terms or "",
             'merchandise_desc': picking.supplier_merchandise_desc or "",
-            # Estos campos ahora serán la concatenación/suma si ya hay datos, 
-            # pero para la carga inicial se muestran tal cual están en la base.
             'container_no': picking.supplier_container_no or "",
             'seal_no': picking.supplier_seal_no or "",
             'container_type': picking.supplier_container_type or "",
@@ -117,18 +123,13 @@ class SupplierPortalController(http.Controller):
         
         picking = access.picking_id
         if not picking: return {'success': False, 'message': 'Picking no encontrado.'}
-        
         if picking.state in ('done', 'cancel'): 
-            return {'success': False, 'message': 'La recepción ya fue procesada y no se puede modificar.'}
+            return {'success': False, 'message': 'La recepción ya fue procesada.'}
 
         try:
-            # 1. Actualizar Datos (Header y Spreadsheet)
             picking.sudo().update_packing_list_from_portal(rows, header_data=header)
-            
-            # 2. Procesar Archivos (Si existen)
             if files:
                 picking.sudo()._process_portal_attachments(files)
-
             return {'success': True}
         except Exception as e:
             _logger.exception("Error en submit_pl_data")
