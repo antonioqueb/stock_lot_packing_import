@@ -160,7 +160,7 @@ class PackingListImportWizard(models.TransientModel):
             move = self.picking_id.move_ids.filtered(lambda m: m.product_id == product)[:1]
             if not move: continue
 
-            # Determinar tipo
+            # Determinar tipo (Viene como 'Placa', 'Formato', 'Pieza' del template)
             unit_type = data.get('tipo', 'Placa')
             
             qty_done = 0.0
@@ -196,6 +196,11 @@ class PackingListImportWizard(models.TransientModel):
                 if not grupo: grupo = self.env['stock.lot.group'].create({'name': data['grupo_name'].strip()})
                 grupo_ids = [grupo.id]
 
+            # --- CORRECCIÓN DE TIPO PARA SELECTION ---
+            # El campo selection espera 'placa', 'formato', 'pieza' (minúsculas).
+            # Convertimos el valor unit_type (que puede ser 'Placa', 'Formato') a minúsculas.
+            lot_selection_value = str(unit_type).lower()
+
             # Crear Lote
             lot = self.env['stock.lot'].create({
                 'name': l_name, 
@@ -208,7 +213,7 @@ class PackingListImportWizard(models.TransientModel):
                 'x_bloque': data['bloque'], 
                 'x_numero_placa': data.get('numero_placa'), 
                 'x_atado': data['atado'],
-                'x_tipo': unit_type, 
+                'x_tipo': lot_selection_value,  # <--- Convertido a minúsculas para coincidir con Selection
                 'x_grupo': [(6, 0, grupo_ids)], 
                 'x_pedimento': data['pedimento'],
                 'x_contenedor': cont, 
@@ -228,7 +233,7 @@ class PackingListImportWizard(models.TransientModel):
                 'x_alto_temp': final_alto,
                 'x_ancho_temp': final_ancho, 
                 'x_color_temp': data.get('color'), 
-                'x_tipo_temp': unit_type,
+                'x_tipo_temp': lot_selection_value, # Usamos el valor Selection normalizado
                 'x_bloque_temp': data['bloque'], 
                 'x_atado_temp': data['atado'], 
                 'x_pedimento_temp': data['pedimento'],
@@ -400,6 +405,7 @@ class PackingListImportWizard(models.TransientModel):
         rows = []
         
         # Obtener tipo por defecto desde el producto TEMPLATE
+        # Esto devuelve 'Formato', 'Placa' o 'Pieza' (Capitalizados o como se guarden en product.template)
         unit_type = product.product_tmpl_id.x_unidad_del_producto or 'Placa'
         
         for r in range(3, 300):
@@ -407,14 +413,14 @@ class PackingListImportWizard(models.TransientModel):
             val_b = self._to_float(idx.value(1, r)) # B = Alto o Cantidad
             val_c = self._to_float(idx.value(2, r)) # C = Ancho
             
-            # --- VALIDACIÓN ESTRICTA ---
+            # --- VALIDACIÓN ---
             es_valido = False
             
             if unit_type == 'Placa':
                 # Placa exige Alto (B) y Ancho (C)
                 if val_b > 0 and val_c > 0: es_valido = True
             else:
-                # Pieza/Formato solo exige Cantidad (B). Ignora C.
+                # 'Pieza' y 'Formato' exigen solo Cantidad (B)
                 if val_b > 0: es_valido = True
 
             if es_valido:
@@ -422,11 +428,11 @@ class PackingListImportWizard(models.TransientModel):
                     'product': product, 
                     'grosor': str(idx.value(0, r) or '').strip(), # A
                     
-                    # Si es Pieza, Alto/Ancho = 0
+                    # Si no es Placa, Alto/Ancho = 0
                     'alto': val_b if unit_type == 'Placa' else 0.0,
                     'ancho': val_c if unit_type == 'Placa' else 0.0,
                     
-                    # Si es Pieza, Quantity = B. Si es Placa, Quantity = 0 (se calcula luego)
+                    # Si no es Placa, Quantity = B.
                     'quantity': val_b if unit_type != 'Placa' else 0.0,
                     
                     'color': str(idx.value(3, r) or '').strip(), # D
@@ -434,7 +440,7 @@ class PackingListImportWizard(models.TransientModel):
                     'numero_placa': str(idx.value(5, r) or '').strip(), # F 
                     'atado': str(idx.value(6, r) or '').strip(), # G
                     
-                    'tipo': unit_type, 
+                    'tipo': unit_type, # Se pasa el valor original (Ej. 'Formato') para que action_import_excel lo procese
                     
                     'grupo_name': str(idx.value(8, r) or '').strip(), # I 
                     'pedimento': str(idx.value(9, r) or '').strip(),  # J 
