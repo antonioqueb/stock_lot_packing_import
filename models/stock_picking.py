@@ -63,7 +63,7 @@ class StockPicking(models.Model):
     def get_packing_list_data_for_portal(self):
         """
         Lee el Spreadsheet actual para mostrar al proveedor lo que ya ha llenado.
-        Recupera filas y datos de cabecera implícitos en las columnas.
+        Interpreta la Columna B como 'Alto' o 'Cantidad' dependiendo del tipo de unidad del producto.
         """
         self.ensure_one()
         rows = []
@@ -71,7 +71,7 @@ class StockPicking(models.Model):
         if not self.spreadsheet_id:
             return rows
 
-        # Obtener el estado actual real del spreadsheet (Snapshot + Revisiones)
+        # Obtener el estado actual real del spreadsheet
         data = self._get_current_spreadsheet_state(self.spreadsheet_id)
         if not data:
             return rows
@@ -92,30 +92,28 @@ class StockPicking(models.Model):
             
             if not product: continue
 
-            # --- LOGICA AUTOMATICA: Obtener tipo desde el TEMPLATE del producto ---
-            # Se usa product_tmpl_id porque el campo x_unidad_del_producto está en el modelo product.template
-            default_type = product.product_tmpl_id.x_unidad_del_producto or 'Placa'
+            # --- LOGICA: Tipo desde el TEMPLATE ---
+            unit_type = product.product_tmpl_id.x_unidad_del_producto or 'Placa'
 
             # Leer filas desde la fila 4 (index 3)
             row_idx = 3
             while True:
                 idx_str = str(row_idx + 1)
                 
-                # Chequeo simple de fin de datos
+                # Chequeo simple de fin de datos (si B está vacío)
                 b_cell = cells.get(f"B{idx_str}", {})
                 if not b_cell or not b_cell.get("content"):
-                    if not cells.get(f"C{idx_str}", {}).get("content"):
-                        # Lookahead para evitar falsos positivos por filas vacías intermedias
-                        found_next = False
-                        for lookahead in range(1, 4):
-                            if cells.get(f"B{row_idx + 1 + lookahead}", {}).get("content"):
-                                found_next = True
-                                break
-                        if not found_next:
+                    # Lookahead
+                    found_next = False
+                    for lookahead in range(1, 4):
+                        if cells.get(f"B{row_idx + 1 + lookahead}", {}).get("content"):
+                            found_next = True
                             break
-                        else:
-                            row_idx += 1
-                            continue
+                    if not found_next:
+                        break
+                    else:
+                        row_idx += 1
+                        continue
 
                 def get_val(col, type_cast=str):
                     val = cells.get(f"{col}{idx_str}", {}).get("content", "")
@@ -127,50 +125,54 @@ class StockPicking(models.Model):
                             return 0.0
                     return str(val).strip()
 
-                alto = get_val("B", float)
-                ancho = get_val("C", float)
-                
-                # Recuperar tipo de la celda I, o usar default
-                tipo_row = get_val("I")
-                if not tipo_row:
-                    tipo_row = default_type
+                val_b = get_val("B", float) # Alto o Cantidad
+                val_c = get_val("C", float) # Ancho (Solo Placa)
 
-                # --- VALIDACIÓN DINÁMICA ---
-                es_valido = False
-                if tipo_row == 'Placa':
-                    # Placa requiere ambas dimensiones
-                    if alto > 0 and ancho > 0: es_valido = True
+                # Construir fila base
+                row_data = {
+                    'product_id': product.id,
+                    'grosor': get_val("A"),
+                    'peso': get_val("D", float),
+                    'color': get_val("E"),
+                    'bloque': get_val("F"),
+                    'numero_placa': get_val("G"),
+                    'atado': get_val("H"),
+                    # La columna I (Tipo) se ELIMINÓ en el diseño nuevo.
+                    # Mapeo desplazado:
+                    'grupo_name': get_val("I"),      # Antes J
+                    'pedimento': get_val("J"),       # Antes K
+                    'contenedor': get_val("K"),      # Antes L
+                    'ref_proveedor': get_val("L"),   # Antes M
+                    'tipo': unit_type, # Se pasa al JS para referencia
+                }
+
+                # Lógica Híbrida:
+                if unit_type == 'Placa':
+                    # Si es Placa, exigimos Alto y Ancho
+                    if val_b > 0 and val_c > 0:
+                        row_data.update({
+                            'alto': val_b,
+                            'ancho': val_c,
+                            'quantity': 0
+                        })
+                        rows.append(row_data)
                 else:
-                    # Pieza/Formato: Solo requiere alto (que actúa como cantidad)
-                    if alto > 0: es_valido = True
-
-                if es_valido:
-                    rows.append({
-                        'product_id': product.id,
-                        'grosor': get_val("A"),
-                        'alto': alto,
-                        'ancho': ancho,
-                        'peso': get_val("D", float),   
-                        'color': get_val("E"),         
-                        'bloque': get_val("F"),        
-                        'numero_placa': get_val("G"),  
-                        'atado': get_val("H"),         
-                        'tipo': tipo_row,              
-                        'contenedor': get_val("L"),    
-                    })
+                    # Si es Pieza/Formato, Columna B es Cantidad. Ancho se ignora.
+                    if val_b > 0:
+                        row_data.update({
+                            'alto': 0, 
+                            'ancho': 0,
+                            'quantity': val_b
+                        })
+                        rows.append(row_data)
                 
                 row_idx += 1
-                if row_idx > 2000: break # Safety break
+                if row_idx > 2000: break 
 
         return rows
 
     def _get_current_spreadsheet_state(self, doc):
-        """
-        Obtiene los datos más recientes combinando Snapshot y Revisiones pendientes.
-        """
         data = {}
-        
-        # 1. Intentar cargar Snapshot
         if doc.spreadsheet_snapshot:
             try:
                 raw = doc.spreadsheet_snapshot
@@ -178,7 +180,6 @@ class StockPicking(models.Model):
             except Exception as e:
                 _logger.warning(f"[PL_DEBUG] Error leyendo snapshot: {e}")
 
-        # 2. Si falla, cargar Data Base
         if not data and doc.spreadsheet_data:
             try:
                 raw = doc.spreadsheet_data
@@ -188,7 +189,6 @@ class StockPicking(models.Model):
 
         if not data: return {}
 
-        # 3. Obtener y Aplicar Revisiones
         revisions = self.env['spreadsheet.revision'].sudo().with_context(active_test=False).search([
             ('res_model', '=', 'documents.document'),
             ('res_id', '=', doc.id)
@@ -246,8 +246,8 @@ class StockPicking(models.Model):
 
     def update_packing_list_from_portal(self, rows, header_data=None):
         """
-        Recibe filas consolidadas (lista plana de todos los contenedores).
-        El JS ya asignó el campo 'contenedor' correcto a cada fila.
+        Recibe filas consolidadas.
+        Escribe en el Spreadsheet usando la lógica híbrida (Columna B = Alto o Cantidad).
         """
         self.ensure_one()
         
@@ -265,8 +265,6 @@ class StockPicking(models.Model):
                 'supplier_incoterm_payment': header_data.get('incoterm'),
                 'supplier_payment_terms': header_data.get('payment_terms'),
                 'supplier_merchandise_desc': header_data.get('merchandise_desc'),
-                
-                # Campos acumulados/concatenados
                 'supplier_container_no': header_data.get('container_no'),
                 'supplier_seal_no': header_data.get('seal_no'),
                 'supplier_container_type': header_data.get('container_type'),
@@ -282,8 +280,6 @@ class StockPicking(models.Model):
         if not self.spreadsheet_id: self.action_open_packing_list_spreadsheet()
         
         doc = self.spreadsheet_id
-        
-        # Cargar estado actual
         data = self._get_current_spreadsheet_state(doc)
         if not data: return True
 
@@ -302,7 +298,6 @@ class StockPicking(models.Model):
                 
                 if product:
                     product_sheet_map[product.id] = sheet
-                    # Limpieza segura de datos viejos (filas >= 4)
                     keys_to_remove = []
                     for key in list(cells.keys()):
                         match = re.match(r'^([A-Z]+)(\d+)$', key)
@@ -313,7 +308,6 @@ class StockPicking(models.Model):
                     for k in keys_to_remove:
                         del cells[k]
 
-        # Agrupar filas recibidas por producto
         rows_by_product = {}
         for row in rows:
             try:
@@ -322,14 +316,12 @@ class StockPicking(models.Model):
                 rows_by_product[pid].append(row)
             except: continue
 
-        # Escribir en el JSON
         for pid, prod_rows in rows_by_product.items():
             sheet = product_sheet_map.get(pid)
             if not sheet: continue
             
-            # --- LOGICA AUTOMATICA: Buscar el tipo por defecto del producto (TEMPLATE) ---
             product_obj = self.env['product.product'].browse(pid)
-            default_type = product_obj.product_tmpl_id.x_unidad_del_producto or 'Placa'
+            unit_type = product_obj.product_tmpl_id.x_unidad_del_producto or 'Placa'
 
             current_row = 4
             for row in prod_rows:
@@ -339,34 +331,40 @@ class StockPicking(models.Model):
                         sheet['cells'][f"{col_letter}{current_row}"] = {"content": str(val)}
 
                 set_c("A", row.get('grosor', ''))
-                set_c("B", row.get('alto', ''))
-                set_c("C", row.get('ancho', ''))
-                set_c("D", row.get('peso', ''))           # NUEVO: Peso
-                set_c("E", row.get('color', ''))          # Desplazado
-                set_c("F", row.get('bloque', ''))         # Desplazado
-                set_c("G", row.get('numero_placa', ''))   # Desplazado
-                set_c("H", row.get('atado', ''))          # Desplazado
                 
-                # AQUI SE APLICA: Si el valor 'tipo' viene vacio del portal, asignamos el del template
-                tipo_val = row.get('tipo')
-                if not tipo_val:
-                    tipo_val = default_type
-                set_c("I", tipo_val)                      # Desplazado
+                # --- ESCRITURA HÍBRIDA ---
+                if unit_type == 'Placa':
+                    # Escribimos Alto y Ancho
+                    set_c("B", row.get('alto', ''))
+                    set_c("C", row.get('ancho', ''))
+                else:
+                    # Escribimos Cantidad en Columna B, Columna C vacía
+                    # El JS nos manda 'quantity'
+                    qty_val = row.get('quantity')
+                    set_c("B", qty_val) 
+                    set_c("C", "") 
+
+                set_c("D", row.get('peso', ''))
+                set_c("E", row.get('color', ''))
+                set_c("F", row.get('bloque', ''))
+                set_c("G", row.get('numero_placa', ''))
+                set_c("H", row.get('atado', ''))
                 
-                # CRITICO: Escribir el contenedor en Columna L (Antes K)
-                set_c("L", row.get('contenedor', '')) 
+                # SIN COLUMNA TIPO -> Mapeo desplazado
+                set_c("I", row.get('grupo_name', '')) # Antes J
+                set_c("J", row.get('pedimento', ''))  # Antes K
+                set_c("K", row.get('contenedor', '')) # Antes L
+                set_c("L", row.get('ref_proveedor', '')) # Antes M
                 
-                set_c("N", "Actualizado Portal")          # Desplazado (Antes M)
+                set_c("M", "Actualizado Portal")      # Antes N
                 current_row += 1
 
-        # Guardar cambios
         new_json = json.dumps(data)
         doc.write({
             'spreadsheet_data': new_json,
             'spreadsheet_snapshot': False, 
         })
         
-        # Eliminar revisiones pendientes para consolidar
         self.env['spreadsheet.revision'].sudo().search([
             ('res_model', '=', 'documents.document'),
             ('res_id', '=', doc.id)
@@ -375,26 +373,16 @@ class StockPicking(models.Model):
         return True
 
     def _process_portal_attachments(self, files_list):
-        """
-        Procesa la lista de archivos adjuntos enviada desde el portal.
-        files_list = [{'name': '...', 'type': '...', 'data': 'base64...', 'container_ref': '...'}, ...]
-        """
         Attachment = self.env['ir.attachment']
         for file_data in files_list:
             try:
                 raw_name = file_data.get('name', 'unknown')
                 container_ref = file_data.get('container_ref', '')
-                
-                # Prefijo para organizar archivos por contenedor
                 final_name = f"[{container_ref}] {raw_name}" if container_ref else raw_name
-                
                 Attachment.create({
-                    'name': final_name,
-                    'type': 'binary',
-                    'datas': file_data.get('data'), # Ya viene en base64 puro desde JS
-                    'res_model': 'stock.picking',
-                    'res_id': self.id,
-                    'mimetype': file_data.get('type')
+                    'name': final_name, 'type': 'binary',
+                    'datas': file_data.get('data'), 'res_model': 'stock.picking',
+                    'res_id': self.id, 'mimetype': file_data.get('type')
                 })
             except Exception as e:
                 _logger.warning(f"Error guardando adjunto {file_data.get('name')}: {e}")
@@ -432,9 +420,9 @@ class StockPicking(models.Model):
 
             folder = self.env['documents.document'].search([('type', '=', 'folder')], limit=1)
             
-            # Headers Spreadsheet (Actualizado con Peso)
-            # A=Grosor, B=Alto, C=Ancho, D=Peso, E=Notas, F=Bloque, G=Placa, H=Atado, I=Tipo, J=Grupo, K=Pedimento, L=Contenedor, M=RefProv, N=RefInt
-            headers = ['Grosor (cm)', 'Alto (m)', 'Ancho (m)', 'Peso (kg)', 'Notas', 'Bloque', 'No. Placa', 'Atado', 'Tipo', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Proveedor', 'Ref. Interna']
+            # HEADERS ACTUALIZADOS: Sin 'Tipo', B es híbrido.
+            # A=Grosor, B=Alto/Qty, C=Ancho, D=Peso, E=Notas, F=Bloque, G=Placa, H=Atado, I=Grupo, J=Pedimento, K=Contenedor, L=RefProv, M=RefInt
+            headers = ['Grosor (cm)', 'Alto (m) / Cantidad', 'Ancho (m)', 'Peso (kg)', 'Notas', 'Bloque', 'No. Placa', 'Atado', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Proveedor', 'Ref. Interna']
             
             sheets = []
             for index, product in enumerate(products):
@@ -448,7 +436,6 @@ class StockPicking(models.Model):
                     cells[f"{col_letter}3"] = self._make_cell(header, style=1)
 
                 sheet_name = (product.default_code or product.name)[:31]
-                # Manejo de nombres duplicados de hojas
                 count = 1
                 base_name = sheet_name
                 while any(s['name'] == sheet_name for s in sheets):
@@ -459,10 +446,10 @@ class StockPicking(models.Model):
                     "id": f"pl_sheet_{product.id}",
                     "name": sheet_name,
                     "cells": cells,
-                    "colNumber": 14, # Aumentado a 14 columnas
+                    "colNumber": 14, # 13 Columnas + 1 margen
                     "rowNumber": 250,
                     "isProtected": True,
-                    "protectedRanges": [{"range": "A4:N250", "isProtected": False}] # Rango extendido hasta N
+                    "protectedRanges": [{"range": "A4:N250", "isProtected": False}] 
                 })
 
             spreadsheet_data = {
@@ -566,12 +553,11 @@ class StockPicking(models.Model):
         for product in self.move_ids.mapped('product_id'):
             ws = wb.create_sheet(title=(product.default_code or product.name)[:31])
             ws['A1'] = 'PRODUCTO:'; ws['B1'] = f'{product.name} ({product.default_code or ""})'
-            # Headers actualizados con Peso
-            headers = ['Grosor (cm)', 'Alto (m)', 'Ancho (m)', 'Peso (kg)', 'Color', 'Bloque', 'No. Placa', 'Atado', 'Tipo', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Proveedor', 'Notas']
+            # HEADERS ACTUALIZADOS PARA EXCEL TAMBIEN
+            headers = ['Grosor (cm)', 'Alto (m) / Cantidad', 'Ancho (m)', 'Peso (kg)', 'Color', 'Bloque', 'No. Placa', 'Atado', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Proveedor', 'Notas']
             for col_num, header in enumerate(headers, 1):
                 cell = ws.cell(row=3, column=col_num); cell.value = header; cell.fill = header_fill; cell.font = header_font; cell.border = border
             for row in range(4, 54):
-                # Rango actualizado a 14 columnas
                 for col in range(1, 15): ws.cell(row=row, column=col).border = border
         output = io.BytesIO(); wb.save(output)
         filename = f'Plantilla_PL_{self.name}.xlsx'

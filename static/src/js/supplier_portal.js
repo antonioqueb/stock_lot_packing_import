@@ -83,7 +83,7 @@
             col_height: "Height (m)",
             col_width: "Width (m)",
             col_area: "Area (m²)",
-            col_qty: "Quantity",
+            col_qty: "Quantity", // Nueva etiqueta
             col_notes: "Notes",
             
             // Tipos
@@ -182,7 +182,7 @@
             col_height: "Alto (m)",
             col_width: "Ancho (m)",
             col_area: "Área (m²)",
-            col_qty: "Cantidad",
+            col_qty: "Cantidad", // Nueva etiqueta
             col_notes: "Notas",
 
             // Tipos
@@ -281,7 +281,7 @@
             col_height: "高度 (m)",
             col_width: "宽度 (m)",
             col_area: "面积 (m²)",
-            col_qty: "数量",
+            col_qty: "数量", // Nueva etiqueta
             col_notes: "备注",
 
             // Tipos
@@ -502,10 +502,11 @@
                 bloque: defaults.bloque,
                 numero_placa: '', atado: defaults.atado,
                 grosor: defaults.grosor, alto: 0, ancho: 0, color: '', ref_prov: '',
-                tipo: unitType // Guardamos el tipo para referencia lógica
+                tipo: unitType,
+                quantity: 0 // Nuevo campo exclusivo para cantidad
             };
 
-            // Ajuste para Pieza Y FORMATO: Ancho fijo en 1 para que Alto sirva de Cantidad
+            // Ajuste para Pieza/Formato: Ancho fijo en 1 (aunque no se use en UI)
             if (unitType === 'Pieza' || unitType === 'Formato') {
                 newRow.ancho = 1;
             }
@@ -517,7 +518,7 @@
         updateRowData(id, field, value) {
             const row = this.rows.find(r => r.id === parseInt(id));
             if (row) {
-                if ([ 'alto', 'ancho'].includes(field)) row[field] = parseFloat(value) || 0;
+                if ([ 'alto', 'ancho', 'quantity'].includes(field)) row[field] = parseFloat(value) || 0;
                 else row[field] = value;
                 this.saveState();
             }
@@ -536,8 +537,12 @@
                 return;
             }
 
-            // Validar al menos una fila con dimensiones/cantidad
-            const validRows = this.rows.filter(r => r.alto > 0 && r.ancho > 0);
+            // Validar al menos una fila con datos
+            const validRows = this.rows.filter(r => {
+                if (r.tipo === 'Placa') return r.alto > 0 && r.ancho > 0;
+                return r.quantity > 0; // Para Pieza/Formato
+            });
+            
             if (validRows.length === 0) {
                 alert(this.t('msg_rows_required'));
                 return;
@@ -550,7 +555,6 @@
             const files = await this.readFiles(fileInput);
 
             // 3. Preparar filas con el número de contenedor forzado
-            // El usuario no necesita escribirlo en cada fila, se toma de la cabecera
             const stagedRows = validRows.map(r => ({
                 ...r,
                 contenedor: currentHeader.container_no
@@ -587,8 +591,6 @@
                 const el = document.getElementById(id);
                 if(el) el.value = '';
             });
-
-            // NOTA: No limpiamos Logística ni Documentación Global.
 
             this.saveState();
             this.render();
@@ -687,7 +689,10 @@
         async submitAllData() {
             // 1. Obtener datos actuales de pantalla
             const currentHeader = this.getHeaderDataFromDOM();
-            const currentValidRows = this.rows.filter(r => r.alto > 0 && r.ancho > 0);
+            const currentValidRows = this.rows.filter(r => {
+                if (r.tipo === 'Placa') return r.alto > 0 && r.ancho > 0;
+                return r.quantity > 0;
+            });
             
             // Verificar si el usuario tiene datos "pendientes" en pantalla que no ha agregado a Staged
             let pendingOnScreen = false;
@@ -708,7 +713,6 @@
             // A. Agregar contenedores Staged
             this.stagedContainers.forEach(c => {
                 finalRows = [...finalRows, ...c.rows];
-                // Files: agregar info del contenedor al objeto file para que Odoo sepa de quién es
                 c.files.forEach(f => {
                     finalFiles.push({ ...f, container_ref: c.summary.container_no });
                 });
@@ -734,10 +738,8 @@
             }
 
             // 3. Consolidar Header (Sumas y Concatenaciones)
-            // Usamos el header actual como base para Doc/Logística (Global)
             const finalHeader = { ...currentHeader };
             
-            // Recalcular totales acumulados de todos los contenedores
             let totalPkg = 0;
             let totalW = 0.0;
             let totalV = 0.0;
@@ -754,15 +756,9 @@
                 if(h.seal_no) sealNos.add(h.seal_no);
             };
 
-            // Iterar Staged
             this.stagedContainers.forEach(c => addMetrics(c.header));
-            
-            // Iterar Actual (solo si es válido y se va a enviar)
-            if (pendingOnScreen) {
-                addMetrics(currentHeader);
-            }
+            if (pendingOnScreen) addMetrics(currentHeader);
 
-            // Sobrescribir campos agregados en el header final
             finalHeader.container_no = Array.from(containerNames).join(', ');
             finalHeader.container_type = Array.from(containerTypes).join(', ');
             finalHeader.seal_no = Array.from(sealNos).join(', ');
@@ -878,11 +874,11 @@
                     </div>`;
 
                 productRows.forEach(row => {
-                    const area = (row.alto * row.ancho).toFixed(2);
                     html += `<tr data-row-id="${row.id}">`;
                     
                     // --- CELDAS DINÁMICAS POR TIPO ---
                     if (unitType === 'Placa') {
+                        const area = (row.alto * row.ancho).toFixed(2);
                         html += `
                             <td data-label="${this.t('col_block')}">${renderInput(row.id, 'bloque', row.bloque, 'ph_block', 'text', '', 'short text-uppercase')}</td>
                             <td data-label="${this.t('col_atado')}">${renderInput(row.id, 'atado', row.atado, 'ph_atado', 'text', '', 'short text-uppercase')}</td>
@@ -892,10 +888,9 @@
                             <td data-label="${this.t('col_width')}">${renderInput(row.id, 'ancho', row.ancho, '', 'number', '0.01', 'short')}</td>
                             <td data-label="${this.t('col_area')}"><span class="area-display">${area}</span></td>`;
                     } else {
-                        // PIEZA y FORMATO:
-                        // Hack: Mapeamos Cantidad -> 'alto', y 'ancho' fijo en 1 (oculto)
+                        // PIEZA y FORMATO: Input de Cantidad (mapped to 'quantity')
                         html += `
-                            <td data-label="${this.t('col_qty')}">${renderInput(row.id, 'alto', row.alto, '', 'number', '1', 'short')}</td>`;
+                            <td data-label="${this.t('col_qty')}">${renderInput(row.id, 'quantity', row.quantity, '', 'number', '1', 'short')}</td>`;
                     }
 
                     html += `
@@ -928,13 +923,15 @@
                         const rowId = tr.dataset.rowId;
                         const field = e.target.dataset.field;
                         this.updateRowData(rowId, field, e.target.value);
+                        
                         if (field === 'alto' || field === 'ancho') {
                             const r = this.rows.find(x => x.id == rowId);
-                            if(r) {
-                                // Solo actualizar display si existe el span (Formato/Placa)
+                            if(r && r.tipo === 'Placa') {
                                 const areaSpan = tr.querySelector('.area-display');
                                 if(areaSpan) areaSpan.innerText = (r.alto * r.ancho).toFixed(2);
                             }
+                            this.updateTotalsUI();
+                        } else if (field === 'quantity') {
                             this.updateTotalsUI();
                         }
                     }
@@ -978,7 +975,7 @@
                 b.addEventListener('click', () => this.stageCurrentContainer());
             }
 
-            // Input Header Save (Auto save header on input)
+            // Input Header Save
             const headerForm = document.getElementById('shipment-info-form');
             if(headerForm) {
                  headerForm.addEventListener('input', () => this.saveState());
@@ -1009,20 +1006,19 @@
 
         updateTotalsUI() {
             // Contar líneas válidas actuales
-            const validRows = this.rows.filter(r => r.alto > 0 && r.ancho > 0);
+            const validRows = this.rows.filter(r => {
+                if (r.tipo === 'Placa') return r.alto > 0 && r.ancho > 0;
+                return r.quantity > 0;
+            });
             
-            // Separar totales por lógica
             let totalM2 = 0;
-            let totalItems = 0; // Items de Placa/Formato
-            let totalPieces = 0; // Cantidad de Piezas
+            let totalItems = 0; 
+            let totalPieces = 0; 
 
             validRows.forEach(r => {
-                const product = this.products.find(p => p.id === r.product_id);
-                const unitType = product ? (product.unit_type || 'Placa') : 'Placa';
-
-                if (unitType === 'Pieza' || unitType === 'Formato') {
-                    // En Pieza y Formato, 'alto' guarda la Cantidad.
-                    totalPieces += r.alto;
+                if (r.tipo === 'Pieza' || r.tipo === 'Formato') {
+                    // En Pieza y Formato, sumamos la cantidad
+                    totalPieces += r.quantity;
                 } else {
                     // Placa
                     totalM2 += (r.alto * r.ancho);
@@ -1033,17 +1029,14 @@
             document.getElementById('total-plates').innerText = totalItems;
             document.getElementById('total-area').innerText = totalM2.toFixed(2);
             
-            // Inyectar el contenedor de piezas si no existe (ya que el HTML base quizás no lo tiene)
             let piecesContainer = document.getElementById('summary-pieces-container');
             if (!piecesContainer) {
                 const summaryDiv = document.querySelector('.submit-footer .summary');
                 if (summaryDiv) {
                     piecesContainer = document.createElement('div');
                     piecesContainer.id = 'summary-pieces-container';
-                    // Separador visual
                     piecesContainer.style.borderLeft = "1px solid #444";
                     piecesContainer.style.paddingLeft = "20px";
-                    
                     piecesContainer.innerHTML = `<span data-i18n="footer_total_pieces">${this.t('footer_total_pieces')}</span> <span id="total-pieces" class="text-warning fw-bold">0</span>`;
                     summaryDiv.appendChild(piecesContainer);
                 }
@@ -1051,7 +1044,6 @@
             const piecesVal = document.getElementById('total-pieces');
             if(piecesVal) piecesVal.innerText = totalPieces;
             
-            // Habilitar botones si hay algo en Staged o en Actual
             const hasStaged = this.stagedContainers.length > 0;
             const hasCurrent = validRows.length > 0;
             const canSubmit = hasStaged || hasCurrent;
