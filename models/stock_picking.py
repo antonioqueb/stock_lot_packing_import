@@ -133,7 +133,7 @@ class StockPicking(models.Model):
                 if alto > 0 and ancho > 0:
                     rows.append({
                         'product_id': product.id,
-                        'grosor': get_val("A", float),
+                        'grosor': get_val("A"),
                         'alto': alto,
                         'ancho': ancho,
                         'color': get_val("D"),   # Notas

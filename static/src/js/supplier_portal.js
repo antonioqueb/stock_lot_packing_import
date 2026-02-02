@@ -517,7 +517,7 @@
         updateRowData(id, field, value) {
             const row = this.rows.find(r => r.id === parseInt(id));
             if (row) {
-                if (['grosor', 'alto', 'ancho'].includes(field)) row[field] = parseFloat(value) || 0;
+                if ([ 'alto', 'ancho'].includes(field)) row[field] = parseFloat(value) || 0;
                 else row[field] = value;
                 this.saveState();
             }
@@ -891,7 +891,7 @@
                             <td data-label="${this.t('col_block')}">${renderInput(row.id, 'bloque', row.bloque, 'ph_block', 'text', '', 'short text-uppercase')}</td>
                             <td data-label="${this.t('col_atado')}">${renderInput(row.id, 'atado', row.atado, 'ph_atado', 'text', '', 'short text-uppercase')}</td>
                             <td data-label="${this.t('col_plate_num')}">${renderInput(row.id, 'numero_placa', row.numero_placa, 'ph_plate', 'text', '', 'short')}</td>
-                            <td data-label="${this.t('col_thickness')}">${renderInput(row.id, 'grosor', row.grosor, '', 'number', '0.01', 'short')}</td>
+                            <td data-label="${this.t('col_thickness')}">${renderInput(row.id, 'grosor', row.grosor, '', 'text', '', 'short')}</td>
                             <td data-label="${this.t('col_height')}">${renderInput(row.id, 'alto', row.alto, '', 'number', '0.01', 'short')}</td>
                             <td data-label="${this.t('col_width')}">${renderInput(row.id, 'ancho', row.ancho, '', 'number', '0.01', 'short')}</td>
                             <td data-label="${this.t('col_area')}"><span class="area-display">${area}</span></td>`;

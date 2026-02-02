@@ -391,7 +391,7 @@ class PackingListImportWizard(models.TransientModel):
             if alto > 0 and ancho > 0:
                 rows.append({
                     'product': product, 
-                    'grosor': self._to_float(idx.value(0, r)), # A
+                    'grosor': str(idx.value(0, r) or '').strip(), # A
                     'alto': alto, 
                     'ancho': ancho, 
                     'color': str(idx.value(3, r) or '').strip(), # D
@@ -463,7 +463,7 @@ class PackingListImportWizard(models.TransientModel):
                 if alto > 0 and ancho > 0:
                     rows.append({
                         'product': product, 
-                        'grosor': self._to_float(sheet.cell(r, 1).value),
+                        'grosor': str(sheet.cell(r, 1).value or '').strip(),
                         'alto': alto, 
                         'ancho': ancho, 
                         'color': str(sheet.cell(r, 4).value or '').strip(),
