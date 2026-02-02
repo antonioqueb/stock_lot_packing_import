@@ -60,8 +60,9 @@ class StockPicking(models.Model):
 
     def get_packing_list_data_for_portal(self):
         """
-        Lee el Spreadsheet actual para mostrar al proveedor lo que ya ha llenado.
-        Interpreta la Columna B como 'Alto' o 'Cantidad' dependiendo del tipo de unidad del producto.
+        Lee el Spreadsheet actual.
+        Lógica dinámica: Si es Pieza, las columnas se recorren a la izquierda (Peso está en C).
+        Si es Placa, Peso está en D.
         """
         self.ensure_one()
         rows = []
@@ -94,6 +95,8 @@ class StockPicking(models.Model):
             while True:
                 idx_str = str(row_idx + 1)
                 
+                # Verificación de fin de datos:
+                # Si es Placa, miramos B (Alto). Si es Pieza, miramos B (Cantidad).
                 b_cell = cells.get(f"B{idx_str}", {})
                 if not b_cell or not b_cell.get("content"):
                     found_next = False
@@ -117,40 +120,75 @@ class StockPicking(models.Model):
                             return 0.0
                     return str(val).strip()
 
-                val_b = get_val("B", float) # Alto o Cantidad
-                val_c = get_val("C", float) # Ancho (Solo Placa)
+                # --- LECTURA SEGÚN TIPO (COLUMNAS RECORRIDAS) ---
+                
+                # Datos comunes base (Grosor siempre es A)
+                grosor = get_val("A")
+                
+                # Inicializar variables
+                alto = 0.0
+                ancho = 0.0
+                qty = 0.0
+                peso = 0.0
+                color = ""
+                bloque = ""
+                placa = ""
+                atado = ""
+                grupo = ""
+                pedimento = ""
+                contenedor = ""
+                ref_prov = ""
+
+                if unit_type == 'Placa':
+                    # Mapeo Estandar:
+                    # A=Grosor, B=Alto, C=Ancho, D=Peso, E=Notas, F=Bloque, G=Placa, H=Atado, I=Grupo, J=Pedimento, K=Contenedor, L=RefProv
+                    alto = get_val("B", float)
+                    ancho = get_val("C", float)
+                    peso = get_val("D", float)
+                    color = get_val("E")
+                    bloque = get_val("F")
+                    placa = get_val("G")
+                    atado = get_val("H")
+                    grupo = get_val("I")
+                    pedimento = get_val("J")
+                    contenedor = get_val("K")
+                    ref_prov = get_val("L")
+                else:
+                    # Mapeo Recorrido (Sin Ancho):
+                    # A=Grosor, B=Cantidad, C=Peso, D=Notas, E=Bloque, F=Placa, G=Atado, H=Grupo, I=Pedimento, J=Contenedor, K=RefProv
+                    qty = get_val("B", float)
+                    peso = get_val("C", float) # Recorrido de D a C
+                    color = get_val("D")       # Recorrido de E a D
+                    bloque = get_val("E")      # Recorrido de F a E
+                    placa = get_val("F")       # Recorrido de G a F
+                    atado = get_val("G")       # Recorrido de H a G
+                    grupo = get_val("H")       # Recorrido de I a H
+                    pedimento = get_val("I")   # Recorrido de J a I
+                    contenedor = get_val("J")  # Recorrido de K a J
+                    ref_prov = get_val("K")    # Recorrido de L a K
 
                 row_data = {
                     'product_id': product.id,
-                    'grosor': get_val("A"),
-                    'peso': get_val("D", float),
-                    'color': get_val("E"),
-                    'bloque': get_val("F"),
-                    'numero_placa': get_val("G"),
-                    'atado': get_val("H"),
-                    'grupo_name': get_val("I"),      
-                    'pedimento': get_val("J"),       
-                    'contenedor': get_val("K"),      
-                    'ref_proveedor': get_val("L"),   
+                    'grosor': grosor,
+                    'peso': peso,
+                    'color': color,
+                    'bloque': bloque,
+                    'numero_placa': placa,
+                    'atado': atado,
+                    'grupo_name': grupo,      
+                    'pedimento': pedimento,       
+                    'contenedor': contenedor,      
+                    'ref_proveedor': ref_prov,   
                     'tipo': unit_type,
                 }
 
                 if unit_type == 'Placa':
-                    if val_b > 0 and val_c > 0:
-                        row_data.update({
-                            'alto': val_b,
-                            'ancho': val_c,
-                            'quantity': 0
-                        })
+                    if alto > 0 and ancho > 0:
+                        row_data.update({'alto': alto, 'ancho': ancho, 'quantity': 0})
                         rows.append(row_data)
                 else:
-                    # Pieza: Col B es Cantidad
-                    if val_b > 0:
-                        row_data.update({
-                            'alto': 0, 
-                            'ancho': 0,
-                            'quantity': val_b
-                        })
+                    if qty > 0:
+                        row_data.update({'alto': 0, 'ancho': 0, 'quantity': qty})
                         rows.append(row_data)
                 
                 row_idx += 1
@@ -234,7 +272,7 @@ class StockPicking(models.Model):
     def update_packing_list_from_portal(self, rows, header_data=None):
         """
         Recibe filas consolidadas.
-        Escribe en el Spreadsheet usando la lógica estricta.
+        Escribe en el Spreadsheet. Si es Pieza/Formato, recorre las columnas para no dejar huecos.
         """
         self.ensure_one()
         
@@ -317,30 +355,40 @@ class StockPicking(models.Model):
                         if 'cells' not in sheet: sheet['cells'] = {}
                         sheet['cells'][f"{col_letter}{current_row}"] = {"content": str(val)}
 
+                # Columna A siempre es Grosor
                 set_c("A", row.get('grosor', ''))
                 
-                # --- ESCRITURA ESTRICTA POR TIPO ---
+                # --- ESCRITURA CON RECORRIDO ---
                 if unit_type == 'Placa':
-                    # Placa: B=Alto, C=Ancho
+                    # PLACA: Estructura Completa
+                    # B=Alto, C=Ancho, D=Peso, E=Notas, F=Bloque, G=Placa, H=Atado, I=Grupo, J=Pedimento, K=Contenedor, L=RefProv
                     set_c("B", row.get('alto', ''))
                     set_c("C", row.get('ancho', ''))
+                    set_c("D", row.get('peso', ''))
+                    set_c("E", row.get('color', ''))
+                    set_c("F", row.get('bloque', ''))
+                    set_c("G", row.get('numero_placa', ''))
+                    set_c("H", row.get('atado', ''))
+                    set_c("I", row.get('grupo_name', '')) 
+                    set_c("J", row.get('pedimento', ''))  
+                    set_c("K", row.get('contenedor', '')) 
+                    set_c("L", row.get('ref_proveedor', '')) 
+                    set_c("M", "Actualizado Portal")
                 else:
-                    # Pieza: B=Cantidad, C=Vacio
-                    qty_val = row.get('quantity')
-                    set_c("B", qty_val) 
-                    set_c("C", "") 
+                    # PIEZA: Estructura Recorrida (Se salta la columna de ancho "extra")
+                    # B=Cantidad. C=Peso (Antes D). D=Notas (Antes E)...
+                    set_c("B", row.get('quantity')) 
+                    set_c("C", row.get('peso', ''))    # Recorrido
+                    set_c("D", row.get('color', ''))   # Recorrido
+                    set_c("E", row.get('bloque', ''))  # Recorrido
+                    set_c("F", row.get('numero_placa', '')) # Recorrido
+                    set_c("G", row.get('atado', ''))   # Recorrido
+                    set_c("H", row.get('grupo_name', '')) # Recorrido
+                    set_c("I", row.get('pedimento', ''))  # Recorrido
+                    set_c("J", row.get('contenedor', '')) # Recorrido
+                    set_c("K", row.get('ref_proveedor', '')) # Recorrido
+                    set_c("L", "Actualizado Portal") # Recorrido
 
-                set_c("D", row.get('peso', ''))
-                set_c("E", row.get('color', ''))
-                set_c("F", row.get('bloque', ''))
-                set_c("G", row.get('numero_placa', ''))
-                set_c("H", row.get('atado', ''))
-                set_c("I", row.get('grupo_name', '')) 
-                set_c("J", row.get('pedimento', ''))  
-                set_c("K", row.get('contenedor', '')) 
-                set_c("L", row.get('ref_proveedor', '')) 
-                
-                set_c("M", "Actualizado Portal")
                 current_row += 1
 
         new_json = json.dumps(data)
@@ -404,9 +452,10 @@ class StockPicking(models.Model):
 
             folder = self.env['documents.document'].search([('type', '=', 'folder')], limit=1)
             
-            # --- DEFINICIÓN DE COLUMNAS ESTRICTA ---
-            # Columnas comunes
-            base_headers_end = ['Peso (kg)', 'Notas', 'Bloque', 'No. Placa', 'Atado', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Proveedor', 'Ref. Interna']
+            # --- DEFINICIÓN DE COLUMNAS SIN ESPACIOS VACÍOS ---
+            # Cabeceras Base (se moverán según el tipo)
+            # Orden: [Variable Dimensión], Peso, Notas, Bloque, Placa, Atado, Grupo, Pedimento, Contenedor, RefProv, RefInt
+            common_headers_suffix = ['Peso (kg)', 'Notas', 'Bloque', 'No. Placa', 'Atado', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Proveedor', 'Ref. Interna']
             
             sheets = []
             for index, product in enumerate(products):
@@ -419,17 +468,19 @@ class StockPicking(models.Model):
                 
                 # Cabeceras Dinámicas
                 headers = []
+                # Columna A siempre es Grosor
+                
                 if unit_type == 'Placa':
-                    # A=Grosor, B=Alto, C=Ancho, ...
-                    headers = ['Grosor (cm)', 'Alto (m)', 'Ancho (m)'] + base_headers_end
+                    # Placa: [Grosor, Alto, Ancho] + Comunes
+                    headers = ['Grosor (cm)', 'Alto (m)', 'Ancho (m)'] + common_headers_suffix
                 else:
-                    # A=Grosor, B=Cantidad, C=(Vacío), ...
-                    # Dejamos la columna C visualmente vacía en el header o le ponemos "-"
-                    headers = ['Grosor (cm)', 'Cantidad', ''] + base_headers_end
+                    # Pieza: [Grosor, Cantidad] + Comunes
+                    # Aquí se elimina la columna vacía. "Peso" pasa a ser la columna C.
+                    headers = ['Grosor (cm)', 'Cantidad'] + common_headers_suffix
 
                 for i, header in enumerate(headers):
                     col_letter = self._get_col_letter(i)
-                    if header: # Solo crear celda si tiene texto
+                    if header: 
                         cells[f"{col_letter}3"] = self._make_cell(header, style=1)
 
                 sheet_name = (product.default_code or product.name)[:31]
@@ -553,14 +604,15 @@ class StockPicking(models.Model):
             ws['A1'] = 'PRODUCTO:'; ws['B1'] = f'{product.name} ({product.default_code or ""})'
             
             unit_type = product.product_tmpl_id.x_unidad_del_producto or 'Placa'
-            base_headers_end = ['Peso (kg)', 'Color', 'Bloque', 'No. Placa', 'Atado', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Proveedor', 'Notas']
+            common_headers_suffix = ['Peso (kg)', 'Color', 'Bloque', 'No. Placa', 'Atado', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Proveedor', 'Notas']
             
-            # --- HEADERS DINÁMICOS EXCEL ---
+            # --- HEADERS DINÁMICOS EXCEL SIN HUECOS ---
             headers = []
             if unit_type == 'Placa':
-                headers = ['Grosor (cm)', 'Alto (m)', 'Ancho (m)'] + base_headers_end
+                headers = ['Grosor (cm)', 'Alto (m)', 'Ancho (m)'] + common_headers_suffix
             else:
-                headers = ['Grosor (cm)', 'Cantidad', ''] + base_headers_end
+                # Pieza: [Grosor, Cantidad] + Comunes (sin huecos)
+                headers = ['Grosor (cm)', 'Cantidad'] + common_headers_suffix
             
             for col_num, header in enumerate(headers, 1):
                 if header:
