@@ -129,21 +129,34 @@ class StockPicking(models.Model):
 
                 alto = get_val("B", float)
                 ancho = get_val("C", float)
+                
+                # Recuperar tipo de la celda I, o usar default
+                tipo_row = get_val("I")
+                if not tipo_row:
+                    tipo_row = default_type
 
-                if alto > 0 and ancho > 0:
+                # --- VALIDACIÓN DINÁMICA ---
+                es_valido = False
+                if tipo_row == 'Placa':
+                    # Placa requiere ambas dimensiones
+                    if alto > 0 and ancho > 0: es_valido = True
+                else:
+                    # Pieza/Formato: Solo requiere alto (que actúa como cantidad)
+                    if alto > 0: es_valido = True
+
+                if es_valido:
                     rows.append({
                         'product_id': product.id,
                         'grosor': get_val("A"),
                         'alto': alto,
                         'ancho': ancho,
-                        'peso': get_val("D", float),   # NUEVO: Peso
-                        'color': get_val("E"),         # Desplazado (antes D)
-                        'bloque': get_val("F"),        # Desplazado (antes E)
-                        'numero_placa': get_val("G"),  # Desplazado (antes F)
-                        'atado': get_val("H"),         # Desplazado (antes G)
-                        # AQUI SE APLICA: Si la celda I está vacía, usa el del template
-                        'tipo': get_val("I") or default_type, # Desplazado (antes H)
-                        'contenedor': get_val("L"),    # Desplazado (antes K)     
+                        'peso': get_val("D", float),   
+                        'color': get_val("E"),         
+                        'bloque': get_val("F"),        
+                        'numero_placa': get_val("G"),  
+                        'atado': get_val("H"),         
+                        'tipo': tipo_row,              
+                        'contenedor': get_val("L"),    
                     })
                 
                 row_idx += 1

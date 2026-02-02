@@ -2,7 +2,7 @@
 (function () {
     "use strict";
 
-    console.log("[Portal] 🚀 Script Multi-Contenedor (Tipos Unidades) cargado.");
+    console.log("[Portal] 🚀 Script Multi-Contenedor (Tipos Unidades: Placa, Formato, Pieza) cargado.");
 
     // --- DICCIONARIO DE TRADUCCIONES COMPLETO ---
     const TRANSLATIONS = {
@@ -505,8 +505,8 @@
                 tipo: unitType // Guardamos el tipo para referencia lógica
             };
 
-            // Ajuste para Pieza: Ancho fijo en 1 para que Alto sirva de Cantidad
-            if (unitType === 'Pieza') {
+            // Ajuste para Pieza Y FORMATO: Ancho fijo en 1 para que Alto sirva de Cantidad
+            if (unitType === 'Pieza' || unitType === 'Formato') {
                 newRow.ancho = 1;
             }
 
@@ -856,12 +856,8 @@
                         <th>${this.t('col_height')}</th>
                         <th>${this.t('col_width')}</th>
                         <th>${this.t('col_area')}</th>`;
-                } else if (unitType === 'Formato') {
-                    html += `
-                        <th>${this.t('col_height')}</th>
-                        <th>${this.t('col_width')}</th>
-                        <th>${this.t('col_area')}</th>`;
-                } else if (unitType === 'Pieza') {
+                } else {
+                    // PARA PIEZA Y FORMATO: Solo mostramos CANTIDAD
                     html += `
                         <th>${this.t('col_qty')}</th>`;
                 }
@@ -895,12 +891,8 @@
                             <td data-label="${this.t('col_height')}">${renderInput(row.id, 'alto', row.alto, '', 'number', '0.01', 'short')}</td>
                             <td data-label="${this.t('col_width')}">${renderInput(row.id, 'ancho', row.ancho, '', 'number', '0.01', 'short')}</td>
                             <td data-label="${this.t('col_area')}"><span class="area-display">${area}</span></td>`;
-                    } else if (unitType === 'Formato') {
-                        html += `
-                            <td data-label="${this.t('col_height')}">${renderInput(row.id, 'alto', row.alto, '', 'number', '0.01', 'short')}</td>
-                            <td data-label="${this.t('col_width')}">${renderInput(row.id, 'ancho', row.ancho, '', 'number', '0.01', 'short')}</td>
-                            <td data-label="${this.t('col_area')}"><span class="area-display">${area}</span></td>`;
-                    } else if (unitType === 'Pieza') {
+                    } else {
+                        // PIEZA y FORMATO:
                         // Hack: Mapeamos Cantidad -> 'alto', y 'ancho' fijo en 1 (oculto)
                         html += `
                             <td data-label="${this.t('col_qty')}">${renderInput(row.id, 'alto', row.alto, '', 'number', '1', 'short')}</td>`;
@@ -1028,11 +1020,11 @@
                 const product = this.products.find(p => p.id === r.product_id);
                 const unitType = product ? (product.unit_type || 'Placa') : 'Placa';
 
-                if (unitType === 'Pieza') {
-                    // En Pieza, 'alto' guarda la Cantidad. 'ancho' es 1.
+                if (unitType === 'Pieza' || unitType === 'Formato') {
+                    // En Pieza y Formato, 'alto' guarda la Cantidad.
                     totalPieces += r.alto;
                 } else {
-                    // Placa o Formato
+                    // Placa
                     totalM2 += (r.alto * r.ancho);
                     totalItems++;
                 }
