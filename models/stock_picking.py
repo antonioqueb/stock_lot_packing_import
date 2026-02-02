@@ -136,13 +136,14 @@ class StockPicking(models.Model):
                         'grosor': get_val("A"),
                         'alto': alto,
                         'ancho': ancho,
-                        'color': get_val("D"),   # Notas
-                        'bloque': get_val("E"),
-                        'numero_placa': get_val("F"),
-                        'atado': get_val("G"),   
-                        # AQUI SE APLICA: Si la celda H está vacía, usa el del template
-                        'tipo': get_val("H") or default_type, 
-                        'contenedor': get_val("K"), # Recuperar contenedor asignado     
+                        'peso': get_val("D", float),   # NUEVO: Peso
+                        'color': get_val("E"),         # Desplazado (antes D)
+                        'bloque': get_val("F"),        # Desplazado (antes E)
+                        'numero_placa': get_val("G"),  # Desplazado (antes F)
+                        'atado': get_val("H"),         # Desplazado (antes G)
+                        # AQUI SE APLICA: Si la celda I está vacía, usa el del template
+                        'tipo': get_val("I") or default_type, # Desplazado (antes H)
+                        'contenedor': get_val("L"),    # Desplazado (antes K)     
                     })
                 
                 row_idx += 1
@@ -327,21 +328,22 @@ class StockPicking(models.Model):
                 set_c("A", row.get('grosor', ''))
                 set_c("B", row.get('alto', ''))
                 set_c("C", row.get('ancho', ''))
-                set_c("D", row.get('color', ''))
-                set_c("E", row.get('bloque', ''))
-                set_c("F", row.get('numero_placa', '')) 
-                set_c("G", row.get('atado', ''))
+                set_c("D", row.get('peso', ''))           # NUEVO: Peso
+                set_c("E", row.get('color', ''))          # Desplazado
+                set_c("F", row.get('bloque', ''))         # Desplazado
+                set_c("G", row.get('numero_placa', ''))   # Desplazado
+                set_c("H", row.get('atado', ''))          # Desplazado
                 
                 # AQUI SE APLICA: Si el valor 'tipo' viene vacio del portal, asignamos el del template
                 tipo_val = row.get('tipo')
                 if not tipo_val:
                     tipo_val = default_type
-                set_c("H", tipo_val)
+                set_c("I", tipo_val)                      # Desplazado
                 
-                # CRITICO: Escribir el contenedor en Columna K
-                set_c("K", row.get('contenedor', '')) 
+                # CRITICO: Escribir el contenedor en Columna L (Antes K)
+                set_c("L", row.get('contenedor', '')) 
                 
-                set_c("M", "Actualizado Portal")
+                set_c("N", "Actualizado Portal")          # Desplazado (Antes M)
                 current_row += 1
 
         # Guardar cambios
@@ -417,8 +419,9 @@ class StockPicking(models.Model):
 
             folder = self.env['documents.document'].search([('type', '=', 'folder')], limit=1)
             
-            # Headers Spreadsheet (Index 10 = Contenedor)
-            headers = ['Grosor (cm)', 'Alto (m)', 'Ancho (m)', 'Notas', 'Bloque', 'No. Placa', 'Atado', 'Tipo', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Proveedor', 'Ref. Interna']
+            # Headers Spreadsheet (Actualizado con Peso)
+            # A=Grosor, B=Alto, C=Ancho, D=Peso, E=Notas, F=Bloque, G=Placa, H=Atado, I=Tipo, J=Grupo, K=Pedimento, L=Contenedor, M=RefProv, N=RefInt
+            headers = ['Grosor (cm)', 'Alto (m)', 'Ancho (m)', 'Peso (kg)', 'Notas', 'Bloque', 'No. Placa', 'Atado', 'Tipo', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Proveedor', 'Ref. Interna']
             
             sheets = []
             for index, product in enumerate(products):
@@ -443,10 +446,10 @@ class StockPicking(models.Model):
                     "id": f"pl_sheet_{product.id}",
                     "name": sheet_name,
                     "cells": cells,
-                    "colNumber": 13, 
+                    "colNumber": 14, # Aumentado a 14 columnas
                     "rowNumber": 250,
                     "isProtected": True,
-                    "protectedRanges": [{"range": "A4:M250", "isProtected": False}] 
+                    "protectedRanges": [{"range": "A4:N250", "isProtected": False}] # Rango extendido hasta N
                 })
 
             spreadsheet_data = {
@@ -550,11 +553,13 @@ class StockPicking(models.Model):
         for product in self.move_ids.mapped('product_id'):
             ws = wb.create_sheet(title=(product.default_code or product.name)[:31])
             ws['A1'] = 'PRODUCTO:'; ws['B1'] = f'{product.name} ({product.default_code or ""})'
-            headers = ['Grosor (cm)', 'Alto (m)', 'Ancho (m)', 'Color', 'Bloque', 'No. Placa', 'Atado', 'Tipo', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Proveedor', 'Notas']
+            # Headers actualizados con Peso
+            headers = ['Grosor (cm)', 'Alto (m)', 'Ancho (m)', 'Peso (kg)', 'Color', 'Bloque', 'No. Placa', 'Atado', 'Tipo', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Proveedor', 'Notas']
             for col_num, header in enumerate(headers, 1):
                 cell = ws.cell(row=3, column=col_num); cell.value = header; cell.fill = header_fill; cell.font = header_font; cell.border = border
             for row in range(4, 54):
-                for col in range(1, 14): ws.cell(row=row, column=col).border = border
+                # Rango actualizado a 14 columnas
+                for col in range(1, 15): ws.cell(row=row, column=col).border = border
         output = io.BytesIO(); wb.save(output)
         filename = f'Plantilla_PL_{self.name}.xlsx'
         self.write({'packing_list_file': base64.b64encode(output.getvalue()), 'packing_list_filename': filename})
