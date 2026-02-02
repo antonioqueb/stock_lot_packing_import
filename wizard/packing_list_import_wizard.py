@@ -20,7 +20,6 @@ class _PLCellsIndex:
         if col is not None and row is not None:
             if content in (None, False, ""):
                 if (int(col), int(row)) in self._cells:
-                    # _logger.info(f"[INDEX_DB] Limpiando celda [{col},{row}] por contenido vacío de {source}")
                     del self._cells[(int(col), int(row))]
             else:
                 self._cells[(int(col), int(row))] = str(content)
@@ -28,7 +27,7 @@ class _PLCellsIndex:
     def ingest_cells(self, raw_cells):
         if not raw_cells:
             return
-        _logger.info(f"[INDEX_DB] Cargando {len(raw_cells)} celdas del archivo base.")
+        # _logger.info(f"[INDEX_DB] Cargando {len(raw_cells)} celdas del archivo base.")
         for key, cell_data in raw_cells.items():
             col, row = self._parse_cell_key(key)
             if col is not None and row is not None:
@@ -80,7 +79,6 @@ class _PLCellsIndex:
             elif cmd_type == 'REMOVE_COLUMNS_ROWS':
                 if cmd.get('dimension') == 'row':
                     elements = sorted(cmd.get('elements', []), reverse=True)
-                    # _logger.info(f"[INDEX_DB] Ejecutando eliminación de filas: {elements}")
                     for row_idx in elements:
                         self._shift_rows_up(row_idx)
                     applied += 1
@@ -88,7 +86,6 @@ class _PLCellsIndex:
             elif cmd_type in ('DELETE_CONTENT', 'CLEAR_CELL'):
                 zones = cmd.get('zones') or cmd.get('target') or []
                 for zone in zones:
-                    # _logger.info(f"[INDEX_DB] Limpiando zona por DELETE_CONTENT: {zone}")
                     for r in range(zone.get('top', 0), zone.get('bottom', 0) + 1):
                         for c in range(zone.get('left', 0), zone.get('right', 0) + 1):
                             self.put(c, r, "", source="DELETE_REV")
@@ -142,7 +139,6 @@ class PackingListImportWizard(models.TransientModel):
         self.env.flush_all()
         if old_lots:
             quants = self.env['stock.quant'].sudo().search([('lot_id', 'in', old_lots.ids)])
-            # _logger.info(f"[PL_CLEANUP] Eliminando {len(quants)} quants.")
             quants.sudo().unlink()
 
         old_move_lines.unlink()
@@ -169,7 +165,7 @@ class PackingListImportWizard(models.TransientModel):
             
             qty_done = 0.0
             
-            # Variables finales para el lote (si no es placa, guardamos 0 en dimensiones)
+            # Variables finales para el lote
             final_alto = 0.0
             final_ancho = 0.0
 
@@ -179,7 +175,7 @@ class PackingListImportWizard(models.TransientModel):
                 final_ancho = data.get('ancho', 0.0)
                 qty_done = round(final_alto * final_ancho, 3)
             else:
-                # Formato/Pieza: Cantidad manual viene en 'quantity' (o 'alto' si viene de Excel raw)
+                # Formato/Pieza: Cantidad manual viene en 'quantity' (desde Col B)
                 qty_done = data.get('quantity', 0.0)
                 # No guardamos dimensiones en el lote para no ensuciar
                 final_alto = 0.0
@@ -200,6 +196,7 @@ class PackingListImportWizard(models.TransientModel):
                 if not grupo: grupo = self.env['stock.lot.group'].create({'name': data['grupo_name'].strip()})
                 grupo_ids = [grupo.id]
 
+            # Crear Lote
             lot = self.env['stock.lot'].create({
                 'name': l_name, 
                 'product_id': product.id, 
@@ -218,6 +215,7 @@ class PackingListImportWizard(models.TransientModel):
                 'x_referencia_proveedor': data['ref_proveedor'],
             })
             
+            # Crear Move Line
             self.env['stock.move.line'].create({
                 'move_id': move.id, 
                 'product_id': product.id, 
@@ -280,9 +278,9 @@ class PackingListImportWizard(models.TransientModel):
                 if parsed and parsed.get('sheets'):
                     return self._apply_pending_revisions(doc, parsed)
             except Exception as e:
-                _logger.warning(f"[PL_IMPORT] Error leyendo spreadsheet_snapshot: {e}")
+                _logger.warning(f"[PL_IMPORT] Error leyendo snapshot: {e}")
         
-        # Método 2: Usar _get_spreadsheet_serialized_snapshot (método interno de Odoo)
+        # Método 2: Usar _get_spreadsheet_serialized_snapshot
         try:
             if hasattr(doc, '_get_spreadsheet_serialized_snapshot'):
                 snapshot_data = doc._get_spreadsheet_serialized_snapshot()
@@ -323,7 +321,6 @@ class PackingListImportWizard(models.TransientModel):
                     start_applying = True
                 continue
             
-            # Saltar SNAPSHOT_CREATED
             if isinstance(rev_data, dict) and rev_data.get('type') == 'SNAPSHOT_CREATED':
                 continue
                 
@@ -359,11 +356,8 @@ class PackingListImportWizard(models.TransientModel):
         all_cmds = []
         for rev in revisions:
             rev_data = json.loads(rev.commands) if isinstance(rev.commands, str) else rev.commands
-            
-            # Saltar SNAPSHOT_CREATED (no tienen comandos útiles)
             if isinstance(rev_data, dict) and rev_data.get('type') == 'SNAPSHOT_CREATED':
                 continue
-                
             if isinstance(rev_data, dict) and 'commands' in rev_data:
                 all_cmds.extend(rev_data['commands'])
             elif isinstance(rev_data, list):
@@ -373,7 +367,7 @@ class PackingListImportWizard(models.TransientModel):
             sheet_id = sheet.get('id')
             idx = _PLCellsIndex()
             idx.ingest_cells(sheet.get('cells', {}))
-            idx.apply_revision_commands(all_cmds, sheet_id)
+            idx.apply_revision_commands(all_cmds, sheet.get('id'))
             
             sheet['cells'] = {f"{self._col_to_letter(c)}{r+1}": {'content': v} 
                              for (c, r), v in idx._cells.items()}
@@ -409,19 +403,18 @@ class PackingListImportWizard(models.TransientModel):
         unit_type = product.product_tmpl_id.x_unidad_del_producto or 'Placa'
         
         for r in range(3, 300):
-            # No leemos la columna Tipo del Excel, usamos unit_type
-            
+            # Leemos las columnas B y C sin prejuicios
             val_b = self._to_float(idx.value(1, r)) # B = Alto o Cantidad
             val_c = self._to_float(idx.value(2, r)) # C = Ancho
             
-            # --- VALIDACIÓN DINÁMICA ---
+            # --- VALIDACIÓN ESTRICTA ---
             es_valido = False
             
             if unit_type == 'Placa':
-                # Placa exige Alto y Ancho
+                # Placa exige Alto (B) y Ancho (C)
                 if val_b > 0 and val_c > 0: es_valido = True
             else:
-                # Pieza/Formato solo exige Cantidad (que viene en columna B)
+                # Pieza/Formato solo exige Cantidad (B). Ignora C.
                 if val_b > 0: es_valido = True
 
             if es_valido:
@@ -429,8 +422,11 @@ class PackingListImportWizard(models.TransientModel):
                     'product': product, 
                     'grosor': str(idx.value(0, r) or '').strip(), # A
                     
+                    # Si es Pieza, Alto/Ancho = 0
                     'alto': val_b if unit_type == 'Placa' else 0.0,
                     'ancho': val_c if unit_type == 'Placa' else 0.0,
+                    
+                    # Si es Pieza, Quantity = B. Si es Placa, Quantity = 0 (se calcula luego)
                     'quantity': val_b if unit_type != 'Placa' else 0.0,
                     
                     'color': str(idx.value(3, r) or '').strip(), # D
@@ -440,10 +436,10 @@ class PackingListImportWizard(models.TransientModel):
                     
                     'tipo': unit_type, 
                     
-                    'grupo_name': str(idx.value(8, r) or '').strip(), # I (Antes J)
-                    'pedimento': str(idx.value(9, r) or '').strip(),  # J (Antes K)
-                    'contenedor': str(idx.value(10, r) or 'SN').strip(), # K (Antes L)
-                    'ref_proveedor': str(idx.value(11, r) or '').strip(), # L (Antes M)
+                    'grupo_name': str(idx.value(8, r) or '').strip(), # I 
+                    'pedimento': str(idx.value(9, r) or '').strip(),  # J 
+                    'contenedor': str(idx.value(10, r) or 'SN').strip(), # K
+                    'ref_proveedor': str(idx.value(11, r) or '').strip(), # L 
                 })
         return rows
 
@@ -483,8 +479,8 @@ class PackingListImportWizard(models.TransientModel):
             unit_type = product.product_tmpl_id.x_unidad_del_producto or 'Placa'
             
             for r in range(4, sheet.max_row + 1):
-                val_b = self._to_float(sheet.cell(r, 2).value)
-                val_c = self._to_float(sheet.cell(r, 3).value)
+                val_b = self._to_float(sheet.cell(r, 2).value) # Col B
+                val_c = self._to_float(sheet.cell(r, 3).value) # Col C
                 
                 es_valido = False
                 if unit_type == 'Placa':
@@ -508,9 +504,9 @@ class PackingListImportWizard(models.TransientModel):
                         
                         'tipo': unit_type,
                         
-                        'grupo_name': str(sheet.cell(r, 9).value or '').strip(), # I
-                        'pedimento': str(sheet.cell(r, 10).value or '').strip(), # J
-                        'contenedor': str(sheet.cell(r, 11).value or 'SN').strip(), # K
-                        'ref_proveedor': str(sheet.cell(r, 12).value or '').strip(), # L
+                        'grupo_name': str(sheet.cell(r, 9).value or '').strip(), 
+                        'pedimento': str(sheet.cell(r, 10).value or '').strip(),
+                        'contenedor': str(sheet.cell(r, 11).value or 'SN').strip(),
+                        'ref_proveedor': str(sheet.cell(r, 12).value or '').strip(),
                     })
         return rows

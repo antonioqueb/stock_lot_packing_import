@@ -36,13 +36,11 @@ class StockPicking(models.Model):
     supplier_country_origin = fields.Char(string="País de origen de la mercancía")
     supplier_vessel = fields.Char(string="Buque")
     
-    # Separación de Incoterm y Pago
     supplier_incoterm_payment = fields.Char(string="Incoterm") 
     supplier_payment_terms = fields.Char(string="Términos de pago")
 
     supplier_merchandise_desc = fields.Text(string="Descripción de mercancía")
     
-    # Estos campos almacenarán la concatenación/suma de todos los contenedores
     supplier_container_no = fields.Char(string="No. de contenedor")
     supplier_seal_no = fields.Char(string="No. de sello")
     supplier_container_type = fields.Char(string="Tipo de contenedor")
@@ -71,7 +69,6 @@ class StockPicking(models.Model):
         if not self.spreadsheet_id:
             return rows
 
-        # Obtener el estado actual real del spreadsheet
         data = self._get_current_spreadsheet_state(self.spreadsheet_id)
         if not data:
             return rows
@@ -80,7 +77,6 @@ class StockPicking(models.Model):
         
         for sheet in sheets:
             cells = sheet.get('cells', {})
-            # Buscar Producto en celda B1
             b1_val = cells.get("B1", {}).get("content", "")
             
             if not b1_val: continue
@@ -92,18 +88,14 @@ class StockPicking(models.Model):
             
             if not product: continue
 
-            # --- LOGICA: Tipo desde el TEMPLATE ---
             unit_type = product.product_tmpl_id.x_unidad_del_producto or 'Placa'
 
-            # Leer filas desde la fila 4 (index 3)
             row_idx = 3
             while True:
                 idx_str = str(row_idx + 1)
                 
-                # Chequeo simple de fin de datos (si B está vacío)
                 b_cell = cells.get(f"B{idx_str}", {})
                 if not b_cell or not b_cell.get("content"):
-                    # Lookahead
                     found_next = False
                     for lookahead in range(1, 4):
                         if cells.get(f"B{row_idx + 1 + lookahead}", {}).get("content"):
@@ -128,7 +120,6 @@ class StockPicking(models.Model):
                 val_b = get_val("B", float) # Alto o Cantidad
                 val_c = get_val("C", float) # Ancho (Solo Placa)
 
-                # Construir fila base
                 row_data = {
                     'product_id': product.id,
                     'grosor': get_val("A"),
@@ -137,18 +128,14 @@ class StockPicking(models.Model):
                     'bloque': get_val("F"),
                     'numero_placa': get_val("G"),
                     'atado': get_val("H"),
-                    # La columna I (Tipo) se ELIMINÓ en el diseño nuevo.
-                    # Mapeo desplazado:
-                    'grupo_name': get_val("I"),      # Antes J
-                    'pedimento': get_val("J"),       # Antes K
-                    'contenedor': get_val("K"),      # Antes L
-                    'ref_proveedor': get_val("L"),   # Antes M
-                    'tipo': unit_type, # Se pasa al JS para referencia
+                    'grupo_name': get_val("I"),      
+                    'pedimento': get_val("J"),       
+                    'contenedor': get_val("K"),      
+                    'ref_proveedor': get_val("L"),   
+                    'tipo': unit_type,
                 }
 
-                # Lógica Híbrida:
                 if unit_type == 'Placa':
-                    # Si es Placa, exigimos Alto y Ancho
                     if val_b > 0 and val_c > 0:
                         row_data.update({
                             'alto': val_b,
@@ -157,7 +144,7 @@ class StockPicking(models.Model):
                         })
                         rows.append(row_data)
                 else:
-                    # Si es Pieza/Formato, Columna B es Cantidad. Ancho se ignora.
+                    # Pieza: Col B es Cantidad
                     if val_b > 0:
                         row_data.update({
                             'alto': 0, 
@@ -247,11 +234,11 @@ class StockPicking(models.Model):
     def update_packing_list_from_portal(self, rows, header_data=None):
         """
         Recibe filas consolidadas.
-        Escribe en el Spreadsheet usando la lógica híbrida (Columna B = Alto o Cantidad).
+        Escribe en el Spreadsheet usando la lógica estricta.
         """
         self.ensure_one()
         
-        # --- A. GUARDAR CABECERA CONSOLIDADA ---
+        # --- A. GUARDAR CABECERA ---
         if header_data:
             vals = {
                 'supplier_invoice_number': header_data.get('invoice_number'),
@@ -332,14 +319,13 @@ class StockPicking(models.Model):
 
                 set_c("A", row.get('grosor', ''))
                 
-                # --- ESCRITURA HÍBRIDA ---
+                # --- ESCRITURA ESTRICTA POR TIPO ---
                 if unit_type == 'Placa':
-                    # Escribimos Alto y Ancho
+                    # Placa: B=Alto, C=Ancho
                     set_c("B", row.get('alto', ''))
                     set_c("C", row.get('ancho', ''))
                 else:
-                    # Escribimos Cantidad en Columna B, Columna C vacía
-                    # El JS nos manda 'quantity'
+                    # Pieza: B=Cantidad, C=Vacio
                     qty_val = row.get('quantity')
                     set_c("B", qty_val) 
                     set_c("C", "") 
@@ -349,14 +335,12 @@ class StockPicking(models.Model):
                 set_c("F", row.get('bloque', ''))
                 set_c("G", row.get('numero_placa', ''))
                 set_c("H", row.get('atado', ''))
+                set_c("I", row.get('grupo_name', '')) 
+                set_c("J", row.get('pedimento', ''))  
+                set_c("K", row.get('contenedor', '')) 
+                set_c("L", row.get('ref_proveedor', '')) 
                 
-                # SIN COLUMNA TIPO -> Mapeo desplazado
-                set_c("I", row.get('grupo_name', '')) # Antes J
-                set_c("J", row.get('pedimento', ''))  # Antes K
-                set_c("K", row.get('contenedor', '')) # Antes L
-                set_c("L", row.get('ref_proveedor', '')) # Antes M
-                
-                set_c("M", "Actualizado Portal")      # Antes N
+                set_c("M", "Actualizado Portal")
                 current_row += 1
 
         new_json = json.dumps(data)
@@ -420,9 +404,9 @@ class StockPicking(models.Model):
 
             folder = self.env['documents.document'].search([('type', '=', 'folder')], limit=1)
             
-            # HEADERS ACTUALIZADOS: Sin 'Tipo', B es híbrido.
-            # A=Grosor, B=Alto/Qty, C=Ancho, D=Peso, E=Notas, F=Bloque, G=Placa, H=Atado, I=Grupo, J=Pedimento, K=Contenedor, L=RefProv, M=RefInt
-            headers = ['Grosor (cm)', 'Alto (m) / Cantidad', 'Ancho (m)', 'Peso (kg)', 'Notas', 'Bloque', 'No. Placa', 'Atado', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Proveedor', 'Ref. Interna']
+            # --- DEFINICIÓN DE COLUMNAS ESTRICTA ---
+            # Columnas comunes
+            base_headers_end = ['Peso (kg)', 'Notas', 'Bloque', 'No. Placa', 'Atado', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Proveedor', 'Ref. Interna']
             
             sheets = []
             for index, product in enumerate(products):
@@ -431,9 +415,22 @@ class StockPicking(models.Model):
                 p_str = f"{product.name} ({product.default_code or ''})"
                 cells["B1"] = self._make_cell(p_str)
                 
+                unit_type = product.product_tmpl_id.x_unidad_del_producto or 'Placa'
+                
+                # Cabeceras Dinámicas
+                headers = []
+                if unit_type == 'Placa':
+                    # A=Grosor, B=Alto, C=Ancho, ...
+                    headers = ['Grosor (cm)', 'Alto (m)', 'Ancho (m)'] + base_headers_end
+                else:
+                    # A=Grosor, B=Cantidad, C=(Vacío), ...
+                    # Dejamos la columna C visualmente vacía en el header o le ponemos "-"
+                    headers = ['Grosor (cm)', 'Cantidad', ''] + base_headers_end
+
                 for i, header in enumerate(headers):
                     col_letter = self._get_col_letter(i)
-                    cells[f"{col_letter}3"] = self._make_cell(header, style=1)
+                    if header: # Solo crear celda si tiene texto
+                        cells[f"{col_letter}3"] = self._make_cell(header, style=1)
 
                 sheet_name = (product.default_code or product.name)[:31]
                 count = 1
@@ -446,7 +443,7 @@ class StockPicking(models.Model):
                     "id": f"pl_sheet_{product.id}",
                     "name": sheet_name,
                     "cells": cells,
-                    "colNumber": 14, # 13 Columnas + 1 margen
+                    "colNumber": 14, 
                     "rowNumber": 250,
                     "isProtected": True,
                     "protectedRanges": [{"range": "A4:N250", "isProtected": False}] 
@@ -550,15 +547,32 @@ class StockPicking(models.Model):
         header_fill = PatternFill(start_color='366092', end_color='366092', fill_type='solid')
         header_font = Font(color='FFFFFF', bold=True)
         border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+        
         for product in self.move_ids.mapped('product_id'):
             ws = wb.create_sheet(title=(product.default_code or product.name)[:31])
             ws['A1'] = 'PRODUCTO:'; ws['B1'] = f'{product.name} ({product.default_code or ""})'
-            # HEADERS ACTUALIZADOS PARA EXCEL TAMBIEN
-            headers = ['Grosor (cm)', 'Alto (m) / Cantidad', 'Ancho (m)', 'Peso (kg)', 'Color', 'Bloque', 'No. Placa', 'Atado', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Proveedor', 'Notas']
+            
+            unit_type = product.product_tmpl_id.x_unidad_del_producto or 'Placa'
+            base_headers_end = ['Peso (kg)', 'Color', 'Bloque', 'No. Placa', 'Atado', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Proveedor', 'Notas']
+            
+            # --- HEADERS DINÁMICOS EXCEL ---
+            headers = []
+            if unit_type == 'Placa':
+                headers = ['Grosor (cm)', 'Alto (m)', 'Ancho (m)'] + base_headers_end
+            else:
+                headers = ['Grosor (cm)', 'Cantidad', ''] + base_headers_end
+            
             for col_num, header in enumerate(headers, 1):
-                cell = ws.cell(row=3, column=col_num); cell.value = header; cell.fill = header_fill; cell.font = header_font; cell.border = border
+                if header:
+                    cell = ws.cell(row=3, column=col_num)
+                    cell.value = header
+                    cell.fill = header_fill
+                    cell.font = header_font
+                    cell.border = border
+            
             for row in range(4, 54):
                 for col in range(1, 15): ws.cell(row=row, column=col).border = border
+
         output = io.BytesIO(); wb.save(output)
         filename = f'Plantilla_PL_{self.name}.xlsx'
         self.write({'packing_list_file': base64.b64encode(output.getvalue()), 'packing_list_filename': filename})
