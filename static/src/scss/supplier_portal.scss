@@ -1,15 +1,17 @@
 /* static/src/scss/supplier_portal.scss */
 
-/* --- Variables --- */
-$bg-dark: #121212;
-$bg-card: #1e1e1e;
-$bg-input: #2a2a2a;
-$primary-brown: #d4af37;
-$primary-hover: #b5952f;
-$text-white: #ffffff;
-$text-gray: #a0a0a0;
-$border-color: #333;
-$input-border: #444;
+/* --- Variables: Palette Cream & Wood --- */
+$bg-body: #F9F9F7;       /* Crema muy suave para el fondo general */
+$bg-card: #FFFFFF;       /* Blanco puro para tarjetas */
+$bg-input: #FFFFFF;      /* Blanco para inputs */
+$primary-wood: #8B5A2B;  /* Tono Madera (Marrón cálido/Dorado oscuro) */
+$primary-hover: #6D4C41; /* Tono madera más oscuro para hover */
+$secondary-wood: #D7CCC8; /* Beige suave para bordes/separadores */
+
+$text-main: #2C2C2C;     /* Gris casi negro para lectura clara */
+$text-muted: #666666;    /* Gris medio para etiquetas */
+$border-color: #E0E0E0;  /* Gris claro para bordes */
+$input-border: #CCCCCC;  /* Borde de inputs */
 
 @mixin mobile {
     @media (max-width: 767.98px) { @content; }
@@ -20,18 +22,19 @@ $input-border: #444;
 }
 
 body {
-    background-color: $bg-dark;
-    color: $text-white;
+    background-color: $bg-body;
+    color: $text-main;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     font-size: 0.95rem;
     overflow-x: hidden;
     margin: 0;
 }
 
+/* --- HEADER --- */
 .o_portal_header {
-    background: rgba(18, 18, 18, 0.95);
-    border-bottom: 1px solid $border-color;
-    padding: 0.5rem 1rem; /* Reducido ligeramente */
+    background: rgba(255, 255, 255, 0.98); /* Fondo blanco translúcido */
+    border-bottom: 2px solid $primary-wood;
+    padding: 0.6rem 1.2rem;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -39,23 +42,24 @@ body {
     top: 0;
     z-index: 1000;
     backdrop-filter: blur(10px);
-    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+    box-shadow: 0 4px 15px rgba(139, 90, 43, 0.08);
     flex-wrap: wrap;
     gap: 10px;
 
     .brand {
-        font-size: 1.2rem; /* Un poco mas pequeño */
+        font-size: 1.25rem;
         font-weight: 700;
-        letter-spacing: 1px;
-        color: $text-white;
+        letter-spacing: 0.5px;
+        color: $primary-wood;
         display: flex;
         align-items: center;
         white-space: nowrap;
+        text-transform: uppercase;
         
         img {
-            height: 35px; /* Icono mas pequeño */
+            height: 35px;
             width: auto; 
-            margin-right: 10px;
+            margin-right: 12px;
         }
     }
 
@@ -71,35 +75,36 @@ body {
         min-width: 120px;
 
         .label { 
-            font-size: 0.65rem; 
-            color: $text-gray; 
+            font-size: 0.7rem; 
+            color: $text-muted; 
             text-transform: uppercase; 
             display: block;
+            margin-bottom: 2px;
         }
         .value { 
-            font-weight: 600; 
-            color: #fff; 
-            font-size: 0.85rem;
+            font-weight: 700; 
+            color: $text-main; 
+            font-size: 0.95rem;
         }
     }
 
     .lang-selector-wrapper {
         display: flex;
         align-items: center;
-        background: #252525;
-        padding: 4px 8px;
+        background: #F0F0F0;
+        padding: 5px 10px;
         border-radius: 6px;
-        border: 1px solid #444;
+        border: 1px solid #DDD;
 
         .lang-select {
             background: transparent;
-            color: #ccc;
+            color: $text-main;
             border: none;
-            font-size: 0.85rem;
+            font-size: 0.9rem;
             cursor: pointer;
             outline: none;
             max-width: 100px;
-            option { background: #1a1a1a; color: #fff; }
+            option { background: #FFF; color: #333; }
         }
     }
 
@@ -124,14 +129,13 @@ body {
 }
 
 .o_portal_container {
-    /* MODIFICADO: Aumentado el ancho máximo para evitar scroll horizontal */
-    max-width: 96%; 
-    margin: 1.5rem auto;
+    max-width: 98%; 
+    margin: 2rem auto;
     padding: 0 1rem;
-    padding-bottom: 120px; 
+    padding-bottom: 140px; 
 
     @include mobile {
-        padding: 0 1rem 140px 1rem;
+        padding: 0 0.5rem 150px 0.5rem;
         margin-top: 1rem;
     }
 }
@@ -140,27 +144,27 @@ body {
 .shipment-card {
     background: $bg-card;
     border: 1px solid $border-color;
-    border-radius: 12px;
-    margin-bottom: 1.5rem;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    border-radius: 10px;
+    margin-bottom: 2rem;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.03);
     overflow: hidden;
 
     .card-header {
-        background: linear-gradient(90deg, #252525 0%, #1e1e1e 100%);
-        padding: 0.8rem 1.2rem; /* Padding reducido */
-        border-bottom: 1px solid $border-color;
+        background: #F4F0EB; /* Crema ligeramente más oscuro/Beige */
+        padding: 1rem 1.5rem;
+        border-bottom: 1px solid $secondary-wood;
         display: flex;
         align-items: center;
         gap: 12px;
 
-        i { color: $primary-brown; }
+        i { color: $primary-wood; font-size: 1.1rem; }
         h3 {
-            margin: 0; font-size: 1rem; color: $text-white; font-weight: 600;
+            margin: 0; font-size: 1.05rem; color: $primary-wood; font-weight: 700;
             text-transform: uppercase; letter-spacing: 0.5px;
         }
     }
 
-    .card-body { padding: 1.2rem; }
+    .card-body { padding: 1.5rem; }
     
     @include mobile {
         .card-body { padding: 1rem; }
@@ -169,14 +173,14 @@ body {
 
 /* Títulos de secciones internas */
 .form-section-title {
-    color: $primary-brown;
-    font-size: 0.8rem;
+    color: $primary-wood;
+    font-size: 0.85rem;
     text-transform: uppercase;
     font-weight: 700;
-    border-bottom: 1px solid #333;
-    padding-bottom: 5px;
-    margin-bottom: 12px;
-    margin-top: 8px;
+    border-bottom: 2px solid $secondary-wood;
+    padding-bottom: 6px;
+    margin-bottom: 15px;
+    margin-top: 10px;
     letter-spacing: 0.5px;
     display: flex;
     align-items: center;
@@ -185,9 +189,8 @@ body {
 
 .modern-form-grid {
     display: grid;
-    /* Escritorio: 4 columnas para datos compactos */
     grid-template-columns: repeat(4, 1fr); 
-    gap: 1rem; /* Gap reducido */
+    gap: 1.2rem;
     
     @include tablet {
         grid-template-columns: repeat(2, 1fr);
@@ -203,30 +206,30 @@ body {
         flex-direction: column;
         
         label {
-            color: $text-gray;
-            font-size: 0.75rem; /* Etiqueta mas pequeña */
-            margin-bottom: 0.3rem;
-            font-weight: 500;
+            color: $text-muted;
+            font-size: 0.8rem;
+            margin-bottom: 0.4rem;
+            font-weight: 600;
             display: flex; align-items: center; gap: 6px;
         }
 
         .form-control {
             background-color: $bg-input !important;
             border: 1px solid $input-border !important;
-            color: $text-white !important;
-            border-radius: 6px;
-            padding: 6px 10px; /* Input mas compacto */
-            font-size: 0.85rem; /* Texto input mas pequeño */
+            color: $text-main !important;
+            border-radius: 5px;
+            padding: 8px 10px;
+            font-size: 0.9rem;
             transition: all 0.2s ease;
             width: 100%;
             box-sizing: border-box;
 
             &:focus {
-                border-color: $primary-brown !important;
-                box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.15);
+                border-color: $primary-wood !important;
+                box-shadow: 0 0 0 3px rgba(139, 90, 43, 0.15);
                 outline: none;
             }
-            &::placeholder { color: #555; }
+            &::placeholder { color: #BBB; }
         }
     }
 
@@ -239,22 +242,31 @@ body {
 .product-section {
     background: $bg-card;
     border: 1px solid $border-color;
-    border-radius: 12px;
-    margin-bottom: 1.5rem;
+    border-radius: 10px;
+    margin-bottom: 2rem;
     overflow: hidden;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.04);
 
     .product-header {
-        background: #252525;
-        padding: 0.8rem 1rem;
+        background: #F4F0EB;
+        padding: 1rem 1.5rem;
         display: flex;
         justify-content: space-between;
         align-items: center;
-        border-bottom: 1px solid $border-color;
+        border-bottom: 1px solid $secondary-wood;
         flex-wrap: wrap;
         gap: 10px;
 
-        h3 { margin: 0; font-size: 0.95rem; color: #fff; }
-        .meta { color: $primary-brown; font-size: 0.85rem; font-weight: 600; white-space: nowrap; }
+        h3 { margin: 0; font-size: 1.1rem; color: $primary-wood; font-weight: 700; }
+        .badge { 
+            background-color: $primary-wood; 
+            color: #FFF; 
+            padding: 4px 8px; 
+            border-radius: 4px; 
+            font-weight: 500;
+            font-size: 0.75rem;
+        }
+        .meta { color: $text-muted; font-size: 0.9rem; font-weight: 600; white-space: nowrap; }
     }
     .table-responsive { padding: 0; overflow-x: auto; }
 }
@@ -262,37 +274,38 @@ body {
 .portal-table {
     width: 100%;
     border-collapse: collapse;
-    color: $text-gray;
-    /* MODIFICADO: Min-width reducido porque ahora es más compacto */
-    min-width: 800px; 
+    color: $text-main;
+    min-width: 900px; /* Asegura scroll en pantallas pequeñas */
 
     thead {
-        background: rgba(255,255,255,0.02);
+        background: #FAFAFA;
         th {
             text-align: left;
-            /* MODIFICADO: Padding y fuente reducidos para cabeceras */
-            padding: 0.5rem 0.6rem;
-            color: lighten($text-gray, 10%);
-            font-size: 0.7rem; 
+            padding: 0.8rem 0.6rem;
+            color: $primary-wood;
+            font-size: 0.75rem; 
+            font-weight: 800;
             text-transform: uppercase;
-            border-bottom: 1px solid $border-color;
-            white-space: nowrap; /* Evita saltos de línea en títulos cortos */
+            border-bottom: 2px solid $secondary-wood;
+            white-space: nowrap; 
         }
     }
 
     tbody td {
-        /* MODIFICADO: Padding reducido en celdas para hacer filas mas angostas */
-        padding: 0.4rem 0.6rem;
-        border-bottom: 1px solid #2a2a2a;
+        padding: 0.5rem 0.6rem;
+        border-bottom: 1px solid $border-color;
         vertical-align: middle;
         
         .area-display {
-            color: $primary-brown;
+            color: $primary-wood;
             font-weight: 700;
             font-family: monospace;
-            font-size: 0.85rem; /* Área mas pequeña */
+            font-size: 0.9rem;
         }
     }
+
+    /* Colorear ligeramente celdas de dimensiones visuales si se desea */
+    .bg-light { background-color: #FCFCFC; }
 
     @include mobile {
         display: block;
@@ -303,12 +316,13 @@ body {
         
         tr {
             display: block;
-            background: #252525;
+            background: #FFF;
             margin: 1rem 0;
             border-radius: 8px;
             border: 1px solid $border-color;
             padding: 1rem;
             position: relative;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
         }
 
         td {
@@ -321,10 +335,10 @@ body {
             
             &::before {
                 content: attr(data-label);
-                font-size: 0.75rem;
+                font-size: 0.8rem;
                 text-transform: uppercase;
-                color: $text-gray;
-                font-weight: 600;
+                color: $primary-wood;
+                font-weight: 700;
                 margin-right: 15px;
                 text-align: left;
             }
@@ -335,11 +349,11 @@ body {
             top: 10px; right: 10px;
             padding: 0; width: auto;
             &::before { content: none; }
-            .btn-action { width: 30px; height: 30px; font-size: 1rem; }
+            .btn-action { width: 32px; height: 32px; font-size: 1rem; }
         }
         
         td[data-label*="Área"], td[data-label*="Area"] { 
-             background: rgba(212, 175, 55, 0.05);
+             background: rgba(139, 90, 43, 0.08);
              border-radius: 6px;
              padding: 8px;
              margin-top: 5px;
@@ -352,134 +366,134 @@ body {
 .input-group-portal {
     display: flex;
     align-items: center;
-    /* MODIFICADO: Gap reducido */
-    gap: 3px; 
+    gap: 4px; 
     width: 100%;
     
     input {
-        background: $bg-dark;
+        background: $bg-input;
         border: 1px solid $input-border;
-        color: $text-white;
-        /* MODIFICADO: Input mas compacto */
-        padding: 4px 6px; 
+        color: $text-main;
+        padding: 6px 8px; 
         border-radius: 4px;
         width: 100%;
-        font-family: monospace;
-        font-size: 0.8rem; /* Fuente mas pequeña */
+        font-family: 'Inter', monospace;
+        font-size: 0.85rem; 
 
         &:focus {
             outline: none;
-            border-color: $primary-brown;
-            background: lighten($bg-dark, 5%);
+            border-color: $primary-wood;
+            background: #FFFEFA;
         }
     }
 
-    /* MODIFICADO: Botón de copiar hacia abajo mas pequeño */
     .btn-fill-down {
-        background: #333;
-        border: 1px solid #444;
-        color: #aaa;
-        padding: 3px 6px;
+        background: #F0F0F0;
+        border: 1px solid #D0D0D0;
+        color: $primary-wood;
+        padding: 4px 8px;
         border-radius: 4px;
-        min-width: 24px;
-        font-size: 0.75rem;
+        min-width: 26px;
+        font-size: 0.8rem;
         cursor: pointer;
         
-        &:hover { color: #fff; background: #444; }
-        &:active { background: $primary-brown; color: #000; }
+        &:hover { color: #FFF; background: $primary-wood; }
+        &:active { transform: translateY(1px); }
         @include mobile { display: none; }
     }
 }
 
-/* MODIFICADO: Botón eliminar mas compacto */
 .btn-action {
-    width: 28px; height: 28px;
+    width: 32px; height: 32px;
     border-radius: 6px;
     display: inline-flex; align-items: center; justify-content: center;
     cursor: pointer;
-    background: rgba(217, 83, 79, 0.1);
-    color: #ff6b6b;
-    border: 1px solid rgba(217, 83, 79, 0.3);
+    background: #FFEBEE;
+    color: #C62828;
+    border: 1px solid #FFCDD2;
     transition: all 0.2s;
-    font-size: 0.85rem;
+    font-size: 0.9rem;
     
-    &:hover { background: rgba(217, 83, 79, 0.3); }
+    &:hover { background: #FFCDD2; }
 }
 
 .table-actions {
-    padding: 0.8rem;
+    padding: 1rem;
     display: flex;
-    gap: 8px;
+    gap: 10px;
+    background: #FAFAFA;
+    border-top: 1px solid $border-color;
     
     .btn-add-row {
         flex: 1;
         display: flex; justify-content: center; align-items: center;
-        padding: 8px;
+        padding: 10px;
         border-radius: 6px;
-        background: rgba(255,255,255,0.05);
-        border: 1px dashed $border-color;
-        color: $text-gray;
-        font-size: 0.85rem;
+        background: #FFF;
+        border: 1px dashed $primary-wood;
+        color: $primary-wood;
+        font-size: 0.9rem;
+        font-weight: 600;
         cursor: pointer;
         transition: background 0.2s;
         
-        &:hover { background: rgba(255,255,255,0.1); color: #fff; }
+        &:hover { background: rgba(139, 90, 43, 0.08); }
     }
 }
 
+/* --- FOOTER --- */
 .submit-footer {
     position: fixed;
     bottom: 0; left: 0; width: 100%;
-    background: rgba(30, 30, 30, 0.98);
-    padding: 0.8rem 2rem;
-    border-top: 1px solid $primary-brown;
+    background: rgba(255, 255, 255, 0.98);
+    padding: 1rem 2rem;
+    border-top: 3px solid $primary-wood;
     display: flex;
     justify-content: space-between;
     align-items: center;
     z-index: 999;
     backdrop-filter: blur(10px);
-    box-shadow: 0 -5px 20px rgba(0,0,0,0.5);
+    box-shadow: 0 -5px 20px rgba(0,0,0,0.1);
 
     .summary {
-        color: $text-gray;
-        font-size: 0.85rem;
-        display: flex; gap: 20px;
+        color: $text-main;
+        font-size: 0.9rem;
+        display: flex; gap: 25px;
         
-        div { display: flex; align-items: center; gap: 5px; }
-        span { color: $primary-brown; font-weight: bold; font-size: 1rem; }
+        div { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+        span { color: $primary-wood; font-weight: 800; font-size: 1.1rem; }
     }
 
     @include mobile {
         flex-direction: column;
-        gap: 12px;
+        gap: 15px;
         padding: 1rem;
         
         .summary {
             width: 100%;
             justify-content: space-between;
-            font-size: 0.8rem;
-            background: rgba(0,0,0,0.3);
-            padding: 8px 10px;
+            font-size: 0.85rem;
+            background: #F5F5F5;
+            padding: 10px;
             border-radius: 8px;
         }
-        .btn-primary-custom { width: 100%; padding: 12px; font-size: 1rem; }
+        .btn-primary-custom { width: 100%; padding: 14px; font-size: 1rem; }
     }
 }
 
 .btn-primary-custom {
-    background: $primary-brown;
-    color: #000;
+    background: $primary-wood;
+    color: #FFF;
     border: none;
-    padding: 8px 25px; /* Botón footer un poco mas compacto */
+    padding: 10px 30px;
     border-radius: 30px;
     font-weight: 700;
     text-transform: uppercase;
-    font-size: 0.85rem;
+    font-size: 0.9rem;
     cursor: pointer;
-    box-shadow: 0 4px 15px rgba(212, 175, 55, 0.3);
-    transition: transform 0.2s, box-shadow 0.2s;
+    box-shadow: 0 4px 15px rgba(139, 90, 43, 0.3);
+    transition: transform 0.2s, box-shadow 0.2s, background 0.2s;
     
     &:hover { background: $primary-hover; }
     &:active { transform: scale(0.98); }
-    &:disabled { background: #444; color: #777; box-shadow: none; cursor: not-allowed; }
+    &:disabled { background: #CCC; color: #888; box-shadow: none; cursor: not-allowed; }
 }
