@@ -27,7 +27,6 @@ class _PLCellsIndex:
     def ingest_cells(self, raw_cells):
         if not raw_cells:
             return
-        # _logger.info(f"[INDEX_DB] Cargando {len(raw_cells)} celdas del archivo base.")
         for key, cell_data in raw_cells.items():
             col, row = self._parse_cell_key(key)
             if col is not None and row is not None:
@@ -57,7 +56,6 @@ class _PLCellsIndex:
         return cell_data or ""
 
     def apply_revision_commands(self, commands, target_sheet_id):
-        """Procesa comandos de edición y eliminación de filas"""
         applied = 0
         for cmd in commands:
             if isinstance(cmd, list):
@@ -93,7 +91,6 @@ class _PLCellsIndex:
         return applied
 
     def _shift_rows_up(self, removed_row):
-        """Mueve los datos hacia arriba cuando se elimina una fila"""
         new_cells = {}
         for (c, r), val in self._cells.items():
             if r < removed_row:
@@ -160,24 +157,18 @@ class PackingListImportWizard(models.TransientModel):
             move = self.picking_id.move_ids.filtered(lambda m: m.product_id == product)[:1]
             if not move: continue
 
-            # Determinar tipo (Viene como 'Placa', 'Formato', 'Pieza' del template)
             unit_type = data.get('tipo', 'Placa')
             
             qty_done = 0.0
-            
-            # Variables finales para el lote
             final_alto = 0.0
             final_ancho = 0.0
 
             if unit_type == 'Placa':
-                # Placa: Cálculo geométrico. Alto y Ancho se guardan.
                 final_alto = data.get('alto', 0.0)
                 final_ancho = data.get('ancho', 0.0)
                 qty_done = round(final_alto * final_ancho, 3)
             else:
-                # Formato/Pieza: Cantidad manual viene en 'quantity' (desde Col B)
                 qty_done = data.get('quantity', 0.0)
-                # No guardamos dimensiones en el lote para no ensuciar
                 final_alto = 0.0
                 final_ancho = 0.0
 
@@ -196,12 +187,8 @@ class PackingListImportWizard(models.TransientModel):
                 if not grupo: grupo = self.env['stock.lot.group'].create({'name': data['grupo_name'].strip()})
                 grupo_ids = [grupo.id]
 
-            # --- CORRECCIÓN DE TIPO PARA SELECTION ---
-            # El campo selection espera 'placa', 'formato', 'pieza' (minúsculas).
-            # Convertimos el valor unit_type (que puede ser 'Placa', 'Formato') a minúsculas.
             lot_selection_value = str(unit_type).lower()
 
-            # Crear Lote
             lot = self.env['stock.lot'].create({
                 'name': l_name, 
                 'product_id': product.id, 
@@ -213,14 +200,13 @@ class PackingListImportWizard(models.TransientModel):
                 'x_bloque': data['bloque'], 
                 'x_numero_placa': data.get('numero_placa'), 
                 'x_atado': data['atado'],
-                'x_tipo': lot_selection_value,  # <--- Convertido a minúsculas para coincidir con Selection
+                'x_tipo': lot_selection_value,
                 'x_grupo': [(6, 0, grupo_ids)], 
                 'x_pedimento': data['pedimento'],
                 'x_contenedor': cont, 
                 'x_referencia_proveedor': data['ref_proveedor'],
             })
             
-            # Crear Move Line
             self.env['stock.move.line'].create({
                 'move_id': move.id, 
                 'product_id': product.id, 
@@ -233,10 +219,10 @@ class PackingListImportWizard(models.TransientModel):
                 'x_alto_temp': final_alto,
                 'x_ancho_temp': final_ancho, 
                 'x_color_temp': data.get('color'), 
-                'x_tipo_temp': lot_selection_value, # Usamos el valor Selection normalizado
+                'x_tipo_temp': lot_selection_value,
                 'x_bloque_temp': data['bloque'], 
                 'x_atado_temp': data['atado'], 
-                'x_pedimento_temp': data['pedimento'],
+                'x_pedimento_temp': data['pedimento'], 
                 'x_contenedor_temp': cont, 
                 'x_referencia_proveedor_temp': data['ref_proveedor'], 
                 'x_grupo_temp': [(6, 0, grupo_ids)],
@@ -256,7 +242,6 @@ class PackingListImportWizard(models.TransientModel):
 
     def _get_data_from_spreadsheet(self):
         doc = self.spreadsheet_id
-        
         spreadsheet_json = self._get_current_spreadsheet_state(doc)
         if not spreadsheet_json or not spreadsheet_json.get('sheets'):
             return []
@@ -273,9 +258,6 @@ class PackingListImportWizard(models.TransientModel):
         return all_rows
 
     def _get_current_spreadsheet_state(self, doc):
-        """Obtiene el estado ACTUAL del spreadsheet usando el mismo método que el frontend"""
-        
-        # Método 1: Usar spreadsheet_snapshot (el snapshot más reciente)
         if doc.spreadsheet_snapshot:
             try:
                 data = doc.spreadsheet_snapshot
@@ -285,7 +267,6 @@ class PackingListImportWizard(models.TransientModel):
             except Exception as e:
                 _logger.warning(f"[PL_IMPORT] Error leyendo snapshot: {e}")
         
-        # Método 2: Usar _get_spreadsheet_serialized_snapshot
         try:
             if hasattr(doc, '_get_spreadsheet_serialized_snapshot'):
                 snapshot_data = doc._get_spreadsheet_serialized_snapshot()
@@ -296,15 +277,11 @@ class PackingListImportWizard(models.TransientModel):
         except Exception as e:
             _logger.warning(f"[PL_IMPORT] Error en _get_spreadsheet_serialized_snapshot: {e}")
         
-        # Método 3: Fallback a spreadsheet_data + todas las revisiones
         _logger.info("[PL_IMPORT] Fallback: spreadsheet_data + todas las revisiones")
         return self._load_spreadsheet_with_all_revisions(doc)
 
     def _apply_pending_revisions(self, doc, spreadsheet_json):
-        """Aplica revisiones pendientes después del último snapshot"""
-        
         snapshot_revision_id = spreadsheet_json.get('revisionId', '')
-        
         if not snapshot_revision_id:
             return spreadsheet_json
         
@@ -313,22 +290,18 @@ class PackingListImportWizard(models.TransientModel):
             ('res_id', '=', doc.id)
         ], order='id asc')
         
-        # Encontrar revisiones después del snapshot actual
         start_applying = False
         all_cmds = []
         
         for rev in revisions:
             rev_data = json.loads(rev.commands) if isinstance(rev.commands, str) else rev.commands
-            
             if not start_applying:
                 rev_id = rev_data.get('id') if isinstance(rev_data, dict) else None
                 if rev_id == snapshot_revision_id:
                     start_applying = True
                 continue
-            
             if isinstance(rev_data, dict) and rev_data.get('type') == 'SNAPSHOT_CREATED':
                 continue
-                
             if isinstance(rev_data, dict) and 'commands' in rev_data:
                 all_cmds.extend(rev_data['commands'])
             elif isinstance(rev_data, list):
@@ -348,7 +321,6 @@ class PackingListImportWizard(models.TransientModel):
         return spreadsheet_json
 
     def _load_spreadsheet_with_all_revisions(self, doc):
-        """Carga spreadsheet_data y aplica TODAS las revisiones desde el inicio"""
         spreadsheet_json = self._load_spreadsheet_json(doc)
         if not spreadsheet_json:
             return None
@@ -373,14 +345,12 @@ class PackingListImportWizard(models.TransientModel):
             idx = _PLCellsIndex()
             idx.ingest_cells(sheet.get('cells', {}))
             idx.apply_revision_commands(all_cmds, sheet.get('id'))
-            
             sheet['cells'] = {f"{self._col_to_letter(c)}{r+1}": {'content': v} 
                              for (c, r), v in idx._cells.items()}
         
         return spreadsheet_json
 
     def _col_to_letter(self, col):
-        """Convierte índice de columna (0-based) a letra(s)"""
         result = ""
         col += 1
         while col:
@@ -403,17 +373,40 @@ class PackingListImportWizard(models.TransientModel):
 
     def _extract_rows_from_index(self, idx, product):
         rows = []
-        
-        # Obtener tipo por defecto desde el producto TEMPLATE
-        # Esto devuelve 'Formato', 'Placa' o 'Pieza' (Capitalizados o como se guarden en product.template)
         unit_type = product.product_tmpl_id.x_unidad_del_producto or 'Placa'
         
+        # --- DEFINICIÓN DINÁMICA DE ÍNDICES DE COLUMNA ---
+        # Si es PLACA, existe la columna 'Ancho' en C (idx 2).
+        # Si NO es Placa, esa columna no existe, por lo que 'Peso' y las siguientes se recorren a la izquierda.
+        
+        if unit_type == 'Placa':
+            # Estructura: A=Grosor, B=Alto, C=Ancho, D=Peso, E=Notas, F=Bloque, G=Placa...
+            idx_peso = 3
+            idx_notas = 4
+            idx_bloque = 5
+            idx_placa = 6
+            idx_atado = 7
+            idx_grupo = 8
+            idx_pedimento = 9
+            idx_contenedor = 10
+            idx_ref = 11
+        else:
+            # Estructura: A=Grosor, B=Cantidad, C=Peso, D=Notas, E=Bloque, F=Placa...
+            idx_peso = 2
+            idx_notas = 3
+            idx_bloque = 4
+            idx_placa = 5
+            idx_atado = 6
+            idx_grupo = 7
+            idx_pedimento = 8
+            idx_contenedor = 9
+            idx_ref = 10
+
         for r in range(3, 300):
-            # Leemos las columnas B y C sin prejuicios
-            val_b = self._to_float(idx.value(1, r)) # B = Alto o Cantidad
-            val_c = self._to_float(idx.value(2, r)) # C = Ancho
+            # Leemos las columnas B y C sin prejuicios para la validación
+            val_b = self._to_float(idx.value(1, r)) 
+            val_c = self._to_float(idx.value(2, r)) 
             
-            # --- VALIDACIÓN ---
             es_valido = False
             
             if unit_type == 'Placa':
@@ -426,26 +419,24 @@ class PackingListImportWizard(models.TransientModel):
             if es_valido:
                 rows.append({
                     'product': product, 
-                    'grosor': str(idx.value(0, r) or '').strip(), # A
+                    'grosor': str(idx.value(0, r) or '').strip(), # A siempre es Grosor
                     
-                    # Si no es Placa, Alto/Ancho = 0
                     'alto': val_b if unit_type == 'Placa' else 0.0,
                     'ancho': val_c if unit_type == 'Placa' else 0.0,
-                    
-                    # Si no es Placa, Quantity = B.
                     'quantity': val_b if unit_type != 'Placa' else 0.0,
                     
-                    'color': str(idx.value(3, r) or '').strip(), # D
-                    'bloque': str(idx.value(4, r) or '').strip(), # E
-                    'numero_placa': str(idx.value(5, r) or '').strip(), # F 
-                    'atado': str(idx.value(6, r) or '').strip(), # G
+                    # --- USO DE ÍNDICES DINÁMICOS ---
+                    'color': str(idx.value(idx_notas, r) or '').strip(), 
+                    'bloque': str(idx.value(idx_bloque, r) or '').strip(), 
+                    'numero_placa': str(idx.value(idx_placa, r) or '').strip(), 
+                    'atado': str(idx.value(idx_atado, r) or '').strip(), 
                     
-                    'tipo': unit_type, # Se pasa el valor original (Ej. 'Formato') para que action_import_excel lo procese
+                    'tipo': unit_type, 
                     
-                    'grupo_name': str(idx.value(8, r) or '').strip(), # I 
-                    'pedimento': str(idx.value(9, r) or '').strip(),  # J 
-                    'contenedor': str(idx.value(10, r) or 'SN').strip(), # K
-                    'ref_proveedor': str(idx.value(11, r) or '').strip(), # L 
+                    'grupo_name': str(idx.value(idx_grupo, r) or '').strip(), 
+                    'pedimento': str(idx.value(idx_pedimento, r) or '').strip(),  
+                    'contenedor': str(idx.value(idx_contenedor, r) or 'SN').strip(), 
+                    'ref_proveedor': str(idx.value(idx_ref, r) or '').strip(), 
                 })
         return rows
 
@@ -484,6 +475,31 @@ class PackingListImportWizard(models.TransientModel):
             
             unit_type = product.product_tmpl_id.x_unidad_del_producto or 'Placa'
             
+            # Definición dinámica de columnas Excel (Base 1)
+            if unit_type == 'Placa':
+                # A=1, B=2, C=3, D=4(Peso), E=5(Notas), F=6(Bloque), G=7(Placa)...
+                col_notas = 5
+                col_bloque = 6
+                col_placa = 7
+                col_atado = 8
+                col_grupo = 10 # Salta H e I en tu ejemplo original? Ajustar según lógica de índices
+                # Re-mapeo estándar según tu lógica de Spreadsheet:
+                # Spreadsheet: I(8) -> Excel: 9
+                col_grupo = 9
+                col_pedimento = 10
+                col_contenedor = 11
+                col_ref = 12
+            else:
+                # Recorrido a la izquierda
+                col_notas = 4
+                col_bloque = 5
+                col_placa = 6
+                col_atado = 7
+                col_grupo = 8
+                col_pedimento = 9
+                col_contenedor = 10
+                col_ref = 11
+
             for r in range(4, sheet.max_row + 1):
                 val_b = self._to_float(sheet.cell(r, 2).value) # Col B
                 val_c = self._to_float(sheet.cell(r, 3).value) # Col C
@@ -503,16 +519,17 @@ class PackingListImportWizard(models.TransientModel):
                         'ancho': val_c if unit_type == 'Placa' else 0.0,
                         'quantity': val_b if unit_type != 'Placa' else 0.0,
                         
-                        'color': str(sheet.cell(r, 4).value or '').strip(),
-                        'bloque': str(sheet.cell(r, 5).value or '').strip(),
-                        'numero_placa': str(sheet.cell(r, 6).value or '').strip(),
-                        'atado': str(sheet.cell(r, 7).value or '').strip(),
+                        # Indices dinámicos
+                        'color': str(sheet.cell(r, col_notas).value or '').strip(),
+                        'bloque': str(sheet.cell(r, col_bloque).value or '').strip(),
+                        'numero_placa': str(sheet.cell(r, col_placa).value or '').strip(),
+                        'atado': str(sheet.cell(r, col_atado).value or '').strip(),
                         
                         'tipo': unit_type,
                         
-                        'grupo_name': str(sheet.cell(r, 9).value or '').strip(), 
-                        'pedimento': str(sheet.cell(r, 10).value or '').strip(),
-                        'contenedor': str(sheet.cell(r, 11).value or 'SN').strip(),
-                        'ref_proveedor': str(sheet.cell(r, 12).value or '').strip(),
+                        'grupo_name': str(sheet.cell(r, col_grupo).value or '').strip(), 
+                        'pedimento': str(sheet.cell(r, col_pedimento).value or '').strip(),
+                        'contenedor': str(sheet.cell(r, col_contenedor).value or 'SN').strip(),
+                        'ref_proveedor': str(sheet.cell(r, col_ref).value or '').strip(),
                     })
         return rows
