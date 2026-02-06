@@ -178,8 +178,8 @@ class WorksheetImportWizard(models.TransientModel):
                 lot_name = str(idx.value(0, r) or '').strip()
                 if not lot_name or lot_name == 'Nº Lote': continue
 
-                alto_r = self._to_float(idx.value(12, r))
-                ancho_r = self._to_float(idx.value(13, r))
+                alto_r = self._to_float(idx.value(13, r))
+                ancho_r = self._to_float(idx.value(14, r))
                 
                 all_rows.append({
                     'product': product,
