@@ -230,8 +230,9 @@ class PackingListImportWizard(models.TransientModel):
             containers[cont]['num'] += 1
             move_lines_created += 1
 
-        # --- CORRECCIÓN BUG WORKSHEET ---
-        # Si ya existe un worksheet, lo eliminamos para forzar su regeneración con los nuevos datos
+        # ---------------------------------------------------------
+        # CORRECCIÓN 1: ELIMINAR WORKSHEET ANTIGUO AL REPROCESAR
+        # ---------------------------------------------------------
         if self.picking_id.ws_spreadsheet_id:
             try:
                 self.picking_id.ws_spreadsheet_id.sudo().unlink()
@@ -245,14 +246,17 @@ class PackingListImportWizard(models.TransientModel):
         return {
             'type': 'ir.actions.client', 'tag': 'display_notification',
             'params': {
-                'title': 'PL Procesado', 'message': f'Se han importado/corregido {move_lines_created} lotes. El Worksheet ha sido reiniciado.',
+                'title': 'PL Procesado', 
+                'message': f'Se han importado/corregido {move_lines_created} lotes. El Worksheet ha sido reiniciado.',
                 'type': 'success', 'next': {'type': 'ir.actions.act_window_close'}
             }
         }
 
-    # --- MÉTODO HELPER PARA LIMPIAR STRINGS (SOLUCIÓN ATADO .0) ---
+    # ---------------------------------------------------------
+    # CORRECCIÓN 2: HELPER PARA LIMPIAR CADENAS (ATADO .0)
+    # ---------------------------------------------------------
     def _clean_str(self, val):
-        """Convierte a string evitando '.0' en números enteros y respeta caracteres especiales"""
+        """Convierte a string evitando '.0' en números enteros"""
         if val is None or val is False:
             return ""
         s = str(val).strip()
@@ -437,20 +441,19 @@ class PackingListImportWizard(models.TransientModel):
                 if val_b > 0: es_valido = True
 
             if es_valido:
-                # APLICAMOS LIMPIEZA DE STRINGS (_clean_str)
                 rows.append({
                     'product': product, 
-                    'grosor': self._clean_str(idx.value(0, r)), # A siempre es Grosor
+                    'grosor': self._clean_str(idx.value(0, r)), # Usando _clean_str
                     
                     'alto': val_b if unit_type == 'Placa' else 0.0,
                     'ancho': val_c if unit_type == 'Placa' else 0.0,
                     'quantity': val_b if unit_type != 'Placa' else 0.0,
                     
-                    # --- USO DE ÍNDICES DINÁMICOS + CLEAN STR ---
+                    # --- CORRECCIÓN 2: LIMPIEZA DE STRINGS ---
                     'color': self._clean_str(idx.value(idx_notas, r)), 
                     'bloque': self._clean_str(idx.value(idx_bloque, r)), 
                     'numero_placa': self._clean_str(idx.value(idx_placa, r)), 
-                    'atado': self._clean_str(idx.value(idx_atado, r)), 
+                    'atado': self._clean_str(idx.value(idx_atado, r)), # Corregido
                     
                     'tipo': unit_type, 
                     
@@ -503,7 +506,10 @@ class PackingListImportWizard(models.TransientModel):
                 col_bloque = 6
                 col_placa = 7
                 col_atado = 8
-                col_grupo = 9 # Ajuste: I=9 en Excel
+                col_grupo = 10 # Salta H e I en tu ejemplo original? Ajustar según lógica de índices
+                # Re-mapeo estándar según tu lógica de Spreadsheet:
+                # Spreadsheet: I(8) -> Excel: 9
+                col_grupo = 9
                 col_pedimento = 10
                 col_contenedor = 11
                 col_ref = 12
@@ -529,20 +535,19 @@ class PackingListImportWizard(models.TransientModel):
                     if val_b > 0: es_valido = True
 
                 if es_valido:
-                    # APLICAMOS LIMPIEZA DE STRINGS EN EXCEL TAMBIÉN
                     rows.append({
                         'product': product, 
-                        'grosor': self._clean_str(sheet.cell(r, 1).value),
+                        'grosor': self._clean_str(sheet.cell(r, 1).value), # Usando _clean_str
                         
                         'alto': val_b if unit_type == 'Placa' else 0.0,
                         'ancho': val_c if unit_type == 'Placa' else 0.0,
                         'quantity': val_b if unit_type != 'Placa' else 0.0,
                         
-                        # Indices dinámicos + CLEAN STR
+                        # Indices dinámicos + CORRECCIÓN 2
                         'color': self._clean_str(sheet.cell(r, col_notas).value),
                         'bloque': self._clean_str(sheet.cell(r, col_bloque).value),
                         'numero_placa': self._clean_str(sheet.cell(r, col_placa).value),
-                        'atado': self._clean_str(sheet.cell(r, col_atado).value),
+                        'atado': self._clean_str(sheet.cell(r, col_atado).value), # Corregido
                         
                         'tipo': unit_type,
                         
