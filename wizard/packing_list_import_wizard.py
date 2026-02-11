@@ -230,9 +230,10 @@ class PackingListImportWizard(models.TransientModel):
             containers[cont]['num'] += 1
             move_lines_created += 1
 
-        # ---------------------------------------------------------
-        # CORRECCIÓN 1: ELIMINAR WORKSHEET ANTIGUO AL REPROCESAR
-        # ---------------------------------------------------------
+        # ==============================================================================
+        # CORRECCIÓN DE SINCRONIZACIÓN WORKSHEET
+        # ==============================================================================
+        # Si ya existe un worksheet, lo eliminamos para forzar su regeneración con los nuevos datos
         if self.picking_id.ws_spreadsheet_id:
             try:
                 self.picking_id.ws_spreadsheet_id.sudo().unlink()
@@ -240,6 +241,7 @@ class PackingListImportWizard(models.TransientModel):
                 _logger.info("[PL_IMPORT] Worksheet antiguo eliminado para forzar sincronización.")
             except Exception as e:
                 _logger.warning(f"[PL_IMPORT] No se pudo eliminar el Worksheet anterior: {e}")
+        # ==============================================================================
 
         self.picking_id.write({'packing_list_imported': True})
         _logger.info(f"=== [PL_IMPORT] PROCESO TERMINADO. Creados {move_lines_created} registros. ===")
@@ -251,18 +253,6 @@ class PackingListImportWizard(models.TransientModel):
                 'type': 'success', 'next': {'type': 'ir.actions.act_window_close'}
             }
         }
-
-    # ---------------------------------------------------------
-    # CORRECCIÓN 2: HELPER PARA LIMPIAR CADENAS (ATADO .0)
-    # ---------------------------------------------------------
-    def _clean_str(self, val):
-        """Convierte a string evitando '.0' en números enteros"""
-        if val is None or val is False:
-            return ""
-        s = str(val).strip()
-        if s.endswith('.0'):
-            return s[:-2]
-        return s
 
     def _get_data_from_spreadsheet(self):
         doc = self.spreadsheet_id
@@ -443,24 +433,24 @@ class PackingListImportWizard(models.TransientModel):
             if es_valido:
                 rows.append({
                     'product': product, 
-                    'grosor': self._clean_str(idx.value(0, r)), # Usando _clean_str
+                    'grosor': str(idx.value(0, r) or '').strip(), # A siempre es Grosor
                     
                     'alto': val_b if unit_type == 'Placa' else 0.0,
                     'ancho': val_c if unit_type == 'Placa' else 0.0,
                     'quantity': val_b if unit_type != 'Placa' else 0.0,
                     
-                    # --- CORRECCIÓN 2: LIMPIEZA DE STRINGS ---
-                    'color': self._clean_str(idx.value(idx_notas, r)), 
-                    'bloque': self._clean_str(idx.value(idx_bloque, r)), 
-                    'numero_placa': self._clean_str(idx.value(idx_placa, r)), 
-                    'atado': self._clean_str(idx.value(idx_atado, r)), # Corregido
+                    # --- USO DE ÍNDICES DINÁMICOS ---
+                    'color': str(idx.value(idx_notas, r) or '').strip(), 
+                    'bloque': str(idx.value(idx_bloque, r) or '').strip(), 
+                    'numero_placa': str(idx.value(idx_placa, r) or '').strip(), 
+                    'atado': str(idx.value(idx_atado, r) or '').strip(), 
                     
                     'tipo': unit_type, 
                     
-                    'grupo_name': self._clean_str(idx.value(idx_grupo, r)), 
-                    'pedimento': self._clean_str(idx.value(idx_pedimento, r)),  
-                    'contenedor': self._clean_str(idx.value(idx_contenedor, r) or 'SN'), 
-                    'ref_proveedor': self._clean_str(idx.value(idx_ref, r)), 
+                    'grupo_name': str(idx.value(idx_grupo, r) or '').strip(), 
+                    'pedimento': str(idx.value(idx_pedimento, r) or '').strip(),  
+                    'contenedor': str(idx.value(idx_contenedor, r) or 'SN').strip(), 
+                    'ref_proveedor': str(idx.value(idx_ref, r) or '').strip(), 
                 })
         return rows
 
@@ -537,23 +527,23 @@ class PackingListImportWizard(models.TransientModel):
                 if es_valido:
                     rows.append({
                         'product': product, 
-                        'grosor': self._clean_str(sheet.cell(r, 1).value), # Usando _clean_str
+                        'grosor': str(sheet.cell(r, 1).value or '').strip(),
                         
                         'alto': val_b if unit_type == 'Placa' else 0.0,
                         'ancho': val_c if unit_type == 'Placa' else 0.0,
                         'quantity': val_b if unit_type != 'Placa' else 0.0,
                         
-                        # Indices dinámicos + CORRECCIÓN 2
-                        'color': self._clean_str(sheet.cell(r, col_notas).value),
-                        'bloque': self._clean_str(sheet.cell(r, col_bloque).value),
-                        'numero_placa': self._clean_str(sheet.cell(r, col_placa).value),
-                        'atado': self._clean_str(sheet.cell(r, col_atado).value), # Corregido
+                        # Indices dinámicos
+                        'color': str(sheet.cell(r, col_notas).value or '').strip(),
+                        'bloque': str(sheet.cell(r, col_bloque).value or '').strip(),
+                        'numero_placa': str(sheet.cell(r, col_placa).value or '').strip(),
+                        'atado': str(sheet.cell(r, col_atado).value or '').strip(),
                         
                         'tipo': unit_type,
                         
-                        'grupo_name': self._clean_str(sheet.cell(r, col_grupo).value), 
-                        'pedimento': self._clean_str(sheet.cell(r, col_pedimento).value),
-                        'contenedor': self._clean_str(sheet.cell(r, col_contenedor).value or 'SN'),
-                        'ref_proveedor': self._clean_str(sheet.cell(r, col_ref).value),
+                        'grupo_name': str(sheet.cell(r, col_grupo).value or '').strip(), 
+                        'pedimento': str(sheet.cell(r, col_pedimento).value or '').strip(),
+                        'contenedor': str(sheet.cell(r, col_contenedor).value or 'SN').strip(),
+                        'ref_proveedor': str(sheet.cell(r, col_ref).value or '').strip(),
                     })
         return rows
