@@ -4,6 +4,25 @@ from odoo import models, fields, api, _
 from odoo.exceptions import UserError
 
 
+class PurchaseOrderLine(models.Model):
+    _inherit = 'purchase.order.line'
+
+    x_qty_solicitada_original = fields.Float(
+        string="Cant. Solicitada Original",
+        digits='Product Unit of Measure',
+        copy=False,
+        readonly=True,
+        help="Se congela la primera vez que se procesa el Packing List.",
+    )
+    x_qty_embarcada = fields.Float(
+        string="Cant. Embarcada (PL)",
+        digits='Product Unit of Measure',
+        copy=False,
+        readonly=True,
+        help="Cantidad según Packing List. Es la cantidad a pagar al proveedor.",
+    )
+
+
 class PurchaseOrder(models.Model):
     _inherit = 'purchase.order'
 
@@ -25,7 +44,6 @@ class PurchaseOrder(models.Model):
         if not pickings:
             return False
 
-        # Elegimos el más reciente como “vigente”
         return pickings.sorted(key=lambda p: p.id, reverse=True)[0]
 
     def _get_or_create_supplier_access(self, target_picking):
@@ -44,7 +62,6 @@ class PurchaseOrder(models.Model):
         if target_picking and (not access or access.picking_id.id != target_picking.id):
             vals_update['picking_id'] = target_picking.id
 
-        # Mantener token SIEMPRE. Renovamos vigencia para que “generar de nuevo” no cambie URL.
         vals_update['expiration_date'] = fields.Datetime.now() + timedelta(days=15)
 
         if access:
@@ -52,7 +69,6 @@ class PurchaseOrder(models.Model):
                 access.write(vals_update)
             return access
 
-        # Si no existe, crearlo por primera vez
         if not target_picking:
             raise UserError(_("No se encontraron recepciones pendientes para esta Orden de Compra."))
 
@@ -73,7 +89,6 @@ class PurchaseOrder(models.Model):
         if not target_picking:
             raise UserError(_("No se encontraron recepciones pendientes para esta Orden de Compra."))
 
-        # Garantiza token estable
         self._get_or_create_supplier_access(target_picking)
 
         return {

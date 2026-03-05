@@ -15,6 +15,18 @@
                         invisible="state not in ('purchase', 'done')"/>
             </xpath>
 
+            <!-- Columnas adicionales en la tabla de líneas -->
+            <xpath expr="//field[@name='order_line']/list/field[@name='product_qty']" position="after">
+                <field name="x_qty_solicitada_original"
+                       string="Solicitado Original"
+                       optional="show"
+                       readonly="1"/>
+                <field name="x_qty_embarcada"
+                       string="Embarcado (PL)"
+                       optional="show"
+                       readonly="1"/>
+            </xpath>
+
             <xpath expr="//notebook" position="inside">
                 <page string="Links Portal" invisible="not supplier_access_ids">
                     <field name="supplier_access_ids">
