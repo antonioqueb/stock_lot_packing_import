@@ -1042,3 +1042,96 @@ body {
         .summary-value { color: $primary-wood; font-weight: 700; }
     }
 }
+
+
+/* =====================================================================
+ *  PARCHE: supplier_portal.scss — Estilos para botones de foto por fila
+ *  Agregar al final del archivo supplier_portal.scss
+ * ===================================================================== */
+
+/* --- BOTÓN DE FOTO EN FILAS DEL PACKING --- */
+.btn-photo-upload {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 6px;
+    border: 1px dashed $primary-wood;
+    background: rgba(139, 90, 43, 0.04);
+    transition: all 0.2s ease;
+    cursor: pointer;
+    margin: 0;
+    padding: 0;
+
+    &:hover {
+        background: rgba(139, 90, 43, 0.12);
+        border-style: solid;
+        transform: scale(1.05);
+    }
+
+    &:active {
+        transform: scale(0.95);
+    }
+
+    i {
+        font-size: 1rem;
+        color: $primary-wood;
+    }
+}
+
+.btn-photo-done {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 6px;
+    border: 1px solid #bbf7d0;
+    background: #f0fdf4;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    padding: 0;
+
+    &:hover {
+        background: #fee2e2;
+        border-color: #fecaca;
+
+        i {
+            color: #dc2626 !important;
+        }
+
+        &::after {
+            content: '×';
+            position: absolute;
+            font-size: 0.7rem;
+            color: #dc2626;
+            font-weight: 700;
+            top: -2px;
+            right: -2px;
+            background: #fee2e2;
+            border-radius: 50%;
+            width: 14px;
+            height: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid #fecaca;
+        }
+    }
+
+    position: relative;
+}
+
+/* Indicador de foto en modo mobile (card layout) */
+@include mobile {
+    .btn-photo-upload,
+    .btn-photo-done {
+        width: 40px;
+        height: 40px;
+
+        i {
+            font-size: 1.2rem;
+        }
+    }
+}

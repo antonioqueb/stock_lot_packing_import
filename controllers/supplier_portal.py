@@ -766,3 +766,51 @@ class SupplierPortalController(http.Controller):
         except Exception as e:
             _logger.exception("Error en submit_pl_data")
             return {'success': False, 'message': str(e)}
+
+        
+    # =====================================================================
+    #  API v2: SUBIDA DE IMAGEN POR FILA DE PACKING
+    # =====================================================================
+
+    @http.route('/supplier/api/v2/upload_row_image', type='json', auth='public', csrf=False)
+    def api_upload_row_image(self, token, row_id, image_data, image_name=None):
+        '''Sube una imagen (base64) a una fila específica del packing list.'''
+        access = self._validate_token(token)
+        if not access:
+            return {'success': False, 'message': 'Token inválido.'}
+
+        Row = request.env['supplier.shipment.packing.row'].sudo()
+        row = Row.browse(int(row_id))
+        if not row.exists():
+            return {'success': False, 'message': 'Fila no encontrada.'}
+
+        # Validar que la fila pertenece a la proforma del access
+        proforma = self._get_or_create_proforma(access)
+        if not proforma or row.packing_id.shipment_id.proforma_id.id != proforma.id:
+            return {'success': False, 'message': 'Fila no pertenece a esta proforma.'}
+
+        vals = {'image': image_data}
+        if image_name:
+            vals['image_filename'] = image_name
+
+        row.write(vals)
+        return {'success': True, 'row_id': row.id}
+
+    @http.route('/supplier/api/v2/delete_row_image', type='json', auth='public', csrf=False)
+    def api_delete_row_image(self, token, row_id):
+        '''Elimina la imagen de una fila del packing list.'''
+        access = self._validate_token(token)
+        if not access:
+            return {'success': False, 'message': 'Token inválido.'}
+
+        Row = request.env['supplier.shipment.packing.row'].sudo()
+        row = Row.browse(int(row_id))
+        if not row.exists():
+            return {'success': False, 'message': 'Fila no encontrada.'}
+
+        proforma = self._get_or_create_proforma(access)
+        if not proforma or row.packing_id.shipment_id.proforma_id.id != proforma.id:
+            return {'success': False, 'message': 'Fila no pertenece a esta proforma.'}
+
+        row.write({'image': False, 'image_filename': False})
+        return {'success': True}

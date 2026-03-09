@@ -202,6 +202,9 @@ class PackingListImportWizard(models.TransientModel):
         next_prefix = self._get_next_global_prefix()
         containers = {}
 
+        # Mapa para vincular imágenes después: key=(product_id, grosor, alto, ancho) → lot
+        lot_creation_map = []
+
         for data in rows:
             product = data["product"]
             move = self.picking_id.move_ids.filtered(lambda m: m.product_id == product)[:1]
@@ -281,6 +284,18 @@ class PackingListImportWizard(models.TransientModel):
                 "x_referencia_proveedor": data.get("ref_proveedor"),
             })
 
+            # Guardar datos de la fila para matching de imágenes
+            lot_creation_map.append({
+                'lot': lot,
+                'product_id': product.id,
+                'grosor': data.get("grosor", ""),
+                'alto': final_alto,
+                'ancho': final_ancho,
+                'quantity': data.get("quantity", 0.0),
+                'bloque': data.get("bloque", ""),
+                'tipo': unit_type,
+            })
+
             self.env["stock.move.line"].create({
                 "move_id": move.id,
                 "product_id": product.id,
@@ -318,7 +333,9 @@ class PackingListImportWizard(models.TransientModel):
 
         # ── SINCRONIZAR CANTIDADES EN LÍNEAS DE LA OC ─────────────────────────
         self._sync_quantities_to_po_lines()
-        # ──────────────────────────────────────────────────────────────────────
+
+        # ── VINCULAR FOTOGRAFÍAS DEL PORTAL A LOS LOTES ──────────────────────
+        self._link_portal_images_to_lots(lot_creation_map)
 
         _logger.info(
             "=== [PL_IMPORT] PROCESO TERMINADO. Creados %s registros | sin move: %s | qty=0: %s ===",
@@ -343,6 +360,148 @@ class PackingListImportWizard(models.TransientModel):
             },
         }
 
+    # =========================================================================
+    #  VINCULACIÓN DE FOTOGRAFÍAS DEL PORTAL → stock.lot.image
+    # =========================================================================
+
+    def _link_portal_images_to_lots(self, lot_creation_map):
+        """
+        Busca imágenes subidas por el proveedor en las packing.rows del portal
+        y las vincula a los lotes recién creados como stock.lot.image.
+
+        Recibe lot_creation_map: lista de dicts con las claves de matching
+        (product_id, grosor, alto, ancho, quantity, bloque, tipo) y el lot creado.
+
+        Estrategia de matching secuencial:
+        - Las filas del portal y los lotes creados están en el mismo orden
+          (ambos se generan recorriendo los rows del spreadsheet/portal en secuencia).
+        - Se itera en paralelo: row del portal con imagen → lote en la misma posición.
+        - Fallback por dimensiones si el orden no cuadra.
+        """
+        if not lot_creation_map:
+            return
+
+        picking = self.picking_id
+
+        # Buscar la proforma asociada vía purchase_id
+        po = self.env["purchase.order"].search([
+            ("picking_ids", "in", picking.id)
+        ], limit=1)
+        if not po:
+            _logger.info("[PL_IMAGES] Sin PO asociada, no se buscan imágenes del portal.")
+            return
+
+        Proforma = self.env["supplier.proforma.header"]
+        proforma = Proforma.search([("purchase_id", "=", po.id)], limit=1)
+        if not proforma:
+            _logger.info("[PL_IMAGES] Sin proforma para PO %s, no hay imágenes del portal.", po.name)
+            return
+
+        # Recolectar todas las rows con imagen, en orden de secuencia
+        rows_with_image = []
+        for shipment in proforma.shipment_ids.sorted('sequence'):
+            for packing in shipment.packing_ids:
+                for row in packing.row_ids.sorted('sequence'):
+                    if row.image:
+                        rows_with_image.append(row)
+
+        if not rows_with_image:
+            _logger.info("[PL_IMAGES] No hay imágenes del portal para vincular.")
+            return
+
+        _logger.info(
+            "[PL_IMAGES] %d filas con imagen encontradas, %d lotes creados.",
+            len(rows_with_image), len(lot_creation_map)
+        )
+
+        LotImage = self.env["stock.lot.image"]
+        images_linked = 0
+        used_lot_indices = set()
+
+        for portal_row in rows_with_image:
+            matched_lot_data = None
+            matched_idx = None
+
+            # Paso 1: Buscar match exacto por producto + dimensiones
+            for i, lot_data in enumerate(lot_creation_map):
+                if i in used_lot_indices:
+                    continue
+                if lot_data['product_id'] != portal_row.product_id.id:
+                    continue
+
+                if portal_row.tipo == 'Placa':
+                    grosor_ok = (
+                        str(lot_data['grosor'] or '').strip()
+                        == str(portal_row.grosor or '').strip()
+                    )
+                    alto_ok = abs((lot_data['alto'] or 0) - (portal_row.alto or 0)) < 0.005
+                    ancho_ok = abs((lot_data['ancho'] or 0) - (portal_row.ancho or 0)) < 0.005
+                    if grosor_ok and alto_ok and ancho_ok:
+                        matched_lot_data = lot_data
+                        matched_idx = i
+                        break
+                else:
+                    grosor_ok = (
+                        str(lot_data['grosor'] or '').strip()
+                        == str(portal_row.grosor or '').strip()
+                    )
+                    bloque_ok = (
+                        str(lot_data['bloque'] or '').strip()
+                        == str(portal_row.bloque or '').strip()
+                    )
+                    if grosor_ok and bloque_ok:
+                        matched_lot_data = lot_data
+                        matched_idx = i
+                        break
+
+            # Paso 2: Fallback — primer lote del mismo producto no usado
+            if not matched_lot_data:
+                for i, lot_data in enumerate(lot_creation_map):
+                    if i in used_lot_indices:
+                        continue
+                    if lot_data['product_id'] == portal_row.product_id.id:
+                        matched_lot_data = lot_data
+                        matched_idx = i
+                        break
+
+            if not matched_lot_data:
+                _logger.info(
+                    "[PL_IMAGES] Sin lote disponible para row portal %d (producto %s)",
+                    portal_row.id, portal_row.product_id.display_name
+                )
+                continue
+
+            lot = matched_lot_data['lot']
+
+            try:
+                LotImage.create({
+                    'lot_id': lot.id,
+                    'name': portal_row.image_filename or f'Foto Portal - {lot.name}',
+                    'image': portal_row.image,
+                    'sequence': 10,
+                    'notas': f'Importada desde Portal Proveedor (Row #{portal_row.id})',
+                })
+                used_lot_indices.add(matched_idx)
+                images_linked += 1
+                _logger.info(
+                    "[PL_IMAGES] Imagen vinculada: row portal %d → lote %s",
+                    portal_row.id, lot.name
+                )
+            except Exception as e:
+                _logger.warning(
+                    "[PL_IMAGES] Error vinculando imagen row %d → lote %s: %s",
+                    portal_row.id, lot.name, e
+                )
+
+        _logger.info(
+            "[PL_IMAGES] Vinculación completada: %d/%d imágenes.",
+            images_linked, len(rows_with_image)
+        )
+
+    # =========================================================================
+    #  SINCRONIZACIÓN DE CANTIDADES A OC
+    # =========================================================================
+
     def _sync_quantities_to_po_lines(self):
         picking = self.picking_id
         po = self.env["purchase.order"].search([("picking_ids", "in", picking.id)], limit=1)
@@ -366,6 +525,10 @@ class PackingListImportWizard(models.TransientModel):
             po_line.write(vals)
 
         _logger.info("[PL_SYNC] Cantidades sincronizadas a la OC %s.", po.name)
+
+    # =========================================================================
+    #  LECTURA DE SPREADSHEET
+    # =========================================================================
 
     def _get_data_from_spreadsheet(self):
         doc = self.spreadsheet_id
