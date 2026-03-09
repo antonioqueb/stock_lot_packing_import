@@ -606,25 +606,19 @@ class SupplierPortalController(http.Controller):
 
         # Guardar rows — PRESERVAR imágenes existentes
         if rows is not None:
-            # Construir mapa de imágenes existentes por (product, grosor, alto, ancho, qty)
-            existing_images = {}
-            for old_row in packing.row_ids:
+            # Guardar imágenes de rows existentes indexadas por posición (orden de sequence)
+            old_rows_sorted = packing.row_ids.sorted('sequence')
+            existing_images_by_pos = {}
+            for i, old_row in enumerate(old_rows_sorted):
                 if old_row.image:
-                    key = (
-                        old_row.product_id.id,
-                        (old_row.grosor or '').strip(),
-                        round(old_row.alto or 0, 4),
-                        round(old_row.ancho or 0, 4),
-                        round(old_row.quantity or 0, 4),
-                    )
-                    existing_images[key] = {
+                    existing_images_by_pos[i] = {
                         'image': old_row.image,
                         'image_filename': old_row.image_filename,
                     }
 
             packing.row_ids.unlink()
             seq = 10
-            for r in rows:
+            for idx, r in enumerate(rows):
                 row_vals = {
                     'packing_id': packing.id,
                     'sequence': seq,
@@ -645,16 +639,9 @@ class SupplierPortalController(http.Controller):
                     'ref_proveedor': r.get('ref_proveedor', ''),
                 }
 
-                # Recuperar imagen existente por matching de dimensiones
-                match_key = (
-                    int(r.get('product_id', 0)),
-                    (r.get('grosor', '') or '').strip(),
-                    round(float(r.get('alto', 0)), 4),
-                    round(float(r.get('ancho', 0)), 4),
-                    round(float(r.get('quantity', 0)), 4),
-                )
-                if match_key in existing_images:
-                    img_data = existing_images.pop(match_key)
+                # Recuperar imagen por posición (el JS envía rows en el mismo orden)
+                if idx in existing_images_by_pos:
+                    img_data = existing_images_by_pos[idx]
                     row_vals['image'] = img_data['image']
                     row_vals['image_filename'] = img_data['image_filename']
 
