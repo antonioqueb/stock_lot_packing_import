@@ -1,16 +1,8 @@
 # -*- coding: utf-8 -*-
 """
 Fase 2: Controller del Portal de Proveedor — Endpoints jerárquicos.
-
-Endpoints NUEVOS (v2) que leen/escriben en los modelos de stock_transit_allocation:
-  - supplier.proforma.header
-  - supplier.shipment
-  - supplier.shipment.invoice
-  - supplier.shipment.packing  (+rows)
-  - supplier.shipment.container
-
-Los endpoints VIEJOS (/supplier/pl/<token> y /supplier/pl/submit) se mantienen
-como fallback para OCs que aún no tienen proforma.header.
+v3.3 — Incluye has_image en serialización + endpoints upload/delete row image
+      + preservación de imágenes al re-guardar packing rows.
 """
 import json
 import base64
@@ -126,6 +118,7 @@ class SupplierPortalController(http.Controller):
                     'pedimento': row.pedimento or '',
                     'ref_proveedor': row.ref_proveedor or '',
                     'area_m2': row.area_m2,
+                    'has_image': bool(row.image),
                 } for row in pl.row_ids.sorted('sequence')]
             } for pl in s.packing_ids]
 
@@ -234,20 +227,15 @@ class SupplierPortalController(http.Controller):
             _logger.warning(f"Error sincronizando flat al picking: {e}")
 
     def _sync_packing_rows_to_spreadsheet(self, header, picking):
-        """
-        Consolida TODAS las rows de TODOS los packings de la proforma
-        y las escribe al spreadsheet del picking usando update_packing_list_from_portal.
-        Esto mantiene la secuencia de información en el spreadsheet interno de Odoo.
-        """
+        """Consolida TODAS las rows de TODOS los packings de la proforma
+        y las escribe al spreadsheet del picking."""
         if not picking or not header:
             return
 
-        # Consolidar todas las filas de todos los packings de todos los embarques
         all_rows = []
         for shipment in header.shipment_ids:
             for packing in shipment.packing_ids:
                 for row in packing.row_ids.sorted('sequence'):
-                    # Determinar contenedor: del row directo, o del primer contenedor del shipment
                     container_name = ''
                     if row.container_id and row.container_id.container_number:
                         container_name = row.container_id.container_number
@@ -276,7 +264,6 @@ class SupplierPortalController(http.Controller):
             _logger.info("[Portal] _sync_packing_rows_to_spreadsheet: No rows to sync")
             return
 
-        # Construir header_data desde la proforma para los campos flat
         header_data = {
             'proforma_number': header.proforma_number or '',
             'payment_terms': header.payment_terms or '',
@@ -287,7 +274,6 @@ class SupplierPortalController(http.Controller):
             'invoice_number': header.invoice_global_number or '',
         }
 
-        # Añadir datos del primer embarque si existe
         first_shipment = header.shipment_ids.sorted('sequence')[:1]
         if first_shipment:
             fs = first_shipment[0]
@@ -318,7 +304,6 @@ class SupplierPortalController(http.Controller):
         if access.is_expired:
             return request.render('stock_lot_packing_import.portal_expired')
 
-        # Actualizar picking a la recepción vigente
         if access.purchase_id:
             po = access.purchase_id
             pickings = po.picking_ids.filtered(
@@ -335,11 +320,9 @@ class SupplierPortalController(http.Controller):
 
         products = self._build_products_payload(picking)
 
-        # Obtener/crear proforma header
         proforma = self._get_or_create_proforma(access)
         proforma_data = self._serialize_proforma(proforma) if proforma else {}
 
-        # Datos flat del picking como fallback (para rows existentes del flujo viejo)
         existing_rows = []
         if picking.spreadsheet_id and not proforma_data.get('shipments'):
             try:
@@ -347,7 +330,6 @@ class SupplierPortalController(http.Controller):
             except Exception as e:
                 _logger.error(f"Error recuperando datos del spreadsheet: {e}")
 
-        # Header flat (retrocompatibilidad)
         header_data = {
             'invoice_number': picking.supplier_invoice_number or "",
             'shipment_date': str(picking.supplier_shipment_date) if picking.supplier_shipment_date else "",
@@ -420,7 +402,6 @@ class SupplierPortalController(http.Controller):
             proforma.write(vals)
 
         self._sync_flat_to_picking(proforma, access.picking_id)
-        # Also sync to spreadsheet if there are packing rows
         self._sync_packing_rows_to_spreadsheet(proforma, access.picking_id)
 
         return {'success': True, 'proforma_id': proforma.id}
@@ -497,7 +478,6 @@ class SupplierPortalController(http.Controller):
             if proforma and not proforma.shipment_ids:
                 proforma.write({'status': 'draft'})
             self._sync_flat_to_picking(proforma, access.picking_id)
-            # Sync spreadsheet after deleting shipment (rows removed)
             self._sync_packing_rows_to_spreadsheet(proforma, access.picking_id)
 
         return {'success': True}
@@ -592,7 +572,7 @@ class SupplierPortalController(http.Controller):
         return {'success': True, 'invoice_ids': list(existing_ids)}
 
     # =====================================================================
-    #  API v2: CRUD PACKING LISTS + ROWS
+    #  API v2: CRUD PACKING LISTS + ROWS (con preservación de imágenes)
     # =====================================================================
 
     @http.route('/supplier/api/v2/save_packing', type='json', auth='public', csrf=False)
@@ -624,12 +604,28 @@ class SupplierPortalController(http.Controller):
             vals['shipment_id'] = shipment.id
             packing = Packing.create(vals)
 
-        # Guardar rows
+        # Guardar rows — PRESERVAR imágenes existentes
         if rows is not None:
+            # Construir mapa de imágenes existentes por (product, grosor, alto, ancho, qty)
+            existing_images = {}
+            for old_row in packing.row_ids:
+                if old_row.image:
+                    key = (
+                        old_row.product_id.id,
+                        (old_row.grosor or '').strip(),
+                        round(old_row.alto or 0, 4),
+                        round(old_row.ancho or 0, 4),
+                        round(old_row.quantity or 0, 4),
+                    )
+                    existing_images[key] = {
+                        'image': old_row.image,
+                        'image_filename': old_row.image_filename,
+                    }
+
             packing.row_ids.unlink()
             seq = 10
             for r in rows:
-                Row.create({
+                row_vals = {
                     'packing_id': packing.id,
                     'sequence': seq,
                     'product_id': int(r.get('product_id', 0)),
@@ -647,10 +643,24 @@ class SupplierPortalController(http.Controller):
                     'grupo_name': r.get('grupo_name', ''),
                     'pedimento': r.get('pedimento', ''),
                     'ref_proveedor': r.get('ref_proveedor', ''),
-                })
+                }
+
+                # Recuperar imagen existente por matching de dimensiones
+                match_key = (
+                    int(r.get('product_id', 0)),
+                    (r.get('grosor', '') or '').strip(),
+                    round(float(r.get('alto', 0)), 4),
+                    round(float(r.get('ancho', 0)), 4),
+                    round(float(r.get('quantity', 0)), 4),
+                )
+                if match_key in existing_images:
+                    img_data = existing_images.pop(match_key)
+                    row_vals['image'] = img_data['image']
+                    row_vals['image_filename'] = img_data['image_filename']
+
+                Row.create(row_vals)
                 seq += 10
 
-        # Sync all packing rows to the Odoo spreadsheet
         proforma = shipment.proforma_id
         self._sync_packing_rows_to_spreadsheet(proforma, access.picking_id)
 
@@ -666,7 +676,6 @@ class SupplierPortalController(http.Controller):
         if packing.exists():
             proforma = packing.shipment_id.proforma_id
             packing.unlink()
-            # Sync spreadsheet after deleting packing
             self._sync_packing_rows_to_spreadsheet(proforma, access.picking_id)
 
         return {'success': True}
@@ -721,7 +730,6 @@ class SupplierPortalController(http.Controller):
         if proforma:
             proforma.write({'status': 'complete'})
             self._sync_flat_to_picking(proforma, access.picking_id)
-            # Final sync to spreadsheet on complete
             self._sync_packing_rows_to_spreadsheet(proforma, access.picking_id)
 
         return {'success': True}
@@ -741,6 +749,52 @@ class SupplierPortalController(http.Controller):
             return {'success': False, 'message': 'Proforma no encontrada.'}
 
         return {'success': True, 'proforma': self._serialize_proforma(proforma)}
+
+    # =====================================================================
+    #  API v2: SUBIDA / ELIMINACIÓN DE IMAGEN POR FILA DE PACKING
+    # =====================================================================
+
+    @http.route('/supplier/api/v2/upload_row_image', type='json', auth='public', csrf=False)
+    def api_upload_row_image(self, token, row_id, image_data, image_name=None):
+        """Sube una imagen (base64) a una fila específica del packing list."""
+        access = self._validate_token(token)
+        if not access:
+            return {'success': False, 'message': 'Token inválido.'}
+
+        Row = request.env['supplier.shipment.packing.row'].sudo()
+        row = Row.browse(int(row_id))
+        if not row.exists():
+            return {'success': False, 'message': 'Fila no encontrada.'}
+
+        proforma = self._get_or_create_proforma(access)
+        if not proforma or row.packing_id.shipment_id.proforma_id.id != proforma.id:
+            return {'success': False, 'message': 'Fila no pertenece a esta proforma.'}
+
+        vals = {'image': image_data}
+        if image_name:
+            vals['image_filename'] = image_name
+
+        row.write(vals)
+        return {'success': True, 'row_id': row.id}
+
+    @http.route('/supplier/api/v2/delete_row_image', type='json', auth='public', csrf=False)
+    def api_delete_row_image(self, token, row_id):
+        """Elimina la imagen de una fila del packing list."""
+        access = self._validate_token(token)
+        if not access:
+            return {'success': False, 'message': 'Token inválido.'}
+
+        Row = request.env['supplier.shipment.packing.row'].sudo()
+        row = Row.browse(int(row_id))
+        if not row.exists():
+            return {'success': False, 'message': 'Fila no encontrada.'}
+
+        proforma = self._get_or_create_proforma(access)
+        if not proforma or row.packing_id.shipment_id.proforma_id.id != proforma.id:
+            return {'success': False, 'message': 'Fila no pertenece a esta proforma.'}
+
+        row.write({'image': False, 'image_filename': False})
+        return {'success': True}
 
     # =====================================================================
     #  ENDPOINT LEGACY: SUBMIT (flujo viejo, fallback)
@@ -766,51 +820,3 @@ class SupplierPortalController(http.Controller):
         except Exception as e:
             _logger.exception("Error en submit_pl_data")
             return {'success': False, 'message': str(e)}
-
-        
-    # =====================================================================
-    #  API v2: SUBIDA DE IMAGEN POR FILA DE PACKING
-    # =====================================================================
-
-    @http.route('/supplier/api/v2/upload_row_image', type='json', auth='public', csrf=False)
-    def api_upload_row_image(self, token, row_id, image_data, image_name=None):
-        '''Sube una imagen (base64) a una fila específica del packing list.'''
-        access = self._validate_token(token)
-        if not access:
-            return {'success': False, 'message': 'Token inválido.'}
-
-        Row = request.env['supplier.shipment.packing.row'].sudo()
-        row = Row.browse(int(row_id))
-        if not row.exists():
-            return {'success': False, 'message': 'Fila no encontrada.'}
-
-        # Validar que la fila pertenece a la proforma del access
-        proforma = self._get_or_create_proforma(access)
-        if not proforma or row.packing_id.shipment_id.proforma_id.id != proforma.id:
-            return {'success': False, 'message': 'Fila no pertenece a esta proforma.'}
-
-        vals = {'image': image_data}
-        if image_name:
-            vals['image_filename'] = image_name
-
-        row.write(vals)
-        return {'success': True, 'row_id': row.id}
-
-    @http.route('/supplier/api/v2/delete_row_image', type='json', auth='public', csrf=False)
-    def api_delete_row_image(self, token, row_id):
-        '''Elimina la imagen de una fila del packing list.'''
-        access = self._validate_token(token)
-        if not access:
-            return {'success': False, 'message': 'Token inválido.'}
-
-        Row = request.env['supplier.shipment.packing.row'].sudo()
-        row = Row.browse(int(row_id))
-        if not row.exists():
-            return {'success': False, 'message': 'Fila no encontrada.'}
-
-        proforma = self._get_or_create_proforma(access)
-        if not proforma or row.packing_id.shipment_id.proforma_id.id != proforma.id:
-            return {'success': False, 'message': 'Fila no pertenece a esta proforma.'}
-
-        row.write({'image': False, 'image_filename': False})
-        return {'success': True}
