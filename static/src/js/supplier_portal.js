@@ -1,11 +1,11 @@
 /* static/src/js/supplier_portal.js */
-/* v3.1 — Fix: bindGlobalEvents antes de renderAll + mejor error handling */
+/* v3.2 — DEBUG: Logs exhaustivos en saveGlobals, addShipment, y bindGlobalEvents */
 /* Hierarchical Portal: Proforma → Shipments → Invoices/Packings/Containers */
 /* Consumes API v2 endpoints. Falls back to legacy /supplier/pl/submit if apiVersion < 2 */
 (function () {
     "use strict";
 
-    console.log("[Portal] 🚀 Script v3.1 (Hierarchical: Proforma→Shipments→Docs→Containers) Loaded.");
+    console.log("[Portal] 🚀 Script v3.2-DEBUG (Hierarchical: Proforma→Shipments→Docs→Containers) Loaded.");
 
     // =========================================================================
     //  TRANSLATIONS (i18n)
@@ -170,22 +170,28 @@
     //  HELPERS
     // =========================================================================
     function jsonRpc(url, params) {
+        console.log(`[Portal][RPC] >>> POST ${url}`, JSON.stringify(params).substring(0, 300));
         return fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ jsonrpc: "2.0", method: "call", params, id: Math.floor(Math.random() * 99999) })
         }).then(r => {
+            console.log(`[Portal][RPC] <<< ${url} HTTP status: ${r.status} ${r.statusText}`);
             if (!r.ok) {
                 throw new Error(`HTTP ${r.status}: ${r.statusText}`);
             }
             return r.json();
         }).then(d => {
+            console.log(`[Portal][RPC] <<< ${url} parsed JSON:`, JSON.stringify(d).substring(0, 500));
             if (d.error) {
                 const msg = d.error.data?.message || d.error.message || 'RPC Error';
-                console.error('[Portal] RPC Error:', msg, d.error);
+                console.error('[Portal][RPC] ERROR detail:', JSON.stringify(d.error).substring(0, 1000));
                 throw new Error(msg);
             }
             return d.result;
+        }).catch(err => {
+            console.error(`[Portal][RPC] CATCH ${url}:`, err.message, err);
+            throw err;
         });
     }
 
@@ -201,6 +207,7 @@
     // =========================================================================
     class SupplierPortal {
         constructor() {
+            console.log("[Portal] Constructor called");
             this.data = {};
             this.products = [];
             this.proforma = {};
@@ -214,8 +221,10 @@
             this._eventsBound = false;
 
             if (document.readyState === 'loading') {
+                console.log("[Portal] DOM loading, deferring init to DOMContentLoaded");
                 document.addEventListener('DOMContentLoaded', () => this.init());
             } else {
+                console.log("[Portal] DOM already ready, calling init() immediately");
                 this.init();
             }
         }
@@ -223,9 +232,11 @@
         t(key) { return (T[this.currentLang] || T['en'])[key] || key; }
 
         init() {
+            console.log("[Portal] ========== init() START ==========");
             try {
                 // Language
                 const langSel = document.getElementById('lang-selector');
+                console.log("[Portal] lang-selector element:", langSel ? '✓ found' : '✗ NOT FOUND');
                 if (langSel) {
                     langSel.value = this.currentLang;
                     langSel.addEventListener('change', e => {
@@ -238,28 +249,44 @@
 
                 // Parse payload
                 const el = document.getElementById('portal-data-store');
-                if (!el) throw new Error('No payload element');
+                console.log("[Portal] portal-data-store element:", el ? '✓ found' : '✗ NOT FOUND');
+                if (!el) throw new Error('No payload element #portal-data-store');
+
+                console.log("[Portal] portal-data-store dataset.payload (first 300 chars):", (el.dataset.payload || '').substring(0, 300));
                 this.data = JSON.parse(el.dataset.payload);
+                console.log("[Portal] Parsed data keys:", Object.keys(this.data));
+
                 this.token = this.data.token || '';
+                console.log("[Portal] Token:", this.token ? `✓ (${this.token.substring(0, 8)}...)` : '✗ EMPTY/MISSING');
+
                 this.products = this.data.products || [];
+                console.log("[Portal] Products count:", this.products.length);
+
                 this.proforma = this.data.proforma || {};
+                console.log("[Portal] Proforma ID:", this.proforma.id, "Status:", this.proforma.status, "Shipments:", (this.proforma.shipments || []).length);
 
                 this.updateStaticI18n();
                 this.fillGlobalsForm();
 
                 // FIX: Bindear eventos ANTES de renderAll para que los botones
                 // funcionen incluso si renderAll lanza una excepción
+                console.log("[Portal] About to call bindGlobalEvents()...");
                 this.bindGlobalEvents();
+                console.log("[Portal] bindGlobalEvents() completed, _eventsBound:", this._eventsBound);
 
+                console.log("[Portal] About to call renderAll()...");
                 this.renderAll();
+                console.log("[Portal] renderAll() completed");
 
-                console.log("[Portal] Init OK. Proforma:", this.proforma.id, "Shipments:", (this.proforma.shipments || []).length);
+                console.log("[Portal] ========== init() OK ==========");
             } catch (err) {
-                console.error("[Portal] Init Error:", err);
+                console.error("[Portal] ========== init() ERROR ==========", err);
+                console.error("[Portal] Error stack:", err.stack);
                 // Asegurar que los eventos globales siempre estén bindeados
                 if (!this._eventsBound) {
+                    console.log("[Portal] Attempting emergency bindGlobalEvents...");
                     try { this.bindGlobalEvents(); } catch(_e) {
-                        console.error("[Portal] Could not bind global events:", _e);
+                        console.error("[Portal] Emergency bindGlobalEvents FAILED:", _e);
                     }
                 }
                 const c = document.getElementById('shipments-container');
@@ -282,6 +309,7 @@
         //  GLOBALS FORM
         // =====================================================================
         fillGlobalsForm() {
+            console.log("[Portal] fillGlobalsForm() called");
             const p = this.proforma;
             const map = {
                 'g-proforma-number': 'proforma_number',
@@ -295,13 +323,16 @@
             };
             for (const [domId, key] of Object.entries(map)) {
                 const el = document.getElementById(domId);
+                const exists = !!el;
+                const val = p[key] || '';
                 if (el && p[key]) el.value = p[key];
+                console.log(`[Portal]   fillGlobals: #${domId} → ${exists ? '✓' : '✗ NOT FOUND'} | proforma.${key} = "${val}"`);
             }
             this.updateStatusBadge();
         }
 
         getGlobalsFromForm() {
-            return {
+            const data = {
                 proforma_number: document.getElementById('g-proforma-number')?.value || '',
                 invoice_global_number: document.getElementById('g-invoice-global')?.value || '',
                 payment_terms: document.getElementById('g-payment-terms')?.value || '',
@@ -311,6 +342,8 @@
                 incoterm: document.getElementById('g-incoterm')?.value || '',
                 general_notes: document.getElementById('g-general-notes')?.value || '',
             };
+            console.log("[Portal] getGlobalsFromForm() →", JSON.stringify(data));
+            return data;
         }
 
         updateStatusBadge() {
@@ -322,36 +355,51 @@
         }
 
         async saveGlobals() {
+            console.log("[Portal] ====== saveGlobals() CALLED ======");
             const btn = document.getElementById('btn-save-globals');
+            console.log("[Portal] saveGlobals: btn element:", btn ? '✓' : '✗');
+            console.log("[Portal] saveGlobals: token:", this.token ? `✓ (${this.token.substring(0, 8)}...)` : '✗ EMPTY');
+
             if (btn) {
                 btn.disabled = true;
                 btn.innerHTML = `<i class="fa fa-spinner fa-spin me-2"></i> ${this.t('msg_saving')}`;
             }
+
+            const globalsData = this.getGlobalsFromForm();
+            console.log("[Portal] saveGlobals: payload to send:", JSON.stringify(globalsData));
+
             try {
+                console.log("[Portal] saveGlobals: calling jsonRpc /supplier/api/v2/save_globals ...");
                 const res = await jsonRpc('/supplier/api/v2/save_globals', {
                     token: this.token,
-                    globals_data: this.getGlobalsFromForm()
+                    globals_data: globalsData
                 });
+                console.log("[Portal] saveGlobals: response:", JSON.stringify(res));
                 if (res.success) {
                     this.toast(this.t('msg_saved'), 'success');
                     // Update local state
-                    Object.assign(this.proforma, this.getGlobalsFromForm());
+                    Object.assign(this.proforma, globalsData);
+                    console.log("[Portal] saveGlobals: ✓ SUCCESS, local proforma updated");
                 } else {
+                    console.warn("[Portal] saveGlobals: server returned success=false:", res.message);
                     this.toast(this.t('msg_error') + (res.message || ''), 'error');
                 }
             } catch (e) {
+                console.error("[Portal] saveGlobals: EXCEPTION:", e.message, e.stack);
                 this.toast(this.t('msg_error') + e.message, 'error');
             }
             if (btn) {
                 btn.disabled = false;
                 btn.innerHTML = `<i class="fa fa-save me-2"></i> ${this.t('btn_save_globals')}`;
             }
+            console.log("[Portal] ====== saveGlobals() END ======");
         }
 
         // =====================================================================
         //  RENDER ALL
         // =====================================================================
         renderAll() {
+            console.log("[Portal] renderAll() called");
             this.renderShipments();
             this.updateFooterTotals();
             this.updateStatusBadge();
@@ -363,11 +411,13 @@
         renderShipments() {
             const container = document.getElementById('shipments-container');
             if (!container) {
-                console.warn("[Portal] #shipments-container not found");
+                console.warn("[Portal] renderShipments: #shipments-container not found");
                 return;
             }
             const countBadge = document.getElementById('shipment-count-badge');
             const shipments = this.proforma.shipments || [];
+
+            console.log("[Portal] renderShipments: count =", shipments.length);
 
             if (countBadge) countBadge.textContent = shipments.length;
 
@@ -469,6 +519,7 @@
         }
 
         toggleShipment(shipmentId) {
+            console.log("[Portal] toggleShipment:", shipmentId);
             const container = document.getElementById('shipments-container');
             if (!container) return;
             const wasExpanded = this.expandedShipmentId === shipmentId;
@@ -496,25 +547,36 @@
         }
 
         async addShipment() {
-            console.log("[Portal] addShipment() called, token:", this.token ? '✓' : '✗');
+            console.log("[Portal] ====== addShipment() CALLED ======");
+            console.log("[Portal] addShipment: token:", this.token ? `✓ (${this.token.substring(0, 8)}...)` : '✗ EMPTY');
+            console.log("[Portal] addShipment: current proforma.id:", this.proforma.id);
+            console.log("[Portal] addShipment: current shipments count:", (this.proforma.shipments || []).length);
+
             try {
+                console.log("[Portal] addShipment: calling jsonRpc /supplier/api/v2/create_shipment ...");
                 const res = await jsonRpc('/supplier/api/v2/create_shipment', { token: this.token });
-                console.log("[Portal] create_shipment response:", res);
+                console.log("[Portal] addShipment: response:", JSON.stringify(res));
                 if (res.success) {
+                    console.log("[Portal] addShipment: ✓ SUCCESS, new shipment_id:", res.shipment_id);
+                    console.log("[Portal] addShipment: reloading proforma...");
                     await this.reloadProforma();
+                    console.log("[Portal] addShipment: proforma reloaded, shipments:", (this.proforma.shipments || []).length);
                     this.expandedShipmentId = res.shipment_id;
                     this.renderAll();
                     this.toast(this.t('msg_saved'), 'success');
                 } else {
+                    console.warn("[Portal] addShipment: server returned success=false:", res.message);
                     this.toast(this.t('msg_error') + (res.message || ''), 'error');
                 }
             } catch (e) {
-                console.error("[Portal] addShipment error:", e);
+                console.error("[Portal] addShipment: EXCEPTION:", e.message, e.stack);
                 this.toast(this.t('msg_error') + e.message, 'error');
             }
+            console.log("[Portal] ====== addShipment() END ======");
         }
 
         async deleteShipment(shipmentId) {
+            console.log("[Portal] deleteShipment:", shipmentId);
             if (!confirm(this.t('msg_confirm_delete'))) return;
             try {
                 await jsonRpc('/supplier/api/v2/delete_shipment', { token: this.token, shipment_id: shipmentId });
@@ -636,10 +698,12 @@
         }
 
         async saveShipmentData(shipmentId, formEl) {
+            console.log("[Portal] saveShipmentData:", shipmentId);
             const data = {};
             formEl.querySelectorAll('[data-sf]').forEach(input => {
                 data[input.dataset.sf] = input.value;
             });
+            console.log("[Portal] saveShipmentData payload:", JSON.stringify(data));
             try {
                 const res = await jsonRpc('/supplier/api/v2/update_shipment', {
                     token: this.token, shipment_id: shipmentId, shipment_data: data
@@ -678,6 +742,7 @@
                 </div>`;
 
             document.getElementById(`btn-save-bl-${s.id}`).addEventListener('click', async () => {
+                console.log("[Portal] saveBL for shipment:", s.id);
                 const blData = {
                     bl_number: document.getElementById(`bl-num-${s.id}`).value,
                     bl_date: document.getElementById(`bl-date-${s.id}`).value || false,
@@ -765,6 +830,7 @@
         }
 
         async saveInvoices(s) {
+            console.log("[Portal] saveInvoices for shipment:", s.id);
             const el = document.getElementById(`stab-invoices-${s.id}`);
             const invoicesData = [];
             (s.invoices || []).forEach((inv, idx) => {
@@ -776,6 +842,7 @@
                 data.amount = parseFloat(data.amount) || 0;
                 invoicesData.push(data);
             });
+            console.log("[Portal] saveInvoices payload:", JSON.stringify(invoicesData));
 
             try {
                 const res = await jsonRpc('/supplier/api/v2/save_invoices', {
@@ -831,6 +898,7 @@
         }
 
         async saveContainers(s) {
+            console.log("[Portal] saveContainers for shipment:", s.id);
             const el = document.getElementById(`stab-containers-${s.id}`);
             const containersData = [];
             (s.containers || []).forEach((c, idx) => {
@@ -843,6 +911,7 @@
                 data.packages = parseInt(data.packages) || 0;
                 containersData.push(data);
             });
+            console.log("[Portal] saveContainers payload:", JSON.stringify(containersData));
 
             try {
                 const res = await jsonRpc('/supplier/api/v2/save_containers', {
@@ -896,6 +965,7 @@
 
             // Add packing
             el.querySelector('.btn-add-pk').addEventListener('click', async () => {
+                console.log("[Portal] addPacking for shipment:", s.id);
                 try {
                     const res = await jsonRpc('/supplier/api/v2/save_packing', {
                         token: this.token, shipment_id: s.id,
@@ -945,6 +1015,7 @@
         }
 
         async savePacking(packingId, shipmentId, formEl) {
+            console.log("[Portal] savePacking:", packingId, "shipment:", shipmentId);
             const pkData = {};
             formEl.querySelectorAll(`[data-pk-id="${packingId}"][data-pk-f]`).forEach(input => {
                 pkData[input.dataset.pkF] = input.value;
@@ -974,6 +1045,8 @@
                 pedimento: r.pedimento || '',
                 ref_proveedor: r.ref_proveedor || '',
             }));
+
+            console.log("[Portal] savePacking pkData:", JSON.stringify(pkData), "rows:", rowsPayload.length);
 
             try {
                 const res = await jsonRpc('/supplier/api/v2/save_packing', {
@@ -1163,13 +1236,15 @@
         //  RELOAD & FOOTER
         // =====================================================================
         async reloadProforma() {
+            console.log("[Portal] reloadProforma() calling /supplier/api/v2/reload ...");
             try {
                 const res = await jsonRpc('/supplier/api/v2/reload', { token: this.token });
+                console.log("[Portal] reloadProforma: success:", res.success, "proforma id:", res.proforma?.id, "shipments:", (res.proforma?.shipments || []).length);
                 if (res.success && res.proforma) {
                     this.proforma = res.proforma;
                 }
             } catch (e) {
-                console.error('[Portal] Reload error:', e);
+                console.error('[Portal] reloadProforma ERROR:', e.message, e.stack);
             }
         }
 
@@ -1191,6 +1266,7 @@
         }
 
         async completeProforma() {
+            console.log("[Portal] completeProforma() called");
             if (!confirm(this.t('msg_confirm_complete'))) return;
             try {
                 await jsonRpc('/supplier/api/v2/complete', { token: this.token });
@@ -1204,31 +1280,109 @@
         //  GLOBAL EVENTS
         // =====================================================================
         bindGlobalEvents() {
-            if (this._eventsBound) return; // Evitar doble bind
+            console.log("[Portal] ====== bindGlobalEvents() START ======");
+            if (this._eventsBound) {
+                console.log("[Portal] bindGlobalEvents: SKIPPED (already bound)");
+                return;
+            }
             this._eventsBound = true;
 
             const btnSaveGlobals = document.getElementById('btn-save-globals');
             const btnAddShipment = document.getElementById('btn-add-shipment');
             const btnComplete = document.getElementById('btn-complete-proforma');
 
+            console.log("[Portal] bindGlobalEvents: #btn-save-globals:", btnSaveGlobals ? '✓ FOUND' : '✗ NOT FOUND');
+            console.log("[Portal] bindGlobalEvents: #btn-add-shipment:", btnAddShipment ? '✓ FOUND' : '✗ NOT FOUND');
+            console.log("[Portal] bindGlobalEvents: #btn-complete-proforma:", btnComplete ? '✓ FOUND' : '✗ NOT FOUND');
+
             if (btnSaveGlobals) {
-                btnSaveGlobals.addEventListener('click', () => this.saveGlobals());
+                console.log("[Portal] bindGlobalEvents: btnSaveGlobals tagName:", btnSaveGlobals.tagName, "type:", btnSaveGlobals.type, "disabled:", btnSaveGlobals.disabled, "id:", btnSaveGlobals.id);
+                console.log("[Portal] bindGlobalEvents: btnSaveGlobals outerHTML (first 200):", btnSaveGlobals.outerHTML.substring(0, 200));
+                // Check for any parent form that might intercept
+                const parentForm = btnSaveGlobals.closest('form');
+                if (parentForm) {
+                    console.warn("[Portal] ⚠️ btn-save-globals is INSIDE a <form>! action:", parentForm.action, "method:", parentForm.method);
+                    console.log("[Portal] Preventing form default submit...");
+                    parentForm.addEventListener('submit', (e) => {
+                        console.log("[Portal] ⚠️ FORM SUBMIT intercepted! Preventing default.");
+                        e.preventDefault();
+                    });
+                }
+                btnSaveGlobals.addEventListener('click', (e) => {
+                    console.log("[Portal] 🔔 btn-save-globals CLICK event fired!");
+                    console.log("[Portal] click event detail:", { type: e.type, target: e.target.tagName, currentTarget: e.currentTarget.tagName, defaultPrevented: e.defaultPrevented, bubbles: e.bubbles });
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.saveGlobals();
+                });
+                console.log("[Portal] ✓ btn-save-globals click handler attached");
             } else {
-                console.warn("[Portal] btn-save-globals not found in DOM");
+                console.error("[Portal] ✗ btn-save-globals NOT FOUND — checking all buttons in DOM...");
+                const allBtns = document.querySelectorAll('button');
+                console.log("[Portal] Total <button> elements in DOM:", allBtns.length);
+                allBtns.forEach((b, i) => {
+                    if (b.id || b.className.includes('save') || b.className.includes('global') || b.textContent.includes('Guardar') || b.textContent.includes('Save')) {
+                        console.log(`[Portal]   button[${i}]: id="${b.id}" class="${b.className}" text="${b.textContent.trim().substring(0, 50)}"`);
+                    }
+                });
             }
 
             if (btnAddShipment) {
-                btnAddShipment.addEventListener('click', () => this.addShipment());
-                console.log("[Portal] btn-add-shipment bound ✓");
+                console.log("[Portal] bindGlobalEvents: btnAddShipment tagName:", btnAddShipment.tagName, "type:", btnAddShipment.type, "disabled:", btnAddShipment.disabled, "id:", btnAddShipment.id);
+                console.log("[Portal] bindGlobalEvents: btnAddShipment outerHTML (first 200):", btnAddShipment.outerHTML.substring(0, 200));
+                const parentForm = btnAddShipment.closest('form');
+                if (parentForm) {
+                    console.warn("[Portal] ⚠️ btn-add-shipment is INSIDE a <form>! action:", parentForm.action, "method:", parentForm.method);
+                    parentForm.addEventListener('submit', (e) => {
+                        console.log("[Portal] ⚠️ FORM SUBMIT intercepted on add-shipment form! Preventing default.");
+                        e.preventDefault();
+                    });
+                }
+                btnAddShipment.addEventListener('click', (e) => {
+                    console.log("[Portal] 🔔 btn-add-shipment CLICK event fired!");
+                    console.log("[Portal] click event detail:", { type: e.type, target: e.target.tagName, currentTarget: e.currentTarget.tagName, defaultPrevented: e.defaultPrevented });
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.addShipment();
+                });
+                console.log("[Portal] ✓ btn-add-shipment click handler attached");
             } else {
-                console.warn("[Portal] btn-add-shipment not found in DOM");
+                console.error("[Portal] ✗ btn-add-shipment NOT FOUND — checking all buttons in DOM...");
+                const allBtns = document.querySelectorAll('button');
+                allBtns.forEach((b, i) => {
+                    if (b.id || b.className.includes('shipment') || b.className.includes('add') || b.textContent.includes('Embarque') || b.textContent.includes('Shipment')) {
+                        console.log(`[Portal]   button[${i}]: id="${b.id}" class="${b.className}" text="${b.textContent.trim().substring(0, 50)}"`);
+                    }
+                });
             }
 
             if (btnComplete) {
-                btnComplete.addEventListener('click', () => this.completeProforma());
-            } else {
-                console.warn("[Portal] btn-complete-proforma not found in DOM");
+                btnComplete.addEventListener('click', (e) => {
+                    console.log("[Portal] 🔔 btn-complete-proforma CLICK event fired!");
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.completeProforma();
+                });
+                console.log("[Portal] ✓ btn-complete-proforma click handler attached");
             }
+
+            // === SAFETY NET: document-level click listener for debugging ===
+            document.addEventListener('click', (e) => {
+                const target = e.target;
+                const btn = target.closest('button') || target.closest('[role="button"]') || target.closest('a');
+                if (btn) {
+                    const id = btn.id || '';
+                    const cls = btn.className || '';
+                    const txt = (btn.textContent || '').trim().substring(0, 40);
+                    if (id.includes('save') || id.includes('shipment') || id.includes('global') ||
+                        cls.includes('save') || cls.includes('shipment') || cls.includes('global') ||
+                        txt.includes('Guardar') || txt.includes('Save') || txt.includes('Embarque') || txt.includes('Shipment')) {
+                        console.log(`[Portal][DOC-CLICK] Detected click on relevant button: id="${id}" class="${cls}" text="${txt}" tagName="${btn.tagName}" disabled=${btn.disabled}`);
+                    }
+                }
+            }, true); // capture phase
+
+            console.log("[Portal] ====== bindGlobalEvents() END ======");
         }
 
         // =====================================================================
