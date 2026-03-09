@@ -1,10 +1,11 @@
 /* static/src/js/supplier_portal.js */
-/* v3.0 — Hierarchical Portal: Proforma → Shipments → Invoices/Packings/Containers */
+/* v3.1 — Fix: bindGlobalEvents antes de renderAll + mejor error handling */
+/* Hierarchical Portal: Proforma → Shipments → Invoices/Packings/Containers */
 /* Consumes API v2 endpoints. Falls back to legacy /supplier/pl/submit if apiVersion < 2 */
 (function () {
     "use strict";
 
-    console.log("[Portal] 🚀 Script v3.0 (Hierarchical: Proforma→Shipments→Docs→Containers) Loaded.");
+    console.log("[Portal] 🚀 Script v3.1 (Hierarchical: Proforma→Shipments→Docs→Containers) Loaded.");
 
     // =========================================================================
     //  TRANSLATIONS (i18n)
@@ -173,8 +174,17 @@
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ jsonrpc: "2.0", method: "call", params, id: Math.floor(Math.random() * 99999) })
-        }).then(r => r.json()).then(d => {
-            if (d.error) throw new Error(d.error.data?.message || d.error.message || 'RPC Error');
+        }).then(r => {
+            if (!r.ok) {
+                throw new Error(`HTTP ${r.status}: ${r.statusText}`);
+            }
+            return r.json();
+        }).then(d => {
+            if (d.error) {
+                const msg = d.error.data?.message || d.error.message || 'RPC Error';
+                console.error('[Portal] RPC Error:', msg, d.error);
+                throw new Error(msg);
+            }
             return d.result;
         });
     }
@@ -201,6 +211,7 @@
             // Packing rows state per packing (for product detail rows)
             this.packingRows = {}; // packingId -> [rows]
             this.nextRowId = 1;
+            this._eventsBound = false;
 
             if (document.readyState === 'loading') {
                 document.addEventListener('DOMContentLoaded', () => this.init());
@@ -235,12 +246,22 @@
 
                 this.updateStaticI18n();
                 this.fillGlobalsForm();
-                this.renderAll();
+
+                // FIX: Bindear eventos ANTES de renderAll para que los botones
+                // funcionen incluso si renderAll lanza una excepción
                 this.bindGlobalEvents();
+
+                this.renderAll();
 
                 console.log("[Portal] Init OK. Proforma:", this.proforma.id, "Shipments:", (this.proforma.shipments || []).length);
             } catch (err) {
                 console.error("[Portal] Init Error:", err);
+                // Asegurar que los eventos globales siempre estén bindeados
+                if (!this._eventsBound) {
+                    try { this.bindGlobalEvents(); } catch(_e) {
+                        console.error("[Portal] Could not bind global events:", _e);
+                    }
+                }
                 const c = document.getElementById('shipments-container');
                 if (c) c.innerHTML = `<div class="empty-state"><p style="color:red">${esc(err.message)}</p></div>`;
             }
@@ -302,8 +323,10 @@
 
         async saveGlobals() {
             const btn = document.getElementById('btn-save-globals');
-            btn.disabled = true;
-            btn.innerHTML = `<i class="fa fa-spinner fa-spin me-2"></i> ${this.t('msg_saving')}`;
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = `<i class="fa fa-spinner fa-spin me-2"></i> ${this.t('msg_saving')}`;
+            }
             try {
                 const res = await jsonRpc('/supplier/api/v2/save_globals', {
                     token: this.token,
@@ -319,8 +342,10 @@
             } catch (e) {
                 this.toast(this.t('msg_error') + e.message, 'error');
             }
-            btn.disabled = false;
-            btn.innerHTML = `<i class="fa fa-save me-2"></i> ${this.t('btn_save_globals')}`;
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = `<i class="fa fa-save me-2"></i> ${this.t('btn_save_globals')}`;
+            }
         }
 
         // =====================================================================
@@ -337,11 +362,14 @@
         // =====================================================================
         renderShipments() {
             const container = document.getElementById('shipments-container');
-            const noMsg = document.getElementById('no-shipments-msg');
+            if (!container) {
+                console.warn("[Portal] #shipments-container not found");
+                return;
+            }
             const countBadge = document.getElementById('shipment-count-badge');
             const shipments = this.proforma.shipments || [];
 
-            countBadge.textContent = shipments.length;
+            if (countBadge) countBadge.textContent = shipments.length;
 
             if (shipments.length === 0) {
                 container.innerHTML = '';
@@ -442,6 +470,7 @@
 
         toggleShipment(shipmentId) {
             const container = document.getElementById('shipments-container');
+            if (!container) return;
             const wasExpanded = this.expandedShipmentId === shipmentId;
 
             // Collapse all
@@ -467,8 +496,10 @@
         }
 
         async addShipment() {
+            console.log("[Portal] addShipment() called, token:", this.token ? '✓' : '✗');
             try {
                 const res = await jsonRpc('/supplier/api/v2/create_shipment', { token: this.token });
+                console.log("[Portal] create_shipment response:", res);
                 if (res.success) {
                     await this.reloadProforma();
                     this.expandedShipmentId = res.shipment_id;
@@ -478,6 +509,7 @@
                     this.toast(this.t('msg_error') + (res.message || ''), 'error');
                 }
             } catch (e) {
+                console.error("[Portal] addShipment error:", e);
                 this.toast(this.t('msg_error') + e.message, 'error');
             }
         }
@@ -608,7 +640,6 @@
             formEl.querySelectorAll('[data-sf]').forEach(input => {
                 data[input.dataset.sf] = input.value;
             });
-            // Also include BL data if in that tab? No, separate.
             try {
                 const res = await jsonRpc('/supplier/api/v2/update_shipment', {
                     token: this.token, shipment_id: shipmentId, shipment_data: data
@@ -1173,9 +1204,31 @@
         //  GLOBAL EVENTS
         // =====================================================================
         bindGlobalEvents() {
-            document.getElementById('btn-save-globals')?.addEventListener('click', () => this.saveGlobals());
-            document.getElementById('btn-add-shipment')?.addEventListener('click', () => this.addShipment());
-            document.getElementById('btn-complete-proforma')?.addEventListener('click', () => this.completeProforma());
+            if (this._eventsBound) return; // Evitar doble bind
+            this._eventsBound = true;
+
+            const btnSaveGlobals = document.getElementById('btn-save-globals');
+            const btnAddShipment = document.getElementById('btn-add-shipment');
+            const btnComplete = document.getElementById('btn-complete-proforma');
+
+            if (btnSaveGlobals) {
+                btnSaveGlobals.addEventListener('click', () => this.saveGlobals());
+            } else {
+                console.warn("[Portal] btn-save-globals not found in DOM");
+            }
+
+            if (btnAddShipment) {
+                btnAddShipment.addEventListener('click', () => this.addShipment());
+                console.log("[Portal] btn-add-shipment bound ✓");
+            } else {
+                console.warn("[Portal] btn-add-shipment not found in DOM");
+            }
+
+            if (btnComplete) {
+                btnComplete.addEventListener('click', () => this.completeProforma());
+            } else {
+                console.warn("[Portal] btn-complete-proforma not found in DOM");
+            }
         }
 
         // =====================================================================
@@ -1191,6 +1244,7 @@
         }
 
         toast(msg, type='info') {
+            console.log(`[Portal] Toast [${type}]: ${msg}`);
             let toastEl = document.querySelector('.portal-toast');
             if (!toastEl) {
                 toastEl = document.createElement('div');
