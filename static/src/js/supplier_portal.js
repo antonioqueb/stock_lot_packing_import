@@ -1,11 +1,11 @@
 /* static/src/js/supplier_portal.js */
-/* v3.2 — DEBUG: Logs exhaustivos en saveGlobals, addShipment, y bindGlobalEvents */
-/* Hierarchical Portal: Proforma → Shipments → Invoices/Packings/Containers */
+/* v3.2 \u2014 DEBUG: Logs exhaustivos en saveGlobals, addShipment, y bindGlobalEvents */
+/* Hierarchical Portal: Proforma \u2192 Shipments \u2192 Invoices/Packings/Containers */
 /* Consumes API v2 endpoints. Falls back to legacy /supplier/pl/submit if apiVersion < 2 */
 (function () {
     "use strict";
 
-    console.log("[Portal] 🚀 Script v3.2-DEBUG (Hierarchical: Proforma→Shipments→Docs→Containers) Loaded.");
+    console.log("[Portal] \u1f680 Script v3.2-DEBUG (Hierarchical: Proforma\u2192Shipments\u2192Docs\u2192Containers) Loaded.");
 
     // =========================================================================
     //  TRANSLATIONS (i18n)
@@ -38,7 +38,7 @@
             lbl_inv_scope: "Scope", scope_full: "Full Shipment", scope_specific: "Specific Containers",
             // Container fields
             lbl_cont_number: "Container No.", lbl_cont_seal: "Seal No.", lbl_cont_type: "Type",
-            lbl_cont_weight: "Weight (kg)", lbl_cont_volume: "Volume (m³)", lbl_cont_packages: "Packages",
+            lbl_cont_weight: "Weight (kg)", lbl_cont_volume: "Volume (m\u00b3)", lbl_cont_packages: "Packages",
             // Packing fields
             lbl_pk_number: "Packing No.", lbl_pk_date: "Date", lbl_pk_scope: "Scope",
             lbl_pk_file: "Packing File",
@@ -53,10 +53,10 @@
             requested: "Requested:", btn_add_row: "Add Item", btn_add_multi: "+5 Rows",
             col_block: "Block", col_atado: "Bundle", col_plate_num: "Plate No.",
             col_ref: "Reference", col_thickness: "Thickness", col_height: "Height (m)",
-            col_width: "Width (m)", col_area: "Area (m²)", col_notes: "Notes",
+            col_width: "Width (m)", col_area: "Area (m\u00b2)", col_notes: "Notes",
             col_qty: "Quantity", col_weight: "Weight (kg)",
             lbl_type_placa: "Slab/Plate", lbl_type_formato: "Tile/Format", lbl_type_pieza: "Piece/Unit",
-            lbl_packages: "N° Packages", lbl_desc_goods: "Description of Goods",
+            lbl_packages: "N\u00b0 Packages", lbl_desc_goods: "Description of Goods",
             col_crate_h: "Crate H", col_crate_w: "Crate W", col_crate_t: "Crate T",
             col_fmt_h: "Item Height", col_fmt_w: "Item Width",
             // Messages
@@ -69,11 +69,11 @@
             st_departed: "Departed", st_in_transit: "In Transit", st_arrived: "Arrived", st_delivered: "Delivered",
         },
         es: {
-            header_provider: "PROVEEDOR", po_label: "Orden de Compra:", receipt_label: "Recepción:",
+            header_provider: "PROVEEDOR", po_label: "Orden de Compra:", receipt_label: "Recepci\u00f3n:",
             sec_proforma_globals: "Datos Globales de la Proforma",
             lbl_proforma: "No. Proforma (PI)", ph_proforma: "Ej. PI-9920",
             lbl_invoice_global: "Factura Global", lbl_payment: "Condiciones de Pago", ph_payment: "Ej. T/T 30%",
-            lbl_country: "País Origen", ph_country: "Ej. China",
+            lbl_country: "Pa\u00eds Origen", ph_country: "Ej. China",
             lbl_port_origin: "Puerto Origen", ph_origin: "Ej. Shanghai",
             lbl_port_dest: "Puerto Destino", ph_dest: "Ej. Manzanillo",
             lbl_incoterm: "Incoterm", ph_incoterm: "Ej. CIF",
@@ -81,7 +81,7 @@
             btn_save_globals: "Guardar Datos Globales",
             sec_shipments: "Embarques", btn_add_shipment: "Agregar Embarque",
             msg_no_shipments: "No hay embarques registrados. Presione 'Agregar Embarque' para comenzar.",
-            tab_logistics: "Logística", tab_bl: "B/L", tab_invoices: "Invoices",
+            tab_logistics: "Log\u00edstica", tab_bl: "B/L", tab_invoices: "Invoices",
             tab_packings: "Packing Lists", tab_containers: "Contenedores",
             lbl_shipment_type: "Tipo", lbl_shipping_line: "Naviera", lbl_vessel: "Buque",
             lbl_etd: "ETD", lbl_eta: "ETA", lbl_status: "Estatus", lbl_notes: "Observaciones",
@@ -89,9 +89,9 @@
             btn_save_shipment: "Guardar Embarque", btn_save_containers: "Guardar Contenedores",
             btn_save_invoices: "Guardar Invoices",
             lbl_inv_number: "No. Invoice", lbl_inv_date: "Fecha", lbl_inv_amount: "Monto",
-            lbl_inv_scope: "Alcance", scope_full: "Todo el Embarque", scope_specific: "Contenedores Específicos",
+            lbl_inv_scope: "Alcance", scope_full: "Todo el Embarque", scope_specific: "Contenedores Espec\u00edficos",
             lbl_cont_number: "No. Contenedor", lbl_cont_seal: "No. Sello", lbl_cont_type: "Tipo",
-            lbl_cont_weight: "Peso (kg)", lbl_cont_volume: "Volumen (m³)", lbl_cont_packages: "Paquetes",
+            lbl_cont_weight: "Peso (kg)", lbl_cont_volume: "Volumen (m\u00b3)", lbl_cont_packages: "Paquetes",
             lbl_pk_number: "No. Packing", lbl_pk_date: "Fecha", lbl_pk_scope: "Alcance",
             lbl_pk_file: "Archivo PL",
             btn_add: "Agregar", btn_remove: "Eliminar", btn_add_invoice: "+ Invoice", btn_add_container: "+ Contenedor",
@@ -102,67 +102,67 @@
             requested: "Solicitado:", btn_add_row: "Agregar Item", btn_add_multi: "+5 Filas",
             col_block: "Bloque", col_atado: "Atado", col_plate_num: "No. Placa",
             col_ref: "Referencia", col_thickness: "Grosor", col_height: "Alto (m)",
-            col_width: "Ancho (m)", col_area: "Área (m²)", col_notes: "Notas",
+            col_width: "Ancho (m)", col_area: "\u00c1rea (m\u00b2)", col_notes: "Notas",
             col_qty: "Cantidad", col_weight: "Peso (kg)",
             lbl_type_placa: "Placa", lbl_type_formato: "Formato", lbl_type_pieza: "Pieza",
-            lbl_packages: "N° Paquetes", lbl_desc_goods: "Desc. Bienes",
+            lbl_packages: "N\u00b0 Paquetes", lbl_desc_goods: "Desc. Bienes",
             col_crate_h: "Alto Caja", col_crate_w: "Ancho Caja", col_crate_t: "Grosor Caja",
             col_fmt_h: "Alto Item", col_fmt_w: "Ancho Item",
-            msg_saved: "Guardado correctamente", msg_error: "Error: ", msg_confirm_delete: "¿Eliminar este registro?",
-            msg_confirm_complete: "¿Marcar la proforma como completa? Esto indica que el proveedor terminó de capturar datos.",
+            msg_saved: "Guardado correctamente", msg_error: "Error: ", msg_confirm_delete: "\u00bfEliminar este registro?",
+            msg_confirm_complete: "\u00bfMarcar la proforma como completa? Esto indica que el proveedor termin\u00f3 de capturar datos.",
             msg_loading: "Cargando...", msg_saving: "Guardando...",
             opt_select: "Seleccionar...",
-            opt_maritime: "Marítimo", opt_air: "Aéreo", opt_land: "Terrestre",
-            st_draft: "Borrador", st_in_production: "En Producción", st_booked: "Reservado",
-            st_departed: "Despachado", st_in_transit: "En Tránsito", st_arrived: "Llegó", st_delivered: "Entregado",
+            opt_maritime: "Mar\u00edtimo", opt_air: "A\u00e9reo", opt_land: "Terrestre",
+            st_draft: "Borrador", st_in_production: "En Producci\u00f3n", st_booked: "Reservado",
+            st_departed: "Despachado", st_in_transit: "En Tr\u00e1nsito", st_arrived: "Lleg\u00f3", st_delivered: "Entregado",
         },
         zh: {
-            header_provider: "供应商", po_label: "采购订单:", receipt_label: "收货单:",
-            sec_proforma_globals: "形式发票全局数据",
-            lbl_proforma: "形式发票号", ph_proforma: "例如 PI-9920",
-            lbl_invoice_global: "全局发票", lbl_payment: "付款条件", ph_payment: "例如 T/T 30%",
-            lbl_country: "原产国", ph_country: "例如 China",
-            lbl_port_origin: "起运港", ph_origin: "例如 Shanghai",
-            lbl_port_dest: "目的港", ph_dest: "例如 Manzanillo",
-            lbl_incoterm: "贸易条款", ph_incoterm: "例如 CIF",
-            lbl_general_notes: "一般备注",
-            btn_save_globals: "保存全局数据",
-            sec_shipments: "发货", btn_add_shipment: "添加发货",
-            msg_no_shipments: "没有发货记录。点击"添加发货"开始。",
-            tab_logistics: "物流", tab_bl: "提单", tab_invoices: "发票",
-            tab_packings: "装箱单", tab_containers: "集装箱",
-            lbl_shipment_type: "类型", lbl_shipping_line: "船公司", lbl_vessel: "船名",
-            lbl_etd: "预计离港", lbl_eta: "预计到港", lbl_status: "状态", lbl_notes: "备注",
-            lbl_bl_number: "提单号", lbl_bl_date: "提单日期", lbl_bl_file: "提单文件",
-            btn_save_shipment: "保存发货", btn_save_containers: "保存集装箱",
-            btn_save_invoices: "保存发票",
-            lbl_inv_number: "发票号", lbl_inv_date: "日期", lbl_inv_amount: "金额",
-            lbl_inv_scope: "范围", scope_full: "整批", scope_specific: "指定集装箱",
-            lbl_cont_number: "集装箱号", lbl_cont_seal: "封条号", lbl_cont_type: "类型",
-            lbl_cont_weight: "重量 (kg)", lbl_cont_volume: "体积 (m³)", lbl_cont_packages: "件数",
-            lbl_pk_number: "装箱单号", lbl_pk_date: "日期", lbl_pk_scope: "范围",
-            lbl_pk_file: "装箱单文件",
-            btn_add: "添加", btn_remove: "删除", btn_add_invoice: "+ 发票", btn_add_container: "+ 集装箱",
-            btn_add_packing: "+ 装箱单",
-            btn_save_packing: "保存装箱单", btn_delete_packing: "删除",
-            footer_total_shipments: "发货:", footer_total_containers: "集装箱:",
-            footer_total_invoices: "发票:", btn_complete: "标记为完成",
-            requested: "需求量:", btn_add_row: "添加", btn_add_multi: "+5行",
-            col_block: "荒料号", col_atado: "捆包号", col_plate_num: "板号",
-            col_ref: "参考", col_thickness: "厚度", col_height: "高度 (m)",
-            col_width: "宽度 (m)", col_area: "面积 (m²)", col_notes: "备注",
-            col_qty: "数量", col_weight: "重量 (kg)",
-            lbl_type_placa: "大板", lbl_type_formato: "规格板", lbl_type_pieza: "件",
-            lbl_packages: "包数", lbl_desc_goods: "货物描述",
-            col_crate_h: "箱高", col_crate_w: "箱宽", col_crate_t: "箱厚",
-            col_fmt_h: "物品高度", col_fmt_w: "物品宽度",
-            msg_saved: "保存成功", msg_error: "错误: ", msg_confirm_delete: "删除此记录？",
-            msg_confirm_complete: "标记为完成？",
-            msg_loading: "加载中...", msg_saving: "保存中...",
-            opt_select: "请选择...",
-            opt_maritime: "海运", opt_air: "空运", opt_land: "陆运",
-            st_draft: "草稿", st_in_production: "生产中", st_booked: "已预订",
-            st_departed: "已发运", st_in_transit: "运输中", st_arrived: "已到达", st_delivered: "已交付",
+            header_provider: "\u4f9b\u5e94\u5546", po_label: "\u91c7\u8d2d\u8ba2\u5355:", receipt_label: "\u6536\u8d27\u5355:",
+            sec_proforma_globals: "\u5f62\u5f0f\u53d1\u7968\u5168\u5c40\u6570\u636e",
+            lbl_proforma: "\u5f62\u5f0f\u53d1\u7968\u53f7", ph_proforma: "\u4f8b\u5982 PI-9920",
+            lbl_invoice_global: "\u5168\u5c40\u53d1\u7968", lbl_payment: "\u4ed8\u6b3e\u6761\u4ef6", ph_payment: "\u4f8b\u5982 T/T 30%",
+            lbl_country: "\u539f\u4ea7\u56fd", ph_country: "\u4f8b\u5982 China",
+            lbl_port_origin: "\u8d77\u8fd0\u6e2f", ph_origin: "\u4f8b\u5982 Shanghai",
+            lbl_port_dest: "\u76ee\u7684\u6e2f", ph_dest: "\u4f8b\u5982 Manzanillo",
+            lbl_incoterm: "\u8d38\u6613\u6761\u6b3e", ph_incoterm: "\u4f8b\u5982 CIF",
+            lbl_general_notes: "\u4e00\u822c\u5907\u6ce8",
+            btn_save_globals: "\u4fdd\u5b58\u5168\u5c40\u6570\u636e",
+            sec_shipments: "\u53d1\u8d27", btn_add_shipment: "\u6dfb\u52a0\u53d1\u8d27",
+            msg_no_shipments: "\u6ca1\u6709\u53d1\u8d27\u8bb0\u5f55\u3002\u70b9\u51fb\u0027\u6dfb\u52a0\u53d1\u8d27\u0027\u5f00\u59cb\u3002",
+            tab_logistics: "\u7269\u6d41", tab_bl: "\u63d0\u5355", tab_invoices: "\u53d1\u7968",
+            tab_packings: "\u88c5\u7bb1\u5355", tab_containers: "\u96c6\u88c5\u7bb1",
+            lbl_shipment_type: "\u7c7b\u578b", lbl_shipping_line: "\u8239\u516c\u53f8", lbl_vessel: "\u8239\u540d",
+            lbl_etd: "\u9884\u8ba1\u79bb\u6e2f", lbl_eta: "\u9884\u8ba1\u5230\u6e2f", lbl_status: "\u72b6\u6001", lbl_notes: "\u5907\u6ce8",
+            lbl_bl_number: "\u63d0\u5355\u53f7", lbl_bl_date: "\u63d0\u5355\u65e5\u671f", lbl_bl_file: "\u63d0\u5355\u6587\u4ef6",
+            btn_save_shipment: "\u4fdd\u5b58\u53d1\u8d27", btn_save_containers: "\u4fdd\u5b58\u96c6\u88c5\u7bb1",
+            btn_save_invoices: "\u4fdd\u5b58\u53d1\u7968",
+            lbl_inv_number: "\u53d1\u7968\u53f7", lbl_inv_date: "\u65e5\u671f", lbl_inv_amount: "\u91d1\u989d",
+            lbl_inv_scope: "\u8303\u56f4", scope_full: "\u6574\u6279", scope_specific: "\u6307\u5b9a\u96c6\u88c5\u7bb1",
+            lbl_cont_number: "\u96c6\u88c5\u7bb1\u53f7", lbl_cont_seal: "\u5c01\u6761\u53f7", lbl_cont_type: "\u7c7b\u578b",
+            lbl_cont_weight: "\u91cd\u91cf (kg)", lbl_cont_volume: "\u4f53\u79ef (m\u00b3)", lbl_cont_packages: "\u4ef6\u6570",
+            lbl_pk_number: "\u88c5\u7bb1\u5355\u53f7", lbl_pk_date: "\u65e5\u671f", lbl_pk_scope: "\u8303\u56f4",
+            lbl_pk_file: "\u88c5\u7bb1\u5355\u6587\u4ef6",
+            btn_add: "\u6dfb\u52a0", btn_remove: "\u5220\u9664", btn_add_invoice: "+ \u53d1\u7968", btn_add_container: "+ \u96c6\u88c5\u7bb1",
+            btn_add_packing: "+ \u88c5\u7bb1\u5355",
+            btn_save_packing: "\u4fdd\u5b58\u88c5\u7bb1\u5355", btn_delete_packing: "\u5220\u9664",
+            footer_total_shipments: "\u53d1\u8d27:", footer_total_containers: "\u96c6\u88c5\u7bb1:",
+            footer_total_invoices: "\u53d1\u7968:", btn_complete: "\u6807\u8bb0\u4e3a\u5b8c\u6210",
+            requested: "\u9700\u6c42\u91cf:", btn_add_row: "\u6dfb\u52a0", btn_add_multi: "+5\u884c",
+            col_block: "\u8352\u6599\u53f7", col_atado: "\u6346\u5305\u53f7", col_plate_num: "\u677f\u53f7",
+            col_ref: "\u53c2\u8003", col_thickness: "\u539a\u5ea6", col_height: "\u9ad8\u5ea6 (m)",
+            col_width: "\u5bbd\u5ea6 (m)", col_area: "\u9762\u79ef (m\u00b2)", col_notes: "\u5907\u6ce8",
+            col_qty: "\u6570\u91cf", col_weight: "\u91cd\u91cf (kg)",
+            lbl_type_placa: "\u5927\u677f", lbl_type_formato: "\u89c4\u683c\u677f", lbl_type_pieza: "\u4ef6",
+            lbl_packages: "\u5305\u6570", lbl_desc_goods: "\u8d27\u7269\u63cf\u8ff0",
+            col_crate_h: "\u7bb1\u9ad8", col_crate_w: "\u7bb1\u5bbd", col_crate_t: "\u7bb1\u539a",
+            col_fmt_h: "\u7269\u54c1\u9ad8\u5ea6", col_fmt_w: "\u7269\u54c1\u5bbd\u5ea6",
+            msg_saved: "\u4fdd\u5b58\u6210\u529f", msg_error: "\u9519\u8bef: ", msg_confirm_delete: "\u5220\u9664\u6b64\u8bb0\u5f55\uff1f",
+            msg_confirm_complete: "\u6807\u8bb0\u4e3a\u5b8c\u6210\uff1f",
+            msg_loading: "\u52a0\u8f7d\u4e2d...", msg_saving: "\u4fdd\u5b58\u4e2d...",
+            opt_select: "\u8bf7\u9009\u62e9...",
+            opt_maritime: "\u6d77\u8fd0", opt_air: "\u7a7a\u8fd0", opt_land: "\u9646\u8fd0",
+            st_draft: "\u8349\u7a3f", st_in_production: "\u751f\u4ea7\u4e2d", st_booked: "\u5df2\u9884\u8ba2",
+            st_departed: "\u5df2\u53d1\u8fd0", st_in_transit: "\u8fd0\u8f93\u4e2d", st_arrived: "\u5df2\u5230\u8fbe", st_delivered: "\u5df2\u4ea4\u4ed8",
         }
     };
 
@@ -236,7 +236,7 @@
             try {
                 // Language
                 const langSel = document.getElementById('lang-selector');
-                console.log("[Portal] lang-selector element:", langSel ? '✓ found' : '✗ NOT FOUND');
+                console.log("[Portal] lang-selector element:", langSel ? '\u2713 found' : '\u2717 NOT FOUND');
                 if (langSel) {
                     langSel.value = this.currentLang;
                     langSel.addEventListener('change', e => {
@@ -249,7 +249,7 @@
 
                 // Parse payload
                 const el = document.getElementById('portal-data-store');
-                console.log("[Portal] portal-data-store element:", el ? '✓ found' : '✗ NOT FOUND');
+                console.log("[Portal] portal-data-store element:", el ? '\u2713 found' : '\u2717 NOT FOUND');
                 if (!el) throw new Error('No payload element #portal-data-store');
 
                 console.log("[Portal] portal-data-store dataset.payload (first 300 chars):", (el.dataset.payload || '').substring(0, 300));
@@ -257,7 +257,7 @@
                 console.log("[Portal] Parsed data keys:", Object.keys(this.data));
 
                 this.token = this.data.token || '';
-                console.log("[Portal] Token:", this.token ? `✓ (${this.token.substring(0, 8)}...)` : '✗ EMPTY/MISSING');
+                console.log("[Portal] Token:", this.token ? `\u2713 (${this.token.substring(0, 8)}...)` : '\u2717 EMPTY/MISSING');
 
                 this.products = this.data.products || [];
                 console.log("[Portal] Products count:", this.products.length);
@@ -269,7 +269,7 @@
                 this.fillGlobalsForm();
 
                 // FIX: Bindear eventos ANTES de renderAll para que los botones
-                // funcionen incluso si renderAll lanza una excepción
+                // funcionen incluso si renderAll lanza una excepci\u00f3n
                 console.log("[Portal] About to call bindGlobalEvents()...");
                 this.bindGlobalEvents();
                 console.log("[Portal] bindGlobalEvents() completed, _eventsBound:", this._eventsBound);
@@ -282,7 +282,7 @@
             } catch (err) {
                 console.error("[Portal] ========== init() ERROR ==========", err);
                 console.error("[Portal] Error stack:", err.stack);
-                // Asegurar que los eventos globales siempre estén bindeados
+                // Asegurar que los eventos globales siempre est\u00e9n bindeados
                 if (!this._eventsBound) {
                     console.log("[Portal] Attempting emergency bindGlobalEvents...");
                     try { this.bindGlobalEvents(); } catch(_e) {
@@ -326,7 +326,7 @@
                 const exists = !!el;
                 const val = p[key] || '';
                 if (el && p[key]) el.value = p[key];
-                console.log(`[Portal]   fillGlobals: #${domId} → ${exists ? '✓' : '✗ NOT FOUND'} | proforma.${key} = "${val}"`);
+                console.log(`[Portal]   fillGlobals: #${domId} \u2192 ${exists ? '\u2713' : '\u2717 NOT FOUND'} | proforma.${key} = "${val}"`);
             }
             this.updateStatusBadge();
         }
@@ -342,7 +342,7 @@
                 incoterm: document.getElementById('g-incoterm')?.value || '',
                 general_notes: document.getElementById('g-general-notes')?.value || '',
             };
-            console.log("[Portal] getGlobalsFromForm() →", JSON.stringify(data));
+            console.log("[Portal] getGlobalsFromForm() \u2192", JSON.stringify(data));
             return data;
         }
 
@@ -357,8 +357,8 @@
         async saveGlobals() {
             console.log("[Portal] ====== saveGlobals() CALLED ======");
             const btn = document.getElementById('btn-save-globals');
-            console.log("[Portal] saveGlobals: btn element:", btn ? '✓' : '✗');
-            console.log("[Portal] saveGlobals: token:", this.token ? `✓ (${this.token.substring(0, 8)}...)` : '✗ EMPTY');
+            console.log("[Portal] saveGlobals: btn element:", btn ? '\u2713' : '\u2717');
+            console.log("[Portal] saveGlobals: token:", this.token ? `\u2713 (${this.token.substring(0, 8)}...)` : '\u2717 EMPTY');
 
             if (btn) {
                 btn.disabled = true;
@@ -379,7 +379,7 @@
                     this.toast(this.t('msg_saved'), 'success');
                     // Update local state
                     Object.assign(this.proforma, globalsData);
-                    console.log("[Portal] saveGlobals: ✓ SUCCESS, local proforma updated");
+                    console.log("[Portal] saveGlobals: \u2713 SUCCESS, local proforma updated");
                 } else {
                     console.warn("[Portal] saveGlobals: server returned success=false:", res.message);
                     this.toast(this.t('msg_error') + (res.message || ''), 'error');
@@ -548,7 +548,7 @@
 
         async addShipment() {
             console.log("[Portal] ====== addShipment() CALLED ======");
-            console.log("[Portal] addShipment: token:", this.token ? `✓ (${this.token.substring(0, 8)}...)` : '✗ EMPTY');
+            console.log("[Portal] addShipment: token:", this.token ? `\u2713 (${this.token.substring(0, 8)}...)` : '\u2717 EMPTY');
             console.log("[Portal] addShipment: current proforma.id:", this.proforma.id);
             console.log("[Portal] addShipment: current shipments count:", (this.proforma.shipments || []).length);
 
@@ -557,7 +557,7 @@
                 const res = await jsonRpc('/supplier/api/v2/create_shipment', { token: this.token });
                 console.log("[Portal] addShipment: response:", JSON.stringify(res));
                 if (res.success) {
-                    console.log("[Portal] addShipment: ✓ SUCCESS, new shipment_id:", res.shipment_id);
+                    console.log("[Portal] addShipment: \u2713 SUCCESS, new shipment_id:", res.shipment_id);
                     console.log("[Portal] addShipment: reloading proforma...");
                     await this.reloadProforma();
                     console.log("[Portal] addShipment: proforma reloaded, shipments:", (this.proforma.shipments || []).length);
@@ -1064,7 +1064,7 @@
         }
 
         // =====================================================================
-        //  PACKING ROWS (product detail lines) — reuses old logic
+        //  PACKING ROWS (product detail lines) \u2014 reuses old logic
         // =====================================================================
         renderPackingRows(area, pk, s) {
             if (!pk) return;
@@ -1291,9 +1291,9 @@
             const btnAddShipment = document.getElementById('btn-add-shipment');
             const btnComplete = document.getElementById('btn-complete-proforma');
 
-            console.log("[Portal] bindGlobalEvents: #btn-save-globals:", btnSaveGlobals ? '✓ FOUND' : '✗ NOT FOUND');
-            console.log("[Portal] bindGlobalEvents: #btn-add-shipment:", btnAddShipment ? '✓ FOUND' : '✗ NOT FOUND');
-            console.log("[Portal] bindGlobalEvents: #btn-complete-proforma:", btnComplete ? '✓ FOUND' : '✗ NOT FOUND');
+            console.log("[Portal] bindGlobalEvents: #btn-save-globals:", btnSaveGlobals ? '\u2713 FOUND' : '\u2717 NOT FOUND');
+            console.log("[Portal] bindGlobalEvents: #btn-add-shipment:", btnAddShipment ? '\u2713 FOUND' : '\u2717 NOT FOUND');
+            console.log("[Portal] bindGlobalEvents: #btn-complete-proforma:", btnComplete ? '\u2713 FOUND' : '\u2717 NOT FOUND');
 
             if (btnSaveGlobals) {
                 console.log("[Portal] bindGlobalEvents: btnSaveGlobals tagName:", btnSaveGlobals.tagName, "type:", btnSaveGlobals.type, "disabled:", btnSaveGlobals.disabled, "id:", btnSaveGlobals.id);
@@ -1301,23 +1301,23 @@
                 // Check for any parent form that might intercept
                 const parentForm = btnSaveGlobals.closest('form');
                 if (parentForm) {
-                    console.warn("[Portal] ⚠️ btn-save-globals is INSIDE a <form>! action:", parentForm.action, "method:", parentForm.method);
+                    console.warn("[Portal] \u26a0\ufe0f btn-save-globals is INSIDE a <form>! action:", parentForm.action, "method:", parentForm.method);
                     console.log("[Portal] Preventing form default submit...");
                     parentForm.addEventListener('submit', (e) => {
-                        console.log("[Portal] ⚠️ FORM SUBMIT intercepted! Preventing default.");
+                        console.log("[Portal] \u26a0\ufe0f FORM SUBMIT intercepted! Preventing default.");
                         e.preventDefault();
                     });
                 }
                 btnSaveGlobals.addEventListener('click', (e) => {
-                    console.log("[Portal] 🔔 btn-save-globals CLICK event fired!");
+                    console.log("[Portal] \u1f514 btn-save-globals CLICK event fired!");
                     console.log("[Portal] click event detail:", { type: e.type, target: e.target.tagName, currentTarget: e.currentTarget.tagName, defaultPrevented: e.defaultPrevented, bubbles: e.bubbles });
                     e.preventDefault();
                     e.stopPropagation();
                     this.saveGlobals();
                 });
-                console.log("[Portal] ✓ btn-save-globals click handler attached");
+                console.log("[Portal] \u2713 btn-save-globals click handler attached");
             } else {
-                console.error("[Portal] ✗ btn-save-globals NOT FOUND — checking all buttons in DOM...");
+                console.error("[Portal] \u2717 btn-save-globals NOT FOUND \u2014 checking all buttons in DOM...");
                 const allBtns = document.querySelectorAll('button');
                 console.log("[Portal] Total <button> elements in DOM:", allBtns.length);
                 allBtns.forEach((b, i) => {
@@ -1332,22 +1332,22 @@
                 console.log("[Portal] bindGlobalEvents: btnAddShipment outerHTML (first 200):", btnAddShipment.outerHTML.substring(0, 200));
                 const parentForm = btnAddShipment.closest('form');
                 if (parentForm) {
-                    console.warn("[Portal] ⚠️ btn-add-shipment is INSIDE a <form>! action:", parentForm.action, "method:", parentForm.method);
+                    console.warn("[Portal] \u26a0\ufe0f btn-add-shipment is INSIDE a <form>! action:", parentForm.action, "method:", parentForm.method);
                     parentForm.addEventListener('submit', (e) => {
-                        console.log("[Portal] ⚠️ FORM SUBMIT intercepted on add-shipment form! Preventing default.");
+                        console.log("[Portal] \u26a0\ufe0f FORM SUBMIT intercepted on add-shipment form! Preventing default.");
                         e.preventDefault();
                     });
                 }
                 btnAddShipment.addEventListener('click', (e) => {
-                    console.log("[Portal] 🔔 btn-add-shipment CLICK event fired!");
+                    console.log("[Portal] \u1f514 btn-add-shipment CLICK event fired!");
                     console.log("[Portal] click event detail:", { type: e.type, target: e.target.tagName, currentTarget: e.currentTarget.tagName, defaultPrevented: e.defaultPrevented });
                     e.preventDefault();
                     e.stopPropagation();
                     this.addShipment();
                 });
-                console.log("[Portal] ✓ btn-add-shipment click handler attached");
+                console.log("[Portal] \u2713 btn-add-shipment click handler attached");
             } else {
-                console.error("[Portal] ✗ btn-add-shipment NOT FOUND — checking all buttons in DOM...");
+                console.error("[Portal] \u2717 btn-add-shipment NOT FOUND \u2014 checking all buttons in DOM...");
                 const allBtns = document.querySelectorAll('button');
                 allBtns.forEach((b, i) => {
                     if (b.id || b.className.includes('shipment') || b.className.includes('add') || b.textContent.includes('Embarque') || b.textContent.includes('Shipment')) {
@@ -1358,12 +1358,12 @@
 
             if (btnComplete) {
                 btnComplete.addEventListener('click', (e) => {
-                    console.log("[Portal] 🔔 btn-complete-proforma CLICK event fired!");
+                    console.log("[Portal] \u1f514 btn-complete-proforma CLICK event fired!");
                     e.preventDefault();
                     e.stopPropagation();
                     this.completeProforma();
                 });
-                console.log("[Portal] ✓ btn-complete-proforma click handler attached");
+                console.log("[Portal] \u2713 btn-complete-proforma click handler attached");
             }
 
             // === SAFETY NET: document-level click listener for debugging ===
