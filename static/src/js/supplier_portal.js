@@ -1031,98 +1031,103 @@
 
             area.innerHTML = html;
 
-            // ── EVENT DELEGATION: input ──
-            area.addEventListener('input', e => {
-                if (e.target.classList.contains('input-field')) {
-                    const tr = e.target.closest('tr');
-                    const rid = parseInt(tr.dataset.rowId);
-                    const key = tr.dataset.pkKey;
-                    const field = e.target.dataset.field;
-                    const rws = this.packingRows[key];
-                    const row = rws?.find(r => r._id === rid);
-                    if (!row) return;
-                    if (['alto','ancho','quantity','peso','weight'].includes(field)) {
-                        row[field] = parseFloat(e.target.value) || 0;
-                    } else {
-                        row[field] = e.target.value;
+            // ── EVENT DELEGATION (solo bindear una vez por area) ──
+            if (!area._portalEventsBound) {
+                area._portalEventsBound = true;
+
+                // input
+                area.addEventListener('input', e => {
+                    if (e.target.classList.contains('input-field')) {
+                        const tr = e.target.closest('tr');
+                        const rid = parseInt(tr.dataset.rowId);
+                        const key = tr.dataset.pkKey;
+                        const field = e.target.dataset.field;
+                        const rws = this.packingRows[key];
+                        const row = rws?.find(r => r._id === rid);
+                        if (!row) return;
+                        if (['alto','ancho','quantity','peso','weight'].includes(field)) {
+                            row[field] = parseFloat(e.target.value) || 0;
+                        } else {
+                            row[field] = e.target.value;
+                        }
+                        if ((field === 'alto' || field === 'ancho') && row.tipo === 'Placa') {
+                            const span = tr.querySelector('.area-display');
+                            if (span) span.textContent = ((row.alto||0) * (row.ancho||0)).toFixed(2);
+                        }
                     }
-                    if ((field === 'alto' || field === 'ancho') && row.tipo === 'Placa') {
-                        const span = tr.querySelector('.area-display');
-                        if (span) span.textContent = ((row.alto||0) * (row.ancho||0)).toFixed(2);
-                    }
-                }
-            });
+                });
 
-            // ── EVENT DELEGATION: click ──
-            area.addEventListener('click', e => {
-                const delBtn = e.target.closest('.btn-delete-row');
-                const addBtn = e.target.closest('.action-add-pk-row');
-                const addMulti = e.target.closest('.action-add-pk-multi');
-                const fillBtn = e.target.closest('.btn-fill-down');
-                const photoDoneBtn = e.target.closest('.btn-photo-done');
+                // click
+                area.addEventListener('click', e => {
+                    const delBtn = e.target.closest('.btn-delete-row');
+                    const addBtn = e.target.closest('.action-add-pk-row');
+                    const addMulti = e.target.closest('.action-add-pk-multi');
+                    const fillBtn = e.target.closest('.btn-fill-down');
+                    const photoDoneBtn = e.target.closest('.btn-photo-done');
 
-                if (photoDoneBtn) {
-                    const serverRowId = parseInt(photoDoneBtn.dataset.serverRowId);
-                    const localRowId = parseInt(photoDoneBtn.dataset.rowId);
-                    this.deleteRowImage(serverRowId, localRowId, rowsKey, area, pk, s);
-                    return;
-                }
-
-                if (delBtn) {
-                    const tr = delBtn.closest('tr');
-                    const rid = parseInt(tr.dataset.rowId);
-                    const key = tr.dataset.pkKey;
-                    this.packingRows[key] = (this.packingRows[key]||[]).filter(r => r._id !== rid);
-                    this.renderPackingRows(area, pk, s);
-                } else if (addBtn) {
-                    const pid = parseInt(addBtn.dataset.productId);
-                    const key = addBtn.dataset.pkKey;
-                    const p = this.products.find(x => x.id === pid);
-                    if (p) { this.packingRows[key].push(this._newProductRow(p)); this.renderPackingRows(area, pk, s); }
-                } else if (addMulti) {
-                    const pid = parseInt(addMulti.dataset.productId);
-                    const key = addMulti.dataset.pkKey;
-                    const p = this.products.find(x => x.id === pid);
-                    if (p) { for (let i=0;i<5;i++) this.packingRows[key].push(this._newProductRow(p)); this.renderPackingRows(area, pk, s); }
-                } else if (fillBtn) {
-                    const rid = parseInt(fillBtn.dataset.rowId);
-                    const field = fillBtn.dataset.field;
-                    const key = fillBtn.dataset.pkKey;
-                    const rws = this.packingRows[key] || [];
-                    const src = rws.find(r => r._id === rid);
-                    if (!src) return;
-                    let started = false;
-                    rws.forEach(r => {
-                        if (r._id === rid) { started = true; return; }
-                        if (started && r.product_id === src.product_id) r[field] = src[field];
-                    });
-                    this.renderPackingRows(area, pk, s);
-                }
-            });
-
-            // ── EVENT DELEGATION: change (file inputs para fotos) ──
-            area.addEventListener('change', e => {
-                if (e.target.classList.contains('photo-file-input')) {
-                    const fileInput = e.target;
-                    const serverRowId = parseInt(fileInput.dataset.serverRowId);
-                    const localRowId = parseInt(fileInput.dataset.rowId);
-                    const file = fileInput.files[0];
-                    if (!file) return;
-
-                    if (file.size > 5 * 1024 * 1024) {
-                        this.toast(this.t('msg_photo_too_large'), 'error');
-                        fileInput.value = '';
-                        return;
-                    }
-                    if (!file.type.startsWith('image/')) {
-                        this.toast(this.t('msg_photo_invalid'), 'error');
-                        fileInput.value = '';
+                    if (photoDoneBtn) {
+                        const serverRowId = parseInt(photoDoneBtn.dataset.serverRowId);
+                        const localRowId = parseInt(photoDoneBtn.dataset.rowId);
+                        this.deleteRowImage(serverRowId, localRowId, rowsKey, area, pk, s);
                         return;
                     }
 
-                    this.uploadRowImage(serverRowId, localRowId, rowsKey, file, area, pk, s);
-                }
-            });
+                    if (delBtn) {
+                        const tr = delBtn.closest('tr');
+                        const rid = parseInt(tr.dataset.rowId);
+                        const key = tr.dataset.pkKey;
+                        this.packingRows[key] = (this.packingRows[key]||[]).filter(r => r._id !== rid);
+                        this.renderPackingRows(area, pk, s);
+                    } else if (addBtn) {
+                        const pid = parseInt(addBtn.dataset.productId);
+                        const key = addBtn.dataset.pkKey;
+                        const p = this.products.find(x => x.id === pid);
+                        if (p) { this.packingRows[key].push(this._newProductRow(p)); this.renderPackingRows(area, pk, s); }
+                    } else if (addMulti) {
+                        const pid = parseInt(addMulti.dataset.productId);
+                        const key = addMulti.dataset.pkKey;
+                        const p = this.products.find(x => x.id === pid);
+                        if (p) { for (let i=0;i<5;i++) this.packingRows[key].push(this._newProductRow(p)); this.renderPackingRows(area, pk, s); }
+                    } else if (fillBtn) {
+                        const rid = parseInt(fillBtn.dataset.rowId);
+                        const field = fillBtn.dataset.field;
+                        const key = fillBtn.dataset.pkKey;
+                        const rws = this.packingRows[key] || [];
+                        const src = rws.find(r => r._id === rid);
+                        if (!src) return;
+                        let started = false;
+                        rws.forEach(r => {
+                            if (r._id === rid) { started = true; return; }
+                            if (started && r.product_id === src.product_id) r[field] = src[field];
+                        });
+                        this.renderPackingRows(area, pk, s);
+                    }
+                });
+
+                // change (file inputs para fotos)
+                area.addEventListener('change', e => {
+                    if (e.target.classList.contains('photo-file-input')) {
+                        const fileInput = e.target;
+                        const serverRowId = parseInt(fileInput.dataset.serverRowId);
+                        const localRowId = parseInt(fileInput.dataset.rowId);
+                        const file = fileInput.files[0];
+                        if (!file) return;
+
+                        if (file.size > 5 * 1024 * 1024) {
+                            this.toast(this.t('msg_photo_too_large'), 'error');
+                            fileInput.value = '';
+                            return;
+                        }
+                        if (!file.type.startsWith('image/')) {
+                            this.toast(this.t('msg_photo_invalid'), 'error');
+                            fileInput.value = '';
+                            return;
+                        }
+
+                        this.uploadRowImage(serverRowId, localRowId, rowsKey, file, area, pk, s);
+                    }
+                });
+            } // fin guard _portalEventsBound
         }
 
         _newProductRow(product) {
@@ -1160,7 +1165,8 @@
                     const row = rows.find(r => r._id === localRowId);
                     if (row) row.has_image = true;
                     this.toast('📷 ' + this.t('msg_saved'), 'success');
-                    if (area && pk && s) this.renderPackingRows(area, pk, s);
+                    // Actualizar SOLO la celda de foto sin re-renderizar toda la tabla
+                    this._updatePhotoCellInPlace(area, localRowId, serverRowId, true);
                 } else {
                     this.toast(this.t('msg_error') + (res.message || ''), 'error');
                 }
@@ -1182,12 +1188,44 @@
                     const row = rows.find(r => r._id === localRowId);
                     if (row) row.has_image = false;
                     this.toast(this.t('msg_photo_deleted'), 'success');
-                    if (area && pk && s) this.renderPackingRows(area, pk, s);
+                    // Actualizar SOLO la celda de foto sin re-renderizar toda la tabla
+                    this._updatePhotoCellInPlace(area, localRowId, serverRowId, false);
                 } else {
                     this.toast(this.t('msg_error') + (res.message || ''), 'error');
                 }
             } catch (e) {
                 this.toast(this.t('msg_error') + e.message, 'error');
+            }
+        }
+
+        /**
+         * Actualiza in-place solo el <td> de la foto de una fila,
+         * sin destruir y recrear toda la tabla (evita perder event listeners).
+         */
+        _updatePhotoCellInPlace(area, localRowId, serverRowId, hasImage) {
+            if (!area) return;
+            const tr = area.querySelector(`tr[data-row-id="${localRowId}"]`);
+            if (!tr) return;
+
+            // Encontrar el td de la foto (penúltimo td, antes del delete)
+            const tds = tr.querySelectorAll('td');
+            // La columna de foto es la penúltima
+            const photoTd = tds[tds.length - 2];
+            if (!photoTd) return;
+
+            if (hasImage) {
+                photoTd.innerHTML = `
+                    <button class="btn-photo-done" type="button" data-server-row-id="${serverRowId}" data-row-id="${localRowId}" title="${this.t('msg_confirm_delete_photo')}">
+                        <i class="fa fa-check-circle" style="color:#16a34a;font-size:1.1rem"></i>
+                    </button>`;
+            } else {
+                photoTd.innerHTML = `
+                    <label class="btn-photo-upload" title="${this.t('col_photo')}" style="cursor:pointer;margin:0">
+                        <i class="fa fa-camera" style="color:#8B5A2B;font-size:1rem"></i>
+                        <input type="file" accept="image/*" capture="environment"
+                               data-server-row-id="${serverRowId}" data-row-id="${localRowId}"
+                               class="photo-file-input" style="display:none"/>
+                    </label>`;
             }
         }
 
