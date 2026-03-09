@@ -135,13 +135,6 @@
                         </div>
                     </div>
 
-                    <!-- ============================================ -->
-                    <!--  SECCION 3: PACKING LIST (por embarque)      -->
-                    <!--  Se muestra al expandir un embarque           -->
-                    <!-- ============================================ -->
-                    <!-- El packing list de productos se renderiza     -->
-                    <!-- dinámicamente dentro del embarque activo      -->
-
                 </div>
 
                 <!-- FOOTER -->
@@ -161,31 +154,29 @@
             </div>
 
             <!-- ============================================ -->
-            <!--  TEMPLATES OCULTOS (usados por JS)           -->
+            <!--  CARGA DIRECTA DEL SCRIPT (DEBUG FALLBACK)   -->
+            <!--  Si el bundle de assets_frontend no lo carga -->
+            <!--  este tag lo fuerza. Quitar en producción.   -->
             <!-- ============================================ -->
-
-            <!-- Template de un bloque de embarque -->
-            <template id="shipment-block-tpl" style="display:none;">
-                <div class="shipment-block" data-shipment-id="">
-                    <div class="shipment-block-header">
-                        <div class="shipment-block-title">
-                            <span class="shipment-name">EMB-001</span>
-                            <span class="shipment-status-pill">draft</span>
-                        </div>
-                        <div class="shipment-block-actions">
-                            <button type="button" class="btn-toggle-shipment" title="Expandir/Colapsar">
-                                <i class="fa fa-chevron-down"></i>
-                            </button>
-                            <button type="button" class="btn-delete-shipment" title="Eliminar embarque">
-                                <i class="fa fa-trash"></i>
-                            </button>
-                        </div>
-                    </div>
-                    <div class="shipment-block-body" style="display:none;">
-                        <!-- JS llenará el contenido -->
-                    </div>
-                </div>
-            </template>
+            <script>
+                // Diagnóstico inmediato: si este log aparece, el template SÍ se renderiza
+                console.log("[Portal][INLINE] Template rendered OK. Checking if main script loaded...");
+                
+                // Esperar un momento y verificar si el script principal se cargó
+                setTimeout(function() {
+                    if (window.supplierPortal) {
+                        console.log("[Portal][INLINE] ✓ Main script loaded via asset bundle. supplierPortal instance exists.");
+                    } else {
+                        console.error("[Portal][INLINE] ✗ Main script NOT loaded via asset bundle! Loading directly...");
+                        // Cargar el script directamente como fallback
+                        var s = document.createElement('script');
+                        s.src = '/stock_lot_packing_import/static/src/js/supplier_portal.js?v=' + Date.now();
+                        s.onload = function() { console.log("[Portal][INLINE] ✓ Script loaded via direct injection."); };
+                        s.onerror = function() { console.error("[Portal][INLINE] ✗ Script FAILED to load even via direct injection!"); };
+                        document.body.appendChild(s);
+                    }
+                }, 1500);
+            </script>
 
         </t>
     </template>
