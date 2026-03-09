@@ -951,7 +951,7 @@
                         </div>
                     </div>
                     <!-- Packing rows (product detail) - expandable -->
-                    <div class="packing-rows-area" id="pk-rows-${pk.id}" style="display:none; margin-top: 1rem;"></div>
+                    <div class="packing-rows-area" id="pk-rows-${pk.id}" style="display:block; margin-top: 1rem;"></div>
                     <div class="text-end mt-2">
                         <button type="button" class="btn-save-section btn-save-pk" data-pk-id="${pk.id}" data-sid="${s.id}" style="font-size:0.8rem;padding:6px 16px;">
                             <i class="fa fa-save me-1"></i> ${this.t('btn_save_packing')}
@@ -1011,6 +1011,14 @@
                         this.renderPackingRows(area, pk, s);
                     }
                 });
+            });
+
+            // Auto-render packing rows (always visible by default)
+            packings.forEach(pk => {
+                const area = document.getElementById(`pk-rows-${pk.id}`);
+                if (area) {
+                    this.renderPackingRows(area, pk, s);
+                }
             });
         }
 

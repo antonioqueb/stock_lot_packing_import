@@ -228,11 +228,83 @@ class SupplierPortalController(http.Controller):
             vals['supplier_vessel'] = fs.vessel_name or ''
             vals['supplier_shipment_date'] = fs.etd or False
 
-        # Solo escribir si hay picking válido
         try:
             picking.sudo().write(vals)
         except Exception as e:
             _logger.warning(f"Error sincronizando flat al picking: {e}")
+
+    def _sync_packing_rows_to_spreadsheet(self, header, picking):
+        """
+        Consolida TODAS las rows de TODOS los packings de la proforma
+        y las escribe al spreadsheet del picking usando update_packing_list_from_portal.
+        Esto mantiene la secuencia de información en el spreadsheet interno de Odoo.
+        """
+        if not picking or not header:
+            return
+
+        # Consolidar todas las filas de todos los packings de todos los embarques
+        all_rows = []
+        for shipment in header.shipment_ids:
+            for packing in shipment.packing_ids:
+                for row in packing.row_ids.sorted('sequence'):
+                    # Determinar contenedor: del row directo, o del primer contenedor del shipment
+                    container_name = ''
+                    if row.container_id and row.container_id.container_number:
+                        container_name = row.container_id.container_number
+                    elif shipment.container_ids:
+                        container_name = shipment.container_ids[0].container_number or ''
+
+                    all_rows.append({
+                        'product_id': row.product_id.id,
+                        'grosor': row.grosor or '',
+                        'alto': row.alto or 0,
+                        'ancho': row.ancho or 0,
+                        'peso': row.peso or 0,
+                        'quantity': row.quantity or 0,
+                        'color': row.color or '',
+                        'bloque': row.bloque or '',
+                        'numero_placa': row.numero_placa or '',
+                        'atado': row.atado or '',
+                        'tipo': row.tipo or 'Placa',
+                        'grupo_name': row.grupo_name or '',
+                        'pedimento': row.pedimento or '',
+                        'contenedor': container_name or 'SN',
+                        'ref_proveedor': row.ref_proveedor or '',
+                    })
+
+        if not all_rows:
+            _logger.info("[Portal] _sync_packing_rows_to_spreadsheet: No rows to sync")
+            return
+
+        # Construir header_data desde la proforma para los campos flat
+        header_data = {
+            'proforma_number': header.proforma_number or '',
+            'payment_terms': header.payment_terms or '',
+            'country_origin': header.country_origin or '',
+            'origin': header.port_origin or '',
+            'destination': header.port_destination or '',
+            'incoterm': header.incoterm or '',
+            'invoice_number': header.invoice_global_number or '',
+        }
+
+        # Añadir datos del primer embarque si existe
+        first_shipment = header.shipment_ids.sorted('sequence')[:1]
+        if first_shipment:
+            fs = first_shipment[0]
+            header_data.update({
+                'vessel': fs.vessel_name or '',
+                'shipment_date': str(fs.etd) if fs.etd else '',
+                'bl_number': fs.bl_number or '',
+            })
+
+        try:
+            _logger.info(
+                "[Portal] Syncing %d rows to spreadsheet for picking %s",
+                len(all_rows), picking.name
+            )
+            picking.sudo().update_packing_list_from_portal(all_rows, header_data=header_data)
+        except Exception as e:
+            _logger.warning(f"[Portal] Error syncing to spreadsheet: {e}")
 
     # =====================================================================
     #  ENDPOINT PRINCIPAL: CARGA DEL PORTAL (GET)
@@ -348,6 +420,8 @@ class SupplierPortalController(http.Controller):
             proforma.write(vals)
 
         self._sync_flat_to_picking(proforma, access.picking_id)
+        # Also sync to spreadsheet if there are packing rows
+        self._sync_packing_rows_to_spreadsheet(proforma, access.picking_id)
 
         return {'success': True, 'proforma_id': proforma.id}
 
@@ -423,6 +497,8 @@ class SupplierPortalController(http.Controller):
             if proforma and not proforma.shipment_ids:
                 proforma.write({'status': 'draft'})
             self._sync_flat_to_picking(proforma, access.picking_id)
+            # Sync spreadsheet after deleting shipment (rows removed)
+            self._sync_packing_rows_to_spreadsheet(proforma, access.picking_id)
 
         return {'success': True}
 
@@ -462,7 +538,6 @@ class SupplierPortalController(http.Controller):
                 new = Container.create(vals)
                 existing_ids.add(new.id)
 
-        # Eliminar contenedores que ya no están en la lista
         to_delete = shipment.container_ids.filtered(lambda c: c.id not in existing_ids)
         if to_delete:
             to_delete.unlink()
@@ -551,7 +626,6 @@ class SupplierPortalController(http.Controller):
 
         # Guardar rows
         if rows is not None:
-            # Borrar rows existentes y recrear (más simple y seguro)
             packing.row_ids.unlink()
             seq = 10
             for r in rows:
@@ -576,6 +650,10 @@ class SupplierPortalController(http.Controller):
                 })
                 seq += 10
 
+        # Sync all packing rows to the Odoo spreadsheet
+        proforma = shipment.proforma_id
+        self._sync_packing_rows_to_spreadsheet(proforma, access.picking_id)
+
         return {'success': True, 'packing_id': packing.id}
 
     @http.route('/supplier/api/v2/delete_packing', type='json', auth='public', csrf=False)
@@ -586,7 +664,10 @@ class SupplierPortalController(http.Controller):
 
         packing = request.env['supplier.shipment.packing'].sudo().browse(packing_id)
         if packing.exists():
+            proforma = packing.shipment_id.proforma_id
             packing.unlink()
+            # Sync spreadsheet after deleting packing
+            self._sync_packing_rows_to_spreadsheet(proforma, access.picking_id)
 
         return {'success': True}
 
@@ -615,7 +696,7 @@ class SupplierPortalController(http.Controller):
 
         fname_field = field_name.replace('file', 'filename') if 'file' in field_name else f'{field_name}_name'
         if fname_field == 'filename':
-            pass  # ya es correcto para invoice y packing
+            pass
         elif field_name == 'bl_file':
             fname_field = 'bl_filename'
 
@@ -640,6 +721,8 @@ class SupplierPortalController(http.Controller):
         if proforma:
             proforma.write({'status': 'complete'})
             self._sync_flat_to_picking(proforma, access.picking_id)
+            # Final sync to spreadsheet on complete
+            self._sync_packing_rows_to_spreadsheet(proforma, access.picking_id)
 
         return {'success': True}
 
