@@ -61,8 +61,6 @@
             const rowsKey = `pk_${pk.id}`;
             const rows = this.normalizePackingRowsCache(pk);
             const containers = (s.containers || []).filter(c => c.id && (c.container_number || c.seal_number));
-            const checkedContainerIds = (pk.container_ids || []).map(asInt).filter(Boolean);
-            const showContainerCol = checkedContainerIds.length > 1;
 
             let html = '';
 
@@ -84,11 +82,8 @@
                     <div class="table-responsive">
                         <table class="portal-table">
                             <thead>
-                                <tr>`;
-
-                if (showContainerCol) {
-                    html += `<th>${this.t('col_container_assign')}</th>`;
-                }
+                                <tr>
+                                    <th>${this.t('col_container_assign')}</th>`;
 
                 if (unitType === 'Placa') {
                     html += `<th>${this.t('col_block')}</th>
@@ -139,19 +134,22 @@
                             </button>
                         </div>`;
 
-                    if (showContainerCol) {
-                        const available = containers.filter(c => checkedContainerIds.includes(c.id));
-                        html += `<td data-label="${this.t('col_container_assign')}">
-                            <select class="row-container-select" data-row-id="${rid}" data-pk-key="${rowsKey}">
+                    // Container column - always first
+                    html += `<td data-label="${this.t('col_container_assign')}">
+                        <div class="input-group-portal">
+                            <select class="row-container-select input-field" data-field="container_id" data-row-id="${rid}" data-pk-key="${rowsKey}">
                                 <option value="">${this.t('opt_select')}</option>
-                                ${available.map(c => `
+                                ${containers.map(c => `
                                     <option value="${c.id}" ${asInt(row.container_id) === c.id ? 'selected' : ''}>
                                         ${esc(c.container_number || '#' + c.id)}
                                     </option>
                                 `).join('')}
                             </select>
-                        </td>`;
-                    }
+                            <button type="button" class="btn-fill-down" data-row-id="${rid}" data-field="container_id" data-pk-key="${rowsKey}" tabindex="-1">
+                                <i class="fa fa-arrow-down"></i>
+                            </button>
+                        </div>
+                    </td>`;
 
                     if (unitType === 'Placa') {
                         const areaVal = ((row.alto || 0) * (row.ancho || 0)).toFixed(2);

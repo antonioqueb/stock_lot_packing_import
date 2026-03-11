@@ -446,11 +446,10 @@
 
         renderPackingsTab(el, s) {
             const packings = s.packings || [];
-            const containers = (s.containers || []).filter(c => c.id && (c.container_number || c.seal_number));
 
             let html = '';
             packings.forEach((pk, idx) => {
-                html += this._packingCard(pk, idx, s, containers);
+                html += this._packingCard(pk, idx, s);
             });
 
             html += `<button type="button" class="btn-add-sub-item btn-add-pk">
@@ -527,35 +526,9 @@
             });
         },
 
-        _packingCard(pk, idx, s, containers) {
-            const linkedIds = (pk.container_ids || []).map(asInt).filter(Boolean);
+        _packingCard(pk, idx, s) {
             const isExpanded = this.expandedPackingIds.has(pk.id);
             const rowCount = (pk.rows || []).length;
-
-            let containerSection = '';
-            if (containers.length > 0) {
-                const checks = containers.map(c => {
-                    const checked = linkedIds.includes(c.id) ? 'checked' : '';
-                    const label = c.container_number || `#${c.id}`;
-                    return `<label class="pk-container-check-item">
-                        <input type="checkbox" class="pk-container-check" data-pk-id="${pk.id}" value="${c.id}" ${checked}/>
-                        <span>${esc(label)}</span>
-                    </label>`;
-                }).join('');
-
-                containerSection = `
-                    <div class="sub-item-field sub-item-field-wide">
-                        <label>${this.t('lbl_pk_containers')}</label>
-                        <div class="pk-container-checks-list">${checks}</div>
-                    </div>`;
-            } else {
-                containerSection = `
-                    <div class="sub-item-field sub-item-field-wide">
-                        <div class="pk-no-containers-hint">
-                            <i class="fa fa-info-circle me-1"></i>${this.t('lbl_pk_no_containers')}
-                        </div>
-                    </div>`;
-            }
 
             return `<div class="sub-item-card packing-card" data-packing-id="${pk.id}">
                 <div class="sub-item-header">
@@ -581,7 +554,6 @@
                         <label>${this.t('lbl_pk_date')}</label>
                         <input type="date" data-pk-id="${pk.id}" data-pk-f="packing_date" value="${esc(pk.packing_date)}"/>
                     </div>
-                    ${containerSection}
                 </div>
                 <div class="packing-rows-area" id="pk-rows-${pk.id}" style="display:none;"></div>
                 <div class="text-end mt-2">
@@ -613,53 +585,46 @@
         },
 
         async savePacking(packingId, shipmentId, formEl) {
-            const shipment = (this.proforma.shipments || []).find(x => x.id === shipmentId);
             const pkData = { id: packingId };
 
             formEl.querySelectorAll(`[data-pk-id="${packingId}"][data-pk-f]`).forEach(input => {
                 pkData[input.dataset.pkF] = input.value;
             });
 
-            const checkedContainerIds = [
-                ...formEl.querySelectorAll(`.pk-container-check[data-pk-id="${packingId}"]:checked`)
-            ].map(ch => asInt(ch.value)).filter(Boolean);
-
-            pkData.scope = checkedContainerIds.length > 0 ? 'specific_containers' : 'full_shipment';
-            pkData.container_ids = checkedContainerIds;
-
             const rowsKey = `pk_${packingId}`;
             const rows = this.packingRows[rowsKey] || [];
+
+            // Derive container_ids from the rows themselves
+            const usedContainerIds = [...new Set(
+                rows.map(r => asInt(r.container_id)).filter(Boolean)
+            )];
+
+            pkData.scope = usedContainerIds.length > 0 ? 'specific_containers' : 'full_shipment';
+            pkData.container_ids = usedContainerIds;
 
             const rowsPayload = rows.filter(r => {
                 if (r.tipo === 'Placa') {
                     return (r.alto > 0 && r.ancho > 0) || r.ref_proveedor || r.numero_placa || r.bloque;
                 }
                 return (r.quantity > 0) || r.ref_proveedor || r.color;
-            }).map(r => {
-                let rowContainerId = asInt(r.container_id || 0);
-                if (checkedContainerIds.length === 1) {
-                    rowContainerId = checkedContainerIds[0];
-                }
-
-                return {
-                    id: r.id || 0,
-                    product_id: r.product_id,
-                    container_id: rowContainerId,
-                    tipo: r.tipo,
-                    grosor: r.grosor || '',
-                    alto: r.alto || 0,
-                    ancho: r.ancho || 0,
-                    peso: r.peso || 0,
-                    quantity: r.quantity || 0,
-                    bloque: r.bloque || '',
-                    numero_placa: r.numero_placa || '',
-                    atado: r.atado || '',
-                    color: r.color || '',
-                    grupo_name: r.grupo_name || '',
-                    pedimento: r.pedimento || '',
-                    ref_proveedor: r.ref_proveedor || '',
-                };
-            });
+            }).map(r => ({
+                id: r.id || 0,
+                product_id: r.product_id,
+                container_id: asInt(r.container_id || 0),
+                tipo: r.tipo,
+                grosor: r.grosor || '',
+                alto: r.alto || 0,
+                ancho: r.ancho || 0,
+                peso: r.peso || 0,
+                quantity: r.quantity || 0,
+                bloque: r.bloque || '',
+                numero_placa: r.numero_placa || '',
+                atado: r.atado || '',
+                color: r.color || '',
+                grupo_name: r.grupo_name || '',
+                pedimento: r.pedimento || '',
+                ref_proveedor: r.ref_proveedor || '',
+            }));
 
             try {
                 const res = await jsonRpc('/supplier/api/v2/save_packing', {
