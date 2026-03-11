@@ -1,0 +1,12 @@
+.env
+modulo.md
+/vscode
+./vscode
+.idea
+.DS_Store
+*.log
+*.tmp
+node_modules
+dist
+build
+coverage
