@@ -35,6 +35,10 @@
                     </div>
 
                     <div class="header-controls">
+                        <div class="po-info">
+                            <span class="label" data-i18n="po_label">Orden</span>
+                            <span class="value" t-esc="picking.origin or 'N/A'"/>
+                        </div>
                         <div class="lang-selector-wrapper">
                             <i class="fa fa-globe"/>
                             <select id="lang-selector" class="lang-select">
@@ -44,16 +48,6 @@
                                 <option value="it">IT</option>
                                 <option value="zh">ZH</option>
                             </select>
-                        </div>
-
-                        <div class="po-info">
-                            <span class="label" data-i18n="po_label">Orden</span>
-                            <span class="value" t-esc="picking.origin or 'N/A'"/>
-                        </div>
-
-                        <div class="po-info">
-                            <span class="label" data-i18n="receipt_label">Recepción</span>
-                            <span class="value" t-esc="picking.name"/>
                         </div>
                     </div>
                 </header>
