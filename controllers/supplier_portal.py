@@ -242,7 +242,6 @@ class SupplierPortalController(http.Controller):
         total_weight = 0
         completed_weight = 0
 
-        # Datos globales (peso 10)
         weight = 10
         total_weight += weight
         globals_filled = bool(proforma.proforma_number) and bool(proforma.payment_terms)
@@ -250,7 +249,6 @@ class SupplierPortalController(http.Controller):
             completed_weight += weight
         sections['globals'] = {'filled': globals_filled, 'weight': weight}
 
-        # Al menos 1 embarque (peso 5)
         weight = 5
         total_weight += weight
         has_shipments = bool(proforma.shipment_ids)
@@ -268,41 +266,36 @@ class SupplierPortalController(http.Controller):
         shipment_doc_types_extra = ['eur1', 'certificate_origin', 'fumigation']
 
         for s in proforma.shipment_ids:
-            prefix = f'ship_{s.id}'
+            prefix = 'ship_%s' % s.id
 
-            # Logistics (peso 5)
             w = 5
             total_weight += w
             has_logistics = bool(s.vessel_name or s.shipping_line) and bool(s.etd or s.eta)
             if has_logistics:
                 completed_weight += w
-            sections[f'{prefix}_logistics'] = {'filled': has_logistics, 'weight': w}
+            sections['%s_logistics' % prefix] = {'filled': has_logistics, 'weight': w}
 
-            # BL info (peso 3)
             w = 3
             total_weight += w
             has_bl_info = bool(s.bl_number)
             if has_bl_info:
                 completed_weight += w
-            sections[f'{prefix}_bl_info'] = {'filled': has_bl_info, 'weight': w}
+            sections['%s_bl_info' % prefix] = {'filled': has_bl_info, 'weight': w}
 
-            # Containers (peso 3)
             w = 3
             total_weight += w
             has_containers = bool(s.container_ids)
             if has_containers:
                 completed_weight += w
-            sections[f'{prefix}_containers'] = {'filled': has_containers, 'weight': w}
+            sections['%s_containers' % prefix] = {'filled': has_containers, 'weight': w}
 
-            # Packings con rows (peso 5)
             w = 5
             total_weight += w
             has_packings = bool(s.packing_ids) and any(pk.row_ids for pk in s.packing_ids)
             if has_packings:
                 completed_weight += w
-            sections[f'{prefix}_packings'] = {'filled': has_packings, 'weight': w}
+            sections['%s_packings' % prefix] = {'filled': has_packings, 'weight': w}
 
-            # Docs obligatorios por embarque
             for dt in shipment_doc_types_required:
                 w = 8
                 total_weight += w
@@ -312,9 +305,8 @@ class SupplierPortalController(http.Controller):
                 ]) > 0
                 if has_doc:
                     completed_weight += w
-                sections[f'{prefix}_doc_{dt}'] = {'filled': has_doc, 'weight': w}
+                sections['%s_doc_%s' % (prefix, dt)] = {'filled': has_doc, 'weight': w}
 
-            # Docs extra por embarque
             for dt in shipment_doc_types_extra:
                 w = 4
                 total_weight += w
@@ -324,9 +316,8 @@ class SupplierPortalController(http.Controller):
                 ]) > 0
                 if has_doc:
                     completed_weight += w
-                sections[f'{prefix}_doc_{dt}'] = {'filled': has_doc, 'weight': w}
+                sections['%s_doc_%s' % (prefix, dt)] = {'filled': has_doc, 'weight': w}
 
-        # Pagos globales (peso 5)
         w = 5
         total_weight += w
         has_payments = Doc.search_count([
@@ -727,7 +718,7 @@ class SupplierPortalController(http.Controller):
     # =====================================================================
 
     @http.route('/supplier/api/v2/save_globals', type='json', auth='public', csrf=False)
-    def api_save_globals(self, token, globals_data):
+    def api_save_globals(self, token=None, globals_data=None, **kw):
         access = self._validate_token(token)
         if not access:
             return {'success': False, 'message': 'Token invalido.'}
@@ -747,9 +738,10 @@ class SupplierPortalController(http.Controller):
             'incoterm': 'incoterm',
             'general_notes': 'general_notes',
         }
-        for js_key, py_field in field_map.items():
-            if js_key in globals_data:
-                vals[py_field] = globals_data[js_key] or ''
+        if globals_data:
+            for js_key, py_field in field_map.items():
+                if js_key in globals_data:
+                    vals[py_field] = globals_data[js_key] or ''
 
         if vals:
             proforma.write(vals)
@@ -764,7 +756,7 @@ class SupplierPortalController(http.Controller):
     # =====================================================================
 
     @http.route('/supplier/api/v2/create_shipment', type='json', auth='public', csrf=False)
-    def api_create_shipment(self, token, shipment_data=None):
+    def api_create_shipment(self, token=None, shipment_data=None, **kw):
         access = self._validate_token(token)
         if not access:
             return {'success': False, 'message': 'Token invalido.'}
@@ -792,7 +784,7 @@ class SupplierPortalController(http.Controller):
         return {'success': True, 'shipment_id': shipment.id, 'name': shipment.name}
 
     @http.route('/supplier/api/v2/update_shipment', type='json', auth='public', csrf=False)
-    def api_update_shipment(self, token, shipment_id, shipment_data):
+    def api_update_shipment(self, token=None, shipment_id=None, shipment_data=None, **kw):
         access = self._validate_token(token)
         if not access:
             return {'success': False, 'message': 'Token invalido.'}
@@ -803,17 +795,18 @@ class SupplierPortalController(http.Controller):
             return {'success': False, 'message': 'Embarque no encontrado o no autorizado.'}
 
         vals = {}
-        for k in ['shipment_type', 'shipping_line', 'vessel_name',
-                  'port_origin', 'port_destination', 'bl_number', 'notes', 'status']:
-            if k in shipment_data:
-                if k == 'status':
-                    vals[k] = shipment_data[k]
-                else:
-                    vals[k] = shipment_data[k] or ''
+        if shipment_data:
+            for k in ['shipment_type', 'shipping_line', 'vessel_name',
+                      'port_origin', 'port_destination', 'bl_number', 'notes', 'status']:
+                if k in shipment_data:
+                    if k == 'status':
+                        vals[k] = shipment_data[k]
+                    else:
+                        vals[k] = shipment_data[k] or ''
 
-        for k in ['etd', 'eta', 'bl_date']:
-            if k in shipment_data:
-                vals[k] = shipment_data[k] or False
+            for k in ['etd', 'eta', 'bl_date']:
+                if k in shipment_data:
+                    vals[k] = shipment_data[k] or False
 
         if vals:
             shipment.write(vals)
@@ -823,7 +816,7 @@ class SupplierPortalController(http.Controller):
         return {'success': True}
 
     @http.route('/supplier/api/v2/delete_shipment', type='json', auth='public', csrf=False)
-    def api_delete_shipment(self, token, shipment_id):
+    def api_delete_shipment(self, token=None, shipment_id=None, **kw):
         access = self._validate_token(token)
         if not access:
             return {'success': False, 'message': 'Token invalido.'}
@@ -848,7 +841,7 @@ class SupplierPortalController(http.Controller):
     # =====================================================================
 
     @http.route('/supplier/api/v2/save_containers', type='json', auth='public', csrf=False)
-    def api_save_containers(self, token, shipment_id, containers):
+    def api_save_containers(self, token=None, shipment_id=None, containers=None, **kw):
         access = self._validate_token(token)
         if not access:
             return {'success': False, 'message': 'Token invalido.'}
@@ -861,7 +854,7 @@ class SupplierPortalController(http.Controller):
         Container = request.env['supplier.shipment.container'].sudo()
         existing_ids = set()
 
-        for c in containers:
+        for c in (containers or []):
             cid = self._safe_int(c.get('id'), 0)
             vals = {
                 'container_number': c.get('container_number', ''),
@@ -914,7 +907,7 @@ class SupplierPortalController(http.Controller):
     # =====================================================================
 
     @http.route('/supplier/api/v2/save_invoices', type='json', auth='public', csrf=False)
-    def api_save_invoices(self, token, shipment_id, invoices):
+    def api_save_invoices(self, token=None, shipment_id=None, invoices=None, **kw):
         access = self._validate_token(token)
         if not access:
             return {'success': False, 'message': 'Token invalido.'}
@@ -927,7 +920,7 @@ class SupplierPortalController(http.Controller):
         Invoice = request.env['supplier.shipment.invoice'].sudo()
         existing_ids = set()
 
-        for inv in invoices:
+        for inv in (invoices or []):
             iid = self._safe_int(inv.get('id'), 0)
             scope = inv.get('scope', 'full_shipment')
             container_ids = self._normalize_id_list(inv.get('container_ids', []))
@@ -975,7 +968,7 @@ class SupplierPortalController(http.Controller):
     # =====================================================================
 
     @http.route('/supplier/api/v2/save_packing', type='json', auth='public', csrf=False)
-    def api_save_packing(self, token, shipment_id, packing_data, rows=None):
+    def api_save_packing(self, token=None, shipment_id=None, packing_data=None, rows=None, **kw):
         access = self._validate_token(token)
         if not access:
             return {'success': False, 'message': 'Token invalido.'}
@@ -984,6 +977,9 @@ class SupplierPortalController(http.Controller):
         shipment = request.env['supplier.shipment'].sudo().browse(self._safe_int(shipment_id))
         if not shipment.exists() or not self._belongs_to_proforma(proforma, shipment=shipment):
             return {'success': False, 'message': 'Embarque no encontrado o no autorizado.'}
+
+        if not packing_data:
+            packing_data = {}
 
         Packing = request.env['supplier.shipment.packing'].sudo()
         Row = request.env['supplier.shipment.packing.row'].sudo()
@@ -1111,7 +1107,7 @@ class SupplierPortalController(http.Controller):
         return {'success': True, 'packing_id': packing.id}
 
     @http.route('/supplier/api/v2/delete_packing', type='json', auth='public', csrf=False)
-    def api_delete_packing(self, token, packing_id):
+    def api_delete_packing(self, token=None, packing_id=None, **kw):
         access = self._validate_token(token)
         if not access:
             return {'success': False, 'message': 'Token invalido.'}
@@ -1130,7 +1126,8 @@ class SupplierPortalController(http.Controller):
     # =====================================================================
 
     @http.route('/supplier/api/v2/upload_file', type='json', auth='public', csrf=False)
-    def api_upload_file(self, token, target_model, target_id, field_name, file_data, file_name):
+    def api_upload_file(self, token=None, target_model=None, target_id=None,
+                        field_name=None, file_data=None, file_name=None, **kw):
         access = self._validate_token(token)
         if not access:
             return {'success': False, 'message': 'Token invalido.'}
@@ -1145,7 +1142,7 @@ class SupplierPortalController(http.Controller):
             'supplier.shipment.packing': ['file'],
         }
 
-        if target_model not in allowed_models or field_name not in allowed_models[target_model]:
+        if target_model not in allowed_models or field_name not in allowed_models.get(target_model, []):
             return {'success': False, 'message': 'Modelo o campo no permitido.'}
 
         record = request.env[target_model].sudo().browse(self._safe_int(target_id))
@@ -1169,7 +1166,7 @@ class SupplierPortalController(http.Controller):
         if not file_name:
             file_name = 'archivo'
 
-        fname_field = field_name.replace('file', 'filename') if 'file' in field_name else f'{field_name}_name'
+        fname_field = field_name.replace('file', 'filename') if 'file' in field_name else '%s_name' % field_name
         if field_name == 'bl_file':
             fname_field = 'bl_filename'
 
@@ -1185,12 +1182,15 @@ class SupplierPortalController(http.Controller):
     # =====================================================================
 
     @http.route('/supplier/api/v2/upload_document', type='json', auth='public', csrf=False)
-    def api_upload_document(self, token, document_type, file_data, file_name,
+    def api_upload_document(self, token=None, document_type=None, file_data=None, file_name=None,
                             shipment_id=None, file_size=0, mime_type='',
-                            dpi_value=0, notes=''):
+                            dpi_value=0, notes='', **kw):
         access = self._validate_token(token)
         if not access:
             return {'success': False, 'message': 'Token invalido.'}
+
+        if not document_type or not file_data or not file_name:
+            return {'success': False, 'message': 'Faltan parametros requeridos (document_type, file_data, file_name).'}
 
         proforma = self._get_or_create_proforma(access)
         if not proforma:
@@ -1214,9 +1214,6 @@ class SupplierPortalController(http.Controller):
             shipment = request.env['supplier.shipment'].sudo().browse(self._safe_int(shipment_id))
             if not shipment.exists() or not self._belongs_to_proforma(proforma, shipment=shipment):
                 return {'success': False, 'message': 'Embarque no encontrado o no autorizado.'}
-
-        if not file_data:
-            return {'success': False, 'message': 'No se recibio contenido de archivo.'}
 
         allowed_mime = ['application/pdf']
         if document_type == 'packing_list':
@@ -1275,7 +1272,7 @@ class SupplierPortalController(http.Controller):
         return {'success': True, 'document_id': record.id}
 
     @http.route('/supplier/api/v2/delete_document', type='json', auth='public', csrf=False)
-    def api_delete_document(self, token, document_id):
+    def api_delete_document(self, token=None, document_id=None, **kw):
         access = self._validate_token(token)
         if not access:
             return {'success': False, 'message': 'Token invalido.'}
@@ -1288,8 +1285,11 @@ class SupplierPortalController(http.Controller):
 
         authorized = False
         if record.shipment_id:
-            authorized = self._belongs_to_proforma(proforma, shipment=record.shipment_id)
-        elif record.proforma_id and record.proforma_id.id == proforma.id:
+            # shipment_id is now Integer, need to browse
+            shipment = request.env['supplier.shipment'].sudo().browse(record.shipment_id)
+            if shipment.exists():
+                authorized = self._belongs_to_proforma(proforma, shipment=shipment)
+        elif record.proforma_id and record.proforma_id == proforma.id:
             authorized = True
 
         if not authorized:
@@ -1299,7 +1299,7 @@ class SupplierPortalController(http.Controller):
         return {'success': True}
 
     @http.route('/supplier/api/v2/list_documents', type='json', auth='public', csrf=False)
-    def api_list_documents(self, token, shipment_id=None):
+    def api_list_documents(self, token=None, shipment_id=None, **kw):
         access = self._validate_token(token)
         if not access:
             return {'success': False, 'message': 'Token invalido.'}
@@ -1325,7 +1325,7 @@ class SupplierPortalController(http.Controller):
     # =====================================================================
 
     @http.route('/supplier/api/v2/complete', type='json', auth='public', csrf=False)
-    def api_complete(self, token):
+    def api_complete(self, token=None, **kw):
         access = self._validate_token(token)
         if not access:
             return {'success': False, 'message': 'Token invalido.'}
@@ -1389,7 +1389,7 @@ class SupplierPortalController(http.Controller):
     # =====================================================================
 
     @http.route('/supplier/api/v2/reload', type='json', auth='public', csrf=False)
-    def api_reload(self, token):
+    def api_reload(self, token=None, **kw):
         access = self._validate_token(token)
         if not access:
             return {'success': False, 'message': 'Token invalido.'}
@@ -1405,7 +1405,7 @@ class SupplierPortalController(http.Controller):
     # =====================================================================
 
     @http.route('/supplier/api/v2/upload_row_image', type='json', auth='public', csrf=False)
-    def api_upload_row_image(self, token, row_id, image_data, image_name=None):
+    def api_upload_row_image(self, token=None, row_id=None, image_data=None, image_name=None, **kw):
         access = self._validate_token(token)
         if not access:
             return {'success': False, 'message': 'Token invalido.'}
@@ -1427,7 +1427,7 @@ class SupplierPortalController(http.Controller):
         return {'success': True, 'row_id': row.id}
 
     @http.route('/supplier/api/v2/delete_row_image', type='json', auth='public', csrf=False)
-    def api_delete_row_image(self, token, row_id):
+    def api_delete_row_image(self, token=None, row_id=None, **kw):
         access = self._validate_token(token)
         if not access:
             return {'success': False, 'message': 'Token invalido.'}
@@ -1449,7 +1449,8 @@ class SupplierPortalController(http.Controller):
     # =====================================================================
 
     @http.route('/supplier/api/v2/upload_block_image', type='json', auth='public', csrf=False)
-    def api_upload_block_image(self, token, shipment_id, block_name, product_id, image_data, image_name=None):
+    def api_upload_block_image(self, token=None, shipment_id=None, block_name=None,
+                               product_id=None, image_data=None, image_name=None, **kw):
         access = self._validate_token(token)
         if not access:
             return {'success': False, 'message': 'Token invalido.'}
@@ -1459,7 +1460,7 @@ class SupplierPortalController(http.Controller):
         if not shipment.exists() or not self._belongs_to_proforma(proforma, shipment=shipment):
             return {'success': False, 'message': 'Embarque no encontrado o no autorizado.'}
 
-        if not block_name or not block_name.strip():
+        if not block_name or not str(block_name).strip():
             return {'success': False, 'message': 'Nombre de bloque requerido.'}
 
         if not image_data:
@@ -1468,7 +1469,7 @@ class SupplierPortalController(http.Controller):
         BlockImage = request.env['supplier.shipment.block.image'].sudo()
         vals = {
             'shipment_id': shipment.id,
-            'block_name': block_name.strip(),
+            'block_name': str(block_name).strip(),
             'product_id': self._safe_int(product_id),
             'image': image_data,
             'image_filename': image_name or 'block_photo',
@@ -1477,7 +1478,7 @@ class SupplierPortalController(http.Controller):
         return {'success': True, 'block_image_id': record.id}
 
     @http.route('/supplier/api/v2/delete_block_image', type='json', auth='public', csrf=False)
-    def api_delete_block_image(self, token, block_image_id):
+    def api_delete_block_image(self, token=None, block_image_id=None, **kw):
         access = self._validate_token(token)
         if not access:
             return {'success': False, 'message': 'Token invalido.'}
@@ -1495,7 +1496,7 @@ class SupplierPortalController(http.Controller):
         return {'success': True}
 
     @http.route('/supplier/api/v2/get_block_images', type='json', auth='public', csrf=False)
-    def api_get_block_images(self, token, shipment_id):
+    def api_get_block_images(self, token=None, shipment_id=None, **kw):
         access = self._validate_token(token)
         if not access:
             return {'success': False, 'message': 'Token invalido.'}
@@ -1520,7 +1521,7 @@ class SupplierPortalController(http.Controller):
     # =====================================================================
 
     @http.route('/supplier/pl/submit', type='json', auth='public', csrf=False)
-    def submit_pl_data(self, token, rows, header=None, files=None):
+    def submit_pl_data(self, token=None, rows=None, header=None, files=None, **kw):
         access = self._validate_token(token)
         if not access:
             return {'success': False, 'message': 'Token invalido.'}
@@ -1532,7 +1533,7 @@ class SupplierPortalController(http.Controller):
             return {'success': False, 'message': 'La recepcion ya fue procesada.'}
 
         try:
-            picking.sudo().update_packing_list_from_portal(rows, header_data=header)
+            picking.sudo().update_packing_list_from_portal(rows or [], header_data=header)
             if files:
                 picking.sudo()._process_portal_attachments(files)
             return {'success': True}
