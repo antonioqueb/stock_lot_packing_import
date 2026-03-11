@@ -1,5 +1,5 @@
 /* static/src/scss/supplier_portal.scss */
-/* v4.1 — Standardized input heights & per-row container assignment */
+/* v4.2 — Standardized 32px input/select heights across all contexts */
 
 /* --- Variables: Palette Cream & Wood --- */
 $bg-body: #F9F9F7;
@@ -215,11 +215,12 @@ body {
             border: 1px solid $input-border !important;
             color: $text-main !important;
             border-radius: 5px;
-            padding: 8px 10px;
+            padding: 0 10px;
             font-size: 0.9rem;
+            height: 32px;
+            box-sizing: border-box;
             transition: all 0.2s ease;
             width: 100%;
-            box-sizing: border-box;
 
             &:focus {
                 border-color: $primary-wood !important;
@@ -546,13 +547,31 @@ body {
             text-transform: uppercase;
         }
 
-        input, select, textarea {
+        input, select {
+            background: #FFF;
+            border: 1px solid $input-border;
+            color: $text-main;
+            border-radius: 4px;
+            padding: 0 8px;
+            font-size: 0.85rem;
+            height: 32px;
+            box-sizing: border-box;
+
+            &:focus {
+                outline: none;
+                border-color: $primary-wood;
+                box-shadow: 0 0 0 2px rgba(139, 90, 43, 0.1);
+            }
+        }
+
+        textarea {
             background: #FFF;
             border: 1px solid $input-border;
             color: $text-main;
             border-radius: 4px;
             padding: 6px 8px;
             font-size: 0.85rem;
+            box-sizing: border-box;
 
             &:focus {
                 outline: none;
@@ -822,13 +841,32 @@ body {
             text-transform: uppercase;
         }
 
-        input, select, textarea {
+        input, select {
+            background: #FFF;
+            border: 1px solid $input-border;
+            color: $text-main;
+            border-radius: 5px;
+            padding: 0 10px;
+            font-size: 0.87rem;
+            height: 32px;
+            box-sizing: border-box;
+
+            &:focus {
+                outline: none;
+                border-color: $primary-wood;
+                box-shadow: 0 0 0 2px rgba(139, 90, 43, 0.1);
+            }
+            &::placeholder { color: #BBB; }
+        }
+
+        textarea {
             background: #FFF;
             border: 1px solid $input-border;
             color: $text-main;
             border-radius: 5px;
             padding: 7px 10px;
             font-size: 0.87rem;
+            box-sizing: border-box;
 
             &:focus {
                 outline: none;
