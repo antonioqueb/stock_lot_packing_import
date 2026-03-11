@@ -1,5 +1,5 @@
 /* static/src/scss/supplier_portal.scss */
-/* v4.0 — Simplified Packings */
+/* v4.1 — Standardized input heights & per-row container assignment */
 
 /* --- Variables: Palette Cream & Wood --- */
 $bg-body: #F9F9F7;
@@ -584,63 +584,6 @@ body {
     &:hover { background: rgba(139, 90, 43, 0.06); }
 }
 
-/* =====================================================================
- *  PACKING CONTAINER CHECKBOXES (v4.0)
- * ===================================================================== */
-
-.pk-container-checks-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    padding: 6px 0;
-}
-
-.pk-container-check-item {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 5px 12px;
-    border: 1px solid #DDD;
-    border-radius: 8px;
-    background: #FFF;
-    cursor: pointer;
-    font-size: 0.82rem;
-    font-weight: 600;
-    color: $text-main;
-    transition: all 0.2s;
-    user-select: none;
-
-    &:hover {
-        border-color: $primary-wood;
-        background: #FFFCF8;
-    }
-
-    input[type="checkbox"] {
-        accent-color: $primary-wood;
-        width: 16px;
-        height: 16px;
-        cursor: pointer;
-    }
-
-    &:has(input:checked) {
-        border-color: $primary-wood;
-        background: #FFF8F0;
-        color: $primary-wood;
-    }
-}
-
-.pk-no-containers-hint {
-    padding: 10px 14px;
-    border-radius: 8px;
-    background: #F8F6F3;
-    border: 1px solid #E8E0D4;
-    color: $text-muted;
-    font-size: 0.82rem;
-    line-height: 1.4;
-
-    i { color: $accent-amber; }
-}
-
 /* --- PACKING ROWS TABLE --- */
 .product-section {
     background: $bg-card;
@@ -765,6 +708,7 @@ body {
     }
 }
 
+/* --- INPUT GROUP PORTAL (standardized 32px height) --- */
 .input-group-portal {
     display: flex;
     align-items: center;
@@ -775,12 +719,14 @@ body {
         background: $bg-input;
         border: 1px solid $input-border;
         color: $text-main;
-        padding: 6px 8px;
-        height: 32px;
+        padding: 0 8px;
         border-radius: 4px;
         width: 100%;
         font-family: 'Inter', monospace;
         font-size: 0.85rem;
+        height: 32px;
+        line-height: 32px;
+        box-sizing: border-box;
 
         &:focus {
             outline: none;
@@ -796,6 +742,7 @@ body {
         padding: 4px 8px;
         border-radius: 4px;
         min-width: 26px;
+        height: 32px;
         font-size: 0.8rem;
         cursor: pointer;
         
@@ -807,22 +754,7 @@ body {
 }
 
 .row-container-select {
-    min-width: 140px;
-    max-width: 200px;
-    height: 32px;
-    width: 100%;
-    padding: 6px 8px;
-    border: 1px solid $input-border;
-    border-radius: 4px;
-    background: #FFF;
-    color: $text-main;
-    font-size: 0.82rem;
-
-    &:focus {
-        outline: none;
-        border-color: $primary-wood;
-        box-shadow: 0 0 0 2px rgba(139, 90, 43, 0.1);
-    }
+    min-width: 130px;
 }
 
 .btn-action {
