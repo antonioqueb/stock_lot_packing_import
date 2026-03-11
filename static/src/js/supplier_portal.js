@@ -1,10 +1,10 @@
 /* static/src/js/supplier_portal.js */
-/* v3.4 — Container-first Packings + Shared Packing Support */
+/* v4.0 — Simplified Packings: single button, checkbox containers */
 /* Hierarchical Portal: Proforma → Shipments → Docs → Containers → Packings */
 (function () {
     "use strict";
 
-    console.log("[Portal] 🚀 Script v3.4 (Container-first Packings) Loaded.");
+    console.log("[Portal] 🚀 Script v4.0 (Simplified Packings) Loaded.");
 
     // =========================================================================
     //  TRANSLATIONS (i18n)
@@ -34,13 +34,11 @@
             lbl_inv_scope: "Scope", scope_full: "Full Shipment", scope_specific: "Specific Containers",
             lbl_cont_number: "Container No.", lbl_cont_seal: "Seal No.", lbl_cont_type: "Type",
             lbl_cont_weight: "Weight (kg)", lbl_cont_volume: "Volume (m³)", lbl_cont_packages: "Packages",
-            lbl_pk_number: "Packing No.", lbl_pk_date: "Date", lbl_pk_scope: "Scope",
-            lbl_pk_file: "Packing File",
+            lbl_pk_number: "Packing No.", lbl_pk_date: "Date",
+            lbl_pk_containers: "Containers covered",
+            lbl_pk_no_containers: "No containers registered yet. This packing will apply to the entire shipment.",
             btn_add: "Add", btn_remove: "Remove", btn_add_invoice: "+ Invoice", btn_add_container: "+ Container",
             btn_add_packing: "+ Packing List",
-            btn_add_packing_single: "+ Packing per Container",
-            btn_add_packing_multi: "+ Shared Packing",
-            btn_add_packing_full: "+ Shipment Packing",
             btn_save_packing: "Save Packing", btn_delete_packing: "Delete",
             footer_total_shipments: "Shipments:", footer_total_containers: "Containers:",
             footer_total_invoices: "Invoices:", btn_complete: "Mark as Complete",
@@ -67,39 +65,7 @@
             opt_maritime: "Maritime", opt_air: "Air", opt_land: "Land",
             st_draft: "Draft", st_in_production: "In Production", st_booked: "Booked",
             st_departed: "Departed", st_in_transit: "In Transit", st_arrived: "Arrived", st_delivered: "Delivered",
-
-            // new
-            pk_mode_title: "Packing Structure",
-            pk_mode_help: "Choose how this packing relates to containers.",
-            pk_mode_full: "Shipment-level packing",
-            pk_mode_single: "One packing for one container",
-            pk_mode_multi: "One packing for multiple containers",
-            pk_single_container: "Assigned container",
-            pk_multi_containers: "Containers covered by this packing",
-            pk_container_first_hint: "Recommended when each container has its own packing list.",
-            pk_shared_hint: "Use when one packing list supports multiple containers and materials must be split per container.",
-            pk_full_hint: "Use only when the supplier does not yet know container allocation.",
-            pk_recommendation_single: "Recommendation: create one packing per container for maximum traceability.",
-            pk_recommendation_multi: "Shared packing is useful only if one vendor document supports multiple containers.",
-            pk_group_title: "Container-first view",
-            pk_group_unassigned: "Shipment-level / unassigned packings",
-            pk_no_packings_for_container: "No packings linked to this container yet.",
-            pk_scope_detected: "Detected mode",
-            pk_detected_single: "Single container",
-            pk_detected_multi: "Multiple containers",
-            pk_detected_full: "Full shipment",
-            msg_need_container_for_single: "Select the container for this packing.",
-            msg_need_containers_for_multi: "Select at least one container for this shared packing.",
-            msg_need_row_container_for_multi: "All rows must have a container assigned in shared packing mode.",
-            msg_need_rows_for_single: "At least one row should belong to the selected container.",
-            msg_no_containers_yet: "Create containers first to use container-based packings.",
-            lbl_containers_linked: "Linked Containers",
-            lbl_mode: "Mode",
-            lbl_detected_mode: "Detected",
-            btn_expand_rows: "Rows",
-            btn_hide_rows: "Hide rows",
-            txt_yes: "Yes",
-            txt_no: "No",
+            btn_expand_rows: "Show Rows", btn_hide_rows: "Hide Rows",
         },
         es: {
             header_provider: "PROVEEDOR", po_label: "Orden de Compra:", receipt_label: "Recepción:",
@@ -125,13 +91,11 @@
             lbl_inv_scope: "Alcance", scope_full: "Todo el Embarque", scope_specific: "Contenedores Específicos",
             lbl_cont_number: "No. Contenedor", lbl_cont_seal: "No. Sello", lbl_cont_type: "Tipo",
             lbl_cont_weight: "Peso (kg)", lbl_cont_volume: "Volumen (m³)", lbl_cont_packages: "Paquetes",
-            lbl_pk_number: "No. Packing", lbl_pk_date: "Fecha", lbl_pk_scope: "Alcance",
-            lbl_pk_file: "Archivo PL",
+            lbl_pk_number: "No. Packing", lbl_pk_date: "Fecha",
+            lbl_pk_containers: "Contenedores que cubre",
+            lbl_pk_no_containers: "Aún no hay contenedores registrados. Este packing aplicará a todo el embarque.",
             btn_add: "Agregar", btn_remove: "Eliminar", btn_add_invoice: "+ Invoice", btn_add_container: "+ Contenedor",
             btn_add_packing: "+ Packing List",
-            btn_add_packing_single: "+ Packing por Contenedor",
-            btn_add_packing_multi: "+ Packing Compartido",
-            btn_add_packing_full: "+ Packing del Embarque",
             btn_save_packing: "Guardar Packing", btn_delete_packing: "Eliminar",
             footer_total_shipments: "Embarques:", footer_total_containers: "Contenedores:",
             footer_total_invoices: "Invoices:", btn_complete: "Marcar como Completa",
@@ -158,39 +122,7 @@
             opt_maritime: "Marítimo", opt_air: "Aéreo", opt_land: "Terrestre",
             st_draft: "Borrador", st_in_production: "En Producción", st_booked: "Reservado",
             st_departed: "Despachado", st_in_transit: "En Tránsito", st_arrived: "Llegó", st_delivered: "Entregado",
-
-            // new
-            pk_mode_title: "Estructura del Packing",
-            pk_mode_help: "Seleccione cómo se relaciona este packing con los contenedores.",
-            pk_mode_full: "Packing a nivel embarque",
-            pk_mode_single: "Un packing para un contenedor",
-            pk_mode_multi: "Un packing para varios contenedores",
-            pk_single_container: "Contenedor asignado",
-            pk_multi_containers: "Contenedores cubiertos por este packing",
-            pk_container_first_hint: "Recomendado cuando cada contenedor tiene su propio packing list.",
-            pk_shared_hint: "Úselo cuando un mismo packing list avala múltiples contenedores y el material debe dividirse por contenedor.",
-            pk_full_hint: "Úselo solo cuando el proveedor aún no conoce la distribución por contenedor.",
-            pk_recommendation_single: "Recomendación: crear un packing por contenedor para máxima trazabilidad.",
-            pk_recommendation_multi: "El packing compartido solo conviene si un documento del proveedor cubre varios contenedores.",
-            pk_group_title: "Vista contenedor primero",
-            pk_group_unassigned: "Packings a nivel embarque / sin asignar",
-            pk_no_packings_for_container: "Aún no hay packings vinculados a este contenedor.",
-            pk_scope_detected: "Modo detectado",
-            pk_detected_single: "Contenedor único",
-            pk_detected_multi: "Múltiples contenedores",
-            pk_detected_full: "Embarque completo",
-            msg_need_container_for_single: "Seleccione el contenedor para este packing.",
-            msg_need_containers_for_multi: "Seleccione al menos un contenedor para este packing compartido.",
-            msg_need_row_container_for_multi: "Todas las filas deben tener un contenedor asignado en modo packing compartido.",
-            msg_need_rows_for_single: "Al menos una fila debe pertenecer al contenedor seleccionado.",
-            msg_no_containers_yet: "Primero capture contenedores para usar packings por contenedor.",
-            lbl_containers_linked: "Contenedores Vinculados",
-            lbl_mode: "Modo",
-            lbl_detected_mode: "Detectado",
-            btn_expand_rows: "Filas",
-            btn_hide_rows: "Ocultar filas",
-            txt_yes: "Sí",
-            txt_no: "No",
+            btn_expand_rows: "Ver Filas", btn_hide_rows: "Ocultar Filas",
         },
         zh: {
             header_provider: "供应商", po_label: "采购订单:", receipt_label: "收货单:",
@@ -216,13 +148,11 @@
             lbl_inv_scope: "范围", scope_full: "整批", scope_specific: "指定集装箱",
             lbl_cont_number: "集装箱号", lbl_cont_seal: "封条号", lbl_cont_type: "类型",
             lbl_cont_weight: "重量 (kg)", lbl_cont_volume: "体积 (m³)", lbl_cont_packages: "件数",
-            lbl_pk_number: "装箱单号", lbl_pk_date: "日期", lbl_pk_scope: "范围",
-            lbl_pk_file: "装箱单文件",
+            lbl_pk_number: "装箱单号", lbl_pk_date: "日期",
+            lbl_pk_containers: "覆盖的集装箱",
+            lbl_pk_no_containers: "尚未注册集装箱。此装箱单将适用于整票。",
             btn_add: "添加", btn_remove: "删除", btn_add_invoice: "+ 发票", btn_add_container: "+ 集装箱",
             btn_add_packing: "+ 装箱单",
-            btn_add_packing_single: "+ 每柜装箱单",
-            btn_add_packing_multi: "+ 共享装箱单",
-            btn_add_packing_full: "+ 整票装箱单",
             btn_save_packing: "保存装箱单", btn_delete_packing: "删除",
             footer_total_shipments: "发货:", footer_total_containers: "集装箱:",
             footer_total_invoices: "发票:", btn_complete: "标记为完成",
@@ -249,39 +179,7 @@
             opt_maritime: "海运", opt_air: "空运", opt_land: "陆运",
             st_draft: "草稿", st_in_production: "生产中", st_booked: "已预订",
             st_departed: "已发运", st_in_transit: "运输中", st_arrived: "已到达", st_delivered: "已交付",
-
-            // new
-            pk_mode_title: "装箱单结构",
-            pk_mode_help: "选择该装箱单与集装箱的关系。",
-            pk_mode_full: "整票装箱单",
-            pk_mode_single: "一个装箱单对应一个集装箱",
-            pk_mode_multi: "一个装箱单对应多个集装箱",
-            pk_single_container: "已分配集装箱",
-            pk_multi_containers: "该装箱单覆盖的集装箱",
-            pk_container_first_hint: "当每个集装箱都有独立装箱单时推荐使用。",
-            pk_shared_hint: "当一个供应商装箱单对应多个集装箱且物料需按集装箱拆分时使用。",
-            pk_full_hint: "仅在供应商尚未明确集装箱分配时使用。",
-            pk_recommendation_single: "建议：每个集装箱一个装箱单，便于追溯。",
-            pk_recommendation_multi: "共享装箱单仅适用于一个供应商文件对应多个集装箱。",
-            pk_group_title: "集装箱优先视图",
-            pk_group_unassigned: "整票 / 未分配装箱单",
-            pk_no_packings_for_container: "该集装箱尚无关联装箱单。",
-            pk_scope_detected: "识别模式",
-            pk_detected_single: "单集装箱",
-            pk_detected_multi: "多集装箱",
-            pk_detected_full: "整票",
-            msg_need_container_for_single: "请选择该装箱单的集装箱。",
-            msg_need_containers_for_multi: "请至少选择一个集装箱。",
-            msg_need_row_container_for_multi: "共享装箱单模式下所有行都必须分配集装箱。",
-            msg_need_rows_for_single: "至少有一行属于所选集装箱。",
-            msg_no_containers_yet: "请先创建集装箱，再使用按集装箱装箱单。",
-            lbl_containers_linked: "关联集装箱",
-            lbl_mode: "模式",
-            lbl_detected_mode: "识别",
-            btn_expand_rows: "行",
-            btn_hide_rows: "隐藏行",
-            txt_yes: "是",
-            txt_no: "否",
+            btn_expand_rows: "显示行", btn_hide_rows: "隐藏行",
         }
     };
 
@@ -289,7 +187,6 @@
     //  HELPERS
     // =========================================================================
     function jsonRpc(url, params) {
-        console.log(`[Portal][RPC] >>> POST ${url}`, JSON.stringify(params).substring(0, 300));
         return fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -331,6 +228,7 @@
             this.expandedShipmentId = null;
             this.activeTabByShipment = {};
             this.packingRows = {};
+            this.expandedPackingIds = new Set();
             this.nextRowId = 1;
             this._eventsBound = false;
 
@@ -395,9 +293,9 @@
                 const el = document.getElementById(id);
                 if (el) el.textContent = val || '-';
             };
-            setTxt('portal-po-name', this.data.po_name || this.data.poName || this.proforma.po_name || '');
-            setTxt('portal-picking-name', this.data.picking_name || this.data.pickingName || this.proforma.picking_name || '');
-            setTxt('portal-vendor-name', this.data.vendor_name || this.data.partner_name || this.proforma.vendor_name || this.t('header_provider'));
+            setTxt('portal-po-name', this.data.po_name || this.data.poName || '');
+            setTxt('portal-picking-name', this.data.picking_name || this.data.pickingName || '');
+            setTxt('portal-vendor-name', this.data.vendor_name || this.data.partner_name || this.t('header_provider'));
         }
 
         // =====================================================================
@@ -445,28 +343,17 @@
 
         async saveGlobals() {
             const btn = document.getElementById('btn-save-globals');
-            if (btn) {
-                btn.disabled = true;
-                btn.innerHTML = `<i class="fa fa-spinner fa-spin me-2"></i> ${this.t('msg_saving')}`;
-            }
+            if (btn) { btn.disabled = true; btn.innerHTML = `<i class="fa fa-spinner fa-spin me-2"></i> ${this.t('msg_saving')}`; }
             try {
-                const res = await jsonRpc('/supplier/api/v2/save_globals', {
-                    token: this.token,
-                    globals_data: this.getGlobalsFromForm()
-                });
+                const res = await jsonRpc('/supplier/api/v2/save_globals', { token: this.token, globals_data: this.getGlobalsFromForm() });
                 if (res.success) {
                     this.toast(this.t('msg_saved'), 'success');
                     Object.assign(this.proforma, this.getGlobalsFromForm());
                 } else {
                     this.toast(this.t('msg_error') + (res.message || ''), 'error');
                 }
-            } catch (e) {
-                this.toast(this.t('msg_error') + e.message, 'error');
-            }
-            if (btn) {
-                btn.disabled = false;
-                btn.innerHTML = `<i class="fa fa-save me-2"></i> ${this.t('btn_save_globals')}`;
-            }
+            } catch (e) { this.toast(this.t('msg_error') + e.message, 'error'); }
+            if (btn) { btn.disabled = false; btn.innerHTML = `<i class="fa fa-save me-2"></i> ${this.t('btn_save_globals')}`; }
         }
 
         // =====================================================================
@@ -525,7 +412,6 @@
         createEmptyState() {
             const d = document.createElement('div');
             d.className = 'empty-state';
-            d.id = 'no-shipments-msg';
             d.innerHTML = `<i class="fa fa-inbox fa-3x"></i><p>${this.t('msg_no_shipments')}</p>`;
             return d;
         }
@@ -553,17 +439,9 @@
                 </div>
                 <div class="shipment-block-body" style="display:none;"></div>`;
 
-            block.querySelector('.btn-toggle-shipment').addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.toggleShipment(s.id);
-            });
-            block.querySelector('.shipment-block-header').addEventListener('click', () => {
-                this.toggleShipment(s.id);
-            });
-            block.querySelector('.btn-delete-shipment').addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.deleteShipment(s.id);
-            });
+            block.querySelector('.btn-toggle-shipment').addEventListener('click', (e) => { e.stopPropagation(); this.toggleShipment(s.id); });
+            block.querySelector('.shipment-block-header').addEventListener('click', () => { this.toggleShipment(s.id); });
+            block.querySelector('.btn-delete-shipment').addEventListener('click', (e) => { e.stopPropagation(); this.deleteShipment(s.id); });
 
             return block;
         }
@@ -614,12 +492,8 @@
                     this.expandedShipmentId = res.shipment_id;
                     this.renderAll();
                     this.toast(this.t('msg_saved'), 'success');
-                } else {
-                    this.toast(this.t('msg_error') + (res.message || ''), 'error');
-                }
-            } catch (e) {
-                this.toast(this.t('msg_error') + e.message, 'error');
-            }
+                } else { this.toast(this.t('msg_error') + (res.message || ''), 'error'); }
+            } catch (e) { this.toast(this.t('msg_error') + e.message, 'error'); }
         }
 
         async deleteShipment(shipmentId) {
@@ -630,30 +504,30 @@
                 await this.reloadProforma();
                 this.renderAll();
                 this.toast(this.t('msg_saved'), 'success');
-            } catch (e) {
-                this.toast(this.t('msg_error') + e.message, 'error');
-            }
+            } catch (e) { this.toast(this.t('msg_error') + e.message, 'error'); }
         }
 
         // =====================================================================
-        //  SHIPMENT BODY (tabs)
+        //  SHIPMENT BODY (tabs) — REORDERED: logistics, bl, containers, invoices, packings
         // =====================================================================
         renderShipmentBody(bodyEl, s) {
             const activeTab = this.activeTabByShipment[s.id] || 'logistics';
+            const tabOrder = ['logistics', 'bl', 'containers', 'invoices', 'packings'];
+            const tabIcons = { logistics: 'fa-truck', bl: 'fa-file-text', containers: 'fa-cube', invoices: 'fa-file-invoice-dollar', packings: 'fa-boxes' };
+            const tabLabels = { logistics: this.t('tab_logistics'), bl: this.t('tab_bl'), containers: this.t('tab_containers'), invoices: this.t('tab_invoices'), packings: this.t('tab_packings') };
+            const tabCounts = { containers: (s.containers || []).length, invoices: (s.invoices || []).length, packings: (s.packings || []).length };
 
-            bodyEl.innerHTML = `
-                <div class="shipment-tabs">
-                    ${this._tabBtn('logistics', 'fa-truck', this.t('tab_logistics'), activeTab, s.id)}
-                    ${this._tabBtn('bl', 'fa-file-text', this.t('tab_bl'), activeTab, s.id)}
-                    ${this._tabBtn('invoices', 'fa-file-invoice-dollar', this.t('tab_invoices'), activeTab, s.id, (s.invoices || []).length)}
-                    ${this._tabBtn('packings', 'fa-boxes', this.t('tab_packings'), activeTab, s.id, (s.packings || []).length)}
-                    ${this._tabBtn('containers', 'fa-cube', this.t('tab_containers'), activeTab, s.id, (s.containers || []).length)}
-                </div>
-                <div id="stab-logistics-${s.id}" class="shipment-tab-content ${activeTab === 'logistics' ? 'active' : ''}"></div>
-                <div id="stab-bl-${s.id}" class="shipment-tab-content ${activeTab === 'bl' ? 'active' : ''}"></div>
-                <div id="stab-invoices-${s.id}" class="shipment-tab-content ${activeTab === 'invoices' ? 'active' : ''}"></div>
-                <div id="stab-packings-${s.id}" class="shipment-tab-content ${activeTab === 'packings' ? 'active' : ''}"></div>
-                <div id="stab-containers-${s.id}" class="shipment-tab-content ${activeTab === 'containers' ? 'active' : ''}"></div>`;
+            let tabsHtml = '<div class="shipment-tabs">';
+            let contentHtml = '';
+            for (const name of tabOrder) {
+                const isActive = activeTab === name;
+                const countHtml = tabCounts[name] !== undefined ? `<span class="tab-count">${tabCounts[name]}</span>` : '';
+                tabsHtml += `<div class="shipment-tab ${isActive ? 'active' : ''}" data-tab="${name}"><i class="fa ${tabIcons[name]}"></i> ${tabLabels[name]} ${countHtml}</div>`;
+                contentHtml += `<div id="stab-${name}-${s.id}" class="shipment-tab-content ${isActive ? 'active' : ''}"></div>`;
+            }
+            tabsHtml += '</div>';
+
+            bodyEl.innerHTML = tabsHtml + contentHtml;
 
             bodyEl.querySelectorAll('.shipment-tab').forEach(tab => {
                 tab.addEventListener('click', () => {
@@ -668,16 +542,9 @@
             this.renderTabContent(activeTab, s);
         }
 
-        _tabBtn(name, icon, label, active, sid, count) {
-            const isActive = active === name ? 'active' : '';
-            const countHtml = count !== undefined ? `<span class="tab-count">${count}</span>` : '';
-            return `<div class="shipment-tab ${isActive}" data-tab="${name}"><i class="fa ${icon}"></i> ${label} ${countHtml}</div>`;
-        }
-
         renderTabContent(tabName, s) {
             const el = document.getElementById(`stab-${tabName}-${s.id}`);
             if (!el) return;
-
             switch (tabName) {
                 case 'logistics': this.renderLogisticsTab(el, s); break;
                 case 'bl': this.renderBLTab(el, s); break;
@@ -696,120 +563,51 @@
 
             el.innerHTML = `
                 <div class="shipment-form-grid">
-                    <div class="sf-field">
-                        <label>${this.t('lbl_shipment_type')}</label>
-                        <select data-sf="shipment_type"><option value="">${this.t('opt_select')}</option>${typeOpts}</select>
-                    </div>
-                    <div class="sf-field">
-                        <label>${this.t('lbl_shipping_line')}</label>
-                        <input type="text" data-sf="shipping_line" value="${esc(s.shipping_line)}" placeholder="Ej. MAERSK"/>
-                    </div>
-                    <div class="sf-field">
-                        <label>${this.t('lbl_vessel')}</label>
-                        <input type="text" data-sf="vessel_name" value="${esc(s.vessel_name)}" placeholder="Ej. SEALAND VOYAGER"/>
-                    </div>
-                    <div class="sf-field">
-                        <label>${this.t('lbl_etd')}</label>
-                        <input type="date" data-sf="etd" value="${esc(s.etd)}"/>
-                    </div>
-                    <div class="sf-field">
-                        <label>${this.t('lbl_eta')}</label>
-                        <input type="date" data-sf="eta" value="${esc(s.eta)}"/>
-                    </div>
-                    <div class="sf-field">
-                        <label>${this.t('lbl_port_origin')}</label>
-                        <input type="text" data-sf="port_origin" value="${esc(s.port_origin)}" placeholder="${this.t('ph_origin')}"/>
-                    </div>
-                    <div class="sf-field">
-                        <label>${this.t('lbl_port_dest')}</label>
-                        <input type="text" data-sf="port_destination" value="${esc(s.port_destination)}" placeholder="${this.t('ph_dest')}"/>
-                    </div>
-                    <div class="sf-field">
-                        <label>${this.t('lbl_status')}</label>
-                        <select data-sf="status">${statusOpts}</select>
-                    </div>
-                    <div class="sf-field sf-wide">
-                        <label>${this.t('lbl_notes')}</label>
-                        <textarea data-sf="notes" rows="2">${esc(s.notes)}</textarea>
-                    </div>
+                    <div class="sf-field"><label>${this.t('lbl_shipment_type')}</label><select data-sf="shipment_type"><option value="">${this.t('opt_select')}</option>${typeOpts}</select></div>
+                    <div class="sf-field"><label>${this.t('lbl_shipping_line')}</label><input type="text" data-sf="shipping_line" value="${esc(s.shipping_line)}" placeholder="Ej. MAERSK"/></div>
+                    <div class="sf-field"><label>${this.t('lbl_vessel')}</label><input type="text" data-sf="vessel_name" value="${esc(s.vessel_name)}"/></div>
+                    <div class="sf-field"><label>${this.t('lbl_etd')}</label><input type="date" data-sf="etd" value="${esc(s.etd)}"/></div>
+                    <div class="sf-field"><label>${this.t('lbl_eta')}</label><input type="date" data-sf="eta" value="${esc(s.eta)}"/></div>
+                    <div class="sf-field"><label>${this.t('lbl_port_origin')}</label><input type="text" data-sf="port_origin" value="${esc(s.port_origin)}"/></div>
+                    <div class="sf-field"><label>${this.t('lbl_port_dest')}</label><input type="text" data-sf="port_destination" value="${esc(s.port_destination)}"/></div>
+                    <div class="sf-field"><label>${this.t('lbl_status')}</label><select data-sf="status">${statusOpts}</select></div>
+                    <div class="sf-field sf-wide"><label>${this.t('lbl_notes')}</label><textarea data-sf="notes" rows="2">${esc(s.notes)}</textarea></div>
                 </div>
-                <div class="text-end">
-                    <button type="button" class="btn-save-section btn-save-shipment-data" data-sid="${s.id}">
-                        <i class="fa fa-save me-2"></i> ${this.t('btn_save_shipment')}
-                    </button>
-                </div>`;
-
+                <div class="text-end"><button type="button" class="btn-save-section btn-save-shipment-data" data-sid="${s.id}"><i class="fa fa-save me-2"></i> ${this.t('btn_save_shipment')}</button></div>`;
             el.querySelector('.btn-save-shipment-data').addEventListener('click', () => this.saveShipmentData(s.id, el));
         }
 
         async saveShipmentData(shipmentId, formEl) {
             const data = {};
-            formEl.querySelectorAll('[data-sf]').forEach(input => {
-                data[input.dataset.sf] = input.value;
-            });
+            formEl.querySelectorAll('[data-sf]').forEach(input => { data[input.dataset.sf] = input.value; });
             try {
-                const res = await jsonRpc('/supplier/api/v2/update_shipment', {
-                    token: this.token, shipment_id: shipmentId, shipment_data: data
-                });
-                if (res.success) {
-                    await this.reloadProforma();
-                    this.renderAll();
-                    this.toast(this.t('msg_saved'), 'success');
-                } else {
-                    this.toast(this.t('msg_error') + (res.message || ''), 'error');
-                }
-            } catch (e) {
-                this.toast(this.t('msg_error') + e.message, 'error');
-            }
+                const res = await jsonRpc('/supplier/api/v2/update_shipment', { token: this.token, shipment_id: shipmentId, shipment_data: data });
+                if (res.success) { await this.reloadProforma(); this.renderAll(); this.toast(this.t('msg_saved'), 'success'); }
+                else { this.toast(this.t('msg_error') + (res.message || ''), 'error'); }
+            } catch (e) { this.toast(this.t('msg_error') + e.message, 'error'); }
         }
 
         // --- BL TAB ---
         renderBLTab(el, s) {
             el.innerHTML = `
                 <div class="shipment-form-grid">
-                    <div class="sf-field">
-                        <label>${this.t('lbl_bl_number')}</label>
-                        <input type="text" id="bl-num-${s.id}" value="${esc(s.bl_number)}" placeholder="Ej. COSU123456"/>
-                    </div>
-                    <div class="sf-field">
-                        <label>${this.t('lbl_bl_date')}</label>
-                        <input type="date" id="bl-date-${s.id}" value="${esc(s.bl_date)}"/>
-                    </div>
-                    <div class="sf-field">
-                        <label>${this.t('lbl_bl_file')}</label>
-                        <input type="file" id="bl-file-${s.id}" accept=".pdf,.jpg,.jpeg,.png"/>
-                    </div>
+                    <div class="sf-field"><label>${this.t('lbl_bl_number')}</label><input type="text" id="bl-num-${s.id}" value="${esc(s.bl_number)}"/></div>
+                    <div class="sf-field"><label>${this.t('lbl_bl_date')}</label><input type="date" id="bl-date-${s.id}" value="${esc(s.bl_date)}"/></div>
+                    <div class="sf-field"><label>${this.t('lbl_bl_file')}</label><input type="file" id="bl-file-${s.id}" accept=".pdf,.jpg,.jpeg,.png"/></div>
                 </div>
-                <div class="text-end mt-2">
-                    <button type="button" class="btn-save-section" id="btn-save-bl-${s.id}">
-                        <i class="fa fa-save me-2"></i> ${this.t('btn_save_shipment')}
-                    </button>
-                </div>`;
+                <div class="text-end mt-2"><button type="button" class="btn-save-section" id="btn-save-bl-${s.id}"><i class="fa fa-save me-2"></i> ${this.t('btn_save_shipment')}</button></div>`;
 
             document.getElementById(`btn-save-bl-${s.id}`).addEventListener('click', async () => {
-                const blData = {
-                    bl_number: document.getElementById(`bl-num-${s.id}`).value,
-                    bl_date: document.getElementById(`bl-date-${s.id}`).value || false,
-                };
+                const blData = { bl_number: document.getElementById(`bl-num-${s.id}`).value, bl_date: document.getElementById(`bl-date-${s.id}`).value || false };
                 try {
-                    await jsonRpc('/supplier/api/v2/update_shipment', {
-                        token: this.token, shipment_id: s.id, shipment_data: blData
-                    });
+                    await jsonRpc('/supplier/api/v2/update_shipment', { token: this.token, shipment_id: s.id, shipment_data: blData });
                     const fileInput = document.getElementById(`bl-file-${s.id}`);
                     if (fileInput.files.length > 0) {
                         const fileData = await this.readFileAsBase64(fileInput.files[0]);
-                        await jsonRpc('/supplier/api/v2/upload_file', {
-                            token: this.token, target_model: 'supplier.shipment',
-                            target_id: s.id, field_name: 'bl_file',
-                            file_data: fileData.data, file_name: fileData.name
-                        });
+                        await jsonRpc('/supplier/api/v2/upload_file', { token: this.token, target_model: 'supplier.shipment', target_id: s.id, field_name: 'bl_file', file_data: fileData.data, file_name: fileData.name });
                     }
-                    await this.reloadProforma();
-                    this.renderAll();
-                    this.toast(this.t('msg_saved'), 'success');
-                } catch (e) {
-                    this.toast(this.t('msg_error') + e.message, 'error');
-                }
+                    await this.reloadProforma(); this.renderAll(); this.toast(this.t('msg_saved'), 'success');
+                } catch (e) { this.toast(this.t('msg_error') + e.message, 'error'); }
             });
         }
 
@@ -818,7 +616,17 @@
             const invoices = s.invoices || [];
             let html = '';
             invoices.forEach((inv, idx) => {
-                html += this._invoiceCard(inv, idx, s);
+                html += `<div class="sub-item-card">
+                    <div class="sub-item-header"><span class="sub-item-title">Invoice #${idx + 1}</span><div class="sub-item-actions"><button type="button" class="btn-remove-inv" data-idx="${idx}"><i class="fa fa-trash"></i></button></div></div>
+                    <div class="sub-item-grid">
+                        <div class="sub-item-field"><label>${this.t('lbl_inv_number')}</label><input type="text" data-inv-idx="${idx}" data-inv-f="invoice_number" value="${esc(inv.invoice_number)}"/></div>
+                        <div class="sub-item-field"><label>${this.t('lbl_inv_date')}</label><input type="date" data-inv-idx="${idx}" data-inv-f="invoice_date" value="${esc(inv.invoice_date)}"/></div>
+                        <div class="sub-item-field"><label>${this.t('lbl_inv_amount')}</label><input type="number" step="0.01" data-inv-idx="${idx}" data-inv-f="amount" value="${inv.amount || 0}"/></div>
+                        <div class="sub-item-field"><label>${this.t('lbl_inv_scope')}</label>
+                            <select data-inv-idx="${idx}" data-inv-f="scope"><option value="full_shipment" ${inv.scope === 'full_shipment' ? 'selected' : ''}>${this.t('scope_full')}</option><option value="specific_containers" ${inv.scope === 'specific_containers' ? 'selected' : ''}>${this.t('scope_specific')}</option></select>
+                        </div>
+                    </div>
+                </div>`;
             });
             html += `<button type="button" class="btn-add-sub-item btn-add-inv" data-sid="${s.id}"><i class="fa fa-plus me-2"></i>${this.t('btn_add_invoice')}</button>`;
             html += `<div class="text-end mt-3"><button type="button" class="btn-save-section btn-save-all-invoices" data-sid="${s.id}"><i class="fa fa-save me-2"></i>${this.t('btn_save_invoices')}</button></div>`;
@@ -830,32 +638,9 @@
                 this.renderTabContent('invoices', s);
             });
             el.querySelectorAll('.btn-remove-inv').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    s.invoices.splice(parseInt(btn.dataset.idx), 1);
-                    this.renderTabContent('invoices', s);
-                });
+                btn.addEventListener('click', () => { s.invoices.splice(parseInt(btn.dataset.idx), 1); this.renderTabContent('invoices', s); });
             });
             el.querySelector('.btn-save-all-invoices').addEventListener('click', () => this.saveInvoices(s));
-        }
-
-        _invoiceCard(inv, idx, s) {
-            return `<div class="sub-item-card">
-                <div class="sub-item-header">
-                    <span class="sub-item-title">Invoice #${idx + 1}</span>
-                    <div class="sub-item-actions"><button type="button" class="btn-remove-inv" data-idx="${idx}"><i class="fa fa-trash"></i></button></div>
-                </div>
-                <div class="sub-item-grid">
-                    <div class="sub-item-field"><label>${this.t('lbl_inv_number')}</label><input type="text" data-inv-idx="${idx}" data-inv-f="invoice_number" value="${esc(inv.invoice_number)}"/></div>
-                    <div class="sub-item-field"><label>${this.t('lbl_inv_date')}</label><input type="date" data-inv-idx="${idx}" data-inv-f="invoice_date" value="${esc(inv.invoice_date)}"/></div>
-                    <div class="sub-item-field"><label>${this.t('lbl_inv_amount')}</label><input type="number" step="0.01" data-inv-idx="${idx}" data-inv-f="amount" value="${inv.amount || 0}"/></div>
-                    <div class="sub-item-field"><label>${this.t('lbl_inv_scope')}</label>
-                        <select data-inv-idx="${idx}" data-inv-f="scope">
-                            <option value="full_shipment" ${inv.scope === 'full_shipment' ? 'selected' : ''}>${this.t('scope_full')}</option>
-                            <option value="specific_containers" ${inv.scope === 'specific_containers' ? 'selected' : ''}>${this.t('scope_specific')}</option>
-                        </select>
-                    </div>
-                </div>
-            </div>`;
         }
 
         async saveInvoices(s) {
@@ -879,10 +664,7 @@
             let html = '';
             containers.forEach((c, idx) => {
                 html += `<div class="sub-item-card">
-                    <div class="sub-item-header">
-                        <span class="sub-item-title">${esc(c.container_number) || 'Container #' + (idx + 1)}</span>
-                        <div class="sub-item-actions"><button type="button" class="btn-remove-cnt" data-idx="${idx}"><i class="fa fa-trash"></i></button></div>
-                    </div>
+                    <div class="sub-item-header"><span class="sub-item-title">${esc(c.container_number) || 'Container #' + (idx + 1)}</span><div class="sub-item-actions"><button type="button" class="btn-remove-cnt" data-idx="${idx}"><i class="fa fa-trash"></i></button></div></div>
                     <div class="sub-item-grid">
                         <div class="sub-item-field"><label>${this.t('lbl_cont_number')}</label><input type="text" data-cnt-idx="${idx}" data-cnt-f="container_number" value="${esc(c.container_number)}"/></div>
                         <div class="sub-item-field"><label>${this.t('lbl_cont_seal')}</label><input type="text" data-cnt-idx="${idx}" data-cnt-f="seal_number" value="${esc(c.seal_number)}"/></div>
@@ -899,7 +681,7 @@
 
             el.querySelector('.btn-add-cnt').addEventListener('click', () => {
                 s.containers = s.containers || [];
-                s.containers.push({ id: 0, container_number: '', seal_number: '', container_type: '', weight: 0, volume: 0, packages: 0, notes: '' });
+                s.containers.push({ id: 0, container_number: '', seal_number: '', container_type: '', weight: 0, volume: 0, packages: 0 });
                 this.renderTabContent('containers', s);
             });
             el.querySelectorAll('.btn-remove-cnt').forEach(btn => {
@@ -926,353 +708,167 @@
         }
 
         // =====================================================================
-        //  PACKINGS TAB — CONTAINER-FIRST
+        //  PACKINGS TAB — SIMPLIFIED
         // =====================================================================
-        getShipmentContainers(s) {
-            return (s.containers || []).map(c => ({
-                id: asInt(c.id),
-                name: c.container_number || `Container #${c.id || ''}`,
-                raw: c
-            })).filter(c => c.id > 0 || c.raw.container_number || c.raw.seal_number);
-        }
-
-        inferPackingMeta(pk, s) {
-            const rows = pk.rows || [];
-            const explicitIds = Array.isArray(pk.container_ids) ? pk.container_ids.map(asInt).filter(Boolean) : [];
-            const rowIds = [...new Set(rows.map(r => asInt(r.container_id)).filter(Boolean))];
-            const mergedIds = [...new Set([...explicitIds, ...rowIds])];
-
-            let uiMode = 'full_shipment';
-            if (mergedIds.length === 1) uiMode = 'single_container';
-            else if (mergedIds.length > 1) uiMode = 'multi_container';
-            else if (pk.scope === 'specific_containers') uiMode = 'single_container';
-
-            return {
-                ui_mode: pk.ui_mode || uiMode,
-                container_ids: mergedIds,
-                primary_container_id: mergedIds.length === 1 ? mergedIds[0] : 0,
-                detected_mode: uiMode,
-            };
-        }
-
-        normalizePackingRowsCache(pk) {
-            const rowsKey = `pk_${pk.id}`;
-            if (!this.packingRows[rowsKey]) {
-                if (pk.rows && pk.rows.length > 0) {
-                    this.packingRows[rowsKey] = pk.rows.map(r => ({
-                        ...r,
-                        _id: this.nextRowId++,
-                        container_id: asInt(r.container_id || 0),
-                        has_image: !!r.has_image,
-                    }));
-                } else {
-                    this.packingRows[rowsKey] = [];
-                    this.products.forEach(p => {
-                        this.packingRows[rowsKey].push(this._newProductRow(p));
-                    });
-                }
-            }
-            return this.packingRows[rowsKey];
-        }
-
         renderPackingsTab(el, s) {
             const packings = s.packings || [];
-            const containers = this.getShipmentContainers(s);
+            const containers = (s.containers || []).filter(c => c.id && (c.container_number || c.seal_number));
 
-            let html = `
-                <div class="packing-structure-banner">
-                    <div class="packing-structure-banner-title">
-                        <i class="fa fa-sitemap"></i> ${this.t('pk_mode_title')}
-                    </div>
-                    <div class="packing-structure-banner-text">
-                        ${containers.length > 0 ? this.t('pk_recommendation_single') : this.t('msg_no_containers_yet')}
-                    </div>
-                </div>
-            `;
+            let html = '';
 
-            html += `
-                <div class="packing-toolbar">
-                    <button type="button" class="btn-add-sub-item btn-add-pk-single" ${containers.length === 0 ? 'disabled' : ''}>
-                        <i class="fa fa-plus me-2"></i>${this.t('btn_add_packing_single')}
-                    </button>
-                    <button type="button" class="btn-add-sub-item btn-add-pk-multi" ${containers.length === 0 ? 'disabled' : ''}>
-                        <i class="fa fa-plus me-2"></i>${this.t('btn_add_packing_multi')}
-                    </button>
-                    <button type="button" class="btn-add-sub-item btn-add-pk-full">
-                        <i class="fa fa-plus me-2"></i>${this.t('btn_add_packing_full')}
-                    </button>
-                </div>
-            `;
-
-            html += `<div class="container-first-title"><i class="fa fa-cubes"></i> ${this.t('pk_group_title')}</div>`;
-
-            containers.forEach(container => {
-                const related = packings.filter(pk => this.packingBelongsToContainer(pk, container.id, s));
-                html += `
-                    <div class="container-packing-group">
-                        <div class="container-packing-group-header">
-                            <div class="container-packing-group-title">${esc(container.name)}</div>
-                            <div class="container-packing-group-meta">
-                                <span class="chip">${related.length} packings</span>
-                            </div>
-                        </div>
-                        <div class="container-packing-group-body">
-                            ${related.length ? related.map((pk, idx) => this._packingCard(pk, idx, s, containers)).join('') : `<div class="empty-inline">${this.t('pk_no_packings_for_container')}</div>`}
-                        </div>
-                    </div>
-                `;
+            // Render each packing card
+            packings.forEach((pk, idx) => {
+                html += this._packingCard(pk, idx, s, containers);
             });
 
-            const unassigned = packings.filter(pk => !this.packingHasAnyContainer(pk, s));
-            html += `
-                <div class="container-packing-group unassigned-group">
-                    <div class="container-packing-group-header">
-                        <div class="container-packing-group-title">${this.t('pk_group_unassigned')}</div>
-                    </div>
-                    <div class="container-packing-group-body">
-                        ${unassigned.length ? unassigned.map((pk, idx) => this._packingCard(pk, idx, s, containers)).join('') : `<div class="empty-inline">—</div>`}
-                    </div>
-                </div>
-            `;
+            // Single add button
+            html += `<button type="button" class="btn-add-sub-item btn-add-pk"><i class="fa fa-plus me-2"></i>${this.t('btn_add_packing')}</button>`;
 
             el.innerHTML = html;
 
-            const btnSingle = el.querySelector('.btn-add-pk-single');
-            const btnMulti = el.querySelector('.btn-add-pk-multi');
-            const btnFull = el.querySelector('.btn-add-pk-full');
+            // Bind add packing
+            el.querySelector('.btn-add-pk').addEventListener('click', () => this.createPacking(s));
 
-            if (btnSingle) btnSingle.addEventListener('click', async () => this.createPacking(s, 'single_container'));
-            if (btnMulti) btnMulti.addEventListener('click', async () => this.createPacking(s, 'multi_container'));
-            if (btnFull) btnFull.addEventListener('click', async () => this.createPacking(s, 'full_shipment'));
-
+            // Bind delete packing
             el.querySelectorAll('.btn-delete-pk').forEach(btn => {
                 btn.addEventListener('click', async () => {
                     if (!confirm(this.t('msg_confirm_delete'))) return;
                     try {
                         await jsonRpc('/supplier/api/v2/delete_packing', { token: this.token, packing_id: parseInt(btn.dataset.pkId) });
-                        await this.reloadProforma();
-                        this.renderAll();
-                        this.toast(this.t('msg_saved'), 'success');
+                        this.expandedPackingIds.delete(parseInt(btn.dataset.pkId));
+                        await this.reloadProforma(); this.renderAll(); this.toast(this.t('msg_saved'), 'success');
                     } catch (e) { this.toast(this.t('msg_error') + e.message, 'error'); }
                 });
             });
 
+            // Bind save packing
             el.querySelectorAll('.btn-save-pk').forEach(btn => {
                 btn.addEventListener('click', () => this.savePacking(parseInt(btn.dataset.pkId), parseInt(btn.dataset.sid), el));
             });
 
+            // Bind toggle rows
             el.querySelectorAll('.btn-toggle-packing-rows').forEach(btn => {
                 btn.addEventListener('click', () => {
                     const pkId = parseInt(btn.dataset.pkId);
                     const area = document.getElementById(`pk-rows-${pkId}`);
                     if (!area) return;
-                    const wasVisible = area.style.display !== 'none';
-                    area.style.display = wasVisible ? 'none' : 'block';
-                    btn.innerHTML = `<i class="fa fa-table me-1"></i>${wasVisible ? this.t('btn_expand_rows') : this.t('btn_hide_rows')}`;
-                    if (!wasVisible) {
+                    const isExpanded = this.expandedPackingIds.has(pkId);
+                    if (isExpanded) {
+                        this.expandedPackingIds.delete(pkId);
+                        area.style.display = 'none';
+                        btn.innerHTML = `<i class="fa fa-table me-1"></i>${this.t('btn_expand_rows')}`;
+                    } else {
+                        this.expandedPackingIds.add(pkId);
+                        area.style.display = 'block';
+                        btn.innerHTML = `<i class="fa fa-table me-1"></i>${this.t('btn_hide_rows')}`;
                         const pk = packings.find(p => p.id === pkId);
+                        if (pk) this.renderPackingRows(area, pk, s);
+                    }
+                });
+            });
+
+            // Render rows for already-expanded packings
+            packings.forEach(pk => {
+                if (this.expandedPackingIds.has(pk.id)) {
+                    const area = document.getElementById(`pk-rows-${pk.id}`);
+                    if (area) {
+                        area.style.display = 'block';
                         this.renderPackingRows(area, pk, s);
                     }
-                });
+                    const btn = el.querySelector(`.btn-toggle-packing-rows[data-pk-id="${pk.id}"]`);
+                    if (btn) btn.innerHTML = `<i class="fa fa-table me-1"></i>${this.t('btn_hide_rows')}`;
+                }
             });
-
-            el.querySelectorAll('.pk-mode-select').forEach(sel => {
-                sel.addEventListener('change', () => {
-                    const pkId = parseInt(sel.dataset.pkId);
-                    const pk = packings.find(p => p.id === pkId);
-                    if (pk) {
-                        pk.ui_mode = sel.value;
-                        this.renderTabContent('packings', s);
-                    }
-                });
-            });
-
-            packings.forEach(pk => {
-                const area = document.getElementById(`pk-rows-${pk.id}`);
-                if (area) this.renderPackingRows(area, pk, s);
-            });
-        }
-
-        packingHasAnyContainer(pk, s) {
-            const meta = this.inferPackingMeta(pk, s);
-            return (meta.container_ids || []).length > 0;
-        }
-
-        packingBelongsToContainer(pk, containerId, s) {
-            const meta = this.inferPackingMeta(pk, s);
-            return (meta.container_ids || []).includes(asInt(containerId));
         }
 
         _packingCard(pk, idx, s, containers) {
-            const meta = this.inferPackingMeta(pk, s);
-            pk.ui_mode = pk.ui_mode || meta.ui_mode;
-            pk.container_ids = pk.container_ids || meta.container_ids || [];
+            const linkedIds = (pk.container_ids || []).map(asInt).filter(Boolean);
+            const isExpanded = this.expandedPackingIds.has(pk.id);
+            const rowCount = (pk.rows || []).length;
 
-            const linkedIds = [...new Set((pk.container_ids || meta.container_ids || []).map(asInt).filter(Boolean))];
-            const linkedBadges = linkedIds.length
-                ? linkedIds.map(cid => {
-                    const c = containers.find(x => x.id === cid);
-                    return `<span class="mini-chip">${esc(c ? c.name : `#${cid}`)}</span>`;
-                }).join('')
-                : `<span class="text-muted">—</span>`;
-
-            const modeOptions = `
-                <option value="full_shipment" ${pk.ui_mode === 'full_shipment' ? 'selected' : ''}>${this.t('pk_mode_full')}</option>
-                <option value="single_container" ${pk.ui_mode === 'single_container' ? 'selected' : ''}>${this.t('pk_mode_single')}</option>
-                <option value="multi_container" ${pk.ui_mode === 'multi_container' ? 'selected' : ''}>${this.t('pk_mode_multi')}</option>
-            `;
-
-            const singleSelect = `
-                <div class="sub-item-field">
-                    <label>${this.t('pk_single_container')}</label>
-                    <select data-pk-id="${pk.id}" data-pk-f="single_container_id" class="pk-single-container-select">
-                        <option value="">${this.t('opt_select')}</option>
-                        ${containers.map(c => `<option value="${c.id}" ${linkedIds.length === 1 && linkedIds[0] === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}
-                    </select>
-                </div>
-            `;
-
-            const multiChecks = `
-                <div class="sub-item-field sub-item-field-wide">
-                    <label>${this.t('pk_multi_containers')}</label>
-                    <div class="pk-multi-container-list">
-                        ${containers.map(c => `
-                            <label class="pk-checkbox-item">
-                                <input type="checkbox" class="pk-multi-container-check" data-pk-id="${pk.id}" value="${c.id}" ${linkedIds.includes(c.id) ? 'checked' : ''}/>
-                                <span>${esc(c.name)}</span>
-                            </label>
-                        `).join('')}
-                    </div>
-                </div>
-            `;
-
-            const hintMap = {
-                full_shipment: this.t('pk_full_hint'),
-                single_container: this.t('pk_container_first_hint'),
-                multi_container: this.t('pk_shared_hint'),
-            };
+            // Container checkboxes section
+            let containerSection = '';
+            if (containers.length > 0) {
+                const checks = containers.map(c => {
+                    const checked = linkedIds.includes(c.id) ? 'checked' : '';
+                    const label = c.container_number || `#${c.id}`;
+                    return `<label class="pk-container-check-item"><input type="checkbox" class="pk-container-check" data-pk-id="${pk.id}" value="${c.id}" ${checked}/><span>${esc(label)}</span></label>`;
+                }).join('');
+                containerSection = `
+                    <div class="sub-item-field sub-item-field-wide">
+                        <label>${this.t('lbl_pk_containers')}</label>
+                        <div class="pk-container-checks-list">${checks}</div>
+                    </div>`;
+            } else {
+                containerSection = `
+                    <div class="sub-item-field sub-item-field-wide">
+                        <div class="pk-no-containers-hint"><i class="fa fa-info-circle me-1"></i>${this.t('lbl_pk_no_containers')}</div>
+                    </div>`;
+            }
 
             return `<div class="sub-item-card packing-card" data-packing-id="${pk.id}">
                 <div class="sub-item-header">
-                    <span class="sub-item-title">${esc(pk.packing_number) || 'Packing #' + (idx + 1)} <small class="text-muted">(${(pk.rows || []).length} rows)</small></span>
+                    <span class="sub-item-title">${esc(pk.packing_number) || 'Packing #' + (idx + 1)} <small class="text-muted">(${rowCount} rows)</small></span>
                     <div class="sub-item-actions">
-                        <button type="button" class="btn-toggle-packing-rows" data-pk-id="${pk.id}" title="${this.t('btn_expand_rows')}"><i class="fa fa-table me-1"></i>${this.t('btn_expand_rows')}</button>
+                        <button type="button" class="btn-toggle-packing-rows" data-pk-id="${pk.id}"><i class="fa fa-table me-1"></i>${isExpanded ? this.t('btn_hide_rows') : this.t('btn_expand_rows')}</button>
                         <button type="button" class="btn-delete-pk" data-pk-id="${pk.id}"><i class="fa fa-trash"></i></button>
                     </div>
                 </div>
-
-                <div class="packing-mode-box">
-                    <div class="packing-mode-box-head">
-                        <strong>${this.t('pk_mode_title')}</strong>
-                        <span class="mode-detected-pill">${this.t('lbl_detected_mode')}: ${this.t(meta.detected_mode === 'single_container' ? 'pk_detected_single' : meta.detected_mode === 'multi_container' ? 'pk_detected_multi' : 'pk_detected_full')}</span>
-                    </div>
-                    <div class="packing-mode-box-note">${hintMap[pk.ui_mode] || ''}</div>
-                </div>
-
                 <div class="sub-item-grid">
-                    <div class="sub-item-field">
-                        <label>${this.t('lbl_pk_number')}</label>
-                        <input type="text" data-pk-id="${pk.id}" data-pk-f="packing_number" value="${esc(pk.packing_number)}"/>
-                    </div>
-                    <div class="sub-item-field">
-                        <label>${this.t('lbl_pk_date')}</label>
-                        <input type="date" data-pk-id="${pk.id}" data-pk-f="packing_date" value="${esc(pk.packing_date)}"/>
-                    </div>
-                    <div class="sub-item-field">
-                        <label>${this.t('lbl_mode')}</label>
-                        <select data-pk-id="${pk.id}" class="pk-mode-select">${modeOptions}</select>
-                    </div>
-                    <div class="sub-item-field sub-item-field-wide">
-                        <label>${this.t('lbl_containers_linked')}</label>
-                        <div class="linked-container-badges">${linkedBadges}</div>
-                    </div>
-                    ${pk.ui_mode === 'single_container' ? singleSelect : ''}
-                    ${pk.ui_mode === 'multi_container' ? multiChecks : ''}
+                    <div class="sub-item-field"><label>${this.t('lbl_pk_number')}</label><input type="text" data-pk-id="${pk.id}" data-pk-f="packing_number" value="${esc(pk.packing_number)}"/></div>
+                    <div class="sub-item-field"><label>${this.t('lbl_pk_date')}</label><input type="date" data-pk-id="${pk.id}" data-pk-f="packing_date" value="${esc(pk.packing_date)}"/></div>
+                    ${containerSection}
                 </div>
-
-                <div class="packing-rows-area" id="pk-rows-${pk.id}" style="display:none; margin-top: 1rem;"></div>
-
+                <div class="packing-rows-area" id="pk-rows-${pk.id}" style="display:none;"></div>
                 <div class="text-end mt-2">
-                    <button type="button" class="btn-save-section btn-save-pk" data-pk-id="${pk.id}" data-sid="${s.id}" style="font-size:0.8rem;padding:6px 16px;">
-                        <i class="fa fa-save me-1"></i> ${this.t('btn_save_packing')}
-                    </button>
+                    <button type="button" class="btn-save-section btn-save-pk" data-pk-id="${pk.id}" data-sid="${s.id}" style="font-size:0.8rem;padding:6px 16px;"><i class="fa fa-save me-1"></i> ${this.t('btn_save_packing')}</button>
                 </div>
             </div>`;
         }
 
-        async createPacking(s, mode) {
+        async createPacking(s) {
             try {
-                const payload = { packing_number: '', scope: mode === 'full_shipment' ? 'full_shipment' : 'specific_containers' };
                 const res = await jsonRpc('/supplier/api/v2/save_packing', {
-                    token: this.token,
-                    shipment_id: s.id,
-                    packing_data: payload,
+                    token: this.token, shipment_id: s.id,
+                    packing_data: { packing_number: '', scope: 'full_shipment' },
                     rows: []
                 });
                 if (res.success) {
-                    await this.reloadProforma();
-                    const shipment = (this.proforma.shipments || []).find(x => x.id === s.id);
-                    const created = shipment && shipment.packings && shipment.packings.length
-                        ? shipment.packings[shipment.packings.length - 1]
-                        : null;
-                    if (created) created.ui_mode = mode;
-                    this.renderAll();
-                    this.toast(this.t('msg_saved'), 'success');
+                    this.expandedPackingIds.add(res.packing_id);
+                    await this.reloadProforma(); this.renderAll(); this.toast(this.t('msg_saved'), 'success');
                 }
-            } catch (e) {
-                this.toast(this.t('msg_error') + e.message, 'error');
-            }
-        }
-
-        getPackingModeAndContainers(packingId, formEl, s, pk) {
-            const modeSel = formEl.querySelector(`.pk-mode-select[data-pk-id="${packingId}"]`);
-            const uiMode = modeSel ? modeSel.value : (pk.ui_mode || 'full_shipment');
-
-            let containerIds = [];
-            if (uiMode === 'single_container') {
-                const sel = formEl.querySelector(`.pk-single-container-select[data-pk-id="${packingId}"]`);
-                const cid = sel ? asInt(sel.value) : 0;
-                if (cid) containerIds = [cid];
-            } else if (uiMode === 'multi_container') {
-                containerIds = [...formEl.querySelectorAll(`.pk-multi-container-check[data-pk-id="${packingId}"]:checked`)].map(ch => asInt(ch.value)).filter(Boolean);
-            }
-
-            const scope = uiMode === 'full_shipment' ? 'full_shipment' : 'specific_containers';
-            return { uiMode, containerIds, scope };
+            } catch (e) { this.toast(this.t('msg_error') + e.message, 'error'); }
         }
 
         async savePacking(packingId, shipmentId, formEl) {
             const shipment = (this.proforma.shipments || []).find(x => x.id === shipmentId);
-            const pk = ((shipment && shipment.packings) || []).find(x => x.id === packingId);
-            const pkData = {};
+            const containers = (shipment?.containers || []).filter(c => c.id);
+
+            // Gather packing fields
+            const pkData = { id: packingId };
             formEl.querySelectorAll(`[data-pk-id="${packingId}"][data-pk-f]`).forEach(input => {
                 pkData[input.dataset.pkF] = input.value;
             });
-            pkData.id = packingId;
 
-            const { uiMode, containerIds, scope } = this.getPackingModeAndContainers(packingId, formEl, shipment, pk || {});
-            pkData.scope = scope;
-            pkData.ui_mode = uiMode;
-            pkData.container_ids = containerIds;
+            // Gather checked container IDs
+            const checkedContainerIds = [...formEl.querySelectorAll(`.pk-container-check[data-pk-id="${packingId}"]:checked`)]
+                .map(ch => asInt(ch.value)).filter(Boolean);
 
+            pkData.scope = checkedContainerIds.length > 0 ? 'specific_containers' : 'full_shipment';
+            pkData.container_ids = checkedContainerIds;
+
+            // Gather rows
             const rowsKey = `pk_${packingId}`;
             const rows = this.packingRows[rowsKey] || [];
-
-            if (uiMode === 'single_container' && containerIds.length !== 1) {
-                this.toast(this.t('msg_need_container_for_single'), 'error');
-                return;
-            }
-            if (uiMode === 'multi_container' && containerIds.length === 0) {
-                this.toast(this.t('msg_need_containers_for_multi'), 'error');
-                return;
-            }
+            const hasMultipleContainers = checkedContainerIds.length > 1;
 
             const rowsPayload = rows.filter(r => {
                 if (r.tipo === 'Placa') return (r.alto > 0 && r.ancho > 0) || r.ref_proveedor || r.numero_placa || r.bloque;
                 return (r.quantity > 0) || r.ref_proveedor || r.color;
             }).map(r => {
                 let rowContainerId = asInt(r.container_id || 0);
-                if (uiMode === 'single_container') rowContainerId = containerIds[0] || 0;
+                // If single container checked, auto-assign all rows
+                if (checkedContainerIds.length === 1) rowContainerId = checkedContainerIds[0];
 
                 return {
                     id: r.id || 0,
@@ -1291,59 +887,51 @@
                     grupo_name: r.grupo_name || '',
                     pedimento: r.pedimento || '',
                     ref_proveedor: r.ref_proveedor || '',
-                    crate_h: r.crate_h || '',
-                    crate_w: r.crate_w || '',
-                    crate_t: r.crate_t || '',
-                    fmt_h: r.fmt_h || '',
-                    fmt_w: r.fmt_w || '',
                 };
             });
 
-            if (uiMode === 'multi_container') {
-                const someMissing = rowsPayload.some(r => !asInt(r.container_id));
-                if (someMissing) {
-                    this.toast(this.t('msg_need_row_container_for_multi'), 'error');
-                    return;
-                }
-            }
-            if (uiMode === 'single_container' && rowsPayload.length > 0) {
-                const matches = rowsPayload.some(r => asInt(r.container_id) === containerIds[0]);
-                if (!matches) {
-                    this.toast(this.t('msg_need_rows_for_single'), 'error');
-                    return;
-                }
-            }
-
             try {
                 const res = await jsonRpc('/supplier/api/v2/save_packing', {
-                    token: this.token,
-                    shipment_id: shipmentId,
+                    token: this.token, shipment_id: shipmentId,
                     packing_data: pkData,
                     rows: rowsPayload.length > 0 ? rowsPayload : []
                 });
                 if (res.success) {
                     delete this.packingRows[rowsKey];
-                    await this.reloadProforma();
-                    this.renderAll();
-                    this.toast(this.t('msg_saved'), 'success');
-                }
-            } catch (e) {
-                this.toast(this.t('msg_error') + e.message, 'error');
-            }
+                    await this.reloadProforma(); this.renderAll(); this.toast(this.t('msg_saved'), 'success');
+                } else { this.toast(this.t('msg_error') + (res.message || ''), 'error'); }
+            } catch (e) { this.toast(this.t('msg_error') + e.message, 'error'); }
         }
 
         // =====================================================================
-        //  PACKING ROWS (product detail lines) — with CONTAINER column + PHOTO
+        //  PACKING ROWS — with container column only when multi-container
         // =====================================================================
+        normalizePackingRowsCache(pk) {
+            const rowsKey = `pk_${pk.id}`;
+            if (!this.packingRows[rowsKey]) {
+                if (pk.rows && pk.rows.length > 0) {
+                    this.packingRows[rowsKey] = pk.rows.map(r => ({
+                        ...r,
+                        _id: this.nextRowId++,
+                        container_id: asInt(r.container_id || 0),
+                        has_image: !!r.has_image,
+                    }));
+                } else {
+                    this.packingRows[rowsKey] = [];
+                    this.products.forEach(p => { this.packingRows[rowsKey].push(this._newProductRow(p)); });
+                }
+            }
+            return this.packingRows[rowsKey];
+        }
+
         renderPackingRows(area, pk, s) {
             if (!pk) return;
 
             const rowsKey = `pk_${pk.id}`;
             const rows = this.normalizePackingRowsCache(pk);
-            const containers = this.getShipmentContainers(s);
-            const meta = this.inferPackingMeta(pk, s);
-            pk.ui_mode = pk.ui_mode || meta.ui_mode;
-            pk.container_ids = pk.container_ids || meta.container_ids || [];
+            const containers = (s.containers || []).filter(c => c.id && (c.container_number || c.seal_number));
+            const checkedContainerIds = (pk.container_ids || []).map(asInt).filter(Boolean);
+            const showContainerCol = checkedContainerIds.length > 1;
 
             let html = '';
 
@@ -1354,18 +942,13 @@
 
                 html += `<div class="product-section">
                     <div class="product-header">
-                        <div>
-                            <h3>${esc(product.name)} <span class="text-muted small ms-2">(${esc(product.code)})</span>
-                            <span class="badge bg-secondary ms-2" style="font-size:0.7em">${typeLabel}</span></h3>
-                        </div>
+                        <div><h3>${esc(product.name)} <span class="text-muted small ms-2">(${esc(product.code)})</span>
+                            <span class="badge bg-secondary ms-2" style="font-size:0.7em">${typeLabel}</span></h3></div>
                         <div class="meta">${this.t('requested')} <strong class="text-dark">${product.qty_ordered} ${product.uom}</strong></div>
                     </div>
-                    <div class="table-responsive">
-                        <table class="portal-table">
-                            <thead>
-                                <tr>`;
+                    <div class="table-responsive"><table class="portal-table"><thead><tr>`;
 
-                if (pk.ui_mode === 'single_container' || pk.ui_mode === 'multi_container') {
+                if (showContainerCol) {
                     html += `<th>${this.t('col_container_assign')}</th>`;
                 }
 
@@ -1377,8 +960,7 @@
                     html += `<th>${this.t('lbl_packages')}</th><th>${this.t('col_qty')}</th><th>${this.t('col_ref')}</th><th>${this.t('col_weight')}</th><th>${this.t('lbl_desc_goods')}</th>`;
                 }
 
-                html += `<th style="width:60px">${this.t('col_photo')}</th>`;
-                html += `<th style="width:50px"></th></tr></thead><tbody>`;
+                html += `<th style="width:60px">${this.t('col_photo')}</th><th style="width:50px"></th></tr></thead><tbody>`;
 
                 pRows.forEach(row => {
                     const rid = row._id;
@@ -1391,21 +973,12 @@
                         `<div class="input-group-portal"><input type="${type}" step="${step}" class="input-field" data-field="${field}" value="${esc(val || '')}" placeholder="${ph}">
                          <button type="button" class="btn-fill-down" data-row-id="${rid}" data-field="${field}" data-pk-key="${rowsKey}" tabindex="-1"><i class="fa fa-arrow-down"></i></button></div>`;
 
-                    if (pk.ui_mode === 'single_container') {
-                        const containerLabel = (() => {
-                            const cid = (pk.container_ids && pk.container_ids[0]) || (meta.container_ids && meta.container_ids[0]) || 0;
-                            const c = containers.find(x => x.id === cid);
-                            row.container_id = cid || 0;
-                            return c ? esc(c.name) : '—';
-                        })();
-                        html += `<td data-label="${this.t('col_container_assign')}"><span class="fixed-container-badge">${containerLabel}</span></td>`;
-                    } else if (pk.ui_mode === 'multi_container') {
-                        const allowedIds = (pk.container_ids || meta.container_ids || []).map(asInt).filter(Boolean);
-                        const available = containers.filter(c => allowedIds.length === 0 || allowedIds.includes(c.id));
+                    if (showContainerCol) {
+                        const available = containers.filter(c => checkedContainerIds.includes(c.id));
                         html += `<td data-label="${this.t('col_container_assign')}">
                             <select class="row-container-select" data-row-id="${rid}" data-pk-key="${rowsKey}">
                                 <option value="">${this.t('opt_select')}</option>
-                                ${available.map(c => `<option value="${c.id}" ${asInt(row.container_id) === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}
+                                ${available.map(c => `<option value="${c.id}" ${asInt(row.container_id) === c.id ? 'selected' : ''}>${esc(c.container_number || '#' + c.id)}</option>`).join('')}
                             </select>
                         </td>`;
                     }
@@ -1422,42 +995,23 @@
                             <td data-label="${this.t('col_area')}"><span class="area-display">${areaVal}</span></td>
                             <td data-label="${this.t('col_notes')}">${inp('color', row.color, '')}</td>`;
                     } else if (unitType === 'Formato') {
-                        html += `<td>${inp('atado', row.atado, '')}</td>
-                            <td>${inp('quantity', row.quantity, '', 'number', '1')}</td>
-                            <td>${inp('crate_h', row.crate_h || '', '', 'text')}</td>
-                            <td>${inp('crate_w', row.crate_w || '', '', 'text')}</td>
-                            <td>${inp('crate_t', row.crate_t || '', '', 'text')}</td>
-                            <td>${inp('grosor', row.grosor, '', 'text')}</td>
-                            <td>${inp('peso', row.peso, '', 'number', '0.01')}</td>
-                            <td>${inp('fmt_h', row.fmt_h || '', '', 'text')}</td>
-                            <td>${inp('fmt_w', row.fmt_w || '', '', 'text')}</td>`;
+                        html += `<td>${inp('atado', row.atado, '')}</td><td>${inp('quantity', row.quantity, '', 'number', '1')}</td>
+                            <td>${inp('crate_h', row.crate_h || '', '', 'text')}</td><td>${inp('crate_w', row.crate_w || '', '', 'text')}</td><td>${inp('crate_t', row.crate_t || '', '', 'text')}</td>
+                            <td>${inp('grosor', row.grosor, '', 'text')}</td><td>${inp('peso', row.peso, '', 'number', '0.01')}</td>
+                            <td>${inp('fmt_h', row.fmt_h || '', '', 'text')}</td><td>${inp('fmt_w', row.fmt_w || '', '', 'text')}</td>`;
                     } else {
-                        html += `<td>${inp('atado', row.atado, '')}</td>
-                            <td>${inp('quantity', row.quantity, '', 'number', '1')}</td>
-                            <td>${inp('ref_proveedor', row.ref_proveedor, '')}</td>
-                            <td>${inp('peso', row.peso, '', 'number', '0.01')}</td>
+                        html += `<td>${inp('atado', row.atado, '')}</td><td>${inp('quantity', row.quantity, '', 'number', '1')}</td>
+                            <td>${inp('ref_proveedor', row.ref_proveedor, '')}</td><td>${inp('peso', row.peso, '', 'number', '0.01')}</td>
                             <td>${inp('color', row.color, '')}</td>`;
                     }
 
+                    // Photo column
                     if (!serverRowId) {
-                        html += `<td data-label="${this.t('col_photo')}" class="text-center">
-                            <span class="text-muted" style="font-size:0.7rem" title="${this.t('msg_photo_save_first')}">—</span>
-                        </td>`;
+                        html += `<td data-label="${this.t('col_photo')}" class="text-center"><span class="text-muted" style="font-size:0.7rem" title="${this.t('msg_photo_save_first')}">—</span></td>`;
                     } else if (hasImage) {
-                        html += `<td data-label="${this.t('col_photo')}" class="text-center">
-                            <button class="btn-photo-done" type="button" data-server-row-id="${serverRowId}" data-row-id="${rid}" title="${this.t('msg_confirm_delete_photo')}">
-                                <i class="fa fa-check-circle" style="color:#16a34a;font-size:1.1rem"></i>
-                            </button>
-                        </td>`;
+                        html += `<td data-label="${this.t('col_photo')}" class="text-center"><button class="btn-photo-done" type="button" data-server-row-id="${serverRowId}" data-row-id="${rid}" title="${this.t('msg_confirm_delete_photo')}"><i class="fa fa-check-circle" style="color:#16a34a;font-size:1.1rem"></i></button></td>`;
                     } else {
-                        html += `<td data-label="${this.t('col_photo')}" class="text-center">
-                            <label class="btn-photo-upload" title="${this.t('col_photo')}" style="cursor:pointer;margin:0">
-                                <i class="fa fa-camera" style="color:#8B5A2B;font-size:1rem"></i>
-                                <input type="file" accept="image/*" capture="environment"
-                                       data-server-row-id="${serverRowId}" data-row-id="${rid}"
-                                       class="photo-file-input" style="display:none"/>
-                            </label>
-                        </td>`;
+                        html += `<td data-label="${this.t('col_photo')}" class="text-center"><label class="btn-photo-upload" title="${this.t('col_photo')}" style="cursor:pointer;margin:0"><i class="fa fa-camera" style="color:#8B5A2B;font-size:1rem"></i><input type="file" accept="image/*" capture="environment" data-server-row-id="${serverRowId}" data-row-id="${rid}" class="photo-file-input" style="display:none"/></label></td>`;
                     }
 
                     html += `<td class="text-center"><button class="btn-action btn-delete-row" type="button"><i class="fa fa-trash"></i></button></td></tr>`;
@@ -1467,12 +1021,12 @@
                     <div class="table-actions">
                         <button class="btn-add-row action-add-pk-row" data-product-id="${product.id}" data-pk-key="${rowsKey}" type="button"><i class="fa fa-plus-circle me-2"></i>${this.t('btn_add_row')}</button>
                         <button class="btn-add-row ms-2 action-add-pk-multi" data-product-id="${product.id}" data-pk-key="${rowsKey}" type="button">${this.t('btn_add_multi')}</button>
-                    </div>
-                </div></div>`;
+                    </div></div></div>`;
             });
 
             area.innerHTML = html;
 
+            // Event delegation (bind once)
             if (!area._portalEventsBound) {
                 area._portalEventsBound = true;
 
@@ -1504,25 +1058,14 @@
                         const row = (this.packingRows[key] || []).find(r => r._id === rid);
                         if (row) row.container_id = asInt(e.target.value);
                     }
-
                     if (e.target.classList.contains('photo-file-input')) {
                         const fileInput = e.target;
                         const serverRowId = parseInt(fileInput.dataset.serverRowId);
                         const localRowId = parseInt(fileInput.dataset.rowId);
                         const file = fileInput.files[0];
                         if (!file) return;
-
-                        if (file.size > 5 * 1024 * 1024) {
-                            this.toast(this.t('msg_photo_too_large'), 'error');
-                            fileInput.value = '';
-                            return;
-                        }
-                        if (!file.type.startsWith('image/')) {
-                            this.toast(this.t('msg_photo_invalid'), 'error');
-                            fileInput.value = '';
-                            return;
-                        }
-
+                        if (file.size > 5 * 1024 * 1024) { this.toast(this.t('msg_photo_too_large'), 'error'); fileInput.value = ''; return; }
+                        if (!file.type.startsWith('image/')) { this.toast(this.t('msg_photo_invalid'), 'error'); fileInput.value = ''; return; }
                         this.uploadRowImage(serverRowId, localRowId, rowsKey, file, area, pk, s);
                     }
                 });
@@ -1535,9 +1078,7 @@
                     const photoDoneBtn = e.target.closest('.btn-photo-done');
 
                     if (photoDoneBtn) {
-                        const serverRowId = parseInt(photoDoneBtn.dataset.serverRowId);
-                        const localRowId = parseInt(photoDoneBtn.dataset.rowId);
-                        this.deleteRowImage(serverRowId, localRowId, rowsKey, area, pk, s);
+                        this.deleteRowImage(parseInt(photoDoneBtn.dataset.serverRowId), parseInt(photoDoneBtn.dataset.rowId), rowsKey, area, pk, s);
                         return;
                     }
 
@@ -1567,10 +1108,7 @@
                         let started = false;
                         rws.forEach(r => {
                             if (r._id === rid) { started = true; return; }
-                            if (started && r.product_id === src.product_id) {
-                                r[field] = src[field];
-                                if (field === 'container_id') r[field] = src[field];
-                            }
+                            if (started && r.product_id === src.product_id) { r[field] = src[field]; }
                         });
                         this.renderPackingRows(area, pk, s);
                     }
@@ -1581,16 +1119,12 @@
         _newProductRow(product) {
             const unitType = product.unit_type || 'Placa';
             return {
-                _id: this.nextRowId++,
-                id: 0,
-                product_id: product.id,
-                tipo: unitType,
+                _id: this.nextRowId++, id: 0, product_id: product.id, tipo: unitType,
                 bloque: '', numero_placa: '', atado: '', grosor: '',
                 alto: 0, ancho: 0, peso: 0, quantity: 0, weight: 0,
                 color: '', ref_proveedor: '', grupo_name: '', pedimento: '',
                 crate_h: '', crate_w: '', crate_t: '', fmt_h: '', fmt_w: '',
-                container_id: 0,
-                has_image: false,
+                container_id: 0, has_image: false,
             };
         }
 
@@ -1600,70 +1134,43 @@
         async uploadRowImage(serverRowId, localRowId, pkKey, file, area, pk, s) {
             try {
                 const fileData = await this.readFileAsBase64(file);
-                const res = await jsonRpc('/supplier/api/v2/upload_row_image', {
-                    token: this.token,
-                    row_id: serverRowId,
-                    image_data: fileData.data,
-                    image_name: fileData.name,
-                });
+                const res = await jsonRpc('/supplier/api/v2/upload_row_image', { token: this.token, row_id: serverRowId, image_data: fileData.data, image_name: fileData.name });
                 if (res.success) {
                     const rows = this.packingRows[pkKey] || [];
                     const row = rows.find(r => r._id === localRowId);
                     if (row) row.has_image = true;
                     this.toast('📷 ' + this.t('msg_saved'), 'success');
                     this._updatePhotoCellInPlace(area, localRowId, serverRowId, true);
-                } else {
-                    this.toast(this.t('msg_error') + (res.message || ''), 'error');
-                }
-            } catch (e) {
-                console.error("[Portal] uploadRowImage ERROR:", e);
-                this.toast(this.t('msg_error') + e.message, 'error');
-            }
+                } else { this.toast(this.t('msg_error') + (res.message || ''), 'error'); }
+            } catch (e) { this.toast(this.t('msg_error') + e.message, 'error'); }
         }
 
         async deleteRowImage(serverRowId, localRowId, pkKey, area, pk, s) {
             if (!confirm(this.t('msg_confirm_delete_photo'))) return;
             try {
-                const res = await jsonRpc('/supplier/api/v2/delete_row_image', {
-                    token: this.token,
-                    row_id: serverRowId,
-                });
+                const res = await jsonRpc('/supplier/api/v2/delete_row_image', { token: this.token, row_id: serverRowId });
                 if (res.success) {
                     const rows = this.packingRows[pkKey] || [];
                     const row = rows.find(r => r._id === localRowId);
                     if (row) row.has_image = false;
                     this.toast(this.t('msg_photo_deleted'), 'success');
                     this._updatePhotoCellInPlace(area, localRowId, serverRowId, false);
-                } else {
-                    this.toast(this.t('msg_error') + (res.message || ''), 'error');
-                }
-            } catch (e) {
-                this.toast(this.t('msg_error') + e.message, 'error');
-            }
+                } else { this.toast(this.t('msg_error') + (res.message || ''), 'error'); }
+            } catch (e) { this.toast(this.t('msg_error') + e.message, 'error'); }
         }
 
         _updatePhotoCellInPlace(area, localRowId, serverRowId, hasImage) {
             if (!area) return;
             const tr = area.querySelector(`tr[data-row-id="${localRowId}"]`);
             if (!tr) return;
-
             const tds = tr.querySelectorAll('td');
             const photoTd = tds[tds.length - 2];
             if (!photoTd) return;
 
             if (hasImage) {
-                photoTd.innerHTML = `
-                    <button class="btn-photo-done" type="button" data-server-row-id="${serverRowId}" data-row-id="${localRowId}" title="${this.t('msg_confirm_delete_photo')}">
-                        <i class="fa fa-check-circle" style="color:#16a34a;font-size:1.1rem"></i>
-                    </button>`;
+                photoTd.innerHTML = `<button class="btn-photo-done" type="button" data-server-row-id="${serverRowId}" data-row-id="${localRowId}" title="${this.t('msg_confirm_delete_photo')}"><i class="fa fa-check-circle" style="color:#16a34a;font-size:1.1rem"></i></button>`;
             } else {
-                photoTd.innerHTML = `
-                    <label class="btn-photo-upload" title="${this.t('col_photo')}" style="cursor:pointer;margin:0">
-                        <i class="fa fa-camera" style="color:#8B5A2B;font-size:1rem"></i>
-                        <input type="file" accept="image/*" capture="environment"
-                               data-server-row-id="${serverRowId}" data-row-id="${localRowId}"
-                               class="photo-file-input" style="display:none"/>
-                    </label>`;
+                photoTd.innerHTML = `<label class="btn-photo-upload" title="${this.t('col_photo')}" style="cursor:pointer;margin:0"><i class="fa fa-camera" style="color:#8B5A2B;font-size:1rem"></i><input type="file" accept="image/*" capture="environment" data-server-row-id="${serverRowId}" data-row-id="${localRowId}" class="photo-file-input" style="display:none"/></label>`;
             }
         }
 
@@ -1677,9 +1184,7 @@
                     this.proforma = res.proforma;
                     this.packingRows = {};
                 }
-            } catch (e) {
-                console.error('[Portal] reloadProforma ERROR:', e.message);
-            }
+            } catch (e) { console.error('[Portal] reloadProforma ERROR:', e.message); }
         }
 
         updateFooterTotals() {
@@ -1689,12 +1194,10 @@
                 totalContainers += (s.containers || []).length;
                 totalInvoices += (s.invoices || []).length;
             });
-
             const setEl = (id, val) => { const e = document.getElementById(id); if (e) e.textContent = val; };
             setEl('total-shipments', shipments.length);
             setEl('total-containers', totalContainers);
             setEl('total-invoices', totalInvoices);
-
             const btn = document.getElementById('btn-complete-proforma');
             if (btn) btn.disabled = shipments.length === 0;
         }
@@ -1703,9 +1206,7 @@
             if (!confirm(this.t('msg_confirm_complete'))) return;
             try {
                 await jsonRpc('/supplier/api/v2/complete', { token: this.token });
-                await this.reloadProforma();
-                this.renderAll();
-                this.toast(this.t('msg_saved'), 'success');
+                await this.reloadProforma(); this.renderAll(); this.toast(this.t('msg_saved'), 'success');
             } catch (e) { this.toast(this.t('msg_error') + e.message, 'error'); }
         }
 
@@ -1723,26 +1224,15 @@
             if (btnSaveGlobals) {
                 const parentForm = btnSaveGlobals.closest('form');
                 if (parentForm) parentForm.addEventListener('submit', (e) => { e.preventDefault(); });
-                btnSaveGlobals.addEventListener('click', (e) => {
-                    e.preventDefault(); e.stopPropagation();
-                    this.saveGlobals();
-                });
+                btnSaveGlobals.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); this.saveGlobals(); });
             }
-
             if (btnAddShipment) {
                 const parentForm = btnAddShipment.closest('form');
                 if (parentForm) parentForm.addEventListener('submit', (e) => { e.preventDefault(); });
-                btnAddShipment.addEventListener('click', (e) => {
-                    e.preventDefault(); e.stopPropagation();
-                    this.addShipment();
-                });
+                btnAddShipment.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); this.addShipment(); });
             }
-
             if (btnComplete) {
-                btnComplete.addEventListener('click', (e) => {
-                    e.preventDefault(); e.stopPropagation();
-                    this.completeProforma();
-                });
+                btnComplete.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); this.completeProforma(); });
             }
         }
 
