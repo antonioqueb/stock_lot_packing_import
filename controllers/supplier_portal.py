@@ -1,23 +1,17 @@
 # -*- coding: utf-8 -*-
-"""
-Fase 2: Controller del Portal de Proveedor — Endpoints jerárquicos.
-v3.3 — Incluye has_image en serialización + endpoints upload/delete row image
-      + preservación de imágenes al re-guardar packing rows.
-"""
+# controllers/supplier_portal.py
+
 import json
-import base64
+
 from odoo import http
 from odoo.http import request
 from markupsafe import Markup
-import logging
-
-_logger = logging.getLogger(__name__)
 
 
 class SupplierPortalController(http.Controller):
 
     # =====================================================================
-    #  HELPERS
+    #  HELPERS GENERALES
     # =====================================================================
 
     def _validate_token(self, token):
@@ -45,6 +39,74 @@ class SupplierPortalController(http.Controller):
         elif not header.access_id:
             header.write({'access_id': access.id})
         return header
+
+    def _safe_int(self, value, default=0):
+        try:
+            if value in (None, False, ''):
+                return default
+            return int(value)
+        except Exception:
+            return default
+
+    def _safe_float(self, value, default=0.0):
+        try:
+            if value in (None, False, ''):
+                return default
+            return float(value)
+        except Exception:
+            return default
+
+    def _normalize_id_list(self, values):
+        if not values:
+            return []
+        result = []
+        for val in values:
+            iv = self._safe_int(val, 0)
+            if iv:
+                result.append(iv)
+        return list(dict.fromkeys(result))
+
+    def _belongs_to_proforma(self, proforma, shipment=None, packing=None, row=None, invoice=None, container=None):
+        """Valida pertenencia de cualquier registro a la proforma actual."""
+        if not proforma:
+            return False
+
+        try:
+            if shipment is not None:
+                return bool(shipment.exists() and shipment.proforma_id.id == proforma.id)
+
+            if packing is not None:
+                return bool(
+                    packing.exists()
+                    and packing.shipment_id
+                    and packing.shipment_id.proforma_id.id == proforma.id
+                )
+
+            if row is not None:
+                return bool(
+                    row.exists()
+                    and row.packing_id
+                    and row.packing_id.shipment_id
+                    and row.packing_id.shipment_id.proforma_id.id == proforma.id
+                )
+
+            if invoice is not None:
+                return bool(
+                    invoice.exists()
+                    and invoice.shipment_id
+                    and invoice.shipment_id.proforma_id.id == proforma.id
+                )
+
+            if container is not None:
+                return bool(
+                    container.exists()
+                    and container.shipment_id
+                    and container.shipment_id.proforma_id.id == proforma.id
+                )
+        except Exception:
+            return False
+
+        return False
 
     def _get_picking_moves_for_portal(self, picking):
         moves = False
@@ -77,51 +139,89 @@ class SupplierPortalController(http.Controller):
         products.sort(key=lambda x: (x.get("name") or "").lower())
         return products
 
+    # =====================================================================
+    #  HELPERS DE VALIDACIÓN DE CONTENEDORES / PACKINGS
+    # =====================================================================
+
+    def _validate_container_ids_for_shipment(self, shipment, container_ids):
+        """Valida que los container_ids pertenezcan al shipment."""
+        normalized = self._normalize_id_list(container_ids)
+        shipment_container_ids = set(shipment.container_ids.ids)
+        invalid = [cid for cid in normalized if cid not in shipment_container_ids]
+        if invalid:
+            return False, "Uno o más contenedores no pertenecen al embarque actual."
+        return True, normalized
+
+    def _validate_packing_scope_and_containers(self, shipment, packing_vals, rows=None):
+        """
+        Reglas:
+        - scope=full_shipment -> container_ids opcional
+        - scope=specific_containers -> container_ids obligatorio
+        - row.container_id, si viene, debe pertenecer al shipment
+        - si scope=specific_containers, row.container_id debe estar dentro de packing.container_ids
+        """
+        scope = packing_vals.get('scope') or 'full_shipment'
+        container_ids = self._normalize_id_list(packing_vals.get('container_ids', []))
+
+        ok, result = self._validate_container_ids_for_shipment(shipment, container_ids)
+        if not ok:
+            return False, result, None
+
+        valid_container_ids = result
+
+        if scope == 'specific_containers' and not valid_container_ids:
+            return False, "Si el packing aplica a contenedores específicos, debe seleccionar al menos un contenedor.", None
+
+        if rows:
+            shipment_container_ids = set(shipment.container_ids.ids)
+            packing_container_ids = set(valid_container_ids)
+
+            for idx, row in enumerate(rows, start=1):
+                row_container_id = self._safe_int(row.get('container_id'), 0)
+                if row_container_id:
+                    if row_container_id not in shipment_container_ids:
+                        return False, "La fila %s apunta a un contenedor que no pertenece al embarque." % idx, None
+                    if scope == 'specific_containers' and row_container_id not in packing_container_ids:
+                        return False, "La fila %s usa un contenedor fuera del alcance del packing." % idx, None
+
+        return True, "", valid_container_ids
+
+    def _compute_packing_derived_flags(self, packing):
+        container_ids = packing.container_ids.ids
+        row_container_ids = packing.row_ids.filtered(lambda r: r.container_id).mapped('container_id').ids
+        row_container_ids = list(dict.fromkeys(row_container_ids))
+
+        all_related_container_ids = list(dict.fromkeys(container_ids + row_container_ids))
+        rows_without_container = packing.row_ids.filtered(lambda r: not r.container_id)
+        is_single_container = len(all_related_container_ids) == 1
+        is_multi_container = len(all_related_container_ids) > 1
+
+        if is_single_container:
+            suggested_mode = 'container_first'
+        elif is_multi_container:
+            suggested_mode = 'global_packing'
+        else:
+            suggested_mode = 'unassigned'
+
+        return {
+            'container_count_derived': len(all_related_container_ids),
+            'row_container_ids': row_container_ids,
+            'all_related_container_ids': all_related_container_ids,
+            'has_rows_without_container': bool(rows_without_container),
+            'rows_without_container_count': len(rows_without_container),
+            'is_single_container': is_single_container,
+            'is_multi_container': is_multi_container,
+            'suggested_mode': suggested_mode,
+        }
+
+    # =====================================================================
+    #  SERIALIZACIÓN
+    # =====================================================================
+
     def _serialize_proforma(self, header):
         """Serializa la proforma y toda su jerarquía a JSON-safe dict."""
         shipments = []
         for s in header.shipment_ids.sorted('sequence'):
-            invoices = [{
-                'id': inv.id,
-                'invoice_number': inv.invoice_number or '',
-                'invoice_date': str(inv.invoice_date) if inv.invoice_date else '',
-                'amount': inv.amount or 0.0,
-                'currency_id': inv.currency_id.id if inv.currency_id else False,
-                'currency_name': inv.currency_id.name if inv.currency_id else '',
-                'scope': inv.scope or 'full_shipment',
-                'container_ids': inv.container_ids.ids,
-            } for inv in s.invoice_ids]
-
-            packings = [{
-                'id': pl.id,
-                'packing_number': pl.packing_number or '',
-                'packing_date': str(pl.packing_date) if pl.packing_date else '',
-                'scope': pl.scope or 'full_shipment',
-                'container_ids': pl.container_ids.ids,
-                'row_count': pl.row_count,
-                'rows': [{
-                    'id': row.id,
-                    'product_id': row.product_id.id,
-                    'product_name': row.product_id.display_name,
-                    'container_id': row.container_id.id if row.container_id else False,
-                    'tipo': row.tipo or 'Placa',
-                    'grosor': row.grosor or '',
-                    'alto': row.alto,
-                    'ancho': row.ancho,
-                    'peso': row.peso,
-                    'quantity': row.quantity,
-                    'bloque': row.bloque or '',
-                    'numero_placa': row.numero_placa or '',
-                    'atado': row.atado or '',
-                    'color': row.color or '',
-                    'grupo_name': row.grupo_name or '',
-                    'pedimento': row.pedimento or '',
-                    'ref_proveedor': row.ref_proveedor or '',
-                    'area_m2': row.area_m2,
-                    'has_image': bool(row.image),
-                } for row in pl.row_ids.sorted('sequence')]
-            } for pl in s.packing_ids]
-
             containers = [{
                 'id': c.id,
                 'container_number': c.container_number or '',
@@ -131,7 +231,79 @@ class SupplierPortalController(http.Controller):
                 'volume': c.volume or 0.0,
                 'packages': c.packages or 0,
                 'notes': c.notes or '',
+                'packing_ids': c.packing_ids.ids if hasattr(c, 'packing_ids') else [],
             } for c in s.container_ids]
+
+            invoices = [{
+                'id': inv.id,
+                'invoice_number': inv.invoice_number or '',
+                'invoice_date': str(inv.invoice_date) if inv.invoice_date else '',
+                'amount': inv.amount or 0.0,
+                'currency_id': inv.currency_id.id if inv.currency_id else False,
+                'currency_name': inv.currency_id.name if inv.currency_id else '',
+                'scope': inv.scope or 'full_shipment',
+                'container_ids': inv.container_ids.ids,
+                'is_multi_container': len(inv.container_ids.ids) > 1,
+            } for inv in s.invoice_ids]
+
+            packings = []
+            for pl in s.packing_ids.sorted('sequence'):
+                derived = self._compute_packing_derived_flags(pl)
+
+                rows_payload = []
+                for row in pl.row_ids.sorted('sequence'):
+                    rows_payload.append({
+                        'id': row.id,
+                        'product_id': row.product_id.id,
+                        'product_name': row.product_id.display_name,
+                        'container_id': row.container_id.id if row.container_id else False,
+                        'container_number': row.container_id.container_number if row.container_id else '',
+                        'tipo': row.tipo or 'Placa',
+                        'grosor': row.grosor or '',
+                        'alto': row.alto,
+                        'ancho': row.ancho,
+                        'peso': row.peso,
+                        'quantity': row.quantity,
+                        'bloque': row.bloque or '',
+                        'numero_placa': row.numero_placa or '',
+                        'atado': row.atado or '',
+                        'color': row.color or '',
+                        'grupo_name': row.grupo_name or '',
+                        'pedimento': row.pedimento or '',
+                        'ref_proveedor': row.ref_proveedor or '',
+                        'area_m2': row.area_m2,
+                        'has_image': bool(row.image),
+                    })
+
+                packings.append({
+                    'id': pl.id,
+                    'packing_number': pl.packing_number or '',
+                    'packing_date': str(pl.packing_date) if pl.packing_date else '',
+                    'scope': pl.scope or 'full_shipment',
+                    'container_ids': pl.container_ids.ids,
+                    'row_count': pl.row_count,
+                    'rows': rows_payload,
+                    'container_count_derived': derived['container_count_derived'],
+                    'row_container_ids': derived['row_container_ids'],
+                    'all_related_container_ids': derived['all_related_container_ids'],
+                    'has_rows_without_container': derived['has_rows_without_container'],
+                    'rows_without_container_count': derived['rows_without_container_count'],
+                    'is_single_container': derived['is_single_container'],
+                    'is_multi_container': derived['is_multi_container'],
+                    'suggested_mode': derived['suggested_mode'],
+                })
+
+            shipment_container_ids = set(s.container_ids.ids)
+            packing_related_container_ids = set()
+            containers_without_packing = []
+
+            for pl in s.packing_ids:
+                d = self._compute_packing_derived_flags(pl)
+                packing_related_container_ids.update(d['all_related_container_ids'])
+
+            for c in s.container_ids:
+                if c.id not in packing_related_container_ids:
+                    containers_without_packing.append(c.id)
 
             shipments.append({
                 'id': s.id,
@@ -155,6 +327,10 @@ class SupplierPortalController(http.Controller):
                 'packings': packings,
                 'containers': containers,
                 'voyage_id': s.voyage_id.id if s.voyage_id else False,
+                'containers_without_packing': containers_without_packing,
+                'has_multi_container_packings': any(p['is_multi_container'] for p in packings),
+                'has_packings_without_container': any(p['has_rows_without_container'] for p in packings),
+                'all_container_ids': list(shipment_container_ids),
             })
 
         return {
@@ -171,9 +347,13 @@ class SupplierPortalController(http.Controller):
             'shipments': shipments,
         }
 
+    # =====================================================================
+    #  SYNC PICKING / SPREADSHEET
+    # =====================================================================
+
     def _sync_flat_to_picking(self, header, picking):
         """Popula los campos flat del picking con un resumen de la proforma (retrocompatibilidad)."""
-        if not picking:
+        if not picking or not header:
             return
 
         all_bl = []
@@ -210,7 +390,7 @@ class SupplierPortalController(http.Controller):
             'supplier_bl_number': ', '.join(all_bl) if all_bl else '',
             'supplier_container_no': ', '.join(all_containers) if all_containers else '',
             'supplier_seal_no': ', '.join(all_seals) if all_seals else '',
-            'supplier_container_type': ', '.join(set(all_types)) if all_types else '',
+            'supplier_container_type': ', '.join(sorted(set(all_types))) if all_types else '',
             'supplier_total_packages': total_pkgs,
             'supplier_gross_weight': total_weight,
             'supplier_volume': total_volume,
@@ -223,24 +403,33 @@ class SupplierPortalController(http.Controller):
 
         try:
             picking.sudo().write(vals)
-        except Exception as e:
-            _logger.warning(f"Error sincronizando flat al picking: {e}")
+        except Exception:
+            pass
 
     def _sync_packing_rows_to_spreadsheet(self, header, picking):
-        """Consolida TODAS las rows de TODOS los packings de la proforma
-        y las escribe al spreadsheet del picking."""
+        """
+        Consolida TODAS las rows de TODOS los packings de la proforma
+        y las escribe al spreadsheet del picking.
+        """
         if not picking or not header:
             return
 
         all_rows = []
         for shipment in header.shipment_ids:
             for packing in shipment.packing_ids:
+                packing_container_ids = packing.container_ids.ids
+                packing_container_numbers = packing.container_ids.mapped('container_number')
+
                 for row in packing.row_ids.sorted('sequence'):
                     container_name = ''
                     if row.container_id and row.container_id.container_number:
                         container_name = row.container_id.container_number
-                    elif shipment.container_ids:
-                        container_name = shipment.container_ids[0].container_number or ''
+                    elif packing.scope == 'specific_containers' and len(packing_container_numbers) == 1:
+                        container_name = packing_container_numbers[0] or ''
+                    elif packing.scope == 'specific_containers' and len(packing_container_numbers) > 1:
+                        container_name = 'MULTI'
+                    else:
+                        container_name = 'SN'
 
                     all_rows.append({
                         'product_id': row.product_id.id,
@@ -258,10 +447,12 @@ class SupplierPortalController(http.Controller):
                         'pedimento': row.pedimento or '',
                         'contenedor': container_name or 'SN',
                         'ref_proveedor': row.ref_proveedor or '',
+                        'packing_id': packing.id,
+                        'packing_scope': packing.scope or 'full_shipment',
+                        'packing_container_ids': packing_container_ids,
                     })
 
         if not all_rows:
-            _logger.info("[Portal] _sync_packing_rows_to_spreadsheet: No rows to sync")
             return
 
         header_data = {
@@ -284,13 +475,9 @@ class SupplierPortalController(http.Controller):
             })
 
         try:
-            _logger.info(
-                "[Portal] Syncing %d rows to spreadsheet for picking %s",
-                len(all_rows), picking.name
-            )
             picking.sudo().update_packing_list_from_portal(all_rows, header_data=header_data)
-        except Exception as e:
-            _logger.warning(f"[Portal] Error syncing to spreadsheet: {e}")
+        except Exception:
+            pass
 
     # =====================================================================
     #  ENDPOINT PRINCIPAL: CARGA DEL PORTAL (GET)
@@ -327,8 +514,8 @@ class SupplierPortalController(http.Controller):
         if picking.spreadsheet_id and not proforma_data.get('shipments'):
             try:
                 existing_rows = picking.sudo().get_packing_list_data_for_portal()
-            except Exception as e:
-                _logger.error(f"Error recuperando datos del spreadsheet: {e}")
+            except Exception:
+                existing_rows = []
 
         header_data = {
             'invoice_number': picking.supplier_invoice_number or "",
@@ -423,7 +610,7 @@ class SupplierPortalController(http.Controller):
         vals = {'proforma_id': proforma.id}
         if shipment_data:
             for k in ['shipment_type', 'shipping_line', 'vessel_name',
-                       'port_origin', 'port_destination', 'bl_number', 'notes']:
+                      'port_origin', 'port_destination', 'bl_number', 'notes']:
                 if k in shipment_data:
                     vals[k] = shipment_data[k] or ''
             for k in ['etd', 'eta', 'bl_date']:
@@ -444,15 +631,20 @@ class SupplierPortalController(http.Controller):
         if not access:
             return {'success': False, 'message': 'Token inválido.'}
 
-        shipment = request.env['supplier.shipment'].sudo().browse(shipment_id)
-        if not shipment.exists():
-            return {'success': False, 'message': 'Embarque no encontrado.'}
+        proforma = self._get_or_create_proforma(access)
+        shipment = request.env['supplier.shipment'].sudo().browse(self._safe_int(shipment_id))
+        if not shipment.exists() or not self._belongs_to_proforma(proforma, shipment=shipment):
+            return {'success': False, 'message': 'Embarque no encontrado o no autorizado.'}
 
         vals = {}
         for k in ['shipment_type', 'shipping_line', 'vessel_name',
-                   'port_origin', 'port_destination', 'bl_number', 'notes', 'status']:
+                  'port_origin', 'port_destination', 'bl_number', 'notes', 'status']:
             if k in shipment_data:
-                vals[k] = shipment_data[k] or '' if k != 'status' else shipment_data[k]
+                if k == 'status':
+                    vals[k] = shipment_data[k]
+                else:
+                    vals[k] = shipment_data[k] or ''
+
         for k in ['etd', 'eta', 'bl_date']:
             if k in shipment_data:
                 vals[k] = shipment_data[k] or False
@@ -460,8 +652,7 @@ class SupplierPortalController(http.Controller):
         if vals:
             shipment.write(vals)
 
-        proforma = shipment.proforma_id
-        self._sync_flat_to_picking(proforma, access.picking_id)
+        self._sync_flat_to_picking(shipment.proforma_id, access.picking_id)
 
         return {'success': True}
 
@@ -471,14 +662,18 @@ class SupplierPortalController(http.Controller):
         if not access:
             return {'success': False, 'message': 'Token inválido.'}
 
-        shipment = request.env['supplier.shipment'].sudo().browse(shipment_id)
-        if shipment.exists():
-            proforma = shipment.proforma_id
-            shipment.unlink()
-            if proforma and not proforma.shipment_ids:
-                proforma.write({'status': 'draft'})
-            self._sync_flat_to_picking(proforma, access.picking_id)
-            self._sync_packing_rows_to_spreadsheet(proforma, access.picking_id)
+        proforma = self._get_or_create_proforma(access)
+        shipment = request.env['supplier.shipment'].sudo().browse(self._safe_int(shipment_id))
+        if not shipment.exists() or not self._belongs_to_proforma(proforma, shipment=shipment):
+            return {'success': False, 'message': 'Embarque no encontrado o no autorizado.'}
+
+        shipment.unlink()
+
+        if proforma and not proforma.shipment_ids:
+            proforma.write({'status': 'draft'})
+
+        self._sync_flat_to_picking(proforma, access.picking_id)
+        self._sync_packing_rows_to_spreadsheet(proforma, access.picking_id)
 
         return {'success': True}
 
@@ -492,27 +687,32 @@ class SupplierPortalController(http.Controller):
         if not access:
             return {'success': False, 'message': 'Token inválido.'}
 
-        shipment = request.env['supplier.shipment'].sudo().browse(shipment_id)
-        if not shipment.exists():
-            return {'success': False, 'message': 'Embarque no encontrado.'}
+        proforma = self._get_or_create_proforma(access)
+        shipment = request.env['supplier.shipment'].sudo().browse(self._safe_int(shipment_id))
+        if not shipment.exists() or not self._belongs_to_proforma(proforma, shipment=shipment):
+            return {'success': False, 'message': 'Embarque no encontrado o no autorizado.'}
 
         Container = request.env['supplier.shipment.container'].sudo()
         existing_ids = set()
 
         for c in containers:
-            cid = c.get('id')
+            cid = self._safe_int(c.get('id'), 0)
             vals = {
                 'container_number': c.get('container_number', ''),
                 'seal_number': c.get('seal_number', ''),
                 'container_type': c.get('container_type', ''),
-                'weight': float(c.get('weight', 0)),
-                'volume': float(c.get('volume', 0)),
-                'packages': int(c.get('packages', 0)),
+                'weight': self._safe_float(c.get('weight', 0)),
+                'volume': self._safe_float(c.get('volume', 0)),
+                'packages': self._safe_int(c.get('packages', 0)),
                 'notes': c.get('notes', ''),
             }
-            if cid and Container.browse(cid).exists():
-                Container.browse(cid).write(vals)
-                existing_ids.add(cid)
+
+            if cid:
+                record = Container.browse(cid)
+                if not record.exists() or record.shipment_id.id != shipment.id:
+                    return {'success': False, 'message': 'Uno de los contenedores no pertenece al embarque actual.'}
+                record.write(vals)
+                existing_ids.add(record.id)
             else:
                 vals['shipment_id'] = shipment.id
                 new = Container.create(vals)
@@ -520,9 +720,29 @@ class SupplierPortalController(http.Controller):
 
         to_delete = shipment.container_ids.filtered(lambda c: c.id not in existing_ids)
         if to_delete:
+            used_in_packings = request.env['supplier.shipment.packing'].sudo().search([
+                ('shipment_id', '=', shipment.id),
+                ('container_ids', 'in', to_delete.ids),
+            ], limit=1)
+
+            used_in_rows = request.env['supplier.shipment.packing.row'].sudo().search([
+                ('container_id', 'in', to_delete.ids),
+                ('packing_id.shipment_id', '=', shipment.id),
+            ], limit=1)
+
+            used_in_invoices = request.env['supplier.shipment.invoice'].sudo().search([
+                ('shipment_id', '=', shipment.id),
+                ('container_ids', 'in', to_delete.ids),
+            ], limit=1)
+
+            if used_in_packings or used_in_rows or used_in_invoices:
+                return {
+                    'success': False,
+                    'message': 'No puede eliminar contenedores que ya están siendo usados en packings, filas o invoices.'
+                }
+
             to_delete.unlink()
 
-        proforma = shipment.proforma_id
         self._sync_flat_to_picking(proforma, access.picking_id)
 
         return {'success': True, 'container_ids': list(existing_ids)}
@@ -537,29 +757,46 @@ class SupplierPortalController(http.Controller):
         if not access:
             return {'success': False, 'message': 'Token inválido.'}
 
-        shipment = request.env['supplier.shipment'].sudo().browse(shipment_id)
-        if not shipment.exists():
-            return {'success': False, 'message': 'Embarque no encontrado.'}
+        proforma = self._get_or_create_proforma(access)
+        shipment = request.env['supplier.shipment'].sudo().browse(self._safe_int(shipment_id))
+        if not shipment.exists() or not self._belongs_to_proforma(proforma, shipment=shipment):
+            return {'success': False, 'message': 'Embarque no encontrado o no autorizado.'}
 
         Invoice = request.env['supplier.shipment.invoice'].sudo()
         existing_ids = set()
 
         for inv in invoices:
-            iid = inv.get('id')
+            iid = self._safe_int(inv.get('id'), 0)
+            scope = inv.get('scope', 'full_shipment')
+            container_ids = self._normalize_id_list(inv.get('container_ids', []))
+
+            ok, result = self._validate_container_ids_for_shipment(shipment, container_ids)
+            if not ok:
+                return {'success': False, 'message': result}
+
+            if scope == 'specific_containers' and not result:
+                return {
+                    'success': False,
+                    'message': 'Si el invoice aplica a contenedores específicos, debe seleccionar al menos un contenedor.'
+                }
+
             vals = {
                 'invoice_number': inv.get('invoice_number', ''),
                 'invoice_date': inv.get('invoice_date') or False,
-                'amount': float(inv.get('amount', 0)),
-                'scope': inv.get('scope', 'full_shipment'),
+                'amount': self._safe_float(inv.get('amount', 0)),
+                'scope': scope,
+                'container_ids': [(6, 0, result)],
             }
-            if inv.get('currency_id'):
-                vals['currency_id'] = int(inv['currency_id'])
-            if 'container_ids' in inv:
-                vals['container_ids'] = [(6, 0, inv['container_ids'])]
 
-            if iid and Invoice.browse(iid).exists():
-                Invoice.browse(iid).write(vals)
-                existing_ids.add(iid)
+            if inv.get('currency_id'):
+                vals['currency_id'] = self._safe_int(inv['currency_id'])
+
+            if iid:
+                record = Invoice.browse(iid)
+                if not record.exists() or not self._belongs_to_proforma(proforma, invoice=record):
+                    return {'success': False, 'message': 'Uno de los invoices no pertenece a la proforma actual.'}
+                record.write(vals)
+                existing_ids.add(record.id)
             else:
                 vals['shipment_id'] = shipment.id
                 new = Invoice.create(vals)
@@ -572,7 +809,7 @@ class SupplierPortalController(http.Controller):
         return {'success': True, 'invoice_ids': list(existing_ids)}
 
     # =====================================================================
-    #  API v2: CRUD PACKING LISTS + ROWS (con preservación de imágenes)
+    #  API v2: CRUD PACKING LISTS + ROWS
     # =====================================================================
 
     @http.route('/supplier/api/v2/save_packing', type='json', auth='public', csrf=False)
@@ -581,55 +818,82 @@ class SupplierPortalController(http.Controller):
         if not access:
             return {'success': False, 'message': 'Token inválido.'}
 
-        shipment = request.env['supplier.shipment'].sudo().browse(shipment_id)
-        if not shipment.exists():
-            return {'success': False, 'message': 'Embarque no encontrado.'}
+        proforma = self._get_or_create_proforma(access)
+        shipment = request.env['supplier.shipment'].sudo().browse(self._safe_int(shipment_id))
+        if not shipment.exists() or not self._belongs_to_proforma(proforma, shipment=shipment):
+            return {'success': False, 'message': 'Embarque no encontrado o no autorizado.'}
 
         Packing = request.env['supplier.shipment.packing'].sudo()
         Row = request.env['supplier.shipment.packing.row'].sudo()
 
-        pid = packing_data.get('id')
+        pid = self._safe_int(packing_data.get('id'), 0)
+        scope = packing_data.get('scope', 'full_shipment')
+        packing_container_ids_raw = packing_data.get('container_ids', [])
+
+        packing_vals = {
+            'packing_number': packing_data.get('packing_number', ''),
+            'packing_date': packing_data.get('packing_date') or False,
+            'scope': scope,
+            'container_ids': packing_container_ids_raw,
+        }
+
+        ok, msg, normalized_container_ids = self._validate_packing_scope_and_containers(
+            shipment, packing_vals, rows=rows or []
+        )
+        if not ok:
+            return {'success': False, 'message': msg}
+
         vals = {
             'packing_number': packing_data.get('packing_number', ''),
             'packing_date': packing_data.get('packing_date') or False,
-            'scope': packing_data.get('scope', 'full_shipment'),
+            'scope': scope,
+            'container_ids': [(6, 0, normalized_container_ids)],
         }
-        if 'container_ids' in packing_data:
-            vals['container_ids'] = [(6, 0, packing_data['container_ids'])]
 
-        if pid and Packing.browse(pid).exists():
+        if pid:
             packing = Packing.browse(pid)
+            if not packing.exists() or not self._belongs_to_proforma(proforma, packing=packing):
+                return {'success': False, 'message': 'Packing no encontrado o no autorizado.'}
             packing.write(vals)
         else:
             vals['shipment_id'] = shipment.id
             packing = Packing.create(vals)
 
-        # Guardar rows — PRESERVAR imágenes existentes
         if rows is not None:
-            # Guardar imágenes de rows existentes indexadas por posición (orden de sequence)
-            old_rows_sorted = packing.row_ids.sorted('sequence')
-            existing_images_by_pos = {}
-            for i, old_row in enumerate(old_rows_sorted):
-                if old_row.image:
-                    existing_images_by_pos[i] = {
-                        'image': old_row.image,
-                        'image_filename': old_row.image_filename,
+            existing_rows = {row.id: row for row in packing.row_ids}
+            incoming_ids = set()
+            sequence = 10
+
+            shipment_container_ids = set(shipment.container_ids.ids)
+            packing_container_ids = set(normalized_container_ids)
+
+            for idx, r in enumerate(rows, start=1):
+                row_id = self._safe_int(r.get('id'), 0)
+                row_container_id = self._safe_int(r.get('container_id'), 0)
+
+                if row_container_id and row_container_id not in shipment_container_ids:
+                    return {
+                        'success': False,
+                        'message': 'La fila %s contiene un contenedor inválido para este embarque.' % idx
                     }
 
-            packing.row_ids.unlink()
-            seq = 10
-            for idx, r in enumerate(rows):
+                if scope == 'specific_containers' and row_container_id and row_container_id not in packing_container_ids:
+                    return {
+                        'success': False,
+                        'message': 'La fila %s contiene un contenedor fuera del alcance del packing.' % idx
+                    }
+
                 row_vals = {
                     'packing_id': packing.id,
-                    'sequence': seq,
-                    'product_id': int(r.get('product_id', 0)),
-                    'container_id': int(r.get('container_id', 0)) if r.get('container_id') else False,
+                    'sequence': sequence,
+                    'product_id': self._safe_int(r.get('product_id'), 0),
+                    'container_id': row_container_id or False,
                     'tipo': r.get('tipo', 'Placa'),
                     'grosor': r.get('grosor', ''),
-                    'alto': float(r.get('alto', 0)),
-                    'ancho': float(r.get('ancho', 0)),
-                    'peso': float(r.get('peso', 0)),
-                    'quantity': float(r.get('quantity', 0)),
+                    'alto': self._safe_float(r.get('alto', 0)),
+                    'ancho': self._safe_float(r.get('ancho', 0)),
+                    'peso': self._safe_float(r.get('peso', 0)),
+                    'quantity': self._safe_float(r.get('quantity', 0)),
                     'bloque': r.get('bloque', ''),
                     'numero_placa': r.get('numero_placa', ''),
                     'atado': r.get('atado', ''),
@@ -639,16 +903,25 @@ class SupplierPortalController(http.Controller):
                     'ref_proveedor': r.get('ref_proveedor', ''),
                 }
 
-                # Recuperar imagen por posición (el JS envía rows en el mismo orden)
-                if idx in existing_images_by_pos:
-                    img_data = existing_images_by_pos[idx]
-                    row_vals['image'] = img_data['image']
-                    row_vals['image_filename'] = img_data['image_filename']
+                if not row_vals['product_id']:
+                    return {'success': False, 'message': 'Todas las filas deben tener producto.'}
 
-                Row.create(row_vals)
-                seq += 10
+                if row_id:
+                    row_record = existing_rows.get(row_id)
+                    if not row_record:
+                        return {'success': False, 'message': 'Una de las filas no pertenece al packing actual.'}
+                    row_record.write(row_vals)
+                    incoming_ids.add(row_record.id)
+                else:
+                    new_row = Row.create(row_vals)
+                    incoming_ids.add(new_row.id)
 
-        proforma = shipment.proforma_id
+                sequence += 10
+
+            rows_to_delete = packing.row_ids.filtered(lambda rr: rr.id not in incoming_ids)
+            if rows_to_delete:
+                rows_to_delete.unlink()
+
         self._sync_packing_rows_to_spreadsheet(proforma, access.picking_id)
 
         return {'success': True, 'packing_id': packing.id}
@@ -659,11 +932,13 @@ class SupplierPortalController(http.Controller):
         if not access:
             return {'success': False, 'message': 'Token inválido.'}
 
-        packing = request.env['supplier.shipment.packing'].sudo().browse(packing_id)
-        if packing.exists():
-            proforma = packing.shipment_id.proforma_id
-            packing.unlink()
-            self._sync_packing_rows_to_spreadsheet(proforma, access.picking_id)
+        proforma = self._get_or_create_proforma(access)
+        packing = request.env['supplier.shipment.packing'].sudo().browse(self._safe_int(packing_id))
+        if not packing.exists() or not self._belongs_to_proforma(proforma, packing=packing):
+            return {'success': False, 'message': 'Packing no encontrado o no autorizado.'}
+
+        packing.unlink()
+        self._sync_packing_rows_to_spreadsheet(proforma, access.picking_id)
 
         return {'success': True}
 
@@ -673,27 +948,47 @@ class SupplierPortalController(http.Controller):
 
     @http.route('/supplier/api/v2/upload_file', type='json', auth='public', csrf=False)
     def api_upload_file(self, token, target_model, target_id, field_name, file_data, file_name):
-        """Sube un archivo binario a un campo Binary de cualquier modelo de la jerarquía."""
+        """Sube un archivo binario a un campo Binary de cualquier modelo permitido."""
         access = self._validate_token(token)
         if not access:
             return {'success': False, 'message': 'Token inválido.'}
+
+        proforma = self._get_or_create_proforma(access)
+        if not proforma:
+            return {'success': False, 'message': 'Proforma no encontrada.'}
 
         allowed_models = {
             'supplier.shipment': ['bl_file'],
             'supplier.shipment.invoice': ['file'],
             'supplier.shipment.packing': ['file'],
         }
+
         if target_model not in allowed_models or field_name not in allowed_models[target_model]:
             return {'success': False, 'message': 'Modelo o campo no permitido.'}
 
-        record = request.env[target_model].sudo().browse(target_id)
+        record = request.env[target_model].sudo().browse(self._safe_int(target_id))
         if not record.exists():
             return {'success': False, 'message': 'Registro no encontrado.'}
 
+        authorized = False
+        if target_model == 'supplier.shipment':
+            authorized = self._belongs_to_proforma(proforma, shipment=record)
+        elif target_model == 'supplier.shipment.invoice':
+            authorized = self._belongs_to_proforma(proforma, invoice=record)
+        elif target_model == 'supplier.shipment.packing':
+            authorized = self._belongs_to_proforma(proforma, packing=record)
+
+        if not authorized:
+            return {'success': False, 'message': 'Registro no autorizado para este token.'}
+
+        if not file_data:
+            return {'success': False, 'message': 'No se recibió contenido de archivo.'}
+
+        if not file_name:
+            file_name = 'archivo'
+
         fname_field = field_name.replace('file', 'filename') if 'file' in field_name else f'{field_name}_name'
-        if fname_field == 'filename':
-            pass
-        elif field_name == 'bl_file':
+        if field_name == 'bl_file':
             fname_field = 'bl_filename'
 
         write_vals = {field_name: file_data}
@@ -714,10 +1009,32 @@ class SupplierPortalController(http.Controller):
             return {'success': False, 'message': 'Token inválido.'}
 
         proforma = self._get_or_create_proforma(access)
-        if proforma:
-            proforma.write({'status': 'complete'})
-            self._sync_flat_to_picking(proforma, access.picking_id)
-            self._sync_packing_rows_to_spreadsheet(proforma, access.picking_id)
+        if not proforma:
+            return {'success': False, 'message': 'Proforma no encontrada.'}
+
+        if not proforma.shipment_ids:
+            return {'success': False, 'message': 'Debe existir al menos un embarque antes de completar la proforma.'}
+
+        for shipment in proforma.shipment_ids:
+            for packing in shipment.packing_ids:
+                if packing.scope == 'specific_containers' and not packing.container_ids:
+                    return {
+                        'success': False,
+                        'message': 'Existe un packing con alcance a contenedores específicos pero sin contenedores asignados.'
+                    }
+                if packing.scope == 'specific_containers':
+                    invalid_rows = packing.row_ids.filtered(
+                        lambda r: r.container_id and r.container_id.id not in packing.container_ids.ids
+                    )
+                    if invalid_rows:
+                        return {
+                            'success': False,
+                            'message': 'Existe un packing con filas usando contenedores fuera de su alcance.'
+                        }
+
+        proforma.write({'status': 'complete'})
+        self._sync_flat_to_picking(proforma, access.picking_id)
+        self._sync_packing_rows_to_spreadsheet(proforma, access.picking_id)
 
         return {'success': True}
 
@@ -748,13 +1065,13 @@ class SupplierPortalController(http.Controller):
         if not access:
             return {'success': False, 'message': 'Token inválido.'}
 
+        proforma = self._get_or_create_proforma(access)
         Row = request.env['supplier.shipment.packing.row'].sudo()
-        row = Row.browse(int(row_id))
+        row = Row.browse(self._safe_int(row_id))
         if not row.exists():
             return {'success': False, 'message': 'Fila no encontrada.'}
 
-        proforma = self._get_or_create_proforma(access)
-        if not proforma or row.packing_id.shipment_id.proforma_id.id != proforma.id:
+        if not self._belongs_to_proforma(proforma, row=row):
             return {'success': False, 'message': 'Fila no pertenece a esta proforma.'}
 
         vals = {'image': image_data}
@@ -771,13 +1088,13 @@ class SupplierPortalController(http.Controller):
         if not access:
             return {'success': False, 'message': 'Token inválido.'}
 
+        proforma = self._get_or_create_proforma(access)
         Row = request.env['supplier.shipment.packing.row'].sudo()
-        row = Row.browse(int(row_id))
+        row = Row.browse(self._safe_int(row_id))
         if not row.exists():
             return {'success': False, 'message': 'Fila no encontrada.'}
 
-        proforma = self._get_or_create_proforma(access)
-        if not proforma or row.packing_id.shipment_id.proforma_id.id != proforma.id:
+        if not self._belongs_to_proforma(proforma, row=row):
             return {'success': False, 'message': 'Fila no pertenece a esta proforma.'}
 
         row.write({'image': False, 'image_filename': False})
@@ -805,5 +1122,4 @@ class SupplierPortalController(http.Controller):
                 picking.sudo()._process_portal_attachments(files)
             return {'success': True}
         except Exception as e:
-            _logger.exception("Error en submit_pl_data")
             return {'success': False, 'message': str(e)}
