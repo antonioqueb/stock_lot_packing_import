@@ -463,7 +463,6 @@
                             token: this.token,
                             packing_id: parseInt(btn.dataset.pkId, 10),
                         });
-                        this.expandedPackingIds.delete(parseInt(btn.dataset.pkId, 10));
                         await this.reloadProforma();
                         this.renderAll();
                         this.toast(this.t('msg_saved'), 'success');
@@ -483,44 +482,16 @@
                 });
             });
 
-            el.querySelectorAll('.btn-toggle-packing-rows').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const pkId = parseInt(btn.dataset.pkId, 10);
-                    const area = document.getElementById(`pk-rows-${pkId}`);
-                    if (!area) return;
-
-                    const isExpanded = this.expandedPackingIds.has(pkId);
-
-                    if (isExpanded) {
-                        this.expandedPackingIds.delete(pkId);
-                        area.style.display = 'none';
-                        btn.innerHTML = `<i class="fa fa-table me-1"></i>${this.t('btn_expand_rows')}`;
-                    } else {
-                        this.expandedPackingIds.add(pkId);
-                        area.style.display = 'block';
-                        btn.innerHTML = `<i class="fa fa-table me-1"></i>${this.t('btn_hide_rows')}`;
-                        const pk = packings.find(p => p.id === pkId);
-                        if (pk) this.renderPackingRows(area, pk, s);
-                    }
-                });
-            });
-
+            // Always render packing rows for all packings (always visible)
             packings.forEach(pk => {
-                if (!this.expandedPackingIds.has(pk.id)) return;
                 const area = document.getElementById(`pk-rows-${pk.id}`);
                 if (area) {
-                    area.style.display = 'block';
                     this.renderPackingRows(area, pk, s);
-                }
-                const btn = el.querySelector(`.btn-toggle-packing-rows[data-pk-id="${pk.id}"]`);
-                if (btn) {
-                    btn.innerHTML = `<i class="fa fa-table me-1"></i>${this.t('btn_hide_rows')}`;
                 }
             });
         },
 
         _packingCard(pk, idx, s) {
-            const isExpanded = this.expandedPackingIds.has(pk.id);
             const rowCount = (pk.rows || []).length;
 
             return `<div class="sub-item-card packing-card" data-packing-id="${pk.id}">
@@ -530,9 +501,6 @@
                         <small class="text-muted">(${rowCount} rows)</small>
                     </span>
                     <div class="sub-item-actions">
-                        <button type="button" class="btn-toggle-packing-rows" data-pk-id="${pk.id}">
-                            <i class="fa fa-table me-1"></i>${isExpanded ? this.t('btn_hide_rows') : this.t('btn_expand_rows')}
-                        </button>
                         <button type="button" class="btn-delete-pk" data-pk-id="${pk.id}">
                             <i class="fa fa-trash"></i>
                         </button>
@@ -548,7 +516,7 @@
                         <input type="date" data-pk-id="${pk.id}" data-pk-f="packing_date" value="${esc(pk.packing_date)}"/>
                     </div>
                 </div>
-                <div class="packing-rows-area" id="pk-rows-${pk.id}" style="display:none;"></div>
+                <div class="packing-rows-area" id="pk-rows-${pk.id}"></div>
                 <div class="text-end mt-2">
                     <button type="button" class="btn-save-section btn-save-pk" data-pk-id="${pk.id}" data-sid="${s.id}" style="font-size:0.8rem;padding:6px 16px;">
                         <i class="fa fa-save me-1"></i> ${this.t('btn_save_packing')}
@@ -567,7 +535,6 @@
                 });
 
                 if (res.success) {
-                    this.expandedPackingIds.add(res.packing_id);
                     await this.reloadProforma();
                     this.renderAll();
                     this.toast(this.t('msg_saved'), 'success');
