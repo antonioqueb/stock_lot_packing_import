@@ -159,7 +159,7 @@ class SupplierPortalController(http.Controller):
         shipment_container_ids = set(shipment.container_ids.ids)
         invalid = [cid for cid in normalized if cid not in shipment_container_ids]
         if invalid:
-            return False, "Uno o más contenedores no pertenecen al embarque actual."
+            return False, "Uno o mas contenedores no pertenecen al embarque actual."
         return True, normalized
 
     def _validate_packing_scope_and_containers(self, shipment, packing_vals, rows=None):
@@ -180,7 +180,7 @@ class SupplierPortalController(http.Controller):
         valid_container_ids = result
 
         if scope == 'specific_containers' and not valid_container_ids:
-            return False, "Si el packing aplica a contenedores específicos, debe seleccionar al menos un contenedor.", None
+            return False, "Si el packing aplica a contenedores especificos, debe seleccionar al menos un contenedor.", None
 
         if rows:
             shipment_container_ids = set(shipment.container_ids.ids)
@@ -229,7 +229,7 @@ class SupplierPortalController(http.Controller):
     # =====================================================================
 
     def _serialize_proforma(self, header):
-        """Serializa la proforma y toda su jerarquía a JSON-safe dict."""
+        """Serializa la proforma y toda su jerarquia a JSON-safe dict."""
         shipments = []
         for s in self._sorted_shipments(header.shipment_ids):
             containers = [{
@@ -315,6 +315,19 @@ class SupplierPortalController(http.Controller):
                 if c.id not in packing_related_container_ids:
                     containers_without_packing.append(c.id)
 
+            # ── Fotos de bloque del embarque ──
+            block_images = []
+            if hasattr(s, 'block_image_ids'):
+                block_images = [{
+                    'id': bi.id,
+                    'block_name': bi.block_name or '',
+                    'product_id': bi.product_id.id,
+                    'product_name': bi.product_id.display_name,
+                    'has_image': bool(bi.image),
+                    'image_filename': bi.image_filename or '',
+                    'notes': bi.notes or '',
+                } for bi in s.block_image_ids]
+
             shipments.append({
                 'id': s.id,
                 'name': s.name or '',
@@ -336,6 +349,7 @@ class SupplierPortalController(http.Controller):
                 'invoices': invoices,
                 'packings': packings,
                 'containers': containers,
+                'block_images': block_images,
                 'voyage_id': s.voyage_id.id if s.voyage_id else False,
                 'containers_without_packing': containers_without_packing,
                 'has_multi_container_packings': any(p['is_multi_container'] for p in packings),
@@ -574,7 +588,7 @@ class SupplierPortalController(http.Controller):
     def api_save_globals(self, token, globals_data):
         access = self._validate_token(token)
         if not access:
-            return {'success': False, 'message': 'Token inválido.'}
+            return {'success': False, 'message': 'Token invalido.'}
 
         proforma = self._get_or_create_proforma(access)
         if not proforma:
@@ -611,7 +625,7 @@ class SupplierPortalController(http.Controller):
     def api_create_shipment(self, token, shipment_data=None):
         access = self._validate_token(token)
         if not access:
-            return {'success': False, 'message': 'Token inválido.'}
+            return {'success': False, 'message': 'Token invalido.'}
 
         proforma = self._get_or_create_proforma(access)
         if not proforma:
@@ -639,7 +653,7 @@ class SupplierPortalController(http.Controller):
     def api_update_shipment(self, token, shipment_id, shipment_data):
         access = self._validate_token(token)
         if not access:
-            return {'success': False, 'message': 'Token inválido.'}
+            return {'success': False, 'message': 'Token invalido.'}
 
         proforma = self._get_or_create_proforma(access)
         shipment = request.env['supplier.shipment'].sudo().browse(self._safe_int(shipment_id))
@@ -670,7 +684,7 @@ class SupplierPortalController(http.Controller):
     def api_delete_shipment(self, token, shipment_id):
         access = self._validate_token(token)
         if not access:
-            return {'success': False, 'message': 'Token inválido.'}
+            return {'success': False, 'message': 'Token invalido.'}
 
         proforma = self._get_or_create_proforma(access)
         shipment = request.env['supplier.shipment'].sudo().browse(self._safe_int(shipment_id))
@@ -695,7 +709,7 @@ class SupplierPortalController(http.Controller):
     def api_save_containers(self, token, shipment_id, containers):
         access = self._validate_token(token)
         if not access:
-            return {'success': False, 'message': 'Token inválido.'}
+            return {'success': False, 'message': 'Token invalido.'}
 
         proforma = self._get_or_create_proforma(access)
         shipment = request.env['supplier.shipment'].sudo().browse(self._safe_int(shipment_id))
@@ -748,7 +762,7 @@ class SupplierPortalController(http.Controller):
             if used_in_packings or used_in_rows or used_in_invoices:
                 return {
                     'success': False,
-                    'message': 'No puede eliminar contenedores que ya están siendo usados en packings, filas o invoices.'
+                    'message': 'No puede eliminar contenedores que ya estan siendo usados en packings, filas o invoices.'
                 }
 
             to_delete.unlink()
@@ -765,7 +779,7 @@ class SupplierPortalController(http.Controller):
     def api_save_invoices(self, token, shipment_id, invoices):
         access = self._validate_token(token)
         if not access:
-            return {'success': False, 'message': 'Token inválido.'}
+            return {'success': False, 'message': 'Token invalido.'}
 
         proforma = self._get_or_create_proforma(access)
         shipment = request.env['supplier.shipment'].sudo().browse(self._safe_int(shipment_id))
@@ -787,7 +801,7 @@ class SupplierPortalController(http.Controller):
             if scope == 'specific_containers' and not result:
                 return {
                     'success': False,
-                    'message': 'Si el invoice aplica a contenedores específicos, debe seleccionar al menos un contenedor.'
+                    'message': 'Si el invoice aplica a contenedores especificos, debe seleccionar al menos un contenedor.'
                 }
 
             vals = {
@@ -826,7 +840,7 @@ class SupplierPortalController(http.Controller):
     def api_save_packing(self, token, shipment_id, packing_data, rows=None):
         access = self._validate_token(token)
         if not access:
-            return {'success': False, 'message': 'Token inválido.'}
+            return {'success': False, 'message': 'Token invalido.'}
 
         proforma = self._get_or_create_proforma(access)
         shipment = request.env['supplier.shipment'].sudo().browse(self._safe_int(shipment_id))
@@ -884,7 +898,7 @@ class SupplierPortalController(http.Controller):
                 if row_container_id and row_container_id not in shipment_container_ids:
                     return {
                         'success': False,
-                        'message': 'La fila %s contiene un contenedor inválido para este embarque.' % idx
+                        'message': 'La fila %s contiene un contenedor invalido para este embarque.' % idx
                     }
 
                 if scope == 'specific_containers' and row_container_id and row_container_id not in packing_container_ids:
@@ -932,6 +946,30 @@ class SupplierPortalController(http.Controller):
             if rows_to_delete:
                 rows_to_delete.unlink()
 
+        # ── Validar fotos de bloque obligatorias ──
+        if rows is not None:
+            valid_rows = [r for r in (rows or []) if r]
+            if valid_rows:
+                blocks_in_rows = set()
+                for r in valid_rows:
+                    bloque = (r.get('bloque') or '').strip()
+                    if bloque:
+                        blocks_in_rows.add((bloque, self._safe_int(r.get('product_id', 0))))
+
+                if blocks_in_rows:
+                    BlockImage = request.env['supplier.shipment.block.image'].sudo()
+                    for block_name, prod_id in blocks_in_rows:
+                        existing = BlockImage.search([
+                            ('shipment_id', '=', shipment.id),
+                            ('block_name', '=', block_name),
+                            ('product_id', '=', prod_id),
+                        ], limit=1)
+                        if not existing:
+                            return {
+                                'success': False,
+                                'message': 'El bloque "%s" no tiene fotografia. Suba al menos una foto por bloque antes de guardar.' % block_name
+                            }
+
         self._sync_packing_rows_to_spreadsheet(proforma, access.picking_id)
 
         return {'success': True, 'packing_id': packing.id}
@@ -940,7 +978,7 @@ class SupplierPortalController(http.Controller):
     def api_delete_packing(self, token, packing_id):
         access = self._validate_token(token)
         if not access:
-            return {'success': False, 'message': 'Token inválido.'}
+            return {'success': False, 'message': 'Token invalido.'}
 
         proforma = self._get_or_create_proforma(access)
         packing = request.env['supplier.shipment.packing'].sudo().browse(self._safe_int(packing_id))
@@ -961,7 +999,7 @@ class SupplierPortalController(http.Controller):
         """Sube un archivo binario a un campo Binary de cualquier modelo permitido."""
         access = self._validate_token(token)
         if not access:
-            return {'success': False, 'message': 'Token inválido.'}
+            return {'success': False, 'message': 'Token invalido.'}
 
         proforma = self._get_or_create_proforma(access)
         if not proforma:
@@ -992,7 +1030,7 @@ class SupplierPortalController(http.Controller):
             return {'success': False, 'message': 'Registro no autorizado para este token.'}
 
         if not file_data:
-            return {'success': False, 'message': 'No se recibió contenido de archivo.'}
+            return {'success': False, 'message': 'No se recibio contenido de archivo.'}
 
         if not file_name:
             file_name = 'archivo'
@@ -1016,7 +1054,7 @@ class SupplierPortalController(http.Controller):
     def api_complete(self, token):
         access = self._validate_token(token)
         if not access:
-            return {'success': False, 'message': 'Token inválido.'}
+            return {'success': False, 'message': 'Token invalido.'}
 
         proforma = self._get_or_create_proforma(access)
         if not proforma:
@@ -1030,7 +1068,7 @@ class SupplierPortalController(http.Controller):
                 if packing.scope == 'specific_containers' and not packing.container_ids:
                     return {
                         'success': False,
-                        'message': 'Existe un packing con alcance a contenedores específicos pero sin contenedores asignados.'
+                        'message': 'Existe un packing con alcance a contenedores especificos pero sin contenedores asignados.'
                     }
                 if packing.scope == 'specific_containers':
                     invalid_rows = packing.row_ids.filtered(
@@ -1042,6 +1080,27 @@ class SupplierPortalController(http.Controller):
                             'message': 'Existe un packing con filas usando contenedores fuera de su alcance.'
                         }
 
+            # ── Validar fotos de bloque al completar ──
+            BlockImage = request.env['supplier.shipment.block.image'].sudo()
+            for packing in self._sorted_packings(shipment.packing_ids):
+                blocks_in_packing = set()
+                for row in packing.row_ids:
+                    bloque = (row.bloque or '').strip()
+                    if bloque:
+                        blocks_in_packing.add((bloque, row.product_id.id))
+
+                for block_name, prod_id in blocks_in_packing:
+                    existing = BlockImage.search([
+                        ('shipment_id', '=', shipment.id),
+                        ('block_name', '=', block_name),
+                        ('product_id', '=', prod_id),
+                    ], limit=1)
+                    if not existing:
+                        return {
+                            'success': False,
+                            'message': 'El bloque "%s" en el embarque "%s" no tiene fotografia. Suba al menos una foto por bloque.' % (block_name, shipment.name)
+                        }
+
         proforma.write({'status': 'complete'})
         self._sync_flat_to_picking(proforma, access.picking_id)
         self._sync_packing_rows_to_spreadsheet(proforma, access.picking_id)
@@ -1049,14 +1108,14 @@ class SupplierPortalController(http.Controller):
         return {'success': True}
 
     # =====================================================================
-    #  API v2: RELOAD (recarga todos los datos jerárquicos)
+    #  API v2: RELOAD (recarga todos los datos jerarquicos)
     # =====================================================================
 
     @http.route('/supplier/api/v2/reload', type='json', auth='public', csrf=False)
     def api_reload(self, token):
         access = self._validate_token(token)
         if not access:
-            return {'success': False, 'message': 'Token inválido.'}
+            return {'success': False, 'message': 'Token invalido.'}
 
         proforma = self._get_or_create_proforma(access)
         if not proforma:
@@ -1070,10 +1129,10 @@ class SupplierPortalController(http.Controller):
 
     @http.route('/supplier/api/v2/upload_row_image', type='json', auth='public', csrf=False)
     def api_upload_row_image(self, token, row_id, image_data, image_name=None):
-        """Sube una imagen (base64) a una fila específica del packing list."""
+        """Sube una imagen (base64) a una fila especifica del packing list."""
         access = self._validate_token(token)
         if not access:
-            return {'success': False, 'message': 'Token inválido.'}
+            return {'success': False, 'message': 'Token invalido.'}
 
         proforma = self._get_or_create_proforma(access)
         Row = request.env['supplier.shipment.packing.row'].sudo()
@@ -1096,7 +1155,7 @@ class SupplierPortalController(http.Controller):
         """Elimina la imagen de una fila del packing list."""
         access = self._validate_token(token)
         if not access:
-            return {'success': False, 'message': 'Token inválido.'}
+            return {'success': False, 'message': 'Token invalido.'}
 
         proforma = self._get_or_create_proforma(access)
         Row = request.env['supplier.shipment.packing.row'].sudo()
@@ -1111,6 +1170,80 @@ class SupplierPortalController(http.Controller):
         return {'success': True}
 
     # =====================================================================
+    #  API v2: CRUD FOTOS DE BLOQUE
+    # =====================================================================
+
+    @http.route('/supplier/api/v2/upload_block_image', type='json', auth='public', csrf=False)
+    def api_upload_block_image(self, token, shipment_id, block_name, product_id, image_data, image_name=None):
+        """Sube una foto de bloque a un embarque."""
+        access = self._validate_token(token)
+        if not access:
+            return {'success': False, 'message': 'Token invalido.'}
+
+        proforma = self._get_or_create_proforma(access)
+        shipment = request.env['supplier.shipment'].sudo().browse(self._safe_int(shipment_id))
+        if not shipment.exists() or not self._belongs_to_proforma(proforma, shipment=shipment):
+            return {'success': False, 'message': 'Embarque no encontrado o no autorizado.'}
+
+        if not block_name or not block_name.strip():
+            return {'success': False, 'message': 'Nombre de bloque requerido.'}
+
+        if not image_data:
+            return {'success': False, 'message': 'No se recibio imagen.'}
+
+        BlockImage = request.env['supplier.shipment.block.image'].sudo()
+        vals = {
+            'shipment_id': shipment.id,
+            'block_name': block_name.strip(),
+            'product_id': self._safe_int(product_id),
+            'image': image_data,
+            'image_filename': image_name or 'block_photo',
+        }
+        record = BlockImage.create(vals)
+        return {'success': True, 'block_image_id': record.id}
+
+    @http.route('/supplier/api/v2/delete_block_image', type='json', auth='public', csrf=False)
+    def api_delete_block_image(self, token, block_image_id):
+        """Elimina una foto de bloque."""
+        access = self._validate_token(token)
+        if not access:
+            return {'success': False, 'message': 'Token invalido.'}
+
+        proforma = self._get_or_create_proforma(access)
+        BlockImage = request.env['supplier.shipment.block.image'].sudo()
+        record = BlockImage.browse(self._safe_int(block_image_id))
+        if not record.exists():
+            return {'success': False, 'message': 'Registro no encontrado.'}
+
+        if not self._belongs_to_proforma(proforma, shipment=record.shipment_id):
+            return {'success': False, 'message': 'No autorizado.'}
+
+        record.unlink()
+        return {'success': True}
+
+    @http.route('/supplier/api/v2/get_block_images', type='json', auth='public', csrf=False)
+    def api_get_block_images(self, token, shipment_id):
+        """Obtiene todas las fotos de bloque de un embarque."""
+        access = self._validate_token(token)
+        if not access:
+            return {'success': False, 'message': 'Token invalido.'}
+
+        proforma = self._get_or_create_proforma(access)
+        shipment = request.env['supplier.shipment'].sudo().browse(self._safe_int(shipment_id))
+        if not shipment.exists() or not self._belongs_to_proforma(proforma, shipment=shipment):
+            return {'success': False, 'message': 'Embarque no encontrado.'}
+
+        images = [{
+            'id': bi.id,
+            'block_name': bi.block_name,
+            'product_id': bi.product_id.id,
+            'product_name': bi.product_id.display_name,
+            'image_filename': bi.image_filename or '',
+        } for bi in shipment.block_image_ids]
+
+        return {'success': True, 'block_images': images}
+
+    # =====================================================================
     #  ENDPOINT LEGACY: SUBMIT (flujo viejo, fallback)
     # =====================================================================
 
@@ -1118,13 +1251,13 @@ class SupplierPortalController(http.Controller):
     def submit_pl_data(self, token, rows, header=None, files=None):
         access = self._validate_token(token)
         if not access:
-            return {'success': False, 'message': 'Token inválido.'}
+            return {'success': False, 'message': 'Token invalido.'}
 
         picking = access.picking_id
         if not picking:
             return {'success': False, 'message': 'Picking no encontrado.'}
         if picking.state in ('done', 'cancel'):
-            return {'success': False, 'message': 'La recepción ya fue procesada.'}
+            return {'success': False, 'message': 'La recepcion ya fue procesada.'}
 
         try:
             picking.sudo().update_packing_list_from_portal(rows, header_data=header)

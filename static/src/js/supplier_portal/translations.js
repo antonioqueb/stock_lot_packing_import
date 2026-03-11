@@ -66,6 +66,9 @@
             st_draft: "Draft", st_in_production: "In Production", st_booked: "Booked",
             st_departed: "Departed", st_in_transit: "In Transit", st_arrived: "Arrived", st_delivered: "Delivered",
             btn_expand_rows: "Show Rows", btn_hide_rows: "Hide Rows",
+            block_photos_title: "Block Photos",
+            block_photos_required: "at least 1 photo required per block",
+            block_photos_add: "Upload photo",
         },
         es: {
             header_provider: "PROVEEDOR", po_label: "Orden de Compra:", receipt_label: "Recepción:",
@@ -129,6 +132,9 @@
             st_draft: "Borrador", st_in_production: "En Producción", st_booked: "Reservado",
             st_departed: "Despachado", st_in_transit: "En Tránsito", st_arrived: "Llegó", st_delivered: "Entregado",
             btn_expand_rows: "Ver Filas", btn_hide_rows: "Ocultar Filas",
+            block_photos_title: "Fotografías por Bloque",
+            block_photos_required: "al menos 1 foto requerida por bloque",
+            block_photos_add: "Subir foto",
         },
         zh: {
             header_provider: "供应商", po_label: "采购订单:", receipt_label: "收货单:",
@@ -192,6 +198,9 @@
             st_draft: "草稿", st_in_production: "生产中", st_booked: "已预订",
             st_departed: "已发运", st_in_transit: "运输中", st_arrived: "已到达", st_delivered: "已交付",
             btn_expand_rows: "显示行", btn_hide_rows: "隐藏行",
+            block_photos_title: "荒料照片",
+            block_photos_required: "每个荒料至少需要1张照片",
+            block_photos_add: "上传照片",
         }
     };
 })();
