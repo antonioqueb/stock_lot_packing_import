@@ -163,21 +163,23 @@ body {
         border: 1px solid $border-default;
 
         .label {
-            font-size: 0.65rem;
+            font-size: 0.62rem;
             color: $text-tertiary;
             text-transform: uppercase;
-            letter-spacing: 0.06em;
+            letter-spacing: 0.08em;
             display: block;
-            margin-bottom: 1px;
+            margin-bottom: 2px;
             font-weight: 600;
+            line-height: 1;
         }
 
         .value {
             font-weight: 700;
             color: $text-primary;
-            font-size: 0.9rem;
+            font-size: 0.88rem;
             font-family: $font-mono;
             letter-spacing: -0.01em;
+            line-height: 1.2;
         }
     }
 
@@ -287,6 +289,14 @@ body {
 
     .card-body {
         padding: $sp-5;
+    }
+
+    .card-actions {
+        display: flex;
+        justify-content: flex-end;
+        padding-top: $sp-4;
+        margin-top: $sp-4;
+        border-top: 1px solid $border-subtle;
     }
 
     @include mobile {
@@ -1219,6 +1229,11 @@ body {
             align-items: center;
             gap: $sp-2;
             font-weight: 600;
+
+            > i {
+                color: $text-tertiary;
+                font-size: 0.8rem;
+            }
         }
 
         .text-accent {
