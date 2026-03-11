@@ -1,5 +1,5 @@
 /* static/src/scss/supplier_portal.scss */
-/* v5.1 — White Canvas, Warm Accents */
+/* v5.2 — White Canvas, Warm Accents, Wide Layout */
 
 /* ═══════════════════════════════════════════════════
    DESIGN TOKENS
@@ -230,15 +230,21 @@ body {
 }
 
 /* ═══════════════════════════════════════════════════
-   CONTAINER
+   CONTAINER — 85% viewport width
    ═══════════════════════════════════════════════════ */
 .o_portal_container {
-    max-width: 1400px;
-    width: 96%;
+    max-width: 85%;
+    width: 85%;
     margin: $sp-8 auto;
     padding-bottom: 160px;
 
+    @include tablet {
+        max-width: 92%;
+        width: 92%;
+    }
+
     @include mobile {
+        max-width: 100%;
         width: 100%;
         padding: 0 $sp-3 160px $sp-3;
         margin-top: $sp-5;
@@ -919,7 +925,7 @@ body {
     width: 100%;
     border-collapse: collapse;
     color: $text-primary;
-    min-width: 900px;
+    table-layout: auto;
 
     thead {
         background: $bg-inset;
@@ -966,7 +972,6 @@ body {
 
     @include mobile {
         display: block;
-        min-width: auto;
 
         thead { display: none; }
         tbody { display: block; }
@@ -1034,6 +1039,7 @@ body {
         padding: 0 $sp-2;
         border-radius: $radius-sm;
         width: 100%;
+        min-width: 0;
         font-family: $font-mono;
         font-size: 0.82rem;
         height: $input-h;
@@ -1056,6 +1062,7 @@ body {
         padding: 0;
         border-radius: $radius-sm;
         min-width: 28px;
+        flex-shrink: 0;
         height: $input-h;
         font-size: 0.75rem;
         cursor: pointer;
@@ -1107,10 +1114,12 @@ body {
     gap: $sp-3;
     background: $bg-inset;
     border-top: 1px solid $border-subtle;
+    flex-wrap: wrap;
 
     .btn-add-row {
         @include btn-base;
         flex: 1;
+        min-width: 120px;
         padding: $sp-3;
         border-radius: $radius-md;
         background: $bg-card;
@@ -1383,7 +1392,7 @@ body {
         i { color: $red !important; }
 
         &::after {
-            content: '×';
+            content: '\00d7';
             position: absolute;
             font-size: 0.65rem;
             color: $red;
