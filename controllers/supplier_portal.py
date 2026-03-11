@@ -12,6 +12,34 @@ from markupsafe import Markup
 class SupplierPortalController(http.Controller):
 
     # =====================================================================
+    #  PARAM HELPER — Odoo 19 compatibility
+    #  In Odoo 19 type='json' controllers, params may arrive via kwargs
+    #  OR via request.params depending on the Odoo build. This helper
+    #  checks both sources.
+    # =====================================================================
+
+    def _p(self, key, default=None, **kw):
+        """Read a JSON-RPC param from kwargs first, then request.params."""
+        val = kw.get(key)
+        if val is not None:
+            return val
+        try:
+            val = request.params.get(key)
+            if val is not None:
+                return val
+        except Exception:
+            pass
+        try:
+            data = request.get_json_data() or {}
+            params = data.get('params', {})
+            val = params.get(key)
+            if val is not None:
+                return val
+        except Exception:
+            pass
+        return default
+
+    # =====================================================================
     #  HELPERS GENERALES
     # =====================================================================
 
@@ -718,8 +746,9 @@ class SupplierPortalController(http.Controller):
     # =====================================================================
 
     @http.route('/supplier/api/v2/save_globals', type='json', auth='public', csrf=False)
-    def api_save_globals(self, token=None, globals_data=None, **kw):
-        access = self._validate_token(token)
+    def api_save_globals(self, **kw):
+        access = self._validate_token(kw.get("token"))
+        globals_data = kw.get("globals_data")
         if not access:
             return {'success': False, 'message': 'Token invalido.'}
 
@@ -756,8 +785,9 @@ class SupplierPortalController(http.Controller):
     # =====================================================================
 
     @http.route('/supplier/api/v2/create_shipment', type='json', auth='public', csrf=False)
-    def api_create_shipment(self, token=None, shipment_data=None, **kw):
-        access = self._validate_token(token)
+    def api_create_shipment(self, **kw):
+        access = self._validate_token(kw.get("token"))
+        shipment_data = kw.get("shipment_data")
         if not access:
             return {'success': False, 'message': 'Token invalido.'}
 
@@ -784,8 +814,10 @@ class SupplierPortalController(http.Controller):
         return {'success': True, 'shipment_id': shipment.id, 'name': shipment.name}
 
     @http.route('/supplier/api/v2/update_shipment', type='json', auth='public', csrf=False)
-    def api_update_shipment(self, token=None, shipment_id=None, shipment_data=None, **kw):
-        access = self._validate_token(token)
+    def api_update_shipment(self, **kw):
+        access = self._validate_token(kw.get("token"))
+        shipment_id = kw.get("shipment_id")
+        shipment_data = kw.get("shipment_data")
         if not access:
             return {'success': False, 'message': 'Token invalido.'}
 
@@ -816,8 +848,9 @@ class SupplierPortalController(http.Controller):
         return {'success': True}
 
     @http.route('/supplier/api/v2/delete_shipment', type='json', auth='public', csrf=False)
-    def api_delete_shipment(self, token=None, shipment_id=None, **kw):
-        access = self._validate_token(token)
+    def api_delete_shipment(self, **kw):
+        access = self._validate_token(kw.get("token"))
+        shipment_id = kw.get("shipment_id")
         if not access:
             return {'success': False, 'message': 'Token invalido.'}
 
@@ -841,8 +874,10 @@ class SupplierPortalController(http.Controller):
     # =====================================================================
 
     @http.route('/supplier/api/v2/save_containers', type='json', auth='public', csrf=False)
-    def api_save_containers(self, token=None, shipment_id=None, containers=None, **kw):
-        access = self._validate_token(token)
+    def api_save_containers(self, **kw):
+        access = self._validate_token(kw.get("token"))
+        shipment_id = kw.get("shipment_id")
+        containers = kw.get("containers")
         if not access:
             return {'success': False, 'message': 'Token invalido.'}
 
@@ -907,8 +942,10 @@ class SupplierPortalController(http.Controller):
     # =====================================================================
 
     @http.route('/supplier/api/v2/save_invoices', type='json', auth='public', csrf=False)
-    def api_save_invoices(self, token=None, shipment_id=None, invoices=None, **kw):
-        access = self._validate_token(token)
+    def api_save_invoices(self, **kw):
+        access = self._validate_token(kw.get("token"))
+        shipment_id = kw.get("shipment_id")
+        invoices = kw.get("invoices")
         if not access:
             return {'success': False, 'message': 'Token invalido.'}
 
@@ -968,8 +1005,11 @@ class SupplierPortalController(http.Controller):
     # =====================================================================
 
     @http.route('/supplier/api/v2/save_packing', type='json', auth='public', csrf=False)
-    def api_save_packing(self, token=None, shipment_id=None, packing_data=None, rows=None, **kw):
-        access = self._validate_token(token)
+    def api_save_packing(self, **kw):
+        access = self._validate_token(kw.get("token"))
+        shipment_id = kw.get("shipment_id")
+        packing_data = kw.get("packing_data")
+        rows = kw.get("rows")
         if not access:
             return {'success': False, 'message': 'Token invalido.'}
 
@@ -1107,8 +1147,9 @@ class SupplierPortalController(http.Controller):
         return {'success': True, 'packing_id': packing.id}
 
     @http.route('/supplier/api/v2/delete_packing', type='json', auth='public', csrf=False)
-    def api_delete_packing(self, token=None, packing_id=None, **kw):
-        access = self._validate_token(token)
+    def api_delete_packing(self, **kw):
+        access = self._validate_token(kw.get("token"))
+        packing_id = kw.get("packing_id")
         if not access:
             return {'success': False, 'message': 'Token invalido.'}
 
@@ -1126,9 +1167,13 @@ class SupplierPortalController(http.Controller):
     # =====================================================================
 
     @http.route('/supplier/api/v2/upload_file', type='json', auth='public', csrf=False)
-    def api_upload_file(self, token=None, target_model=None, target_id=None,
-                        field_name=None, file_data=None, file_name=None, **kw):
-        access = self._validate_token(token)
+    def api_upload_file(self, **kw):
+        access = self._validate_token(kw.get("token"))
+        target_model = kw.get("target_model")
+        target_id = kw.get("target_id")
+        field_name = kw.get("field_name")
+        file_data = kw.get("file_data")
+        file_name = kw.get("file_name")
         if not access:
             return {'success': False, 'message': 'Token invalido.'}
 
@@ -1182,12 +1227,19 @@ class SupplierPortalController(http.Controller):
     # =====================================================================
 
     @http.route('/supplier/api/v2/upload_document', type='json', auth='public', csrf=False)
-    def api_upload_document(self, token=None, document_type=None, file_data=None, file_name=None,
-                            shipment_id=None, file_size=0, mime_type='',
-                            dpi_value=0, notes='', **kw):
-        access = self._validate_token(token)
+    def api_upload_document(self, **kw):
+        access = self._validate_token(kw.get("token"))
         if not access:
             return {'success': False, 'message': 'Token invalido.'}
+
+        document_type = kw.get("document_type")
+        file_data = kw.get("file_data")
+        file_name = kw.get("file_name")
+        shipment_id = kw.get("shipment_id")
+        file_size = kw.get("file_size", 0)
+        mime_type = kw.get("mime_type", '')
+        dpi_value = kw.get("dpi_value", 0)
+        notes = kw.get("notes", '')
 
         if not document_type or not file_data or not file_name:
             return {'success': False, 'message': 'Faltan parametros requeridos (document_type, file_data, file_name).'}
@@ -1272,8 +1324,9 @@ class SupplierPortalController(http.Controller):
         return {'success': True, 'document_id': record.id}
 
     @http.route('/supplier/api/v2/delete_document', type='json', auth='public', csrf=False)
-    def api_delete_document(self, token=None, document_id=None, **kw):
-        access = self._validate_token(token)
+    def api_delete_document(self, **kw):
+        access = self._validate_token(kw.get("token"))
+        document_id = kw.get("document_id")
         if not access:
             return {'success': False, 'message': 'Token invalido.'}
 
@@ -1299,8 +1352,9 @@ class SupplierPortalController(http.Controller):
         return {'success': True}
 
     @http.route('/supplier/api/v2/list_documents', type='json', auth='public', csrf=False)
-    def api_list_documents(self, token=None, shipment_id=None, **kw):
-        access = self._validate_token(token)
+    def api_list_documents(self, **kw):
+        access = self._validate_token(kw.get("token"))
+        shipment_id = kw.get("shipment_id")
         if not access:
             return {'success': False, 'message': 'Token invalido.'}
 
@@ -1325,8 +1379,8 @@ class SupplierPortalController(http.Controller):
     # =====================================================================
 
     @http.route('/supplier/api/v2/complete', type='json', auth='public', csrf=False)
-    def api_complete(self, token=None, **kw):
-        access = self._validate_token(token)
+    def api_complete(self, **kw):
+        access = self._validate_token(kw.get("token"))
         if not access:
             return {'success': False, 'message': 'Token invalido.'}
 
@@ -1389,8 +1443,8 @@ class SupplierPortalController(http.Controller):
     # =====================================================================
 
     @http.route('/supplier/api/v2/reload', type='json', auth='public', csrf=False)
-    def api_reload(self, token=None, **kw):
-        access = self._validate_token(token)
+    def api_reload(self, **kw):
+        access = self._validate_token(kw.get("token"))
         if not access:
             return {'success': False, 'message': 'Token invalido.'}
 
@@ -1405,8 +1459,11 @@ class SupplierPortalController(http.Controller):
     # =====================================================================
 
     @http.route('/supplier/api/v2/upload_row_image', type='json', auth='public', csrf=False)
-    def api_upload_row_image(self, token=None, row_id=None, image_data=None, image_name=None, **kw):
-        access = self._validate_token(token)
+    def api_upload_row_image(self, **kw):
+        access = self._validate_token(kw.get("token"))
+        row_id = kw.get("row_id")
+        image_data = kw.get("image_data")
+        image_name = kw.get("image_name")
         if not access:
             return {'success': False, 'message': 'Token invalido.'}
 
@@ -1427,8 +1484,9 @@ class SupplierPortalController(http.Controller):
         return {'success': True, 'row_id': row.id}
 
     @http.route('/supplier/api/v2/delete_row_image', type='json', auth='public', csrf=False)
-    def api_delete_row_image(self, token=None, row_id=None, **kw):
-        access = self._validate_token(token)
+    def api_delete_row_image(self, **kw):
+        access = self._validate_token(kw.get("token"))
+        row_id = kw.get("row_id")
         if not access:
             return {'success': False, 'message': 'Token invalido.'}
 
@@ -1449,9 +1507,13 @@ class SupplierPortalController(http.Controller):
     # =====================================================================
 
     @http.route('/supplier/api/v2/upload_block_image', type='json', auth='public', csrf=False)
-    def api_upload_block_image(self, token=None, shipment_id=None, block_name=None,
-                               product_id=None, image_data=None, image_name=None, **kw):
-        access = self._validate_token(token)
+    def api_upload_block_image(self, **kw):
+        access = self._validate_token(kw.get("token"))
+        shipment_id = kw.get("shipment_id")
+        block_name = kw.get("block_name")
+        product_id = kw.get("product_id")
+        image_data = kw.get("image_data")
+        image_name = kw.get("image_name")
         if not access:
             return {'success': False, 'message': 'Token invalido.'}
 
@@ -1478,8 +1540,9 @@ class SupplierPortalController(http.Controller):
         return {'success': True, 'block_image_id': record.id}
 
     @http.route('/supplier/api/v2/delete_block_image', type='json', auth='public', csrf=False)
-    def api_delete_block_image(self, token=None, block_image_id=None, **kw):
-        access = self._validate_token(token)
+    def api_delete_block_image(self, **kw):
+        access = self._validate_token(kw.get("token"))
+        block_image_id = kw.get("block_image_id")
         if not access:
             return {'success': False, 'message': 'Token invalido.'}
 
@@ -1496,8 +1559,9 @@ class SupplierPortalController(http.Controller):
         return {'success': True}
 
     @http.route('/supplier/api/v2/get_block_images', type='json', auth='public', csrf=False)
-    def api_get_block_images(self, token=None, shipment_id=None, **kw):
-        access = self._validate_token(token)
+    def api_get_block_images(self, **kw):
+        access = self._validate_token(kw.get("token"))
+        shipment_id = kw.get("shipment_id")
         if not access:
             return {'success': False, 'message': 'Token invalido.'}
 
@@ -1521,8 +1585,11 @@ class SupplierPortalController(http.Controller):
     # =====================================================================
 
     @http.route('/supplier/pl/submit', type='json', auth='public', csrf=False)
-    def submit_pl_data(self, token=None, rows=None, header=None, files=None, **kw):
-        access = self._validate_token(token)
+    def submit_pl_data(self, **kw):
+        access = self._validate_token(kw.get("token"))
+        rows = kw.get("rows")
+        header = kw.get("header")
+        files = kw.get("files")
         if not access:
             return {'success': False, 'message': 'Token invalido.'}
 
