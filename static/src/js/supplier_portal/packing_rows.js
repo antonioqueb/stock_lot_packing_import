@@ -322,15 +322,29 @@
                     if (!src) return;
 
                     let started = false;
-                    rws.forEach(r => {
-                        if (r._id === rid) {
-                            started = true;
-                            return;
+
+                    if (field === 'numero_placa') {
+                        // Propagación secuencial: 3 → 4, 5, 6...
+                        const baseVal = parseInt(src[field], 10);
+                        if (!isNaN(baseVal)) {
+                            let seq = baseVal;
+                            rws.forEach(r => {
+                                if (r._id === rid) { started = true; return; }
+                                if (started && r.product_id === src.product_id) {
+                                    seq++;
+                                    r[field] = String(seq);
+                                }
+                            });
                         }
-                        if (started && r.product_id === src.product_id) {
-                            r[field] = src[field];
-                        }
-                    });
+                    } else {
+                        // Copiar mismo valor (comportamiento original)
+                        rws.forEach(r => {
+                            if (r._id === rid) { started = true; return; }
+                            if (started && r.product_id === src.product_id) {
+                                r[field] = src[field];
+                            }
+                        });
+                    }
 
                     this.renderPackingRows(area, pk, s);
                 }
