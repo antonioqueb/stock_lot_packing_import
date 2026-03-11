@@ -308,21 +308,27 @@
                 return;
             }
 
-            let dpiValue = null;
+            let dpiValue = 0;
             if (isPdf) {
                 dpiValue = await estimatePdfDpi(file);
             }
 
             try {
                 const fileData = await readFileAsBase64(file);
+
+                // IMPORTANT: parameter names must match controller's _get_params() expectations:
+                //   file_name, file_data, file_size, mime_type, dpi_value
+                // readFileAsBase64 returns {name, data} — we extract .data for the base64 string
                 const res = await jsonRpc('/supplier/api/v2/upload_document', {
                     token: this.token,
-                    proforma_id: proformaId,
-                    shipment_id: shipmentId,
+                    shipment_id: shipmentId || false,
                     document_type: docType,
-                    name: file.name,
-                    data: fileData,
-                    dpi_value: dpiValue,
+                    file_name: file.name,
+                    file_data: fileData.data,
+                    file_size: file.size || 0,
+                    mime_type: file.type || '',
+                    dpi_value: dpiValue || 0,
+                    notes: '',
                 });
                 if (res.success) {
                     this.toast(this.t('msg_saved'), 'success');
@@ -334,8 +340,7 @@
             } catch (e) {
                 this.toast(this.t('msg_error') + e.message, 'error');
             }
-        },  
+        },
     };
-    
-}
-)();
+
+})();
