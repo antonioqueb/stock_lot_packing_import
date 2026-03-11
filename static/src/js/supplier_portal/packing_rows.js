@@ -55,6 +55,24 @@
             return this.packingRows[rowsKey];
         },
 
+        /**
+         * Reload proforma WITHOUT clearing packing rows cache.
+         * Used by block photo operations so unsaved row data is preserved.
+         */
+        async reloadProformaKeepingRows() {
+            try {
+                const res = await jsonRpc('/supplier/api/v2/reload', { token: this.token });
+                if (res.success && res.proforma) {
+                    // Preserve existing packingRows cache — only update proforma metadata
+                    const savedRows = { ...this.packingRows };
+                    this.proforma = res.proforma;
+                    this.packingRows = savedRows;
+                }
+            } catch (e) {
+                console.error('[Portal] reloadProformaKeepingRows ERROR:', e.message);
+            }
+        },
+
         renderPackingRows(area, pk, s) {
             if (!pk) return;
 
@@ -324,7 +342,6 @@
                     let started = false;
 
                     if (field === 'numero_placa') {
-                        // Propagación secuencial: 3 → 4, 5, 6...
                         const baseVal = parseInt(src[field], 10);
                         if (!isNaN(baseVal)) {
                             let seq = baseVal;
@@ -337,7 +354,6 @@
                             });
                         }
                     } else {
-                        // Copiar mismo valor (comportamiento original)
                         rws.forEach(r => {
                             if (r._id === rid) { started = true; return; }
                             if (started && r.product_id === src.product_id) {
@@ -429,7 +445,6 @@
                     </div>
                     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">`;
 
-                // Fotos existentes
                 if (hasPhoto) {
                     imgs.forEach(img => {
                         blockHtml += `<span style="display:inline-flex;align-items:center;gap:4px;font-size:0.75rem;color:#16a34a;background:#dcfce7;padding:3px 8px;border-radius:12px;border:1px solid #bbf7d0;">
@@ -444,13 +459,13 @@
                     blockHtml += `<span style="font-size:0.72rem;color:#dc2626;"><i class="fa fa-exclamation-circle"></i> ${this.t('block_photos_missing') || 'Foto requerida'}</span>`;
                 }
 
-                // Boton subir
                 blockHtml += `<label style="cursor:pointer;margin:0;display:inline-flex;align-items:center;gap:4px;padding:5px 12px;border:1.5px dashed ${hasPhoto ? '#d4d4d0' : '#f87171'};border-radius:6px;font-size:0.8rem;color:#6B4226;background:#fff;transition:border-color 0.15s;">
                     <i class="fa fa-plus-circle"></i> ${esc(addText)}
                     <input type="file" accept="image/*" capture="environment" class="block-photo-input"
                         data-block-name="${esc(block_name)}"
                         data-product-id="${product_id}"
                         data-shipment-id="${s.id}"
+                        data-packing-id="${pk.id}"
                         style="display:none"/>
                 </label>`;
 
@@ -487,7 +502,8 @@
                     const shipmentId = parseInt(input.dataset.shipmentId, 10);
                     const blockName = input.dataset.blockName;
                     const productId = parseInt(input.dataset.productId, 10);
-                    this._uploadBlockImage(shipmentId, blockName, productId, file, pk, s, area, rowsKey);
+                    const packingId = parseInt(input.dataset.packingId, 10);
+                    this._uploadBlockImage(shipmentId, blockName, productId, file, pk, s, area, rowsKey, packingId);
                 });
             });
 
@@ -505,7 +521,7 @@
             });
         },
 
-        async _uploadBlockImage(shipmentId, blockName, productId, file, pk, s, area, rowsKey) {
+        async _uploadBlockImage(shipmentId, blockName, productId, file, pk, s, area, rowsKey, packingId) {
             try {
                 const fileData = await readFileAsBase64(file);
                 const res = await jsonRpc('/supplier/api/v2/upload_block_image', {
@@ -519,10 +535,19 @@
 
                 if (res.success) {
                     this.toast(this.t('msg_saved'), 'success');
-                    await this.reloadProforma();
+
+                    // Reload proforma but KEEP packing rows cache intact
+                    await this.reloadProformaKeepingRows();
+
+                    // Find the updated shipment and packing from reloaded proforma
                     const updatedShipment = (this.proforma.shipments || []).find(x => x.id === shipmentId);
                     if (updatedShipment) {
-                        this.renderPackingRows(area, pk, updatedShipment);
+                        const updatedPacking = (updatedShipment.packings || []).find(p => p.id === (packingId || pk.id));
+                        if (updatedPacking) {
+                            this.renderPackingRows(area, updatedPacking, updatedShipment);
+                        } else {
+                            this.renderPackingRows(area, pk, updatedShipment);
+                        }
                     }
                 } else {
                     this.toast(this.t('msg_error') + (res.message || ''), 'error');
@@ -541,10 +566,19 @@
 
                 if (res.success) {
                     this.toast(this.t('msg_photo_deleted') || 'Foto eliminada', 'success');
-                    await this.reloadProforma();
+
+                    // Reload proforma but KEEP packing rows cache intact
+                    await this.reloadProformaKeepingRows();
+
+                    // Find the updated shipment and packing from reloaded proforma
                     const updatedShipment = (this.proforma.shipments || []).find(x => x.id === shipmentId);
                     if (updatedShipment) {
-                        this.renderPackingRows(area, pk, updatedShipment);
+                        const updatedPacking = (updatedShipment.packings || []).find(p => p.id === pk.id);
+                        if (updatedPacking) {
+                            this.renderPackingRows(area, updatedPacking, updatedShipment);
+                        } else {
+                            this.renderPackingRows(area, pk, updatedShipment);
+                        }
                     }
                 } else {
                     this.toast(this.t('msg_error') + (res.message || ''), 'error');
