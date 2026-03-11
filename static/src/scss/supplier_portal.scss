@@ -776,6 +776,7 @@ body {
         border: 1px solid $input-border;
         color: $text-main;
         padding: 6px 8px;
+        height: 32px;
         border-radius: 4px;
         width: 100%;
         font-family: 'Inter', monospace;
@@ -808,6 +809,7 @@ body {
 .row-container-select {
     min-width: 140px;
     max-width: 200px;
+    height: 32px;
     width: 100%;
     padding: 6px 8px;
     border: 1px solid $input-border;
