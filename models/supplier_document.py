@@ -13,10 +13,10 @@ class SupplierShipmentDocument(models.Model):
         index=True,
         help='ID del supplier.shipment (sin FK para evitar dependencia circular)',
     )
-    proforma_id = fields.Many2one(
-        'supplier.proforma.header', string='Proforma',
-        ondelete='cascade', index=True,
-        help='Para documentos globales (pagos) que no van ligados a un embarque específico.',
+    proforma_id = fields.Integer(
+        string='Proforma ID',
+        index=True,
+        help='ID del supplier.proforma.header (sin FK para evitar dependencia circular)',
     )
 
     document_type = fields.Selection([
