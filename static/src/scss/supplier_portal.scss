@@ -1,42 +1,39 @@
 /* static/src/scss/supplier_portal.scss */
-/* v5.0 — 2026 Refined Stone & Light */
+/* v5.1 — White Canvas, Warm Accents */
 
 /* ═══════════════════════════════════════════════════
    DESIGN TOKENS
    ═══════════════════════════════════════════════════ */
 
-/* Surfaces */
-$bg-body:          #F6F5F2;
+/* Surfaces — white dominant */
+$bg-body:          #F7F7F6;
 $bg-card:          #FFFFFF;
-$bg-input:         #FAFAF9;
-$bg-elevated:      #FEFEFE;
-$bg-subtle:        #F1EFEB;
-$bg-inset:         #F8F7F5;
+$bg-input:         #FFFFFF;
+$bg-elevated:      #FFFFFF;
+$bg-subtle:        #F5F4F2;
+$bg-inset:         #FAFAF9;
 
-/* Brand — warm walnut tones */
+/* Brand — warm walnut, used sparingly */
 $primary:          #6B4226;
 $primary-hover:    #553418;
 $primary-muted:    #A67C5B;
-$primary-surface:  #F3EDE7;
-$primary-ghost:    rgba(107, 66, 38, 0.05);
+$primary-surface:  #FAF8F6;
+$primary-ghost:    rgba(107, 66, 38, 0.03);
 
-/* Neutral scale */
-$text-primary:     #1A1A1A;
-$text-secondary:   #555555;
-$text-tertiary:    #8E8E8E;
+/* Neutral scale — high contrast */
+$text-primary:     #111111;
+$text-secondary:   #4A4A4A;
+$text-tertiary:    #888888;
 $text-inverse:     #FFFFFF;
 
-$border-default:   #E4E2DE;
-$border-subtle:    #EDECEA;
-$border-strong:    #D0CDC7;
+$border-default:   #E8E8E6;
+$border-subtle:    #F0F0EE;
+$border-strong:    #D4D4D0;
 
-/* Semantic accents */
-$blue:             #2563EB;
+/* Semantic (kept for toasts/status only) */
 $green:            #059669;
-$orange:           #D97706;
 $red:              #DC2626;
-$purple:           #7C3AED;
-$amber:            #CA8A04;
+$amber:            #D97706;
 
 /* Radius system */
 $radius-sm:        6px;
@@ -45,13 +42,13 @@ $radius-lg:        14px;
 $radius-xl:        20px;
 $radius-pill:      100px;
 
-/* Shadows — layered for depth */
-$shadow-xs:        0 1px 2px rgba(0,0,0,0.04);
-$shadow-sm:        0 2px 8px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.03);
-$shadow-md:        0 4px 16px rgba(0,0,0,0.05), 0 1px 4px rgba(0,0,0,0.03);
-$shadow-lg:        0 8px 30px rgba(0,0,0,0.07), 0 2px 8px rgba(0,0,0,0.03);
-$shadow-xl:        0 16px 50px rgba(0,0,0,0.09), 0 4px 12px rgba(0,0,0,0.04);
-$shadow-primary:   0 4px 20px rgba(107, 66, 38, 0.18);
+/* Shadows — clean & subtle */
+$shadow-xs:        0 1px 2px rgba(0,0,0,0.03);
+$shadow-sm:        0 1px 4px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02);
+$shadow-md:        0 4px 12px rgba(0,0,0,0.05), 0 1px 3px rgba(0,0,0,0.03);
+$shadow-lg:        0 8px 24px rgba(0,0,0,0.06), 0 2px 6px rgba(0,0,0,0.03);
+$shadow-xl:        0 16px 40px rgba(0,0,0,0.08), 0 4px 10px rgba(0,0,0,0.03);
+$shadow-primary:   0 4px 16px rgba(107, 66, 38, 0.14);
 
 /* Spacing scale (4px base) */
 $sp-1: 4px;
@@ -76,7 +73,7 @@ $duration-fast: 150ms;
 $duration-base: 220ms;
 $duration-slow: 350ms;
 
-/* Input height (consistent) */
+/* Input height */
 $input-h: 36px;
 
 /* ═══════════════════════════════════════════════════
@@ -115,7 +112,7 @@ body {
    HEADER
    ═══════════════════════════════════════════════════ */
 .o_portal_header {
-    background: rgba(255, 255, 255, 0.92);
+    background: rgba(255, 255, 255, 0.96);
     border-bottom: 1px solid $border-default;
     padding: $sp-3 $sp-6;
     display: flex;
@@ -124,9 +121,9 @@ body {
     position: sticky;
     top: 0;
     z-index: 1000;
-    backdrop-filter: blur(20px) saturate(1.2);
-    -webkit-backdrop-filter: blur(20px) saturate(1.2);
-    box-shadow: 0 1px 0 $border-subtle, $shadow-xs;
+    backdrop-filter: blur(20px) saturate(1.1);
+    -webkit-backdrop-filter: blur(20px) saturate(1.1);
+    box-shadow: $shadow-xs;
     flex-wrap: wrap;
     gap: $sp-3;
     min-height: 56px;
@@ -161,9 +158,9 @@ body {
         text-align: right;
         min-width: 100px;
         padding: $sp-2 $sp-3;
-        background: $primary-ghost;
+        background: $bg-card;
         border-radius: $radius-sm;
-        border: 1px solid $border-subtle;
+        border: 1px solid $border-default;
 
         .label {
             font-size: 0.65rem;
@@ -187,14 +184,14 @@ body {
     .lang-selector-wrapper {
         display: flex;
         align-items: center;
-        background: $bg-inset;
+        background: $bg-card;
         padding: $sp-1 $sp-3;
         border-radius: $radius-sm;
         border: 1px solid $border-default;
         transition: border-color $duration-fast $ease-out;
 
         @include hover {
-            border-color: $primary-muted;
+            border-color: $border-strong;
         }
 
         .lang-select {
@@ -265,24 +262,23 @@ body {
     }
 
     .card-header {
-        background: $primary-surface;
+        background: $bg-card;
         padding: $sp-4 $sp-5;
-        border-bottom: 1px solid rgba($primary, 0.1);
+        border-bottom: 1px solid $border-default;
         display: flex;
         align-items: center;
         gap: $sp-3;
 
         i {
-            color: $primary;
+            color: $primary-muted;
             font-size: 1rem;
-            opacity: 0.7;
         }
 
         h3 {
             margin: 0;
             font-family: $font-display;
             font-size: 0.88rem;
-            color: $primary;
+            color: $text-primary;
             font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 0.05em;
@@ -340,10 +336,9 @@ body {
             width: 100%;
 
             &:focus {
-                border-color: $primary !important;
-                box-shadow: 0 0 0 3px rgba($primary, 0.1);
+                border-color: $text-secondary !important;
+                box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.05);
                 outline: none;
-                background-color: $bg-card !important;
             }
 
             &::placeholder { color: $text-tertiary; }
@@ -389,9 +384,8 @@ body {
         gap: $sp-3;
 
         i {
-            color: $primary;
+            color: $primary-muted;
             font-size: 1.15rem;
-            opacity: 0.8;
         }
 
         h3 {
@@ -412,7 +406,7 @@ body {
     min-width: 22px;
     height: 22px;
     border-radius: $radius-pill;
-    background: $primary;
+    background: $text-primary;
     color: $text-inverse;
     font-size: 0.7rem;
     font-weight: 700;
@@ -436,12 +430,28 @@ body {
     white-space: nowrap;
 
     &:active { transform: scale(0.97); }
-    &:disabled { opacity: 0.45; cursor: not-allowed; pointer-events: none; }
+    &:disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
 }
 
 .btn-add-shipment {
     @extend %btn-base;
     padding: $sp-2 $sp-5;
+    border-radius: $radius-md;
+    background: $text-primary;
+    color: $text-inverse;
+    font-size: 0.82rem;
+    box-shadow: $shadow-xs;
+
+    @include hover {
+        background: #000;
+        box-shadow: $shadow-md;
+        transform: translateY(-1px);
+    }
+}
+
+.btn-save-section {
+    @extend %btn-base;
+    padding: $sp-2 $sp-6;
     border-radius: $radius-md;
     background: $primary;
     color: $text-inverse;
@@ -455,25 +465,9 @@ body {
     }
 }
 
-.btn-save-section {
-    @extend %btn-base;
-    padding: $sp-2 $sp-6;
-    border-radius: $radius-md;
-    background: $blue;
-    color: $text-inverse;
-    font-size: 0.82rem;
-    box-shadow: $shadow-xs;
-
-    @include hover {
-        background: darken($blue, 8%);
-        box-shadow: 0 4px 16px rgba($blue, 0.25);
-        transform: translateY(-1px);
-    }
-}
-
 .btn-primary-custom {
     @extend %btn-base;
-    background: $primary;
+    background: $text-primary;
     color: $text-inverse;
     padding: $sp-3 $sp-8;
     border-radius: $radius-pill;
@@ -481,11 +475,11 @@ body {
     text-transform: uppercase;
     letter-spacing: 0.05em;
     font-size: 0.85rem;
-    box-shadow: $shadow-primary;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
 
     @include hover {
-        background: $primary-hover;
-        box-shadow: 0 6px 24px rgba($primary, 0.28);
+        background: #000;
+        box-shadow: 0 6px 24px rgba(0, 0, 0, 0.2);
         transform: translateY(-1px);
     }
 }
@@ -497,14 +491,14 @@ body {
     text-align: center;
     padding: $sp-12 $sp-8;
     color: $text-tertiary;
-    background: $bg-inset;
+    background: $bg-card;
     border: 1.5px dashed $border-strong;
     border-radius: $radius-lg;
 
     i {
         color: $border-strong;
         margin-bottom: $sp-4;
-        opacity: 0.6;
+        opacity: 0.5;
     }
 
     p {
@@ -528,7 +522,7 @@ body {
 
     &.expanded {
         box-shadow: $shadow-md;
-        border-color: $primary-muted;
+        border-color: $border-strong;
     }
 }
 
@@ -537,19 +531,19 @@ body {
     justify-content: space-between;
     align-items: center;
     padding: $sp-3 $sp-5;
-    background: $bg-elevated;
+    background: $bg-card;
     cursor: pointer;
     user-select: none;
     border-bottom: 1px solid transparent;
     transition: background $duration-fast $ease-out;
 
     .expanded & {
-        background: $primary-surface;
-        border-bottom-color: rgba($primary, 0.1);
+        background: $bg-subtle;
+        border-bottom-color: $border-default;
     }
 
     @include hover {
-        background: $bg-subtle;
+        background: $bg-inset;
     }
 }
 
@@ -604,7 +598,7 @@ body {
             color: $text-tertiary;
             font-family: $font-mono;
 
-            i { font-size: 0.6rem; opacity: 0.6; }
+            i { font-size: 0.6rem; opacity: 0.5; }
         }
     }
 }
@@ -629,7 +623,7 @@ body {
 
         @include hover {
             background: $bg-subtle;
-            color: $text-primary;
+            color: $text-secondary;
             border-color: $border-strong;
         }
     }
@@ -652,7 +646,6 @@ body {
 
 .shipment-block-body {
     padding: $sp-5;
-
     @include mobile { padding: $sp-4; }
 }
 
@@ -682,15 +675,14 @@ body {
     display: flex;
     align-items: center;
     gap: $sp-2;
-    position: relative;
 
     @include hover {
         color: $text-secondary;
     }
 
     &.active {
-        color: $primary;
-        border-bottom-color: $primary;
+        color: $text-primary;
+        border-bottom-color: $text-primary;
         font-weight: 700;
     }
 
@@ -711,7 +703,7 @@ body {
     }
 
     &.active .tab-count {
-        background: $primary;
+        background: $text-primary;
         color: $text-inverse;
     }
 }
@@ -725,8 +717,8 @@ body {
    SUB-ITEM CARDS (Invoices, Packings, Containers)
    ═══════════════════════════════════════════════════ */
 .sub-item-card {
-    background: $bg-inset;
-    border: 1px solid $border-subtle;
+    background: $bg-card;
+    border: 1px solid $border-default;
     border-radius: $radius-md;
     padding: $sp-4;
     margin-bottom: $sp-3;
@@ -734,7 +726,6 @@ body {
     transition: border-color $duration-fast $ease-out, box-shadow $duration-fast $ease-out;
 
     @include hover {
-        border-color: $border-default;
         box-shadow: $shadow-xs;
     }
 
@@ -798,7 +789,7 @@ body {
         }
 
         input, select {
-            background: $bg-card;
+            background: $bg-input;
             border: 1px solid $border-default;
             color: $text-primary;
             border-radius: $radius-sm;
@@ -811,14 +802,13 @@ body {
 
             &:focus {
                 outline: none;
-                border-color: $primary;
-                box-shadow: 0 0 0 3px rgba($primary, 0.08);
-                background: $bg-elevated;
+                border-color: $text-secondary;
+                box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.04);
             }
         }
 
         textarea {
-            background: $bg-card;
+            background: $bg-input;
             border: 1px solid $border-default;
             color: $text-primary;
             border-radius: $radius-sm;
@@ -826,13 +816,13 @@ body {
             font-size: 0.82rem;
             font-family: $font-body;
             box-sizing: border-box;
-            transition: border-color $duration-fast $ease-out, box-shadow $duration-fast $ease-out;
             resize: vertical;
+            transition: border-color $duration-fast $ease-out, box-shadow $duration-fast $ease-out;
 
             &:focus {
                 outline: none;
-                border-color: $primary;
-                box-shadow: 0 0 0 3px rgba($primary, 0.08);
+                border-color: $text-secondary;
+                box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.04);
             }
         }
     }
@@ -852,9 +842,9 @@ body {
     margin-top: $sp-2;
 
     @include hover {
-        color: $primary;
-        border-color: $primary-muted;
-        background: $primary-ghost;
+        color: $text-secondary;
+        border-color: $text-tertiary;
+        background: $bg-subtle;
     }
 }
 
@@ -870,12 +860,12 @@ body {
     box-shadow: $shadow-sm;
 
     .product-header {
-        background: $primary-surface;
+        background: $bg-card;
         padding: $sp-4 $sp-5;
         display: flex;
         justify-content: space-between;
         align-items: center;
-        border-bottom: 1px solid rgba($primary, 0.1);
+        border-bottom: 1px solid $border-default;
         flex-wrap: wrap;
         gap: $sp-3;
 
@@ -889,7 +879,7 @@ body {
         }
 
         .badge {
-            background-color: $primary;
+            background-color: $text-primary;
             color: $text-inverse;
             padding: 3px $sp-2;
             border-radius: $radius-sm;
@@ -928,7 +918,7 @@ body {
 
         th {
             text-align: left;
-            padding: $sp-3 $sp-3;
+            padding: $sp-3;
             color: $text-tertiary;
             font-size: 0.68rem;
             font-weight: 700;
@@ -944,7 +934,7 @@ body {
             transition: background $duration-fast $ease-out;
 
             @include hover {
-                background: rgba($primary, 0.015);
+                background: $bg-inset;
             }
         }
 
@@ -1045,9 +1035,9 @@ body {
 
         &:focus {
             outline: none;
-            border-color: $primary;
+            border-color: $text-secondary;
             background: $bg-card;
-            box-shadow: 0 0 0 2px rgba($primary, 0.08);
+            box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.04);
         }
     }
 
@@ -1068,8 +1058,8 @@ body {
 
         @include hover {
             color: $text-inverse;
-            background: $primary;
-            border-color: $primary;
+            background: $text-primary;
+            border-color: $text-primary;
         }
 
         &:active { transform: translateY(1px); }
@@ -1121,9 +1111,9 @@ body {
         font-size: 0.85rem;
 
         @include hover {
-            color: $primary;
-            border-color: $primary-muted;
-            background: $primary-ghost;
+            color: $text-secondary;
+            border-color: $text-tertiary;
+            background: $bg-subtle;
         }
     }
 }
@@ -1167,8 +1157,8 @@ body {
 
             &:focus {
                 outline: none;
-                border-color: $primary;
-                box-shadow: 0 0 0 3px rgba($primary, 0.08);
+                border-color: $text-secondary;
+                box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.04);
             }
 
             &::placeholder { color: $text-tertiary; }
@@ -1188,8 +1178,8 @@ body {
 
             &:focus {
                 outline: none;
-                border-color: $primary;
-                box-shadow: 0 0 0 3px rgba($primary, 0.08);
+                border-color: $text-secondary;
+                box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.04);
             }
 
             &::placeholder { color: $text-tertiary; }
@@ -1207,16 +1197,16 @@ body {
     bottom: 0;
     left: 0;
     width: 100%;
-    background: rgba(255, 255, 255, 0.95);
+    background: rgba(255, 255, 255, 0.97);
     padding: $sp-4 $sp-6;
     border-top: 1px solid $border-default;
     display: flex;
     justify-content: space-between;
     align-items: center;
     z-index: 999;
-    backdrop-filter: blur(20px) saturate(1.2);
-    -webkit-backdrop-filter: blur(20px) saturate(1.2);
-    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.06);
+    backdrop-filter: blur(20px) saturate(1.1);
+    -webkit-backdrop-filter: blur(20px) saturate(1.1);
+    box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.04);
 
     .summary {
         color: $text-primary;
@@ -1232,7 +1222,7 @@ body {
         }
 
         .text-accent {
-            color: $primary;
+            color: $text-primary;
             font-weight: 800;
             font-size: 1.05rem;
             font-family: $font-mono;
@@ -1248,7 +1238,7 @@ body {
             width: 100%;
             justify-content: space-around;
             font-size: 0.82rem;
-            background: $bg-inset;
+            background: $bg-subtle;
             padding: $sp-3;
             border-radius: $radius-md;
             border: 1px solid $border-subtle;
@@ -1277,23 +1267,25 @@ body {
     box-shadow: $shadow-lg;
     transform: translateX(calc(100% + 40px));
     transition: transform $duration-slow $ease-out;
-    backdrop-filter: blur(12px);
 
     &.show { transform: translateX(0); }
 
     &.toast-success {
-        background: rgba(5, 150, 105, 0.95);
-        color: $text-inverse;
+        background: $bg-card;
+        color: $green;
+        border: 1px solid #D1FAE5;
     }
 
     &.toast-error {
-        background: rgba(220, 38, 38, 0.95);
-        color: $text-inverse;
+        background: $bg-card;
+        color: $red;
+        border: 1px solid #FECACA;
     }
 
     &.toast-info {
-        background: rgba(37, 99, 235, 0.95);
-        color: $text-inverse;
+        background: $bg-card;
+        color: $text-primary;
+        border: 1px solid $border-default;
     }
 }
 
@@ -1303,7 +1295,7 @@ body {
 .loading-overlay {
     position: absolute;
     inset: 0;
-    background: rgba(255, 255, 255, 0.8);
+    background: rgba(255, 255, 255, 0.85);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1315,7 +1307,7 @@ body {
         width: 28px;
         height: 28px;
         border: 2.5px solid $border-default;
-        border-top-color: $primary;
+        border-top-color: $text-primary;
         border-radius: 50%;
         animation: spin 0.7s linear infinite;
     }
@@ -1336,15 +1328,15 @@ body {
     height: $input-h;
     border-radius: $radius-sm;
     border: 1.5px dashed $border-strong;
-    background: $primary-ghost;
+    background: $bg-inset;
     transition: all $duration-fast $ease-out;
     cursor: pointer;
     margin: 0;
     padding: 0;
 
     @include hover {
-        background: rgba($primary, 0.1);
-        border-color: $primary-muted;
+        background: $bg-subtle;
+        border-color: $text-tertiary;
         border-style: solid;
         transform: scale(1.04);
     }
@@ -1353,7 +1345,7 @@ body {
 
     i {
         font-size: 0.95rem;
-        color: $primary-muted;
+        color: $text-tertiary;
     }
 }
 
@@ -1421,7 +1413,7 @@ body {
 }
 
 /* ═══════════════════════════════════════════════════
-   SCROLLBAR (subtle styling)
+   SCROLLBAR
    ═══════════════════════════════════════════════════ */
 ::-webkit-scrollbar {
     width: 6px;
@@ -1443,6 +1435,6 @@ body {
    SELECTION HIGHLIGHT
    ═══════════════════════════════════════════════════ */
 ::selection {
-    background: rgba($primary, 0.15);
+    background: rgba(0, 0, 0, 0.08);
     color: $text-primary;
 }
