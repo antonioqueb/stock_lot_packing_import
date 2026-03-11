@@ -8,9 +8,10 @@ class SupplierShipmentDocument(models.Model):
     _description = 'Documento de Embarque / Pago del Proveedor'
     _order = 'document_type, create_date desc'
 
-    shipment_id = fields.Many2one(
-        'supplier.shipment', string='Embarque',
-        ondelete='cascade', index=True,
+    shipment_id = fields.Integer(
+        string='Embarque ID',
+        index=True,
+        help='ID del supplier.shipment (sin FK para evitar dependencia circular)',
     )
     proforma_id = fields.Many2one(
         'supplier.proforma.header', string='Proforma',
