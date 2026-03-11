@@ -37,7 +37,7 @@ class PurchaseOrder(models.Model):
         'stock.picking.supplier.access', 'purchase_id', string="Links Proveedor"
     )
 
-    vucem_document_ids = fields.One2many(
+    vucem_document_ids = fields.Many2many(
         'supplier.shipment.document', compute='_compute_vucem_documents',
         string='Documentos VUCEM',
     )
