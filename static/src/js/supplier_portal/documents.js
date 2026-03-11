@@ -303,4 +303,39 @@
             if (docType === 'packing_list' && !isPdf && !isSpreadsheet) {
                 this.toast(
                     lang === 'es' ? 'Solo PDF u hojas de calculo.' : 'Only PDF or spreadsheet files.',
-                    'e
+                    'error'
+                );
+                return;
+            }
+
+            let dpiValue = null;
+            if (isPdf) {
+                dpiValue = await estimatePdfDpi(file);
+            }
+
+            try {
+                const fileData = await readFileAsBase64(file);
+                const res = await jsonRpc('/supplier/api/v2/upload_document', {
+                    token: this.token,
+                    proforma_id: proformaId,
+                    shipment_id: shipmentId,
+                    document_type: docType,
+                    name: file.name,
+                    data: fileData,
+                    dpi_value: dpiValue,
+                });
+                if (res.success) {
+                    this.toast(this.t('msg_saved'), 'success');
+                    await this.reloadProforma();
+                    this.renderAll();
+                } else {
+                    this.toast(this.t('msg_error') + (res.message || ''), 'error');
+                }
+            } catch (e) {
+                this.toast(this.t('msg_error') + e.message, 'error');
+            }
+        },  
+    };
+    
+}
+)();
