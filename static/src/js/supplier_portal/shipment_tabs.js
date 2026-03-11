@@ -340,7 +340,7 @@
             });
 
             html += `<button type="button" class="btn-add-sub-item btn-add-inv" data-sid="${s.id}">
-                <i class="fa fa-plus me-2"></i>${this.t('btn_add_invoice')}
+                ${this.t('btn_add_invoice')}
             </button>`;
             html += `<div class="text-end mt-3">
                 <button type="button" class="btn-save-section btn-save-all-invoices" data-sid="${s.id}">
@@ -458,7 +458,7 @@
             });
 
             html += `<button type="button" class="btn-add-sub-item btn-add-cnt" data-sid="${s.id}">
-                <i class="fa fa-plus me-2"></i>${this.t('btn_add_container')}
+                ${this.t('btn_add_container')}
             </button>`;
             html += `<div class="text-end mt-3">
                 <button type="button" class="btn-save-section btn-save-all-cnts" data-sid="${s.id}">
@@ -544,7 +544,7 @@
             });
 
             html += `<button type="button" class="btn-add-sub-item btn-add-pk">
-                <i class="fa fa-plus me-2"></i>${this.t('btn_add_packing')}
+                ${this.t('btn_add_packing')}
             </button>`;
 
             el.innerHTML = html;
