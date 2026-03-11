@@ -86,14 +86,6 @@
                                     <input type="text" id="g-country-origin" class="form-control" data-i18n-placeholder="ph_country" placeholder="Ej. China"/>
                                 </div>
                                 <div class="form-group">
-                                    <label><i class="fa fa-anchor me-1"></i> <span data-i18n="lbl_port_origin">Puerto Origen</span></label>
-                                    <input type="text" id="g-port-origin" class="form-control" data-i18n-placeholder="ph_origin" placeholder="Ej. Shanghai"/>
-                                </div>
-                                <div class="form-group">
-                                    <label><i class="fa fa-map-marker me-1"></i> <span data-i18n="lbl_port_dest">Puerto Destino</span></label>
-                                    <input type="text" id="g-port-destination" class="form-control" data-i18n-placeholder="ph_dest" placeholder="Ej. Manzanillo"/>
-                                </div>
-                                <div class="form-group">
                                     <label><i class="fa fa-balance-scale me-1"></i> <span data-i18n="lbl_incoterm">Incoterm</span></label>
                                     <input type="text" id="g-incoterm" class="form-control" data-i18n-placeholder="ph_incoterm" placeholder="Ej. CIF"/>
                                 </div>
@@ -153,22 +145,14 @@
                 </div>
             </div>
 
-            <!-- ============================================ -->
-            <!--  CARGA DIRECTA DEL SCRIPT (DEBUG FALLBACK)   -->
-            <!--  Si el bundle de assets_frontend no lo carga -->
-            <!--  este tag lo fuerza. Quitar en producción.   -->
-            <!-- ============================================ -->
             <script>
-                // Diagnóstico inmediato: si este log aparece, el template SÍ se renderiza
                 console.log("[Portal][INLINE] Template rendered OK. Checking if main script loaded...");
                 
-                // Esperar un momento y verificar si el script principal se cargó
                 setTimeout(function() {
                     if (window.supplierPortal) {
                         console.log("[Portal][INLINE] ✓ Main script loaded via asset bundle. supplierPortal instance exists.");
                     } else {
                         console.error("[Portal][INLINE] ✗ Main script NOT loaded via asset bundle! Loading directly...");
-                        // Cargar el script directamente como fallback
                         var s = document.createElement('script');
                         s.src = '/stock_lot_packing_import/static/src/js/supplier_portal.js?v=' + Date.now();
                         s.onload = function() { console.log("[Portal][INLINE] ✓ Script loaded via direct injection."); };
