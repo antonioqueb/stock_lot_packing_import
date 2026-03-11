@@ -139,6 +139,16 @@ class SupplierPortalController(http.Controller):
         products.sort(key=lambda x: (x.get("name") or "").lower())
         return products
 
+    def _sorted_shipments(self, shipment_records):
+        return shipment_records.sorted('sequence')
+
+    def _sorted_packings(self, packing_records):
+        """
+        No asumimos que exista campo sequence en supplier.shipment.packing.
+        Orden seguro por fecha y luego ID.
+        """
+        return packing_records.sorted(lambda r: (r.packing_date or '', r.id))
+
     # =====================================================================
     #  HELPERS DE VALIDACIÓN DE CONTENEDORES / PACKINGS
     # =====================================================================
@@ -221,7 +231,7 @@ class SupplierPortalController(http.Controller):
     def _serialize_proforma(self, header):
         """Serializa la proforma y toda su jerarquía a JSON-safe dict."""
         shipments = []
-        for s in header.shipment_ids.sorted('sequence'):
+        for s in self._sorted_shipments(header.shipment_ids):
             containers = [{
                 'id': c.id,
                 'container_number': c.container_number or '',
@@ -231,7 +241,7 @@ class SupplierPortalController(http.Controller):
                 'volume': c.volume or 0.0,
                 'packages': c.packages or 0,
                 'notes': c.notes or '',
-                'packing_ids': c.packing_ids.ids if hasattr(c, 'packing_ids') else [],
+                'packing_ids': c.packing_ids.ids if 'packing_ids' in c._fields else [],
             } for c in s.container_ids]
 
             invoices = [{
@@ -247,7 +257,7 @@ class SupplierPortalController(http.Controller):
             } for inv in s.invoice_ids]
 
             packings = []
-            for pl in s.packing_ids.sorted('sequence'):
+            for pl in self._sorted_packings(s.packing_ids):
                 derived = self._compute_packing_derived_flags(pl)
 
                 rows_payload = []
@@ -297,7 +307,7 @@ class SupplierPortalController(http.Controller):
             packing_related_container_ids = set()
             containers_without_packing = []
 
-            for pl in s.packing_ids:
+            for pl in self._sorted_packings(s.packing_ids):
                 d = self._compute_packing_derived_flags(pl)
                 packing_related_container_ids.update(d['all_related_container_ids'])
 
@@ -364,7 +374,7 @@ class SupplierPortalController(http.Controller):
         total_weight = 0.0
         total_volume = 0.0
 
-        first_shipment = header.shipment_ids.sorted('sequence')[:1]
+        first_shipment = self._sorted_shipments(header.shipment_ids)[:1]
 
         for s in header.shipment_ids:
             if s.bl_number:
@@ -415,8 +425,8 @@ class SupplierPortalController(http.Controller):
             return
 
         all_rows = []
-        for shipment in header.shipment_ids:
-            for packing in shipment.packing_ids:
+        for shipment in self._sorted_shipments(header.shipment_ids):
+            for packing in self._sorted_packings(shipment.packing_ids):
                 packing_container_ids = packing.container_ids.ids
                 packing_container_numbers = packing.container_ids.mapped('container_number')
 
@@ -465,7 +475,7 @@ class SupplierPortalController(http.Controller):
             'invoice_number': header.invoice_global_number or '',
         }
 
-        first_shipment = header.shipment_ids.sorted('sequence')[:1]
+        first_shipment = self._sorted_shipments(header.shipment_ids)[:1]
         if first_shipment:
             fs = first_shipment[0]
             header_data.update({
@@ -1016,7 +1026,7 @@ class SupplierPortalController(http.Controller):
             return {'success': False, 'message': 'Debe existir al menos un embarque antes de completar la proforma.'}
 
         for shipment in proforma.shipment_ids:
-            for packing in shipment.packing_ids:
+            for packing in self._sorted_packings(shipment.packing_ids):
                 if packing.scope == 'specific_containers' and not packing.container_ids:
                     return {
                         'success': False,
