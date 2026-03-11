@@ -89,12 +89,10 @@
                     html += `<th>${this.t('col_block')}</th>
                              <th>${this.t('col_atado')}</th>
                              <th>${this.t('col_plate_num')}</th>
-                             <th>${this.t('col_ref')}</th>
                              <th>${this.t('col_thickness')}</th>
                              <th>${this.t('col_height')}</th>
                              <th>${this.t('col_width')}</th>
-                             <th>${this.t('col_area')}</th>
-                             <th>${this.t('col_notes')}</th>`;
+                             <th>${this.t('col_area')}</th>`;
                 } else if (unitType === 'Formato') {
                     html += `<th>${this.t('lbl_packages')}</th>
                              <th>${this.t('col_qty')}</th>
@@ -157,12 +155,10 @@
                             <td data-label="${this.t('col_block')}">${inp('bloque', row.bloque, '')}</td>
                             <td data-label="${this.t('col_atado')}">${inp('atado', row.atado, '')}</td>
                             <td data-label="${this.t('col_plate_num')}">${inp('numero_placa', row.numero_placa, '')}</td>
-                            <td data-label="${this.t('col_ref')}">${inp('ref_proveedor', row.ref_proveedor, '')}</td>
                             <td data-label="${this.t('col_thickness')}">${inp('grosor', row.grosor, '', 'text')}</td>
                             <td data-label="${this.t('col_height')}">${inp('alto', row.alto, '', 'number', '0.01')}</td>
                             <td data-label="${this.t('col_width')}">${inp('ancho', row.ancho, '', 'number', '0.01')}</td>
-                            <td data-label="${this.t('col_area')}"><span class="area-display">${areaVal}</span></td>
-                            <td data-label="${this.t('col_notes')}">${inp('color', row.color, '')}</td>`;
+                            <td data-label="${this.t('col_area')}"><span class="area-display">${areaVal}</span></td>`;
                     } else if (unitType === 'Formato') {
                         html += `
                             <td>${inp('atado', row.atado, '')}</td>
