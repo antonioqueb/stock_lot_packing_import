@@ -96,17 +96,10 @@
                 } else if (unitType === 'Formato') {
                     html += `<th>${this.t('lbl_packages')}</th>
                              <th>${this.t('col_qty')}</th>
-                             <th class="bg-light">${this.t('col_crate_h')}</th>
-                             <th class="bg-light">${this.t('col_crate_w')}</th>
-                             <th class="bg-light">${this.t('col_crate_t')}</th>
-                             <th>${this.t('col_thickness')}</th>
-                             <th>${this.t('col_weight')}</th>
-                             <th class="bg-light">${this.t('col_fmt_h')}</th>
-                             <th class="bg-light">${this.t('col_fmt_w')}</th>`;
+                             <th>${this.t('col_weight')}</th>`;
                 } else {
                     html += `<th>${this.t('lbl_packages')}</th>
                              <th>${this.t('col_qty')}</th>
-                             <th>${this.t('col_ref')}</th>
                              <th>${this.t('col_weight')}</th>
                              <th>${this.t('lbl_desc_goods')}</th>`;
                 }
@@ -163,18 +156,11 @@
                         html += `
                             <td>${inp('atado', row.atado, '')}</td>
                             <td>${inp('quantity', row.quantity, '', 'number', '1')}</td>
-                            <td>${inp('crate_h', row.crate_h || '', '', 'text')}</td>
-                            <td>${inp('crate_w', row.crate_w || '', '', 'text')}</td>
-                            <td>${inp('crate_t', row.crate_t || '', '', 'text')}</td>
-                            <td>${inp('grosor', row.grosor, '', 'text')}</td>
-                            <td>${inp('peso', row.peso, '', 'number', '0.01')}</td>
-                            <td>${inp('fmt_h', row.fmt_h || '', '', 'text')}</td>
-                            <td>${inp('fmt_w', row.fmt_w || '', '', 'text')}</td>`;
+                            <td>${inp('peso', row.peso, '', 'number', '0.01')}</td>`;
                     } else {
                         html += `
                             <td>${inp('atado', row.atado, '')}</td>
                             <td>${inp('quantity', row.quantity, '', 'number', '1')}</td>
-                            <td>${inp('ref_proveedor', row.ref_proveedor, '')}</td>
                             <td>${inp('peso', row.peso, '', 'number', '0.01')}</td>
                             <td>${inp('color', row.color, '')}</td>`;
                     }
