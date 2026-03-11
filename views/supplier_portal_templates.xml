@@ -1,185 +1,244 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <template id="supplier_portal_view" name="Supplier Packing Portal">
-        <div class="o_portal_wrapper">
+    <template id="portal_layout">
+        <t t-call="web.frontend_layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
+            <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no"/>
+            
+            <t t-set="head">
+                <t t-call-assets="web.assets_frontend" t-css="true" t-js="true"/>
+                <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&amp;family=JetBrains+Mono:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+                <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"/>
+            </t>
+            <div class="supplier-portal-body">
+                <t t-out="0"/>
+            </div>
+        </t>
+    </template>
 
-            <!-- HEADER -->
-            <header class="o_portal_header">
-                <div class="brand">
-                    <img src="/stock_lot_packing_import/static/description/icon.png"
-                         alt="Logo"
-                         style="height: 46px; width: auto; object-fit: contain;"/>
-                    <span>PORTAL <span data-i18n="header_provider">PROVEEDOR</span></span>
-                </div>
+    <template id="supplier_portal_view">
+        <t t-call="stock_lot_packing_import.portal_layout">
+            
+            <!-- Payload de datos para JS -->
+            <div id="portal-data-store" style="display:none;" t-att-data-payload="portal_json"/>
 
-                <div class="header-controls">
-                    <div class="lang-selector-wrapper">
-                        <i class="fa fa-globe"/>
-                        <select id="lang-selector" class="lang-select">
-                            <option value="en" selected="selected">EN</option>
-                            <option value="es">ES</option>
-                            <option value="pt">PT</option>
-                            <option value="it">IT</option>
-                            <option value="zh">ZH</option>
-                        </select>
+            <div class="o_portal_wrapper">
+
+                <!-- HEADER -->
+                <header class="o_portal_header">
+                    <div class="brand">
+                        <img src="/stock_lot_packing_import/static/description/icon.png"
+                             alt="Logo"
+                             style="height: 46px; width: auto; object-fit: contain;"/>
+                        <span>PORTAL <span data-i18n="header_provider">PROVEEDOR</span></span>
                     </div>
 
-                    <div class="po-info">
-                        <span class="label" data-i18n="po_label">Orden</span>
-                        <span class="value" t-esc="picking.origin or 'N/A'"/>
-                    </div>
-
-                    <div class="po-info">
-                        <span class="label" data-i18n="receipt_label">Recepción</span>
-                        <span class="value" t-esc="picking.name"/>
-                    </div>
-                </div>
-            </header>
-
-            <div class="o_portal_container">
-
-                <!-- SECTION 1: PROFORMA GLOBALS -->
-                <div class="shipment-card" id="proforma-globals-card">
-                    <div class="card-header">
-                        <i class="fa fa-file-text-o"/>
-                        <h3 data-i18n="sec_proforma_globals">Datos Globales de la Proforma</h3>
-                        <span class="badge-status" id="proforma-status-badge"/>
-                    </div>
-
-                    <div class="card-body" id="proforma-globals-form">
-                        <div class="modern-form-grid">
-                            <div class="form-group">
-                                <label>
-                                    <i class="fa fa-hashtag"/>
-                                    <span data-i18n="lbl_proforma">No. Proforma (PI)</span>
-                                </label>
-                                <input type="text"
-                                       id="g-proforma-number"
-                                       class="form-control"
-                                       data-i18n-placeholder="ph_proforma"
-                                       placeholder="PI-9920"/>
-                            </div>
-
-                            <div class="form-group">
-                                <label>
-                                    <i class="fa fa-file-o"/>
-                                    <span data-i18n="lbl_invoice_global">Factura Global</span>
-                                </label>
-                                <input type="text"
-                                       id="g-invoice-global"
-                                       class="form-control"
-                                       placeholder="INV-GLOBAL-001"/>
-                            </div>
-
-                            <div class="form-group">
-                                <label>
-                                    <i class="fa fa-credit-card"/>
-                                    <span data-i18n="lbl_payment">Condiciones de Pago</span>
-                                </label>
-                                <input type="text"
-                                       id="g-payment-terms"
-                                       class="form-control"
-                                       data-i18n-placeholder="ph_payment"
-                                       placeholder="T/T 30% advance"/>
-                            </div>
-
-                            <div class="form-group">
-                                <label>
-                                    <i class="fa fa-flag-o"/>
-                                    <span data-i18n="lbl_country">País Origen</span>
-                                </label>
-                                <input type="text"
-                                       id="g-country-origin"
-                                       class="form-control"
-                                       data-i18n-placeholder="ph_country"
-                                       placeholder="China"/>
-                            </div>
-
-                            <div class="form-group">
-                                <label>
-                                    <i class="fa fa-balance-scale"/>
-                                    <span data-i18n="lbl_incoterm">Incoterm</span>
-                                </label>
-                                <input type="text"
-                                       id="g-incoterm"
-                                       class="form-control"
-                                       data-i18n-placeholder="ph_incoterm"
-                                       placeholder="CIF"/>
-                            </div>
-
-                            <div class="form-group full-width">
-                                <label>
-                                    <i class="fa fa-comment-o"/>
-                                    <span data-i18n="lbl_general_notes">Observaciones Generales</span>
-                                </label>
-                                <textarea id="g-general-notes"
-                                          class="form-control"
-                                          rows="2"
-                                          data-i18n-placeholder="ph_general_notes"
-                                          placeholder="Notas generales sobre esta operación..."/>
-                            </div>
+                    <div class="header-controls">
+                        <div class="lang-selector-wrapper">
+                            <i class="fa fa-globe"/>
+                            <select id="lang-selector" class="lang-select">
+                                <option value="en" selected="selected">EN</option>
+                                <option value="es">ES</option>
+                                <option value="pt">PT</option>
+                                <option value="it">IT</option>
+                                <option value="zh">ZH</option>
+                            </select>
                         </div>
 
-                        <div class="card-actions">
-                            <button id="btn-save-globals" type="button" class="btn-save-section">
-                                <i class="fa fa-check"/>
-                                <span data-i18n="btn_save_globals">Guardar Datos Globales</span>
+                        <div class="po-info">
+                            <span class="label" data-i18n="po_label">Orden</span>
+                            <span class="value" t-esc="picking.origin or 'N/A'"/>
+                        </div>
+
+                        <div class="po-info">
+                            <span class="label" data-i18n="receipt_label">Recepción</span>
+                            <span class="value" t-esc="picking.name"/>
+                        </div>
+                    </div>
+                </header>
+
+                <div class="o_portal_container">
+
+                    <!-- SECTION 1: PROFORMA GLOBALS -->
+                    <div class="shipment-card" id="proforma-globals-card">
+                        <div class="card-header">
+                            <i class="fa fa-file-text-o"/>
+                            <h3 data-i18n="sec_proforma_globals">Datos Globales de la Proforma</h3>
+                            <span class="badge-status" id="proforma-status-badge"/>
+                        </div>
+
+                        <div class="card-body" id="proforma-globals-form">
+                            <div class="modern-form-grid">
+                                <div class="form-group">
+                                    <label>
+                                        <i class="fa fa-hashtag"/>
+                                        <span data-i18n="lbl_proforma">No. Proforma (PI)</span>
+                                    </label>
+                                    <input type="text"
+                                           id="g-proforma-number"
+                                           class="form-control"
+                                           data-i18n-placeholder="ph_proforma"
+                                           placeholder="PI-9920"/>
+                                </div>
+
+                                <div class="form-group">
+                                    <label>
+                                        <i class="fa fa-file-o"/>
+                                        <span data-i18n="lbl_invoice_global">Factura Global</span>
+                                    </label>
+                                    <input type="text"
+                                           id="g-invoice-global"
+                                           class="form-control"
+                                           placeholder="INV-GLOBAL-001"/>
+                                </div>
+
+                                <div class="form-group">
+                                    <label>
+                                        <i class="fa fa-credit-card"/>
+                                        <span data-i18n="lbl_payment">Condiciones de Pago</span>
+                                    </label>
+                                    <input type="text"
+                                           id="g-payment-terms"
+                                           class="form-control"
+                                           data-i18n-placeholder="ph_payment"
+                                           placeholder="T/T 30% advance"/>
+                                </div>
+
+                                <div class="form-group">
+                                    <label>
+                                        <i class="fa fa-flag-o"/>
+                                        <span data-i18n="lbl_country">País Origen</span>
+                                    </label>
+                                    <input type="text"
+                                           id="g-country-origin"
+                                           class="form-control"
+                                           data-i18n-placeholder="ph_country"
+                                           placeholder="China"/>
+                                </div>
+
+                                <div class="form-group">
+                                    <label>
+                                        <i class="fa fa-balance-scale"/>
+                                        <span data-i18n="lbl_incoterm">Incoterm</span>
+                                    </label>
+                                    <input type="text"
+                                           id="g-incoterm"
+                                           class="form-control"
+                                           data-i18n-placeholder="ph_incoterm"
+                                           placeholder="CIF"/>
+                                </div>
+
+                                <div class="form-group full-width">
+                                    <label>
+                                        <i class="fa fa-comment-o"/>
+                                        <span data-i18n="lbl_general_notes">Observaciones Generales</span>
+                                    </label>
+                                    <textarea id="g-general-notes"
+                                              class="form-control"
+                                              rows="2"
+                                              data-i18n-placeholder="ph_general_notes"
+                                              placeholder="Notas generales sobre esta operación..."/>
+                                </div>
+                            </div>
+
+                            <div class="card-actions">
+                                <button id="btn-save-globals" type="button" class="btn-save-section">
+                                    <i class="fa fa-check"/>
+                                    <span data-i18n="btn_save_globals">Guardar Datos Globales</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SECTION 2: SHIPMENTS -->
+                    <div class="shipments-section" id="shipments-section">
+                        <div class="section-header-bar">
+                            <div class="section-title">
+                                <i class="fa fa-ship"/>
+                                <h3 data-i18n="sec_shipments">Embarques</h3>
+                                <span class="shipment-count-badge" id="shipment-count-badge">0</span>
+                            </div>
+
+                            <button id="btn-add-shipment" type="button" class="btn-add-shipment">
+                                <i class="fa fa-plus"/>
+                                <span data-i18n="btn_add_shipment">Agregar Embarque</span>
                             </button>
                         </div>
+
+                        <div id="shipments-container">
+                            <div class="empty-state" id="no-shipments-msg">
+                                <i class="fa fa-inbox fa-3x"/>
+                                <p data-i18n="msg_no_shipments">No hay embarques registrados. Presione "Agregar Embarque" para comenzar.</p>
+                            </div>
+                        </div>
                     </div>
+
                 </div>
 
-                <!-- SECTION 2: SHIPMENTS -->
-                <div class="shipments-section" id="shipments-section">
-                    <div class="section-header-bar">
-                        <div class="section-title">
+                <!-- FOOTER -->
+                <div class="submit-footer">
+                    <div class="summary">
+                        <div>
                             <i class="fa fa-ship"/>
-                            <h3 data-i18n="sec_shipments">Embarques</h3>
-                            <span class="shipment-count-badge" id="shipment-count-badge">0</span>
+                            <span data-i18n="footer_total_shipments">Embarques</span>
+                            <span id="total-shipments" class="text-accent">0</span>
                         </div>
-
-                        <button id="btn-add-shipment" type="button" class="btn-add-shipment">
-                            <i class="fa fa-plus"/>
-                            <span data-i18n="btn_add_shipment">Agregar Embarque</span>
-                        </button>
-                    </div>
-
-                    <div id="shipments-container">
-                        <div class="empty-state" id="no-shipments-msg">
-                            <i class="fa fa-inbox fa-3x"/>
-                            <p data-i18n="msg_no_shipments">No hay embarques registrados. Presione "Agregar Embarque" para comenzar.</p>
+                        <div>
+                            <i class="fa fa-cube"/>
+                            <span data-i18n="footer_total_containers">Contenedores</span>
+                            <span id="total-containers" class="text-accent">0</span>
+                        </div>
+                        <div>
+                            <i class="fa fa-file-text-o"/>
+                            <span data-i18n="footer_total_invoices">Invoices</span>
+                            <span id="total-invoices" class="text-accent">0</span>
                         </div>
                     </div>
+
+                    <button id="btn-complete-proforma" type="button" class="btn-primary-custom" disabled="disabled">
+                        <i class="fa fa-check-circle"/>
+                        <span data-i18n="btn_complete">Marcar como Completa</span>
+                    </button>
                 </div>
 
             </div>
 
-            <!-- FOOTER -->
-            <div class="submit-footer">
-                <div class="summary">
-                    <div>
-                        <i class="fa fa-ship"/>
-                        <span data-i18n="footer_total_shipments">Embarques</span>
-                        <span id="total-shipments" class="text-accent">0</span>
-                    </div>
-                    <div>
-                        <i class="fa fa-cube"/>
-                        <span data-i18n="footer_total_containers">Contenedores</span>
-                        <span id="total-containers" class="text-accent">0</span>
-                    </div>
-                    <div>
-                        <i class="fa fa-file-text-o"/>
-                        <span data-i18n="footer_total_invoices">Invoices</span>
-                        <span id="total-invoices" class="text-accent">0</span>
-                    </div>
-                </div>
+            <script>
+                console.log("[Portal][INLINE] Template rendered OK. Checking if main script loaded...");
+                
+                setTimeout(function() {
+                    if (window.supplierPortal) {
+                        console.log("[Portal][INLINE] Main script loaded via asset bundle.");
+                    } else {
+                        console.error("[Portal][INLINE] Main script NOT loaded via asset bundle! Loading directly...");
+                        var s = document.createElement('script');
+                        s.src = '/stock_lot_packing_import/static/src/js/supplier_portal.js?v=' + Date.now();
+                        s.onload = function() { console.log("[Portal][INLINE] Script loaded via direct injection."); };
+                        s.onerror = function() { console.error("[Portal][INLINE] Script FAILED to load even via direct injection!"); };
+                        document.body.appendChild(s);
+                    }
+                }, 1500);
+            </script>
 
-                <button id="btn-complete-proforma" type="button" class="btn-primary-custom" disabled="disabled">
-                    <i class="fa fa-check-circle"/>
-                    <span data-i18n="btn_complete">Marcar como Completa</span>
-                </button>
+        </t>
+    </template>
+
+    <template id="portal_not_found">
+        <t t-call="stock_lot_packing_import.portal_layout">
+            <div class="container text-center py-5">
+                <h1 class="display-1 text-danger">404</h1>
+                <p class="lead">Invalid Link.</p>
             </div>
+        </t>
+    </template>
 
-        </div>
+    <template id="portal_expired">
+        <t t-call="stock_lot_packing_import.portal_layout">
+            <div class="container text-center py-5">
+                <h1 class="display-1 text-warning"><i class="fa fa-clock-o"/></h1>
+                <p class="lead">Link Expired.</p>
+            </div>
+        </t>
     </template>
 </odoo>

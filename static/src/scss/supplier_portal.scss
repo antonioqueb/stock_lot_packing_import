@@ -427,7 +427,7 @@ body {
 /* ═══════════════════════════════════════════════════
    BUTTONS — Unified system
    ═══════════════════════════════════════════════════ */
-%btn-base {
+@mixin btn-base {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -444,7 +444,7 @@ body {
 }
 
 .btn-add-shipment {
-    @extend %btn-base;
+    @include btn-base;
     padding: $sp-2 $sp-5;
     border-radius: $radius-md;
     background: $text-primary;
@@ -460,7 +460,7 @@ body {
 }
 
 .btn-save-section {
-    @extend %btn-base;
+    @include btn-base;
     padding: $sp-2 $sp-6;
     border-radius: $radius-md;
     background: $primary;
@@ -476,7 +476,7 @@ body {
 }
 
 .btn-primary-custom {
-    @extend %btn-base;
+    @include btn-base;
     background: $text-primary;
     color: $text-inverse;
     padding: $sp-3 $sp-8;
@@ -841,7 +841,7 @@ body {
 }
 
 .btn-add-sub-item {
-    @extend %btn-base;
+    @include btn-base;
     width: 100%;
     padding: $sp-3;
     border-radius: $radius-md;
@@ -1111,7 +1111,7 @@ body {
     border-top: 1px solid $border-subtle;
 
     .btn-add-row {
-        @extend %btn-base;
+        @include btn-base;
         flex: 1;
         padding: $sp-3;
         border-radius: $radius-md;
