@@ -7,7 +7,7 @@
         <div class="brand">
             <img src="/stock_lot_packing_import/static/description/icon.png"
                  alt="Logo"
-                 style="height: 36px; width: auto; object-fit: contain;"/>
+                 style="height: 56px; width: auto; object-fit: contain;"/>
             <span>PORTAL <span data-i18n="header_provider">PROVEEDOR</span></span>
         </div>
 
