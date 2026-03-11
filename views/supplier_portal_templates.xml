@@ -20,12 +20,10 @@
     <template id="supplier_portal_view">
         <t t-call="stock_lot_packing_import.portal_layout">
             
-            <!-- Payload de datos para JS -->
             <div id="portal-data-store" style="display:none;" t-att-data-payload="portal_json"/>
 
             <div class="o_portal_wrapper">
 
-                <!-- HEADER -->
                 <header class="o_portal_header">
                     <div class="brand">
                         <img src="/stock_lot_packing_import/static/description/icon.png"
@@ -54,7 +52,23 @@
 
                 <div class="o_portal_container">
 
-                    <!-- SECTION 1: PROFORMA GLOBALS -->
+                    <!-- PROGRESS BAR -->
+                    <div class="shipment-card" style="margin-bottom:16px;">
+                        <div class="card-header" style="padding:10px 20px;">
+                            <i class="fa fa-tasks"/>
+                            <h3 data-i18n="progress_label">Progreso de Llenado</h3>
+                        </div>
+                        <div class="card-body" style="padding:8px 20px 12px;" id="progress-bar-container">
+                            <div style="display:flex;align-items:center;gap:12px;">
+                                <div style="flex:1;background:#e5e5e5;border-radius:8px;height:10px;overflow:hidden;">
+                                    <div style="width:0%;height:100%;background:#dc2626;border-radius:8px;"></div>
+                                </div>
+                                <span style="font-weight:700;font-size:0.85rem;color:#dc2626;">0%</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- PROFORMA GLOBALS -->
                     <div class="shipment-card" id="proforma-globals-card">
                         <div class="card-header">
                             <i class="fa fa-file-text-o"/>
@@ -69,70 +83,42 @@
                                         <i class="fa fa-hashtag"/>
                                         <span data-i18n="lbl_proforma">No. Proforma (PI)</span>
                                     </label>
-                                    <input type="text"
-                                           id="g-proforma-number"
-                                           class="form-control"
-                                           data-i18n-placeholder="ph_proforma"
-                                           placeholder="PI-9920"/>
+                                    <input type="text" id="g-proforma-number" class="form-control" data-i18n-placeholder="ph_proforma" placeholder="PI-9920"/>
                                 </div>
-
                                 <div class="form-group">
                                     <label>
                                         <i class="fa fa-file-o"/>
                                         <span data-i18n="lbl_invoice_global">Factura Global</span>
                                     </label>
-                                    <input type="text"
-                                           id="g-invoice-global"
-                                           class="form-control"
-                                           placeholder="INV-GLOBAL-001"/>
+                                    <input type="text" id="g-invoice-global" class="form-control" placeholder="INV-GLOBAL-001"/>
                                 </div>
-
                                 <div class="form-group">
                                     <label>
                                         <i class="fa fa-credit-card"/>
                                         <span data-i18n="lbl_payment">Condiciones de Pago</span>
                                     </label>
-                                    <input type="text"
-                                           id="g-payment-terms"
-                                           class="form-control"
-                                           data-i18n-placeholder="ph_payment"
-                                           placeholder="T/T 30% advance"/>
+                                    <input type="text" id="g-payment-terms" class="form-control" data-i18n-placeholder="ph_payment" placeholder="T/T 30% advance"/>
                                 </div>
-
                                 <div class="form-group">
                                     <label>
                                         <i class="fa fa-flag-o"/>
-                                        <span data-i18n="lbl_country">País Origen</span>
+                                        <span data-i18n="lbl_country">Pais Origen</span>
                                     </label>
-                                    <input type="text"
-                                           id="g-country-origin"
-                                           class="form-control"
-                                           data-i18n-placeholder="ph_country"
-                                           placeholder="China"/>
+                                    <input type="text" id="g-country-origin" class="form-control" data-i18n-placeholder="ph_country" placeholder="China"/>
                                 </div>
-
                                 <div class="form-group">
                                     <label>
                                         <i class="fa fa-balance-scale"/>
                                         <span data-i18n="lbl_incoterm">Incoterm</span>
                                     </label>
-                                    <input type="text"
-                                           id="g-incoterm"
-                                           class="form-control"
-                                           data-i18n-placeholder="ph_incoterm"
-                                           placeholder="CIF"/>
+                                    <input type="text" id="g-incoterm" class="form-control" data-i18n-placeholder="ph_incoterm" placeholder="CIF"/>
                                 </div>
-
                                 <div class="form-group full-width">
                                     <label>
                                         <i class="fa fa-comment-o"/>
                                         <span data-i18n="lbl_general_notes">Observaciones Generales</span>
                                     </label>
-                                    <textarea id="g-general-notes"
-                                              class="form-control"
-                                              rows="2"
-                                              data-i18n-placeholder="ph_general_notes"
-                                              placeholder="Notas generales sobre esta operación..."/>
+                                    <textarea id="g-general-notes" class="form-control" rows="2" placeholder="Notas generales sobre esta operacion..."/>
                                 </div>
                             </div>
 
@@ -145,7 +131,7 @@
                         </div>
                     </div>
 
-                    <!-- SECTION 2: SHIPMENTS -->
+                    <!-- SHIPMENTS -->
                     <div class="shipments-section" id="shipments-section">
                         <div class="section-header-bar">
                             <div class="section-title">
@@ -153,7 +139,6 @@
                                 <h3 data-i18n="sec_shipments">Embarques</h3>
                                 <span class="shipment-count-badge" id="shipment-count-badge">0</span>
                             </div>
-
                             <button id="btn-add-shipment" type="button" class="btn-add-shipment">
                                 <i class="fa fa-plus"/>
                                 <span data-i18n="btn_add_shipment">Agregar Embarque</span>
@@ -165,6 +150,20 @@
                                 <i class="fa fa-inbox fa-3x"/>
                                 <p data-i18n="msg_no_shipments">No hay embarques registrados. Presione "Agregar Embarque" para comenzar.</p>
                             </div>
+                        </div>
+                    </div>
+
+                    <!-- PAYMENTS (global documents) -->
+                    <div class="shipment-card" id="payments-card" style="margin-top:24px;">
+                        <div class="card-header">
+                            <i class="fa fa-money"/>
+                            <h3 data-i18n="sec_payments">Pagos</h3>
+                        </div>
+                        <div class="card-body">
+                            <p style="font-size:0.82rem;color:#888;margin:0 0 12px;" data-i18n="sec_payments_desc">
+                                Suba comprobantes de anticipos, pagos por invoice y otros pagos.
+                            </p>
+                            <div id="payments-section-content"></div>
                         </div>
                     </div>
 
@@ -199,18 +198,12 @@
             </div>
 
             <script>
-                console.log("[Portal][INLINE] Template rendered OK. Checking if main script loaded...");
-                
+                console.log("[Portal][INLINE] Template rendered OK.");
                 setTimeout(function() {
                     if (window.supplierPortal) {
                         console.log("[Portal][INLINE] Main script loaded via asset bundle.");
                     } else {
-                        console.error("[Portal][INLINE] Main script NOT loaded via asset bundle! Loading directly...");
-                        var s = document.createElement('script');
-                        s.src = '/stock_lot_packing_import/static/src/js/supplier_portal.js?v=' + Date.now();
-                        s.onload = function() { console.log("[Portal][INLINE] Script loaded via direct injection."); };
-                        s.onerror = function() { console.error("[Portal][INLINE] Script FAILED to load even via direct injection!"); };
-                        document.body.appendChild(s);
+                        console.error("[Portal][INLINE] Main script NOT loaded via asset bundle!");
                     }
                 }, 1500);
             </script>

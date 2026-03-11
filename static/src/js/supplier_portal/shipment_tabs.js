@@ -8,13 +8,14 @@
     M.mixins.ShipmentTabsMixin = {
         renderShipmentBody(bodyEl, s) {
             const activeTab = this.activeTabByShipment[s.id] || 'logistics';
-            const tabOrder = ['logistics', 'bl', 'containers', 'invoices', 'packings'];
+            const tabOrder = ['logistics', 'bl', 'containers', 'invoices', 'packings', 'documents'];
             const tabIcons = {
                 logistics: 'fa-truck',
                 bl: 'fa-file-text',
                 containers: 'fa-cube',
                 invoices: 'fa-file-invoice-dollar',
                 packings: 'fa-boxes',
+                documents: 'fa-folder-open',
             };
             const tabLabels = {
                 logistics: this.t('tab_logistics'),
@@ -22,11 +23,15 @@
                 containers: this.t('tab_containers'),
                 invoices: this.t('tab_invoices'),
                 packings: this.t('tab_packings'),
+                documents: this.t('tab_documents') || 'Documentos',
             };
+
+            const shipDocs = s.documents || [];
             const tabCounts = {
                 containers: (s.containers || []).length,
                 invoices: (s.invoices || []).length,
                 packings: (s.packings || []).length,
+                documents: shipDocs.length,
             };
 
             let tabsHtml = '<div class="shipment-tabs">';
@@ -35,7 +40,15 @@
             for (const name of tabOrder) {
                 const isActive = activeTab === name;
                 const countHtml = tabCounts[name] !== undefined ? `<span class="tab-count">${tabCounts[name]}</span>` : '';
-                tabsHtml += `<div class="shipment-tab ${isActive ? 'active' : ''}" data-tab="${name}">
+
+                let extraClass = '';
+                if (name === 'documents') {
+                    const requiredTypes = ['bl', 'invoice', 'packing_list'];
+                    const hasMissing = requiredTypes.some(rt => !shipDocs.find(d => d.document_type === rt));
+                    if (hasMissing) extraClass = ' tab-warning';
+                }
+
+                tabsHtml += `<div class="shipment-tab ${isActive ? 'active' : ''}${extraClass}" data-tab="${name}">
                     <i class="fa ${tabIcons[name]}"></i> ${tabLabels[name]} ${countHtml}
                 </div>`;
                 contentHtml += `<div id="stab-${name}-${s.id}" class="shipment-tab-content ${isActive ? 'active' : ''}"></div>`;
@@ -84,6 +97,9 @@
                 case 'containers':
                     this.renderContainersTab(el, s);
                     break;
+                case 'documents':
+                    this.renderDocumentsTab(el, s);
+                    break;
             }
         },
 
@@ -91,10 +107,6 @@
         //  HELPERS: Sync DOM values back into the in-memory data objects
         // =================================================================
 
-        /**
-         * Reads current DOM input values for containers and writes them
-         * back into the shipment's containers array so they survive re-renders.
-         */
         _syncContainersFromDOM(s) {
             const el = document.getElementById(`stab-containers-${s.id}`);
             if (!el) return;
@@ -114,10 +126,6 @@
             });
         },
 
-        /**
-         * Reads current DOM input values for invoices and writes them
-         * back into the shipment's invoices array.
-         */
         _syncInvoicesFromDOM(s) {
             const el = document.getElementById(`stab-invoices-${s.id}`);
             if (!el) return;
@@ -135,10 +143,6 @@
             });
         },
 
-        /**
-         * Reads current DOM input values for packings (header fields only,
-         * rows are already tracked via this.packingRows).
-         */
         _syncPackingsFromDOM(s) {
             const el = document.getElementById(`stab-packings-${s.id}`);
             if (!el) return;
@@ -195,7 +199,6 @@
                         <label>${this.t('lbl_port_dest')}</label>
                         <input type="text" data-sf="port_destination" value="${esc(s.port_destination)}"/>
                     </div>
-                   
                     <div class="sf-field sf-wide">
                         <label>${this.t('lbl_notes')}</label>
                         <textarea data-sf="notes" rows="2">${esc(s.notes)}</textarea>
@@ -351,9 +354,7 @@
             el.innerHTML = html;
 
             el.querySelector('.btn-add-inv').addEventListener('click', () => {
-                // ── Sync current DOM values before adding ──
                 this._syncInvoicesFromDOM(s);
-
                 s.invoices = s.invoices || [];
                 s.invoices.push({
                     id: 0,
@@ -368,9 +369,7 @@
 
             el.querySelectorAll('.btn-remove-inv').forEach(btn => {
                 btn.addEventListener('click', () => {
-                    // ── Sync current DOM values before removing ──
                     this._syncInvoicesFromDOM(s);
-
                     s.invoices.splice(parseInt(btn.dataset.idx, 10), 1);
                     this.renderTabContent('invoices', s);
                 });
@@ -469,9 +468,7 @@
             el.innerHTML = html;
 
             el.querySelector('.btn-add-cnt').addEventListener('click', () => {
-                // ── Sync current DOM values before adding ──
                 this._syncContainersFromDOM(s);
-
                 s.containers = s.containers || [];
                 s.containers.push({
                     id: 0,
@@ -487,9 +484,7 @@
 
             el.querySelectorAll('.btn-remove-cnt').forEach(btn => {
                 btn.addEventListener('click', () => {
-                    // ── Sync current DOM values before removing ──
                     this._syncContainersFromDOM(s);
-
                     s.containers.splice(parseInt(btn.dataset.idx, 10), 1);
                     this.renderTabContent('containers', s);
                 });
@@ -551,7 +546,6 @@
 
             el.querySelector('.btn-add-pk')
                 .addEventListener('click', () => {
-                    // ── Sync current packing header values before adding ──
                     this._syncPackingsFromDOM(s);
                     this.createPacking(s);
                 });
@@ -584,7 +578,6 @@
                 });
             });
 
-            // Always render packing rows for all packings (always visible)
             packings.forEach(pk => {
                 const area = document.getElementById(`pk-rows-${pk.id}`);
                 if (area) {
@@ -656,7 +649,6 @@
             const rowsKey = `pk_${packingId}`;
             const rows = this.packingRows[rowsKey] || [];
 
-            // Derive container_ids from the rows themselves
             const usedContainerIds = [...new Set(
                 rows.map(r => asInt(r.container_id)).filter(Boolean)
             )];
@@ -727,7 +719,7 @@
                     const rows = this.packingRows[pkKey] || [];
                     const row = rows.find(r => r._id === localRowId);
                     if (row) row.has_image = true;
-                    this.toast('📷 ' + this.t('msg_saved'), 'success');
+                    this.toast(this.t('msg_saved'), 'success');
                     this._updatePhotoCellInPlace(area, localRowId, serverRowId, true);
                 } else {
                     this.toast(this.t('msg_error') + (res.message || ''), 'error');

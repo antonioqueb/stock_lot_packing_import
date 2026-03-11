@@ -32,7 +32,7 @@
 
         init() {
             try {
-                console.log("[Portal] 🚀 Modular Supplier Portal Loaded.");
+                console.log("[Portal] Modular Supplier Portal Loaded.");
 
                 const langSel = document.getElementById('lang-selector');
                 if (langSel) {
@@ -164,7 +164,9 @@
         }
 
         renderAll() {
+            this.renderProgressBar();
             this.renderShipments();
+            this.renderPaymentsSection();
             this.updateFooterTotals();
             this.updateStatusBadge();
         }
@@ -225,6 +227,13 @@
             block.className = 'shipment-block';
             block.dataset.shipmentId = s.id;
 
+            const shipDocs = s.documents || [];
+            const requiredTypes = ['bl', 'invoice', 'packing_list'];
+            const hasMissing = requiredTypes.some(rt => !shipDocs.find(d => d.document_type === rt));
+            const docIndicator = hasMissing
+                ? '<span class="chip" style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;"><i class="fa fa-exclamation-triangle"></i> docs</span>'
+                : '<span class="chip" style="background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;"><i class="fa fa-check"></i> docs</span>';
+
             block.innerHTML = `
                 <div class="shipment-block-header">
                     <div class="shipment-block-title">
@@ -234,6 +243,7 @@
                             <span class="chip"><i class="fa fa-cube"></i> ${(s.containers || []).length}</span>
                             <span class="chip"><i class="fa fa-file-text-o"></i> ${(s.invoices || []).length}</span>
                             <span class="chip"><i class="fa fa-list"></i> ${(s.packings || []).length}</span>
+                            ${docIndicator}
                         </span>
                     </div>
                     <div class="shipment-block-actions">
@@ -272,11 +282,19 @@
             pill.className = `shipment-status-pill st-${s.status || 'draft'}`;
             pill.textContent = this.t('st_' + (s.status || 'draft'));
 
+            const shipDocs = s.documents || [];
+            const requiredTypes = ['bl', 'invoice', 'packing_list'];
+            const hasMissing = requiredTypes.some(rt => !shipDocs.find(d => d.document_type === rt));
+            const docIndicator = hasMissing
+                ? '<span class="chip" style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;"><i class="fa fa-exclamation-triangle"></i> docs</span>'
+                : '<span class="chip" style="background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;"><i class="fa fa-check"></i> docs</span>';
+
             const chips = block.querySelector('.shipment-summary-chips');
             chips.innerHTML = `
                 <span class="chip"><i class="fa fa-cube"></i> ${(s.containers || []).length}</span>
                 <span class="chip"><i class="fa fa-file-text-o"></i> ${(s.invoices || []).length}</span>
-                <span class="chip"><i class="fa fa-list"></i> ${(s.packings || []).length}</span>`;
+                <span class="chip"><i class="fa fa-list"></i> ${(s.packings || []).length}</span>
+                ${docIndicator}`;
         }
 
         toggleShipment(shipmentId) {
@@ -385,10 +403,14 @@
             if (!confirm(this.t('msg_confirm_complete'))) return;
 
             try {
-                await jsonRpc('/supplier/api/v2/complete', { token: this.token });
-                await this.reloadProforma();
-                this.renderAll();
-                this.toast(this.t('msg_saved'), 'success');
+                const res = await jsonRpc('/supplier/api/v2/complete', { token: this.token });
+                if (res.success) {
+                    await this.reloadProforma();
+                    this.renderAll();
+                    this.toast(this.t('msg_saved'), 'success');
+                } else {
+                    this.toast(this.t('msg_error') + (res.message || ''), 'error');
+                }
             } catch (e) {
                 this.toast(this.t('msg_error') + e.message, 'error');
             }
@@ -459,6 +481,7 @@
     Object.assign(
         SupplierPortal.prototype,
         M.mixins.PackingRowsMixin,
+        M.mixins.DocumentsMixin,
         M.mixins.ShipmentTabsMixin
     );
 

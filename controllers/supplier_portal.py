@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 # controllers/supplier_portal.py
 
+import hashlib
 import json
 
 from odoo import http
@@ -15,7 +16,6 @@ class SupplierPortalController(http.Controller):
     # =====================================================================
 
     def _validate_token(self, token):
-        """Retorna el access record o False."""
         access = request.env['stock.picking.supplier.access'].sudo().search(
             [('access_token', '=', token)], limit=1
         )
@@ -24,7 +24,6 @@ class SupplierPortalController(http.Controller):
         return access
 
     def _get_or_create_proforma(self, access):
-        """Obtiene o crea el proforma.header para la OC del access."""
         po = access.purchase_id
         if not po:
             return False
@@ -67,21 +66,17 @@ class SupplierPortalController(http.Controller):
         return list(dict.fromkeys(result))
 
     def _belongs_to_proforma(self, proforma, shipment=None, packing=None, row=None, invoice=None, container=None):
-        """Valida pertenencia de cualquier registro a la proforma actual."""
         if not proforma:
             return False
-
         try:
             if shipment is not None:
                 return bool(shipment.exists() and shipment.proforma_id.id == proforma.id)
-
             if packing is not None:
                 return bool(
                     packing.exists()
                     and packing.shipment_id
                     and packing.shipment_id.proforma_id.id == proforma.id
                 )
-
             if row is not None:
                 return bool(
                     row.exists()
@@ -89,14 +84,12 @@ class SupplierPortalController(http.Controller):
                     and row.packing_id.shipment_id
                     and row.packing_id.shipment_id.proforma_id.id == proforma.id
                 )
-
             if invoice is not None:
                 return bool(
                     invoice.exists()
                     and invoice.shipment_id
                     and invoice.shipment_id.proforma_id.id == proforma.id
                 )
-
             if container is not None:
                 return bool(
                     container.exists()
@@ -105,7 +98,6 @@ class SupplierPortalController(http.Controller):
                 )
         except Exception:
             return False
-
         return False
 
     def _get_picking_moves_for_portal(self, picking):
@@ -143,18 +135,13 @@ class SupplierPortalController(http.Controller):
         return shipment_records.sorted('sequence')
 
     def _sorted_packings(self, packing_records):
-        """
-        No asumimos que exista campo sequence en supplier.shipment.packing.
-        Orden seguro por fecha y luego ID.
-        """
         return packing_records.sorted(lambda r: (r.packing_date or '', r.id))
 
     # =====================================================================
-    #  HELPERS DE VALIDACIÓN DE CONTENEDORES / PACKINGS
+    #  HELPERS DE VALIDACION
     # =====================================================================
 
     def _validate_container_ids_for_shipment(self, shipment, container_ids):
-        """Valida que los container_ids pertenezcan al shipment."""
         normalized = self._normalize_id_list(container_ids)
         shipment_container_ids = set(shipment.container_ids.ids)
         invalid = [cid for cid in normalized if cid not in shipment_container_ids]
@@ -163,13 +150,6 @@ class SupplierPortalController(http.Controller):
         return True, normalized
 
     def _validate_packing_scope_and_containers(self, shipment, packing_vals, rows=None):
-        """
-        Reglas:
-        - scope=full_shipment -> container_ids opcional
-        - scope=specific_containers -> container_ids obligatorio
-        - row.container_id, si viene, debe pertenecer al shipment
-        - si scope=specific_containers, row.container_id debe estar dentro de packing.container_ids
-        """
         scope = packing_vals.get('scope') or 'full_shipment'
         container_ids = self._normalize_id_list(packing_vals.get('container_ids', []))
 
@@ -225,11 +205,171 @@ class SupplierPortalController(http.Controller):
         }
 
     # =====================================================================
-    #  SERIALIZACIÓN
+    #  SERIALIZACION DE DOCUMENTOS
+    # =====================================================================
+
+    def _serialize_documents_for_scope(self, shipment_id=None, proforma_id=None):
+        Doc = request.env['supplier.shipment.document'].sudo()
+        domain = []
+        if shipment_id:
+            domain.append(('shipment_id', '=', shipment_id))
+        if proforma_id:
+            domain.append(('proforma_id', '=', proforma_id))
+        if not shipment_id and not proforma_id:
+            return []
+
+        docs = Doc.search(domain, order='document_type, create_date desc')
+        return [{
+            'id': d.id,
+            'document_type': d.document_type,
+            'name': d.name or '',
+            'file_size': d.file_size or 0,
+            'mime_type': d.mime_type or '',
+            'dpi_value': d.dpi_value or 0,
+            'upload_token': d.upload_token or '',
+            'notes': d.notes or '',
+        } for d in docs]
+
+    # =====================================================================
+    #  PROGRESO Y VALIDACION DE COMPLETITUD
+    # =====================================================================
+
+    def _compute_progress(self, proforma):
+        if not proforma:
+            return {'percent': 0, 'sections': {}}
+
+        sections = {}
+        total_weight = 0
+        completed_weight = 0
+
+        # Datos globales (peso 10)
+        weight = 10
+        total_weight += weight
+        globals_filled = bool(proforma.proforma_number) and bool(proforma.payment_terms)
+        if globals_filled:
+            completed_weight += weight
+        sections['globals'] = {'filled': globals_filled, 'weight': weight}
+
+        # Al menos 1 embarque (peso 5)
+        weight = 5
+        total_weight += weight
+        has_shipments = bool(proforma.shipment_ids)
+        if has_shipments:
+            completed_weight += weight
+        sections['has_shipments'] = {'filled': has_shipments, 'weight': weight}
+
+        if not has_shipments:
+            percent = round((completed_weight / total_weight) * 100) if total_weight else 0
+            return {'percent': percent, 'sections': sections}
+
+        Doc = request.env['supplier.shipment.document'].sudo()
+
+        shipment_doc_types_required = ['bl', 'invoice', 'packing_list']
+        shipment_doc_types_extra = ['eur1', 'certificate_origin', 'fumigation']
+
+        for s in proforma.shipment_ids:
+            prefix = f'ship_{s.id}'
+
+            # Logistics (peso 5)
+            w = 5
+            total_weight += w
+            has_logistics = bool(s.vessel_name or s.shipping_line) and bool(s.etd or s.eta)
+            if has_logistics:
+                completed_weight += w
+            sections[f'{prefix}_logistics'] = {'filled': has_logistics, 'weight': w}
+
+            # BL info (peso 3)
+            w = 3
+            total_weight += w
+            has_bl_info = bool(s.bl_number)
+            if has_bl_info:
+                completed_weight += w
+            sections[f'{prefix}_bl_info'] = {'filled': has_bl_info, 'weight': w}
+
+            # Containers (peso 3)
+            w = 3
+            total_weight += w
+            has_containers = bool(s.container_ids)
+            if has_containers:
+                completed_weight += w
+            sections[f'{prefix}_containers'] = {'filled': has_containers, 'weight': w}
+
+            # Packings con rows (peso 5)
+            w = 5
+            total_weight += w
+            has_packings = bool(s.packing_ids) and any(pk.row_ids for pk in s.packing_ids)
+            if has_packings:
+                completed_weight += w
+            sections[f'{prefix}_packings'] = {'filled': has_packings, 'weight': w}
+
+            # Docs obligatorios por embarque
+            for dt in shipment_doc_types_required:
+                w = 8
+                total_weight += w
+                has_doc = Doc.search_count([
+                    ('shipment_id', '=', s.id),
+                    ('document_type', '=', dt),
+                ]) > 0
+                if has_doc:
+                    completed_weight += w
+                sections[f'{prefix}_doc_{dt}'] = {'filled': has_doc, 'weight': w}
+
+            # Docs extra por embarque
+            for dt in shipment_doc_types_extra:
+                w = 4
+                total_weight += w
+                has_doc = Doc.search_count([
+                    ('shipment_id', '=', s.id),
+                    ('document_type', '=', dt),
+                ]) > 0
+                if has_doc:
+                    completed_weight += w
+                sections[f'{prefix}_doc_{dt}'] = {'filled': has_doc, 'weight': w}
+
+        # Pagos globales (peso 5)
+        w = 5
+        total_weight += w
+        has_payments = Doc.search_count([
+            ('proforma_id', '=', proforma.id),
+            ('document_type', 'in', ['advance_payment', 'invoice_payment', 'other_payment']),
+        ]) > 0
+        if has_payments:
+            completed_weight += w
+        sections['payments'] = {'filled': has_payments, 'weight': w}
+
+        percent = round((completed_weight / total_weight) * 100) if total_weight else 0
+        return {'percent': percent, 'sections': sections}
+
+    def _can_complete(self, proforma):
+        if not proforma or not proforma.shipment_ids:
+            return False, "Debe existir al menos un embarque."
+
+        Doc = request.env['supplier.shipment.document'].sudo()
+        required_per_shipment = ['bl', 'invoice', 'packing_list']
+
+        for s in proforma.shipment_ids:
+            for dt in required_per_shipment:
+                count = Doc.search_count([
+                    ('shipment_id', '=', s.id),
+                    ('document_type', '=', dt),
+                ])
+                if count == 0:
+                    labels = {
+                        'bl': 'B/L',
+                        'invoice': 'Invoice',
+                        'packing_list': 'Packing List',
+                    }
+                    return False, 'El embarque "%s" no tiene el documento obligatorio: %s' % (
+                        s.name, labels.get(dt, dt)
+                    )
+
+        return True, ""
+
+    # =====================================================================
+    #  SERIALIZACION PROFORMA
     # =====================================================================
 
     def _serialize_proforma(self, header):
-        """Serializa la proforma y toda su jerarquia a JSON-safe dict."""
         shipments = []
         for s in self._sorted_shipments(header.shipment_ids):
             containers = [{
@@ -315,7 +455,6 @@ class SupplierPortalController(http.Controller):
                 if c.id not in packing_related_container_ids:
                     containers_without_packing.append(c.id)
 
-            # ── Fotos de bloque del embarque ──
             block_images = []
             if hasattr(s, 'block_image_ids'):
                 block_images = [{
@@ -327,6 +466,8 @@ class SupplierPortalController(http.Controller):
                     'image_filename': bi.image_filename or '',
                     'notes': bi.notes or '',
                 } for bi in s.block_image_ids]
+
+            shipment_documents = self._serialize_documents_for_scope(shipment_id=s.id)
 
             shipments.append({
                 'id': s.id,
@@ -355,7 +496,11 @@ class SupplierPortalController(http.Controller):
                 'has_multi_container_packings': any(p['is_multi_container'] for p in packings),
                 'has_packings_without_container': any(p['has_rows_without_container'] for p in packings),
                 'all_container_ids': list(shipment_container_ids),
+                'documents': shipment_documents,
             })
+
+        global_documents = self._serialize_documents_for_scope(proforma_id=header.id)
+        progress = self._compute_progress(header)
 
         return {
             'id': header.id,
@@ -369,6 +514,8 @@ class SupplierPortalController(http.Controller):
             'general_notes': header.general_notes or '',
             'status': header.status or 'draft',
             'shipments': shipments,
+            'global_documents': global_documents,
+            'progress': progress,
         }
 
     # =====================================================================
@@ -376,7 +523,6 @@ class SupplierPortalController(http.Controller):
     # =====================================================================
 
     def _sync_flat_to_picking(self, header, picking):
-        """Popula los campos flat del picking con un resumen de la proforma (retrocompatibilidad)."""
         if not picking or not header:
             return
 
@@ -431,10 +577,6 @@ class SupplierPortalController(http.Controller):
             pass
 
     def _sync_packing_rows_to_spreadsheet(self, header, picking):
-        """
-        Consolida TODAS las rows de TODOS los packings de la proforma
-        y las escribe al spreadsheet del picking.
-        """
         if not picking or not header:
             return
 
@@ -581,7 +723,7 @@ class SupplierPortalController(http.Controller):
         return request.render('stock_lot_packing_import.supplier_portal_view', values)
 
     # =====================================================================
-    #  API v2: GUARDAR DATOS GLOBALES DE LA PROFORMA
+    #  API v2: GUARDAR DATOS GLOBALES
     # =====================================================================
 
     @http.route('/supplier/api/v2/save_globals', type='json', auth='public', csrf=False)
@@ -748,12 +890,10 @@ class SupplierPortalController(http.Controller):
                 ('shipment_id', '=', shipment.id),
                 ('container_ids', 'in', to_delete.ids),
             ], limit=1)
-
             used_in_rows = request.env['supplier.shipment.packing.row'].sudo().search([
                 ('container_id', 'in', to_delete.ids),
                 ('packing_id.shipment_id', '=', shipment.id),
             ], limit=1)
-
             used_in_invoices = request.env['supplier.shipment.invoice'].sudo().search([
                 ('shipment_id', '=', shipment.id),
                 ('container_ids', 'in', to_delete.ids),
@@ -764,11 +904,9 @@ class SupplierPortalController(http.Controller):
                     'success': False,
                     'message': 'No puede eliminar contenedores que ya estan siendo usados en packings, filas o invoices.'
                 }
-
             to_delete.unlink()
 
         self._sync_flat_to_picking(proforma, access.picking_id)
-
         return {'success': True, 'container_ids': list(existing_ids)}
 
     # =====================================================================
@@ -946,7 +1084,6 @@ class SupplierPortalController(http.Controller):
             if rows_to_delete:
                 rows_to_delete.unlink()
 
-        # ── Validar fotos de bloque obligatorias ──
         if rows is not None:
             valid_rows = [r for r in (rows or []) if r]
             if valid_rows:
@@ -971,7 +1108,6 @@ class SupplierPortalController(http.Controller):
                             }
 
         self._sync_packing_rows_to_spreadsheet(proforma, access.picking_id)
-
         return {'success': True, 'packing_id': packing.id}
 
     @http.route('/supplier/api/v2/delete_packing', type='json', auth='public', csrf=False)
@@ -987,16 +1123,14 @@ class SupplierPortalController(http.Controller):
 
         packing.unlink()
         self._sync_packing_rows_to_spreadsheet(proforma, access.picking_id)
-
         return {'success': True}
 
     # =====================================================================
-    #  API v2: SUBIDA DE ARCHIVOS (BL, Invoice, PL)
+    #  API v2: SUBIDA DE ARCHIVOS LEGACY
     # =====================================================================
 
     @http.route('/supplier/api/v2/upload_file', type='json', auth='public', csrf=False)
     def api_upload_file(self, token, target_model, target_id, field_name, file_data, file_name):
-        """Sube un archivo binario a un campo Binary de cualquier modelo permitido."""
         access = self._validate_token(token)
         if not access:
             return {'success': False, 'message': 'Token invalido.'}
@@ -1047,6 +1181,146 @@ class SupplierPortalController(http.Controller):
         return {'success': True}
 
     # =====================================================================
+    #  API v2: DOCUMENTOS (nuevo sistema)
+    # =====================================================================
+
+    @http.route('/supplier/api/v2/upload_document', type='json', auth='public', csrf=False)
+    def api_upload_document(self, token, document_type, file_data, file_name,
+                            shipment_id=None, file_size=0, mime_type='',
+                            dpi_value=0, notes=''):
+        access = self._validate_token(token)
+        if not access:
+            return {'success': False, 'message': 'Token invalido.'}
+
+        proforma = self._get_or_create_proforma(access)
+        if not proforma:
+            return {'success': False, 'message': 'Proforma no encontrada.'}
+
+        valid_types = [
+            'bl', 'invoice', 'packing_list',
+            'eur1', 'certificate_origin', 'fumigation',
+            'advance_payment', 'invoice_payment', 'other_payment',
+        ]
+        if document_type not in valid_types:
+            return {'success': False, 'message': 'Tipo de documento no valido: %s' % document_type}
+
+        shipment_types = ['bl', 'invoice', 'packing_list', 'eur1', 'certificate_origin', 'fumigation']
+        global_types = ['advance_payment', 'invoice_payment', 'other_payment']
+
+        shipment = None
+        if document_type in shipment_types:
+            if not shipment_id:
+                return {'success': False, 'message': 'Se requiere shipment_id para este tipo de documento.'}
+            shipment = request.env['supplier.shipment'].sudo().browse(self._safe_int(shipment_id))
+            if not shipment.exists() or not self._belongs_to_proforma(proforma, shipment=shipment):
+                return {'success': False, 'message': 'Embarque no encontrado o no autorizado.'}
+
+        if not file_data:
+            return {'success': False, 'message': 'No se recibio contenido de archivo.'}
+
+        allowed_mime = ['application/pdf']
+        if document_type == 'packing_list':
+            allowed_mime.extend([
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'application/vnd.ms-excel',
+                'text/csv',
+            ])
+
+        if mime_type and mime_type not in allowed_mime:
+            if document_type == 'packing_list':
+                return {'success': False, 'message': 'Solo se permiten archivos PDF u hojas de calculo para Packing List.'}
+            return {'success': False, 'message': 'Solo se permiten archivos PDF.'}
+
+        if mime_type == 'application/pdf' and dpi_value > 0 and dpi_value < 300:
+            return {
+                'success': False,
+                'message': 'El PDF debe tener un DPI mayor a 300. DPI detectado: %d. Por favor escanee el documento con mayor resolucion.' % dpi_value,
+            }
+
+        upload_token = hashlib.md5(
+            ('%s_%s_%d' % (file_name or '', document_type, file_size or 0)).encode()
+        ).hexdigest()
+
+        Doc = request.env['supplier.shipment.document'].sudo()
+        is_dup = Doc.check_duplicate(
+            shipment_id=shipment.id if shipment else None,
+            proforma_id=proforma.id if document_type in global_types else None,
+            document_type=document_type,
+            upload_token=upload_token,
+        )
+        if is_dup:
+            return {
+                'success': False,
+                'message': 'Este archivo ya fue subido anteriormente para este tipo de documento.',
+                'is_duplicate': True,
+            }
+
+        vals = {
+            'document_type': document_type,
+            'name': file_name or 'documento',
+            'file_data': file_data,
+            'file_size': self._safe_int(file_size, 0),
+            'mime_type': mime_type or '',
+            'dpi_value': self._safe_int(dpi_value, 0),
+            'upload_token': upload_token,
+            'notes': notes or '',
+        }
+
+        if shipment:
+            vals['shipment_id'] = shipment.id
+        if document_type in global_types:
+            vals['proforma_id'] = proforma.id
+
+        record = Doc.create(vals)
+        return {'success': True, 'document_id': record.id}
+
+    @http.route('/supplier/api/v2/delete_document', type='json', auth='public', csrf=False)
+    def api_delete_document(self, token, document_id):
+        access = self._validate_token(token)
+        if not access:
+            return {'success': False, 'message': 'Token invalido.'}
+
+        proforma = self._get_or_create_proforma(access)
+        Doc = request.env['supplier.shipment.document'].sudo()
+        record = Doc.browse(self._safe_int(document_id))
+        if not record.exists():
+            return {'success': False, 'message': 'Documento no encontrado.'}
+
+        authorized = False
+        if record.shipment_id:
+            authorized = self._belongs_to_proforma(proforma, shipment=record.shipment_id)
+        elif record.proforma_id and record.proforma_id.id == proforma.id:
+            authorized = True
+
+        if not authorized:
+            return {'success': False, 'message': 'No autorizado.'}
+
+        record.unlink()
+        return {'success': True}
+
+    @http.route('/supplier/api/v2/list_documents', type='json', auth='public', csrf=False)
+    def api_list_documents(self, token, shipment_id=None):
+        access = self._validate_token(token)
+        if not access:
+            return {'success': False, 'message': 'Token invalido.'}
+
+        proforma = self._get_or_create_proforma(access)
+        if not proforma:
+            return {'success': False, 'message': 'Proforma no encontrada.'}
+
+        result = {}
+
+        if shipment_id:
+            shipment = request.env['supplier.shipment'].sudo().browse(self._safe_int(shipment_id))
+            if shipment.exists() and self._belongs_to_proforma(proforma, shipment=shipment):
+                result['shipment_documents'] = self._serialize_documents_for_scope(shipment_id=shipment.id)
+
+        result['global_documents'] = self._serialize_documents_for_scope(proforma_id=proforma.id)
+        result['progress'] = self._compute_progress(proforma)
+
+        return {'success': True, **result}
+
+    # =====================================================================
     #  API v2: MARCAR PROFORMA COMO COMPLETA
     # =====================================================================
 
@@ -1062,6 +1336,10 @@ class SupplierPortalController(http.Controller):
 
         if not proforma.shipment_ids:
             return {'success': False, 'message': 'Debe existir al menos un embarque antes de completar la proforma.'}
+
+        can_complete, msg = self._can_complete(proforma)
+        if not can_complete:
+            return {'success': False, 'message': msg}
 
         for shipment in proforma.shipment_ids:
             for packing in self._sorted_packings(shipment.packing_ids):
@@ -1080,7 +1358,6 @@ class SupplierPortalController(http.Controller):
                             'message': 'Existe un packing con filas usando contenedores fuera de su alcance.'
                         }
 
-            # ── Validar fotos de bloque al completar ──
             BlockImage = request.env['supplier.shipment.block.image'].sudo()
             for packing in self._sorted_packings(shipment.packing_ids):
                 blocks_in_packing = set()
@@ -1098,7 +1375,7 @@ class SupplierPortalController(http.Controller):
                     if not existing:
                         return {
                             'success': False,
-                            'message': 'El bloque "%s" en el embarque "%s" no tiene fotografia. Suba al menos una foto por bloque.' % (block_name, shipment.name)
+                            'message': 'El bloque "%s" en el embarque "%s" no tiene fotografia.' % (block_name, shipment.name)
                         }
 
         proforma.write({'status': 'complete'})
@@ -1108,7 +1385,7 @@ class SupplierPortalController(http.Controller):
         return {'success': True}
 
     # =====================================================================
-    #  API v2: RELOAD (recarga todos los datos jerarquicos)
+    #  API v2: RELOAD
     # =====================================================================
 
     @http.route('/supplier/api/v2/reload', type='json', auth='public', csrf=False)
@@ -1124,12 +1401,11 @@ class SupplierPortalController(http.Controller):
         return {'success': True, 'proforma': self._serialize_proforma(proforma)}
 
     # =====================================================================
-    #  API v2: SUBIDA / ELIMINACIÓN DE IMAGEN POR FILA DE PACKING
+    #  API v2: IMAGENES POR FILA
     # =====================================================================
 
     @http.route('/supplier/api/v2/upload_row_image', type='json', auth='public', csrf=False)
     def api_upload_row_image(self, token, row_id, image_data, image_name=None):
-        """Sube una imagen (base64) a una fila especifica del packing list."""
         access = self._validate_token(token)
         if not access:
             return {'success': False, 'message': 'Token invalido.'}
@@ -1152,7 +1428,6 @@ class SupplierPortalController(http.Controller):
 
     @http.route('/supplier/api/v2/delete_row_image', type='json', auth='public', csrf=False)
     def api_delete_row_image(self, token, row_id):
-        """Elimina la imagen de una fila del packing list."""
         access = self._validate_token(token)
         if not access:
             return {'success': False, 'message': 'Token invalido.'}
@@ -1170,12 +1445,11 @@ class SupplierPortalController(http.Controller):
         return {'success': True}
 
     # =====================================================================
-    #  API v2: CRUD FOTOS DE BLOQUE
+    #  API v2: FOTOS DE BLOQUE
     # =====================================================================
 
     @http.route('/supplier/api/v2/upload_block_image', type='json', auth='public', csrf=False)
     def api_upload_block_image(self, token, shipment_id, block_name, product_id, image_data, image_name=None):
-        """Sube una foto de bloque a un embarque."""
         access = self._validate_token(token)
         if not access:
             return {'success': False, 'message': 'Token invalido.'}
@@ -1204,7 +1478,6 @@ class SupplierPortalController(http.Controller):
 
     @http.route('/supplier/api/v2/delete_block_image', type='json', auth='public', csrf=False)
     def api_delete_block_image(self, token, block_image_id):
-        """Elimina una foto de bloque."""
         access = self._validate_token(token)
         if not access:
             return {'success': False, 'message': 'Token invalido.'}
@@ -1223,7 +1496,6 @@ class SupplierPortalController(http.Controller):
 
     @http.route('/supplier/api/v2/get_block_images', type='json', auth='public', csrf=False)
     def api_get_block_images(self, token, shipment_id):
-        """Obtiene todas las fotos de bloque de un embarque."""
         access = self._validate_token(token)
         if not access:
             return {'success': False, 'message': 'Token invalido.'}
@@ -1244,7 +1516,7 @@ class SupplierPortalController(http.Controller):
         return {'success': True, 'block_images': images}
 
     # =====================================================================
-    #  ENDPOINT LEGACY: SUBMIT (flujo viejo, fallback)
+    #  ENDPOINT LEGACY
     # =====================================================================
 
     @http.route('/supplier/pl/submit', type='json', auth='public', csrf=False)
