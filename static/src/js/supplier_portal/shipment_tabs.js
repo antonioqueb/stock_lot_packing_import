@@ -88,10 +88,6 @@
         },
 
         renderLogisticsTab(el, s) {
-            const statusOpts = ['draft', 'in_production', 'booked', 'departed', 'in_transit', 'arrived', 'delivered']
-                .map(v => `<option value="${v}" ${s.status === v ? 'selected' : ''}>${this.t('st_' + v)}</option>`)
-                .join('');
-
             const typeOpts = ['maritime', 'air', 'land']
                 .map(v => `<option value="${v}" ${s.shipment_type === v ? 'selected' : ''}>${this.t('opt_' + v)}</option>`)
                 .join('');
@@ -129,10 +125,7 @@
                         <label>${this.t('lbl_port_dest')}</label>
                         <input type="text" data-sf="port_destination" value="${esc(s.port_destination)}"/>
                     </div>
-                    <div class="sf-field">
-                        <label>${this.t('lbl_status')}</label>
-                        <select data-sf="status">${statusOpts}</select>
-                    </div>
+                   
                     <div class="sf-field sf-wide">
                         <label>${this.t('lbl_notes')}</label>
                         <textarea data-sf="notes" rows="2">${esc(s.notes)}</textarea>
