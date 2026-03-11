@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <template id="portal_supplier_packing" name="Supplier Packing Portal">
+    <template id="supplier_portal_view" name="Supplier Packing Portal">
         <div class="o_portal_wrapper">
 
             <!-- HEADER -->
