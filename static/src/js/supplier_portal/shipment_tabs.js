@@ -1,3 +1,4 @@
+// shipment_tabs.js - JS module for rendering shipment details tabs in supplier portal
 (function () {
     "use strict";
 
