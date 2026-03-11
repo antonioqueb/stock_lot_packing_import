@@ -13,31 +13,40 @@ class SupplierPortalController(http.Controller):
 
     # =====================================================================
     #  PARAM HELPER — Odoo 19 compatibility
-    #  In Odoo 19 type='json' controllers, params may arrive via kwargs
-    #  OR via request.params depending on the Odoo build. This helper
-    #  checks both sources.
     # =====================================================================
 
-    def _p(self, key, default=None, **kw):
-        """Read a JSON-RPC param from kwargs first, then request.params."""
-        val = kw.get(key)
-        if val is not None:
-            return val
+    def _get_params(self):
+        """
+        Retrieve the JSON-RPC params dict in a way that works across
+        all Odoo 19 builds.  Checks (in order):
+          1. request.params          — standard Odoo JSON dispatch
+          2. request.get_json_data() — raw JSON body fallback
+        """
+        # 1. Standard: Odoo parses the JSON body and sets request.params
         try:
-            val = request.params.get(key)
-            if val is not None:
-                return val
+            p = request.params
+            if p and isinstance(p, dict) and len(p) > 0:
+                return p
         except Exception:
             pass
+        # 2. Fallback: read raw JSON body
         try:
-            data = request.get_json_data() or {}
-            params = data.get('params', {})
-            val = params.get(key)
-            if val is not None:
-                return val
+            body = request.get_json_data() or {}
+            p = body.get('params') or {}
+            if p and isinstance(p, dict):
+                return p
         except Exception:
             pass
-        return default
+        # 3. Last resort: httprequest (werkzeug)
+        try:
+            raw = request.httprequest.get_data(as_text=True)
+            if raw:
+                import json as _json
+                body = _json.loads(raw)
+                return body.get('params') or {}
+        except Exception:
+            pass
+        return {}
 
     # =====================================================================
     #  HELPERS GENERALES
@@ -747,6 +756,7 @@ class SupplierPortalController(http.Controller):
 
     @http.route('/supplier/api/v2/save_globals', type='json', auth='public', csrf=False)
     def api_save_globals(self, **kw):
+        kw = self._get_params()
         access = self._validate_token(kw.get("token"))
         globals_data = kw.get("globals_data")
         if not access:
@@ -786,6 +796,7 @@ class SupplierPortalController(http.Controller):
 
     @http.route('/supplier/api/v2/create_shipment', type='json', auth='public', csrf=False)
     def api_create_shipment(self, **kw):
+        kw = self._get_params()
         access = self._validate_token(kw.get("token"))
         shipment_data = kw.get("shipment_data")
         if not access:
@@ -815,6 +826,7 @@ class SupplierPortalController(http.Controller):
 
     @http.route('/supplier/api/v2/update_shipment', type='json', auth='public', csrf=False)
     def api_update_shipment(self, **kw):
+        kw = self._get_params()
         access = self._validate_token(kw.get("token"))
         shipment_id = kw.get("shipment_id")
         shipment_data = kw.get("shipment_data")
@@ -849,6 +861,7 @@ class SupplierPortalController(http.Controller):
 
     @http.route('/supplier/api/v2/delete_shipment', type='json', auth='public', csrf=False)
     def api_delete_shipment(self, **kw):
+        kw = self._get_params()
         access = self._validate_token(kw.get("token"))
         shipment_id = kw.get("shipment_id")
         if not access:
@@ -875,6 +888,7 @@ class SupplierPortalController(http.Controller):
 
     @http.route('/supplier/api/v2/save_containers', type='json', auth='public', csrf=False)
     def api_save_containers(self, **kw):
+        kw = self._get_params()
         access = self._validate_token(kw.get("token"))
         shipment_id = kw.get("shipment_id")
         containers = kw.get("containers")
@@ -943,6 +957,7 @@ class SupplierPortalController(http.Controller):
 
     @http.route('/supplier/api/v2/save_invoices', type='json', auth='public', csrf=False)
     def api_save_invoices(self, **kw):
+        kw = self._get_params()
         access = self._validate_token(kw.get("token"))
         shipment_id = kw.get("shipment_id")
         invoices = kw.get("invoices")
@@ -1006,6 +1021,7 @@ class SupplierPortalController(http.Controller):
 
     @http.route('/supplier/api/v2/save_packing', type='json', auth='public', csrf=False)
     def api_save_packing(self, **kw):
+        kw = self._get_params()
         access = self._validate_token(kw.get("token"))
         shipment_id = kw.get("shipment_id")
         packing_data = kw.get("packing_data")
@@ -1148,6 +1164,7 @@ class SupplierPortalController(http.Controller):
 
     @http.route('/supplier/api/v2/delete_packing', type='json', auth='public', csrf=False)
     def api_delete_packing(self, **kw):
+        kw = self._get_params()
         access = self._validate_token(kw.get("token"))
         packing_id = kw.get("packing_id")
         if not access:
@@ -1168,6 +1185,7 @@ class SupplierPortalController(http.Controller):
 
     @http.route('/supplier/api/v2/upload_file', type='json', auth='public', csrf=False)
     def api_upload_file(self, **kw):
+        kw = self._get_params()
         access = self._validate_token(kw.get("token"))
         target_model = kw.get("target_model")
         target_id = kw.get("target_id")
@@ -1228,6 +1246,7 @@ class SupplierPortalController(http.Controller):
 
     @http.route('/supplier/api/v2/upload_document', type='json', auth='public', csrf=False)
     def api_upload_document(self, **kw):
+        kw = self._get_params()
         access = self._validate_token(kw.get("token"))
         if not access:
             return {'success': False, 'message': 'Token invalido.'}
@@ -1325,6 +1344,7 @@ class SupplierPortalController(http.Controller):
 
     @http.route('/supplier/api/v2/delete_document', type='json', auth='public', csrf=False)
     def api_delete_document(self, **kw):
+        kw = self._get_params()
         access = self._validate_token(kw.get("token"))
         document_id = kw.get("document_id")
         if not access:
@@ -1353,6 +1373,7 @@ class SupplierPortalController(http.Controller):
 
     @http.route('/supplier/api/v2/list_documents', type='json', auth='public', csrf=False)
     def api_list_documents(self, **kw):
+        kw = self._get_params()
         access = self._validate_token(kw.get("token"))
         shipment_id = kw.get("shipment_id")
         if not access:
@@ -1380,6 +1401,7 @@ class SupplierPortalController(http.Controller):
 
     @http.route('/supplier/api/v2/complete', type='json', auth='public', csrf=False)
     def api_complete(self, **kw):
+        kw = self._get_params()
         access = self._validate_token(kw.get("token"))
         if not access:
             return {'success': False, 'message': 'Token invalido.'}
@@ -1444,6 +1466,7 @@ class SupplierPortalController(http.Controller):
 
     @http.route('/supplier/api/v2/reload', type='json', auth='public', csrf=False)
     def api_reload(self, **kw):
+        kw = self._get_params()
         access = self._validate_token(kw.get("token"))
         if not access:
             return {'success': False, 'message': 'Token invalido.'}
@@ -1460,6 +1483,7 @@ class SupplierPortalController(http.Controller):
 
     @http.route('/supplier/api/v2/upload_row_image', type='json', auth='public', csrf=False)
     def api_upload_row_image(self, **kw):
+        kw = self._get_params()
         access = self._validate_token(kw.get("token"))
         row_id = kw.get("row_id")
         image_data = kw.get("image_data")
@@ -1485,6 +1509,7 @@ class SupplierPortalController(http.Controller):
 
     @http.route('/supplier/api/v2/delete_row_image', type='json', auth='public', csrf=False)
     def api_delete_row_image(self, **kw):
+        kw = self._get_params()
         access = self._validate_token(kw.get("token"))
         row_id = kw.get("row_id")
         if not access:
@@ -1508,6 +1533,7 @@ class SupplierPortalController(http.Controller):
 
     @http.route('/supplier/api/v2/upload_block_image', type='json', auth='public', csrf=False)
     def api_upload_block_image(self, **kw):
+        kw = self._get_params()
         access = self._validate_token(kw.get("token"))
         shipment_id = kw.get("shipment_id")
         block_name = kw.get("block_name")
@@ -1541,6 +1567,7 @@ class SupplierPortalController(http.Controller):
 
     @http.route('/supplier/api/v2/delete_block_image', type='json', auth='public', csrf=False)
     def api_delete_block_image(self, **kw):
+        kw = self._get_params()
         access = self._validate_token(kw.get("token"))
         block_image_id = kw.get("block_image_id")
         if not access:
@@ -1560,6 +1587,7 @@ class SupplierPortalController(http.Controller):
 
     @http.route('/supplier/api/v2/get_block_images', type='json', auth='public', csrf=False)
     def api_get_block_images(self, **kw):
+        kw = self._get_params()
         access = self._validate_token(kw.get("token"))
         shipment_id = kw.get("shipment_id")
         if not access:
@@ -1586,6 +1614,7 @@ class SupplierPortalController(http.Controller):
 
     @http.route('/supplier/pl/submit', type='json', auth='public', csrf=False)
     def submit_pl_data(self, **kw):
+        kw = self._get_params()
         access = self._validate_token(kw.get("token"))
         rows = kw.get("rows")
         header = kw.get("header")
