@@ -87,6 +87,76 @@
             }
         },
 
+        // =================================================================
+        //  HELPERS: Sync DOM values back into the in-memory data objects
+        // =================================================================
+
+        /**
+         * Reads current DOM input values for containers and writes them
+         * back into the shipment's containers array so they survive re-renders.
+         */
+        _syncContainersFromDOM(s) {
+            const el = document.getElementById(`stab-containers-${s.id}`);
+            if (!el) return;
+
+            (s.containers || []).forEach((c, idx) => {
+                el.querySelectorAll(`[data-cnt-idx="${idx}"]`).forEach(input => {
+                    const field = input.dataset.cntF;
+                    if (!field) return;
+                    if (['weight', 'volume'].includes(field)) {
+                        c[field] = parseFloat(input.value) || 0;
+                    } else if (field === 'packages') {
+                        c[field] = parseInt(input.value, 10) || 0;
+                    } else {
+                        c[field] = input.value || '';
+                    }
+                });
+            });
+        },
+
+        /**
+         * Reads current DOM input values for invoices and writes them
+         * back into the shipment's invoices array.
+         */
+        _syncInvoicesFromDOM(s) {
+            const el = document.getElementById(`stab-invoices-${s.id}`);
+            if (!el) return;
+
+            (s.invoices || []).forEach((inv, idx) => {
+                el.querySelectorAll(`[data-inv-idx="${idx}"]`).forEach(input => {
+                    const field = input.dataset.invF;
+                    if (!field) return;
+                    if (field === 'amount') {
+                        inv[field] = parseFloat(input.value) || 0;
+                    } else {
+                        inv[field] = input.value || '';
+                    }
+                });
+            });
+        },
+
+        /**
+         * Reads current DOM input values for packings (header fields only,
+         * rows are already tracked via this.packingRows).
+         */
+        _syncPackingsFromDOM(s) {
+            const el = document.getElementById(`stab-packings-${s.id}`);
+            if (!el) return;
+
+            (s.packings || []).forEach(pk => {
+                el.querySelectorAll(`[data-pk-id="${pk.id}"][data-pk-f]`).forEach(input => {
+                    const field = input.dataset.pkF;
+                    if (field) {
+                        pk[field] = input.value || '';
+                    }
+                });
+            });
+        },
+
+        // =================================================================
+        //  LOGISTICS TAB
+        // =================================================================
+
         renderLogisticsTab(el, s) {
             const typeOpts = ['maritime', 'air', 'land']
                 .map(v => `<option value="${v}" ${s.shipment_type === v ? 'selected' : ''}>${this.t('opt_' + v)}</option>`)
@@ -166,6 +236,10 @@
             }
         },
 
+        // =================================================================
+        //  B/L TAB
+        // =================================================================
+
         renderBLTab(el, s) {
             el.innerHTML = `
                 <div class="shipment-form-grid">
@@ -223,6 +297,10 @@
             });
         },
 
+        // =================================================================
+        //  INVOICES TAB
+        // =================================================================
+
         renderInvoicesTab(el, s) {
             const invoices = s.invoices || [];
             let html = '';
@@ -273,6 +351,9 @@
             el.innerHTML = html;
 
             el.querySelector('.btn-add-inv').addEventListener('click', () => {
+                // ── Sync current DOM values before adding ──
+                this._syncInvoicesFromDOM(s);
+
                 s.invoices = s.invoices || [];
                 s.invoices.push({
                     id: 0,
@@ -287,6 +368,9 @@
 
             el.querySelectorAll('.btn-remove-inv').forEach(btn => {
                 btn.addEventListener('click', () => {
+                    // ── Sync current DOM values before removing ──
+                    this._syncInvoicesFromDOM(s);
+
                     s.invoices.splice(parseInt(btn.dataset.idx, 10), 1);
                     this.renderTabContent('invoices', s);
                 });
@@ -325,6 +409,10 @@
                 this.toast(this.t('msg_error') + e.message, 'error');
             }
         },
+
+        // =================================================================
+        //  CONTAINERS TAB
+        // =================================================================
 
         renderContainersTab(el, s) {
             const containers = s.containers || [];
@@ -381,6 +469,9 @@
             el.innerHTML = html;
 
             el.querySelector('.btn-add-cnt').addEventListener('click', () => {
+                // ── Sync current DOM values before adding ──
+                this._syncContainersFromDOM(s);
+
                 s.containers = s.containers || [];
                 s.containers.push({
                     id: 0,
@@ -396,6 +487,9 @@
 
             el.querySelectorAll('.btn-remove-cnt').forEach(btn => {
                 btn.addEventListener('click', () => {
+                    // ── Sync current DOM values before removing ──
+                    this._syncContainersFromDOM(s);
+
                     s.containers.splice(parseInt(btn.dataset.idx, 10), 1);
                     this.renderTabContent('containers', s);
                 });
@@ -437,6 +531,10 @@
             }
         },
 
+        // =================================================================
+        //  PACKINGS TAB
+        // =================================================================
+
         renderPackingsTab(el, s) {
             const packings = s.packings || [];
 
@@ -452,7 +550,11 @@
             el.innerHTML = html;
 
             el.querySelector('.btn-add-pk')
-                .addEventListener('click', () => this.createPacking(s));
+                .addEventListener('click', () => {
+                    // ── Sync current packing header values before adding ──
+                    this._syncPackingsFromDOM(s);
+                    this.createPacking(s);
+                });
 
             el.querySelectorAll('.btn-delete-pk').forEach(btn => {
                 btn.addEventListener('click', async () => {
@@ -606,6 +708,10 @@
                 this.toast(this.t('msg_error') + e.message, 'error');
             }
         },
+
+        // =================================================================
+        //  PHOTO UPLOAD / DELETE
+        // =================================================================
 
         async uploadRowImage(serverRowId, localRowId, pkKey, file, area) {
             try {
