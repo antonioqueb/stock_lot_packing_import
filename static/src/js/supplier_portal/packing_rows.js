@@ -211,11 +211,17 @@
 
                 html += `</tbody></table>
                     <div class="table-actions">
-                        <button class="btn-add-row action-add-pk-row" data-product-id="${product.id}" data-pk-key="${rowsKey}" type="button">
-                            <i class="fa fa-plus-circle me-2"></i>${this.t('btn_add_row')}
+                        <button class="btn-add-row action-add-pk-row" data-product-id="${product.id}" data-pk-key="${rowsKey}" data-count="1" type="button">
+                            ${this.t('btn_add_row')}
                         </button>
-                        <button class="btn-add-row ms-2 action-add-pk-multi" data-product-id="${product.id}" data-pk-key="${rowsKey}" type="button">
-                            ${this.t('btn_add_multi')}
+                        <button class="btn-add-row action-add-pk-row" data-product-id="${product.id}" data-pk-key="${rowsKey}" data-count="5" type="button">
+                            ${this.t('btn_add_5')}
+                        </button>
+                        <button class="btn-add-row action-add-pk-row" data-product-id="${product.id}" data-pk-key="${rowsKey}" data-count="15" type="button">
+                            ${this.t('btn_add_15')}
+                        </button>
+                        <button class="btn-add-row action-add-pk-row" data-product-id="${product.id}" data-pk-key="${rowsKey}" data-count="30" type="button">
+                            ${this.t('btn_add_30')}
                         </button>
                     </div>
                 </div></div>`;
@@ -288,7 +294,6 @@
             area.addEventListener('click', e => {
                 const delBtn = e.target.closest('.btn-delete-row');
                 const addBtn = e.target.closest('.action-add-pk-row');
-                const addMulti = e.target.closest('.action-add-pk-multi');
                 const fillBtn = e.target.closest('.btn-fill-down');
                 const photoDoneBtn = e.target.closest('.btn-photo-done');
 
@@ -314,20 +319,10 @@
                 if (addBtn) {
                     const pid = parseInt(addBtn.dataset.productId, 10);
                     const key = addBtn.dataset.pkKey;
+                    const count = parseInt(addBtn.dataset.count, 10) || 1;
                     const p = this.products.find(x => x.id === pid);
                     if (p) {
-                        this.packingRows[key].push(this._newProductRow(p));
-                        this.renderPackingRows(area, pk, s);
-                    }
-                    return;
-                }
-
-                if (addMulti) {
-                    const pid = parseInt(addMulti.dataset.productId, 10);
-                    const key = addMulti.dataset.pkKey;
-                    const p = this.products.find(x => x.id === pid);
-                    if (p) {
-                        for (let i = 0; i < 5; i++) {
+                        for (let i = 0; i < count; i++) {
                             this.packingRows[key].push(this._newProductRow(p));
                         }
                         this.renderPackingRows(area, pk, s);
