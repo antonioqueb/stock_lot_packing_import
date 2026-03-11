@@ -102,8 +102,6 @@
                 'g-invoice-global': 'invoice_global_number',
                 'g-payment-terms': 'payment_terms',
                 'g-country-origin': 'country_origin',
-                'g-port-origin': 'port_origin',
-                'g-port-destination': 'port_destination',
                 'g-incoterm': 'incoterm',
                 'g-general-notes': 'general_notes',
             };
@@ -122,8 +120,6 @@
                 invoice_global_number: document.getElementById('g-invoice-global')?.value || '',
                 payment_terms: document.getElementById('g-payment-terms')?.value || '',
                 country_origin: document.getElementById('g-country-origin')?.value || '',
-                port_origin: document.getElementById('g-port-origin')?.value || '',
-                port_destination: document.getElementById('g-port-destination')?.value || '',
                 incoterm: document.getElementById('g-incoterm')?.value || '',
                 general_notes: document.getElementById('g-general-notes')?.value || '',
             };
