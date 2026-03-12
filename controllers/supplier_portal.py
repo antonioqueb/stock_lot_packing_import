@@ -3,10 +3,15 @@
 
 import hashlib
 import json
+import base64
+import io
+import logging
 
 from odoo import http
 from odoo.http import request
 from markupsafe import Markup
+
+_logger = logging.getLogger(__name__)
 
 
 class SupplierPortalController(http.Controller):
@@ -1241,6 +1246,132 @@ class SupplierPortalController(http.Controller):
         return {'success': True}
 
     # =====================================================================
+    #  PDF PROCESSING HELPER: Upscale a 300 DPI + compresión 3MB
+    # =====================================================================
+
+    def _normalize_pdf_for_upload(self, file_data_b64, dpi_value):
+        """
+        Procesa un PDF subido:
+        1. Si DPI < 300, renderiza cada página a 300 DPI y re-ensambla
+        2. Si DPI >= 300, lo deja como está
+        3. Comprime si el resultado > 3MB
+        Retorna (new_b64, new_dpi) o (original_b64, original_dpi) si no requiere cambios.
+        """
+        try:
+            import fitz  # PyMuPDF
+            from PIL import Image
+        except ImportError:
+            _logger.warning("[Portal] PyMuPDF o Pillow no disponible, PDF se guarda sin procesar.")
+            return file_data_b64, dpi_value
+
+        try:
+            file_bytes = base64.b64decode(file_data_b64)
+        except Exception:
+            return file_data_b64, dpi_value
+
+        needs_upscale = (dpi_value > 0 and dpi_value < 300) or dpi_value == 0
+
+        if not needs_upscale:
+            # Solo verificar tamaño
+            if len(file_bytes) > 3 * 1024 * 1024:
+                compressed = self._compress_pdf_to_max_size(file_bytes, fitz, Image, 300)
+                if compressed:
+                    return base64.b64encode(compressed).decode('ascii'), dpi_value
+            return file_data_b64, dpi_value
+
+        TARGET_DPI = 300
+
+        try:
+            doc = fitz.open(stream=file_bytes, filetype="pdf")
+            output_doc = fitz.open()
+
+            for page_num in range(len(doc)):
+                page = doc[page_num]
+                zoom = TARGET_DPI / 72.0
+                mat = fitz.Matrix(zoom, zoom)
+                pix = page.get_pixmap(matrix=mat, alpha=False)
+
+                img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+
+                # Guardar como PDF page
+                img_bytes = io.BytesIO()
+                img.save(img_bytes, format='PDF', resolution=TARGET_DPI)
+                img_bytes.seek(0)
+
+                img_pdf = fitz.open(stream=img_bytes.read(), filetype="pdf")
+                output_doc.insert_pdf(img_pdf)
+                img_pdf.close()
+
+            result = output_doc.tobytes()
+            output_doc.close()
+            doc.close()
+
+            # Comprimir si > 3MB
+            if len(result) > 3 * 1024 * 1024:
+                compressed = self._compress_pdf_to_max_size(result, fitz, Image, TARGET_DPI)
+                if compressed:
+                    result = compressed
+
+            return base64.b64encode(result).decode('ascii'), TARGET_DPI
+
+        except Exception as e:
+            _logger.warning("[Portal] Error normalizando PDF: %s. Se guarda original.", e)
+            return file_data_b64, dpi_value
+
+    def _compress_pdf_to_max_size(self, pdf_bytes, fitz, Image, target_dpi):
+        """
+        Comprime un PDF re-renderizando con JPEG quality progresivamente menor
+        hasta que quepa en 3MB.
+        """
+        MAX_SIZE = 3 * 1024 * 1024
+
+        for quality in [85, 70, 55, 40, 30, 20]:
+            try:
+                doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+                output_doc = fitz.open()
+
+                for page_num in range(len(doc)):
+                    page = doc[page_num]
+                    zoom = target_dpi / 72.0
+                    mat = fitz.Matrix(zoom, zoom)
+                    pix = page.get_pixmap(matrix=mat, alpha=False)
+
+                    img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+
+                    # Convertir a JPEG con compresión
+                    jpeg_buf = io.BytesIO()
+                    img.save(jpeg_buf, format='JPEG', quality=quality, optimize=True)
+                    jpeg_buf.seek(0)
+                    img_compressed = Image.open(jpeg_buf)
+
+                    # Guardar como PDF page
+                    pdf_buf = io.BytesIO()
+                    img_compressed.save(pdf_buf, format='PDF', resolution=target_dpi)
+                    pdf_buf.seek(0)
+
+                    page_pdf = fitz.open(stream=pdf_buf.read(), filetype="pdf")
+                    output_doc.insert_pdf(page_pdf)
+                    page_pdf.close()
+
+                result = output_doc.tobytes()
+                output_doc.close()
+                doc.close()
+
+                if len(result) <= MAX_SIZE:
+                    _logger.info(
+                        "[Portal] PDF comprimido a %d bytes con quality=%d",
+                        len(result), quality
+                    )
+                    return result
+
+            except Exception as e:
+                _logger.warning("[Portal] Error comprimiendo PDF (quality=%d): %s", quality, e)
+                continue
+
+        _logger.warning("[Portal] No se pudo comprimir PDF a menos de 3MB.")
+        return None
+
+    # =====================================================================
     #  API v2: DOCUMENTOS (nuevo sistema)
     # =====================================================================
 
@@ -1299,11 +1430,23 @@ class SupplierPortalController(http.Controller):
                 return {'success': False, 'message': 'Solo se permiten archivos PDF u hojas de calculo para Packing List.'}
             return {'success': False, 'message': 'Solo se permiten archivos PDF.'}
 
-        if mime_type == 'application/pdf' and dpi_value > 0 and dpi_value < 300:
-            return {
-                'success': False,
-                'message': 'El PDF debe tener un DPI mayor a 300. DPI detectado: %d. Por favor escanee el documento con mayor resolucion.' % dpi_value,
-            }
+        # ─── NORMALIZACIÓN DE PDF: upscale a 300 DPI si es menor ───
+        # Ya NO rechazamos PDFs con DPI < 300. En su lugar, los procesamos.
+        is_pdf = (mime_type == 'application/pdf' or
+                  (file_name and file_name.lower().endswith('.pdf')))
+
+        final_file_data = file_data
+        final_dpi = dpi_value
+
+        if is_pdf:
+            final_file_data, final_dpi = self._normalize_pdf_for_upload(
+                file_data, dpi_value
+            )
+            # Recalcular tamaño
+            try:
+                file_size = len(base64.b64decode(final_file_data))
+            except Exception:
+                pass
 
         upload_token = hashlib.md5(
             ('%s_%s_%d' % (file_name or '', document_type, file_size or 0)).encode()
@@ -1326,10 +1469,10 @@ class SupplierPortalController(http.Controller):
         vals = {
             'document_type': document_type,
             'name': file_name or 'documento',
-            'file_data': file_data,
+            'file_data': final_file_data,
             'file_size': self._safe_int(file_size, 0),
             'mime_type': mime_type or '',
-            'dpi_value': self._safe_int(dpi_value, 0),
+            'dpi_value': self._safe_int(final_dpi, 0),
             'upload_token': upload_token,
             'notes': notes or '',
         }
