@@ -18,7 +18,7 @@ class SupplierAccess(models.Model):
     expiration_date = fields.Datetime(
         string="Expira",
         required=True,
-        default=lambda self: fields.Datetime.now() + timedelta(days=15),
+        default=lambda self: fields.Datetime.now() + timedelta(days=365),
         copy=False
     )
     is_expired = fields.Boolean(compute="_compute_expired", store=False)

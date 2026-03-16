@@ -82,10 +82,16 @@ class PurchaseOrder(models.Model):
         access = self.env['stock.picking.supplier.access'].sudo().search(
             [('purchase_id', '=', self.id)], limit=1
         )
+
+        min_expiration = fields.Datetime.now() + timedelta(days=365)
         vals_update = {}
+
         if target_picking and (not access or access.picking_id.id != target_picking.id):
             vals_update['picking_id'] = target_picking.id
-        vals_update['expiration_date'] = fields.Datetime.now() + timedelta(days=15)
+
+        # Siempre asegurar una vigencia mínima de 1 año
+        if not access or not access.expiration_date or access.expiration_date < min_expiration:
+            vals_update['expiration_date'] = min_expiration
 
         if access:
             if vals_update:
@@ -98,9 +104,10 @@ class PurchaseOrder(models.Model):
         return self.env['stock.picking.supplier.access'].sudo().create({
             'purchase_id': self.id,
             'picking_id': target_picking.id,
-            'expiration_date': vals_update['expiration_date'],
+            'expiration_date': min_expiration,
         })
-
+    
+    
     def action_open_supplier_link_wizard(self):
         self.ensure_one()
         if self.state not in ['purchase', 'done']:
