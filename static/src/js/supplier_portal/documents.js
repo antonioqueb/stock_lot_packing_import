@@ -87,26 +87,30 @@
         //  PROGRESS BAR
         // =================================================================
 
-        renderProgressBar() {
-            const bar = document.getElementById('progress-bar-container');
-            if (!bar) return;
+            renderProgressBar() {
+                const bar = document.getElementById('progress-bar-container');
+                if (!bar) return;
 
-            const progress = this.proforma.progress || { percent: 0 };
-            const pct = progress.percent || 0;
+                const progress = this.proforma.progress || { percent: 0 };
+                const pct = Math.max(0, Math.min(100, progress.percent || 0));
 
-            let color = '#dc2626';
-            if (pct >= 80) color = '#16a34a';
-            else if (pct >= 50) color = '#d97706';
-            else if (pct >= 25) color = '#2563eb';
+                let color = '#dc2626';
+                if (pct >= 100) {
+                    color = '#16a34a';
+                } else if (pct >= 75) {
+                    color = '#65a30d';
+                } else if (pct >= 50) {
+                    color = '#d97706';
+                } else if (pct >= 25) {
+                    color = '#2563eb';
+                }
 
-            bar.innerHTML = `
-                <div style="display:flex;align-items:center;gap:12px;padding:8px 0;">
-                    <div style="flex:1;background:#e5e5e5;border-radius:8px;height:10px;overflow:hidden;">
-                        <div style="width:${pct}%;height:100%;background:${color};border-radius:8px;transition:width 0.5s ease;"></div>
-                    </div>
-                    <span style="font-weight:700;font-size:0.85rem;color:${color};min-width:45px;text-align:right;">${pct}%</span>
-                </div>`;
-        },
+                const fill = bar.querySelector('.portal-progress-fill');
+                if (!fill) return;
+
+                fill.style.width = `${pct}%`;
+                fill.style.background = color;
+            },
 
         // =================================================================
         //  DOCUMENTS TAB (per shipment)

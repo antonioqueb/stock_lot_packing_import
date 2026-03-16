@@ -51,23 +51,6 @@
                 </header>
 
                 <div class="o_portal_container">
-
-                    <!-- PROGRESS BAR -->
-                    <div class="shipment-card" style="margin-bottom:16px;">
-                        <div class="card-header" style="padding:10px 20px;">
-                            <i class="fa fa-tasks"/>
-                            <h3 data-i18n="progress_label">Progreso de Llenado</h3>
-                        </div>
-                        <div class="card-body" style="padding:8px 20px 12px;" id="progress-bar-container">
-                            <div style="display:flex;align-items:center;gap:12px;">
-                                <div style="flex:1;background:#e5e5e5;border-radius:8px;height:10px;overflow:hidden;">
-                                    <div style="width:0%;height:100%;background:#dc2626;border-radius:8px;"></div>
-                                </div>
-                                <span style="font-weight:700;font-size:0.85rem;color:#dc2626;">0%</span>
-                            </div>
-                        </div>
-                    </div>
-
                     <!-- PROFORMA GLOBALS -->
                     <div class="shipment-card" id="proforma-globals-card">
                         <div class="card-header">
@@ -193,6 +176,13 @@
                         <i class="fa fa-check-circle"/>
                         <span data-i18n="btn_complete">Marcar como Completa</span>
                     </button>
+                </div>
+
+                <!-- PROGRESS STRIP -->
+                <div id="progress-bar-container" class="portal-progress-strip" aria-hidden="true">
+                    <div class="portal-progress-track">
+                        <div class="portal-progress-fill" style="width:0%;"></div>
+                    </div>
                 </div>
 
             </div>
