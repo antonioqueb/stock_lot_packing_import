@@ -73,36 +73,37 @@
                         </list>
                     </field>
                 </page>
-                                <page string="Pagos Proveedor">
+                
+                
+                <page string="Pagos Proveedor">
+                <group>
                     <group>
-                        <group>
-                            <field name="payment_document_count" readonly="1"/>
-                            <field name="has_payment_documents" invisible="1"/>
-                        </group>
+                        <field name="payment_document_count" readonly="1"/>
+                        <field name="has_payment_documents" invisible="1"/>
                     </group>
+                </group>
 
-                    <div class="alert alert-info" role="alert">
-                        <strong><i class="fa fa-money"/> Documentos de Pago</strong>
-                        <p>Los anticipos, pagos por invoice y otros comprobantes ya no se capturan desde el portal del proveedor.</p>
-                        <p>Ahora estos documentos se gestionan directamente desde la Orden de Compra para mayor control interno.</p>
-                    </div>
+                <div class="alert alert-info" role="alert">
+                    <strong><i class="fa fa-money"/> Documentos de Pago</strong>
+                    <p>Los anticipos, pagos por invoice y otros comprobantes ya no se capturan desde el portal del proveedor.</p>
+                    <p>Ahora estos documentos se gestionan directamente desde la Orden de Compra para mayor control interno.</p>
+                </div>
 
-                    <field name="payment_document_ids" context="{'default_purchase_id': id}">
-                        <list editable="bottom">
-                            <field name="purchase_id" invisible="1"/>
-                            <field name="shipment_id" invisible="1"/>
-                            <field name="proforma_id" invisible="1"/>
-                            <field name="document_type"
-                                   domain="[('document_type', 'in', ['advance_payment', 'invoice_payment', 'other_payment'])]"/>
-                            <field name="name"/>
-                            <field name="file_data" filename="name"/>
-                            <field name="file_size" readonly="1"/>
-                            <field name="mime_type"/>
-                            <field name="notes"/>
-                            <field name="create_date" string="Subido" readonly="1"/>
-                        </list>
-                    </field>
-                </page>
+                <field name="payment_document_ids" context="{'default_purchase_id': id}">
+                    <list editable="bottom">
+                        <field name="purchase_id" invisible="1"/>
+                        <field name="shipment_id" invisible="1"/>
+                        <field name="proforma_id" invisible="1"/>
+                        <field name="document_type"/>
+                        <field name="name"/>
+                        <field name="file_data" filename="name"/>
+                        <field name="file_size" readonly="1"/>
+                        <field name="mime_type"/>
+                        <field name="notes"/>
+                        <field name="create_date" string="Subido" readonly="1"/>
+                    </list>
+                </field>
+            </page>
             </xpath>
 
         </field>
