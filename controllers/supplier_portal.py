@@ -759,7 +759,7 @@ class SupplierPortalController(http.Controller):
     #  API v2: GUARDAR DATOS GLOBALES
     # =====================================================================
 
-    @http.route('/supplier/api/v2/save_globals', type='json', auth='public', csrf=False)
+    @http.route('/supplier/api/v2/save_globals', type='jsonrpc', auth='public', csrf=False)
     def api_save_globals(self, **kw):
         kw = self._get_params()
         access = self._validate_token(kw.get("token"))
@@ -799,7 +799,7 @@ class SupplierPortalController(http.Controller):
     #  API v2: CRUD EMBARQUES
     # =====================================================================
 
-    @http.route('/supplier/api/v2/create_shipment', type='json', auth='public', csrf=False)
+    @http.route('/supplier/api/v2/create_shipment', type='jsonrpc', auth='public', csrf=False)
     def api_create_shipment(self, **kw):
         kw = self._get_params()
         access = self._validate_token(kw.get("token"))
@@ -829,7 +829,7 @@ class SupplierPortalController(http.Controller):
 
         return {'success': True, 'shipment_id': shipment.id, 'name': shipment.name}
 
-    @http.route('/supplier/api/v2/update_shipment', type='json', auth='public', csrf=False)
+    @http.route('/supplier/api/v2/update_shipment', type='jsonrpc', auth='public', csrf=False)
     def api_update_shipment(self, **kw):
         kw = self._get_params()
         access = self._validate_token(kw.get("token"))
@@ -864,7 +864,7 @@ class SupplierPortalController(http.Controller):
 
         return {'success': True}
 
-    @http.route('/supplier/api/v2/delete_shipment', type='json', auth='public', csrf=False)
+    @http.route('/supplier/api/v2/delete_shipment', type='jsonrpc', auth='public', csrf=False)
     def api_delete_shipment(self, **kw):
         kw = self._get_params()
         access = self._validate_token(kw.get("token"))
@@ -891,7 +891,7 @@ class SupplierPortalController(http.Controller):
     #  API v2: CRUD CONTENEDORES
     # =====================================================================
 
-    @http.route('/supplier/api/v2/save_containers', type='json', auth='public', csrf=False)
+    @http.route('/supplier/api/v2/save_containers', type='jsonrpc', auth='public', csrf=False)
     def api_save_containers(self, **kw):
         kw = self._get_params()
         access = self._validate_token(kw.get("token"))
@@ -960,7 +960,7 @@ class SupplierPortalController(http.Controller):
     #  API v2: CRUD INVOICES
     # =====================================================================
 
-    @http.route('/supplier/api/v2/save_invoices', type='json', auth='public', csrf=False)
+    @http.route('/supplier/api/v2/save_invoices', type='jsonrpc', auth='public', csrf=False)
     def api_save_invoices(self, **kw):
         kw = self._get_params()
         access = self._validate_token(kw.get("token"))
@@ -1024,7 +1024,7 @@ class SupplierPortalController(http.Controller):
     #  API v2: CRUD PACKING LISTS + ROWS
     # =====================================================================
 
-    @http.route('/supplier/api/v2/save_packing', type='json', auth='public', csrf=False)
+    @http.route('/supplier/api/v2/save_packing', type='jsonrpc', auth='public', csrf=False)
     def api_save_packing(self, **kw):
         kw = self._get_params()
         access = self._validate_token(kw.get("token"))
@@ -1167,7 +1167,7 @@ class SupplierPortalController(http.Controller):
         self._sync_packing_rows_to_spreadsheet(proforma, access.picking_id)
         return {'success': True, 'packing_id': packing.id}
 
-    @http.route('/supplier/api/v2/delete_packing', type='json', auth='public', csrf=False)
+    @http.route('/supplier/api/v2/delete_packing', type='jsonrpc', auth='public', csrf=False)
     def api_delete_packing(self, **kw):
         kw = self._get_params()
         access = self._validate_token(kw.get("token"))
@@ -1188,7 +1188,7 @@ class SupplierPortalController(http.Controller):
     #  API v2: SUBIDA DE ARCHIVOS LEGACY
     # =====================================================================
 
-    @http.route('/supplier/api/v2/upload_file', type='json', auth='public', csrf=False)
+    @http.route('/supplier/api/v2/upload_file', type='jsonrpc', auth='public', csrf=False)
     def api_upload_file(self, **kw):
         kw = self._get_params()
         access = self._validate_token(kw.get("token"))
@@ -1375,7 +1375,7 @@ class SupplierPortalController(http.Controller):
     #  API v2: DOCUMENTOS (nuevo sistema)
     # =====================================================================
 
-    @http.route('/supplier/api/v2/upload_document', type='json', auth='public', csrf=False)
+    @http.route('/supplier/api/v2/upload_document', type='jsonrpc', auth='public', csrf=False)
     def api_upload_document(self, **kw):
         kw = self._get_params()
         access = self._validate_token(kw.get("token"))
@@ -1485,7 +1485,7 @@ class SupplierPortalController(http.Controller):
         record = Doc.create(vals)
         return {'success': True, 'document_id': record.id}
 
-    @http.route('/supplier/api/v2/delete_document', type='json', auth='public', csrf=False)
+    @http.route('/supplier/api/v2/delete_document', type='jsonrpc', auth='public', csrf=False)
     def api_delete_document(self, **kw):
         kw = self._get_params()
         access = self._validate_token(kw.get("token"))
@@ -1514,7 +1514,7 @@ class SupplierPortalController(http.Controller):
         record.unlink()
         return {'success': True}
 
-    @http.route('/supplier/api/v2/list_documents', type='json', auth='public', csrf=False)
+    @http.route('/supplier/api/v2/list_documents', type='jsonrpc', auth='public', csrf=False)
     def api_list_documents(self, **kw):
         kw = self._get_params()
         access = self._validate_token(kw.get("token"))
@@ -1542,7 +1542,7 @@ class SupplierPortalController(http.Controller):
     #  API v2: MARCAR PROFORMA COMO COMPLETA
     # =====================================================================
 
-    @http.route('/supplier/api/v2/complete', type='json', auth='public', csrf=False)
+    @http.route('/supplier/api/v2/complete', type='jsonrpc', auth='public', csrf=False)
     def api_complete(self, **kw):
         kw = self._get_params()
         access = self._validate_token(kw.get("token"))
@@ -1607,7 +1607,7 @@ class SupplierPortalController(http.Controller):
     #  API v2: RELOAD
     # =====================================================================
 
-    @http.route('/supplier/api/v2/reload', type='json', auth='public', csrf=False)
+    @http.route('/supplier/api/v2/reload', type='jsonrpc', auth='public', csrf=False)
     def api_reload(self, **kw):
         kw = self._get_params()
         access = self._validate_token(kw.get("token"))
@@ -1624,7 +1624,7 @@ class SupplierPortalController(http.Controller):
     #  API v2: IMAGENES POR FILA
     # =====================================================================
 
-    @http.route('/supplier/api/v2/upload_row_image', type='json', auth='public', csrf=False)
+    @http.route('/supplier/api/v2/upload_row_image', type='jsonrpc', auth='public', csrf=False)
     def api_upload_row_image(self, **kw):
         kw = self._get_params()
         access = self._validate_token(kw.get("token"))
@@ -1650,7 +1650,7 @@ class SupplierPortalController(http.Controller):
         row.write(vals)
         return {'success': True, 'row_id': row.id}
 
-    @http.route('/supplier/api/v2/delete_row_image', type='json', auth='public', csrf=False)
+    @http.route('/supplier/api/v2/delete_row_image', type='jsonrpc', auth='public', csrf=False)
     def api_delete_row_image(self, **kw):
         kw = self._get_params()
         access = self._validate_token(kw.get("token"))
@@ -1674,7 +1674,7 @@ class SupplierPortalController(http.Controller):
     #  API v2: FOTOS DE BLOQUE
     # =====================================================================
 
-    @http.route('/supplier/api/v2/upload_block_image', type='json', auth='public', csrf=False)
+    @http.route('/supplier/api/v2/upload_block_image', type='jsonrpc', auth='public', csrf=False)
     def api_upload_block_image(self, **kw):
         kw = self._get_params()
         access = self._validate_token(kw.get("token"))
@@ -1708,7 +1708,7 @@ class SupplierPortalController(http.Controller):
         record = BlockImage.create(vals)
         return {'success': True, 'block_image_id': record.id}
 
-    @http.route('/supplier/api/v2/delete_block_image', type='json', auth='public', csrf=False)
+    @http.route('/supplier/api/v2/delete_block_image', type='jsonrpc', auth='public', csrf=False)
     def api_delete_block_image(self, **kw):
         kw = self._get_params()
         access = self._validate_token(kw.get("token"))
@@ -1728,7 +1728,7 @@ class SupplierPortalController(http.Controller):
         record.unlink()
         return {'success': True}
 
-    @http.route('/supplier/api/v2/get_block_images', type='json', auth='public', csrf=False)
+    @http.route('/supplier/api/v2/get_block_images', type='jsonrpc', auth='public', csrf=False)
     def api_get_block_images(self, **kw):
         kw = self._get_params()
         access = self._validate_token(kw.get("token"))
@@ -1755,7 +1755,7 @@ class SupplierPortalController(http.Controller):
     #  ENDPOINT LEGACY
     # =====================================================================
 
-    @http.route('/supplier/pl/submit', type='json', auth='public', csrf=False)
+    @http.route('/supplier/pl/submit', type='jsonrpc', auth='public', csrf=False)
     def submit_pl_data(self, **kw):
         kw = self._get_params()
         access = self._validate_token(kw.get("token"))

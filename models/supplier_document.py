@@ -20,14 +20,12 @@ class SupplierShipmentDocument(models.Model):
     )
 
     document_type = fields.Selection([
-        # — Documentos por embarque —
         ('bl', 'Bill of Lading (B/L)'),
         ('invoice', 'Invoice'),
         ('packing_list', 'Packing List'),
         ('eur1', 'EUR1'),
         ('certificate_origin', 'Certificado de Origen'),
         ('fumigation', 'Comprobante de Fumigación'),
-        # — Pagos (globales, ligados a proforma) —
         ('advance_payment', 'Anticipo'),
         ('invoice_payment', 'Pago por Invoice'),
         ('other_payment', 'Otro Pago'),
@@ -44,17 +42,13 @@ class SupplierShipmentDocument(models.Model):
     )
     notes = fields.Text(string='Notas')
 
-    _sql_constraints = [
-        (
-            'unique_upload_token_per_scope',
-            'unique(shipment_id, proforma_id, document_type, upload_token)',
-            'Este archivo ya fue subido para este tipo de documento.',
-        ),
-    ]
+    _unique_upload_token_per_scope = models.Constraint(
+        'UNIQUE(shipment_id, proforma_id, document_type, upload_token)',
+        'Este archivo ya fue subido para este tipo de documento.',
+    )
 
     @api.model
     def check_duplicate(self, shipment_id, proforma_id, document_type, upload_token):
-        """Revisa si un archivo ya fue subido (por hash/nombre+tamaño)."""
         domain = [
             ('document_type', '=', document_type),
             ('upload_token', '=', upload_token),
