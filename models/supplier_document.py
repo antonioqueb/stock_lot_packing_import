@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import uuid
 from odoo import models, fields, api
 
 
@@ -57,5 +56,4 @@ class SupplierShipmentDocument(models.Model):
             domain.append(('shipment_id', '=', shipment_id))
         if proforma_id:
             domain.append(('proforma_id', '=', proforma_id))
-
         return self.search_count(domain) > 0
