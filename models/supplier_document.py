@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from odoo import models, fields, api
+from odoo.exceptions import ValidationError
 
 
 class SupplierShipmentDocument(models.Model):
@@ -16,6 +17,14 @@ class SupplierShipmentDocument(models.Model):
         string='Proforma ID',
         index=True,
         help='ID del supplier.proforma.header (sin FK para evitar dependencia circular)',
+    )
+
+    purchase_id = fields.Many2one(
+        'purchase.order',
+        string='Orden de Compra',
+        index=True,
+        ondelete='cascade',
+        help='Se usa para documentos de pago gestionados internamente desde la OC.',
     )
 
     document_type = fields.Selection([
@@ -42,18 +51,50 @@ class SupplierShipmentDocument(models.Model):
     notes = fields.Text(string='Notas')
 
     _unique_upload_token_per_scope = models.Constraint(
-        'UNIQUE(shipment_id, proforma_id, document_type, upload_token)',
-        'Este archivo ya fue subido para este tipo de documento.',
+        'UNIQUE(shipment_id, proforma_id, purchase_id, document_type, upload_token)',
+        'Este archivo ya fue subido para este tipo de documento en el mismo alcance.',
     )
 
+    @api.constrains('document_type', 'shipment_id', 'proforma_id', 'purchase_id')
+    def _check_document_scope(self):
+        payment_types = {'advance_payment', 'invoice_payment', 'other_payment'}
+        shipment_types = {'bl', 'invoice', 'packing_list', 'eur1', 'certificate_origin', 'fumigation'}
+
+        for rec in self:
+            if rec.document_type in payment_types:
+                if not rec.purchase_id:
+                    raise ValidationError('Los documentos de pago deben quedar ligados a una Orden de Compra.')
+                if rec.shipment_id or rec.proforma_id:
+                    raise ValidationError('Los documentos de pago no deben quedar ligados al portal/proforma/embarque.')
+            elif rec.document_type in shipment_types:
+                if rec.purchase_id:
+                    raise ValidationError('Los documentos logísticos del portal no deben quedar ligados directamente a la Orden de Compra.')
+
     @api.model
-    def check_duplicate(self, shipment_id, proforma_id, document_type, upload_token):
+    def check_duplicate(self, shipment_id, proforma_id, purchase_id, document_type, upload_token):
         domain = [
             ('document_type', '=', document_type),
             ('upload_token', '=', upload_token),
         ]
+
         if shipment_id:
             domain.append(('shipment_id', '=', shipment_id))
-        if proforma_id:
+        elif proforma_id:
             domain.append(('proforma_id', '=', proforma_id))
+        elif purchase_id:
+            domain.append(('purchase_id', '=', purchase_id))
+        else:
+            return False
+
         return self.search_count(domain) > 0
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        payment_types = {'advance_payment', 'invoice_payment', 'other_payment'}
+
+        for vals in vals_list:
+            if vals.get('purchase_id') and vals.get('document_type') in payment_types:
+                vals['shipment_id'] = False
+                vals['proforma_id'] = False
+
+        return super().create(vals_list)

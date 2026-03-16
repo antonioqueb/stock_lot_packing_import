@@ -37,6 +37,22 @@ class PurchaseOrder(models.Model):
         'stock.picking.supplier.access', 'purchase_id', string="Links Proveedor"
     )
 
+    payment_document_ids = fields.One2many(
+        'supplier.shipment.document',
+        'purchase_id',
+        string='Documentos de Pago'
+    )
+
+    payment_document_count = fields.Integer(
+        compute='_compute_payment_documents',
+        string='Docs de Pago',
+    )
+
+    has_payment_documents = fields.Boolean(
+        compute='_compute_payment_documents',
+        string='Tiene Docs de Pago',
+    )
+
     vucem_document_ids = fields.Many2many(
         'supplier.shipment.document', compute='_compute_vucem_documents',
         string='Documentos VUCEM',
@@ -47,6 +63,17 @@ class PurchaseOrder(models.Model):
     has_vucem_documents = fields.Boolean(
         compute='_compute_vucem_documents', string='Tiene Docs VUCEM',
     )
+
+    def _compute_payment_documents(self):
+        payment_types = ['advance_payment', 'invoice_payment', 'other_payment']
+        for po in self:
+            docs = self.env['supplier.shipment.document'].sudo().search([
+                ('purchase_id', '=', po.id),
+                ('document_type', 'in', payment_types),
+            ])
+            po.payment_document_ids = docs
+            po.payment_document_count = len(docs)
+            po.has_payment_documents = len(docs) > 0
 
     def _compute_vucem_documents(self):
         for po in self:

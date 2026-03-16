@@ -166,7 +166,6 @@
         renderAll() {
             this.renderProgressBar();
             this.renderShipments();
-            this.renderPaymentsSection();
             this.updateFooterTotals();
             this.updateStatusBadge();
         }

@@ -131,13 +131,10 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
 
         doc_model = request.env["supplier.shipment.document"].sudo()
         all_docs = doc_model.search([
-            "|",
             ("shipment_id", "in", proforma.shipment_ids.ids),
-            ("proforma_id", "=", proforma.id),
         ])
 
         doc_index_by_shipment = {}
-        payment_doc_types = {"advance_payment", "invoice_payment", "other_payment"}
 
         for doc in all_docs:
             if doc.shipment_id:
@@ -194,15 +191,9 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                     completed_weight += weight
                 sections["%s_doc_%s" % (prefix, doc_type)] = {"filled": has_doc, "weight": weight}
 
-        weight = 5
-        total_weight += weight
-        has_payments = any(doc.document_type in payment_doc_types for doc in all_docs if doc.proforma_id == proforma.id)
-        if has_payments:
-            completed_weight += weight
-        sections["payments"] = {"filled": has_payments, "weight": weight}
-
         percent = round((completed_weight / total_weight) * 100) if total_weight else 0
         return {"percent": percent, "sections": sections}
+
 
     def can_complete(self, proforma):
         if not proforma or not proforma.shipment_ids:
@@ -371,7 +362,6 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                 "documents": shipment_documents,
             })
 
-        global_documents = self.documents_service.serialize_documents_for_scope(proforma_id=header.id)
         progress = self.compute_progress(header)
 
         return {
@@ -386,7 +376,7 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
             "general_notes": header.general_notes or "",
             "status": header.status or "draft",
             "shipments": shipments,
-            "global_documents": global_documents,
+            "global_documents": [],
             "progress": progress,
         }
 

@@ -19,6 +19,9 @@ class SupplierPortalDocumentsService(SupplierPortalBaseService):
     - upload/delete/list
     - normalización PDF
     - endpoint legacy upload_file
+
+    IMPORTANTE:
+    Los documentos de pago YA NO se gestionan desde el portal.
     """
 
     SHIPMENT_DOC_TYPES = [
@@ -30,13 +33,7 @@ class SupplierPortalDocumentsService(SupplierPortalBaseService):
         "fumigation",
     ]
 
-    GLOBAL_DOC_TYPES = [
-        "advance_payment",
-        "invoice_payment",
-        "other_payment",
-    ]
-
-    ALL_VALID_DOC_TYPES = SHIPMENT_DOC_TYPES + GLOBAL_DOC_TYPES
+    ALL_VALID_DOC_TYPES = SHIPMENT_DOC_TYPES
 
     def serialize_documents_for_scope(self, shipment_id=None, proforma_id=None):
         doc_model = request.env["supplier.shipment.document"].sudo()
@@ -44,10 +41,9 @@ class SupplierPortalDocumentsService(SupplierPortalBaseService):
 
         if shipment_id:
             domain.append(("shipment_id", "=", shipment_id))
-        if proforma_id:
+        elif proforma_id:
             domain.append(("proforma_id", "=", proforma_id))
-
-        if not shipment_id and not proforma_id:
+        else:
             return []
 
         docs = doc_model.search(domain, order="document_type, create_date desc")
@@ -67,14 +63,8 @@ class SupplierPortalDocumentsService(SupplierPortalBaseService):
     # =====================================================================
 
     def normalize_pdf_for_upload(self, file_data_b64, dpi_value):
-        """
-        Procesa un PDF subido:
-        1. Si DPI < 300, renderiza cada página a 300 DPI y re-ensambla
-        2. Si DPI >= 300, lo deja como está
-        3. Comprime si el resultado > 3MB
-        """
         try:
-            import fitz  # PyMuPDF
+            import fitz
             from PIL import Image
         except ImportError:
             _logger.warning("[Portal] PyMuPDF o Pillow no disponible, PDF se guarda sin procesar.")
@@ -132,10 +122,6 @@ class SupplierPortalDocumentsService(SupplierPortalBaseService):
             return file_data_b64, dpi_value
 
     def compress_pdf_to_max_size(self, pdf_bytes, fitz, Image, target_dpi):
-        """
-        Comprime un PDF re-renderizando con JPEG quality progresivamente menor
-        hasta que quepa en 3MB.
-        """
         max_size = 3 * 1024 * 1024
 
         for quality in [85, 70, 55, 40, 30, 20]:
@@ -218,20 +204,19 @@ class SupplierPortalDocumentsService(SupplierPortalBaseService):
         if document_type not in self.ALL_VALID_DOC_TYPES:
             return {
                 "success": False,
-                "message": "Tipo de documento no valido: %s" % document_type,
+                "message": "Este tipo de documento ya no puede gestionarse desde el portal.",
             }
 
         shipment = None
-        if document_type in self.SHIPMENT_DOC_TYPES:
-            if not shipment_id:
-                return {
-                    "success": False,
-                    "message": "Se requiere shipment_id para este tipo de documento.",
-                }
+        if not shipment_id:
+            return {
+                "success": False,
+                "message": "Se requiere shipment_id para este tipo de documento.",
+            }
 
-            shipment = request.env["supplier.shipment"].sudo().browse(self.safe_int(shipment_id))
-            if not shipment.exists() or not self.belongs_to_proforma(proforma, shipment=shipment):
-                return {"success": False, "message": "Embarque no encontrado o no autorizado."}
+        shipment = request.env["supplier.shipment"].sudo().browse(self.safe_int(shipment_id))
+        if not shipment.exists() or not self.belongs_to_proforma(proforma, shipment=shipment):
+            return {"success": False, "message": "Embarque no encontrado o no autorizado."}
 
         allowed_mime = ["application/pdf"]
         if document_type == "packing_list":
@@ -264,7 +249,6 @@ class SupplierPortalDocumentsService(SupplierPortalBaseService):
             except Exception:
                 pass
 
-        # Mejorado: hash por contenido real
         try:
             content_hash = hashlib.sha256(base64.b64decode(final_file_data)).hexdigest()
         except Exception:
@@ -274,8 +258,9 @@ class SupplierPortalDocumentsService(SupplierPortalBaseService):
 
         doc_model = request.env["supplier.shipment.document"].sudo()
         is_duplicate = doc_model.check_duplicate(
-            shipment_id=shipment.id if shipment else None,
-            proforma_id=proforma.id if document_type in self.GLOBAL_DOC_TYPES else None,
+            shipment_id=shipment.id,
+            proforma_id=None,
+            purchase_id=None,
             document_type=document_type,
             upload_token=content_hash,
         )
@@ -287,6 +272,7 @@ class SupplierPortalDocumentsService(SupplierPortalBaseService):
             }
 
         vals = {
+            "shipment_id": shipment.id,
             "document_type": document_type,
             "name": file_name or "documento",
             "file_data": final_file_data,
@@ -296,11 +282,6 @@ class SupplierPortalDocumentsService(SupplierPortalBaseService):
             "upload_token": content_hash,
             "notes": notes or "",
         }
-
-        if shipment:
-            vals["shipment_id"] = shipment.id
-        if document_type in self.GLOBAL_DOC_TYPES:
-            vals["proforma_id"] = proforma.id
 
         record = doc_model.create(vals)
         return {"success": True, "document_id": record.id}
@@ -315,15 +296,11 @@ class SupplierPortalDocumentsService(SupplierPortalBaseService):
         if not record.exists():
             return {"success": False, "message": "Documento no encontrado."}
 
-        authorized = False
-        if record.shipment_id:
-            shipment = request.env["supplier.shipment"].sudo().browse(record.shipment_id)
-            if shipment.exists():
-                authorized = self.belongs_to_proforma(proforma, shipment=shipment)
-        elif record.proforma_id and record.proforma_id == proforma.id:
-            authorized = True
+        if not record.shipment_id:
+            return {"success": False, "message": "Este documento ya no es gestionable desde el portal."}
 
-        if not authorized:
+        shipment = request.env["supplier.shipment"].sudo().browse(record.shipment_id)
+        if not shipment.exists() or not self.belongs_to_proforma(proforma, shipment=shipment):
             return {"success": False, "message": "No autorizado."}
 
         record.unlink()
@@ -338,14 +315,13 @@ class SupplierPortalDocumentsService(SupplierPortalBaseService):
         if not proforma:
             return {"success": False, "message": "Proforma no encontrada."}
 
-        result = {}
+        result = {"global_documents": []}
 
         if shipment_id:
             shipment = request.env["supplier.shipment"].sudo().browse(self.safe_int(shipment_id))
             if shipment.exists() and self.belongs_to_proforma(proforma, shipment=shipment):
                 result["shipment_documents"] = self.serialize_documents_for_scope(shipment_id=shipment.id)
 
-        result["global_documents"] = self.serialize_documents_for_scope(proforma_id=proforma.id)
         return {"success": True, **result}
 
     # =====================================================================

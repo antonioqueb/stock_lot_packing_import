@@ -136,20 +136,6 @@
                         </div>
                     </div>
 
-                    <!-- PAYMENTS (global documents) -->
-                    <div class="shipment-card" id="payments-card" style="margin-top:24px;">
-                        <div class="card-header">
-                            <i class="fa fa-money"/>
-                            <h3 data-i18n="sec_payments">Pagos</h3>
-                        </div>
-                        <div class="card-body">
-                            <p style="font-size:0.82rem;color:#888;margin:0 0 12px;" data-i18n="sec_payments_desc">
-                                Suba comprobantes de anticipos, pagos por invoice y otros pagos.
-                            </p>
-                            <div id="payments-section-content"></div>
-                        </div>
-                    </div>
-
                 </div>
 
                 <!-- FOOTER -->

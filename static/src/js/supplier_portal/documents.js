@@ -17,13 +17,9 @@
         { key: 'fumigation', label_en: 'Fumigation Certificate', label_es: 'Comprobante de Fumigacion', label_zh: '熏蒸证书', required: false, accept: '.pdf', icon: 'fa-leaf' },
     ];
 
-    const PAYMENT_DOC_TYPES = [
-        { key: 'advance_payment', label_en: 'Advance Payments', label_es: 'Anticipos', label_zh: '预付款', multiple: true, accept: '.pdf', icon: 'fa-money' },
-        { key: 'invoice_payment', label_en: 'Invoice Payments', label_es: 'Pagos por Invoice', label_zh: '发票付款', multiple: true, accept: '.pdf', icon: 'fa-credit-card' },
-        { key: 'other_payment', label_en: 'Other Payments', label_es: 'Otros Pagos', label_zh: '其他付款', multiple: true, accept: '.pdf', icon: 'fa-bank' },
-    ];
+    
 
-    M.constants.DOC_TYPES = { SHIPMENT_DOC_TYPES, SHIPMENT_EXTRA_DOC_TYPES, PAYMENT_DOC_TYPES };
+    M.constants.DOC_TYPES = { SHIPMENT_DOC_TYPES, SHIPMENT_EXTRA_DOC_TYPES};
 
     /**
      * Extracts DPI from a PDF file using image metadata heuristics.
@@ -73,7 +69,7 @@
     }
 
     function getDocLabel(docType, lang) {
-        const allTypes = [...SHIPMENT_DOC_TYPES, ...SHIPMENT_EXTRA_DOC_TYPES, ...PAYMENT_DOC_TYPES];
+        const allTypes = [...SHIPMENT_DOC_TYPES, ...SHIPMENT_EXTRA_DOC_TYPES];
         const def = allTypes.find(d => d.key === docType);
         if (!def) return docType;
         if (lang === 'es') return def.label_es;
@@ -151,21 +147,8 @@
         // =================================================================
 
         renderPaymentsSection() {
-            const container = document.getElementById('payments-section-content');
-            if (!container) return;
-
-            const docs = this.proforma.global_documents || [];
-            const lang = this.currentLang;
-
-            let html = '';
-
-            PAYMENT_DOC_TYPES.forEach(dt => {
-                const uploaded = docs.filter(d => d.document_type === dt.key);
-                html += this._renderDocSlot(dt, uploaded, null, this.proforma.id, lang);
-            });
-
-            container.innerHTML = html;
-            this._bindDocumentEvents(container, null, this.proforma.id);
+            // Los pagos ya no se gestionan desde el portal.
+            return;
         },
 
         // =================================================================
