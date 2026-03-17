@@ -477,8 +477,6 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
             "invoice_global_number": "invoice_global_number",
             "payment_terms": "payment_terms",
             "country_origin": "country_origin",
-            "port_origin": "port_origin",
-            "port_destination": "port_destination",
             "incoterm": "incoterm",
             "general_notes": "general_notes",
         }
@@ -487,6 +485,8 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
             for js_key, py_field in field_map.items():
                 if js_key in globals_data:
                     vals[py_field] = globals_data[js_key] or ""
+
+
 
         if vals:
             proforma.write(vals)

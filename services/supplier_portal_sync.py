@@ -20,15 +20,23 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
         all_containers = []
         all_seals = []
         all_types = []
+        all_origins = []
+        all_destinations = []
         total_packages = 0
         total_weight = 0.0
         total_volume = 0.0
 
         first_shipment = self.sorted_shipments(header.shipment_ids)[:1]
 
-        for shipment in header.shipment_ids:
+        for shipment in self.sorted_shipments(header.shipment_ids):
             if shipment.bl_number:
                 all_bl.append(shipment.bl_number)
+
+            if shipment.port_origin:
+                all_origins.append(shipment.port_origin.strip())
+
+            if shipment.port_destination:
+                all_destinations.append(shipment.port_destination.strip())
 
             for container in shipment.container_ids:
                 if container.container_number:
@@ -42,17 +50,25 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
                 total_weight += container.weight or 0.0
                 total_volume += container.volume or 0.0
 
+        # quitar duplicados conservando orden
+        all_origins = list(dict.fromkeys([x for x in all_origins if x]))
+        all_destinations = list(dict.fromkeys([x for x in all_destinations if x]))
+        all_bl = list(dict.fromkeys([x for x in all_bl if x]))
+        all_containers = list(dict.fromkeys([x for x in all_containers if x]))
+        all_seals = list(dict.fromkeys([x for x in all_seals if x]))
+        all_types = list(dict.fromkeys([x for x in all_types if x]))
+
         vals = {
             "supplier_proforma_number": header.proforma_number or "",
             "supplier_payment_terms": header.payment_terms or "",
             "supplier_country_origin": header.country_origin or "",
-            "supplier_origin": header.port_origin or "",
-            "supplier_destination": header.port_destination or "",
+            "supplier_origin": ", ".join(all_origins) if all_origins else "",
+            "supplier_destination": ", ".join(all_destinations) if all_destinations else "",
             "supplier_incoterm_payment": header.incoterm or "",
             "supplier_bl_number": ", ".join(all_bl) if all_bl else "",
             "supplier_container_no": ", ".join(all_containers) if all_containers else "",
             "supplier_seal_no": ", ".join(all_seals) if all_seals else "",
-            "supplier_container_type": ", ".join(sorted(set(all_types))) if all_types else "",
+            "supplier_container_type": ", ".join(all_types) if all_types else "",
             "supplier_total_packages": total_packages,
             "supplier_gross_weight": total_weight,
             "supplier_volume": total_volume,
@@ -77,7 +93,15 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
 
         all_rows = []
 
+        shipment_origins = []
+        shipment_destinations = []
+
         for shipment in self.sorted_shipments(header.shipment_ids):
+            if shipment.port_origin:
+                shipment_origins.append(shipment.port_origin.strip())
+            if shipment.port_destination:
+                shipment_destinations.append(shipment.port_destination.strip())
+
             for packing in self.sorted_packings(shipment.packing_ids):
                 packing_container_ids = packing.container_ids.ids
                 packing_container_numbers = packing.container_ids.mapped("container_number")
@@ -117,12 +141,15 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
         if not all_rows:
             return
 
+        shipment_origins = list(dict.fromkeys([x for x in shipment_origins if x]))
+        shipment_destinations = list(dict.fromkeys([x for x in shipment_destinations if x]))
+
         header_data = {
             "proforma_number": header.proforma_number or "",
             "payment_terms": header.payment_terms or "",
             "country_origin": header.country_origin or "",
-            "origin": header.port_origin or "",
-            "destination": header.port_destination or "",
+            "origin": ", ".join(shipment_origins) if shipment_origins else "",
+            "destination": ", ".join(shipment_destinations) if shipment_destinations else "",
             "incoterm": header.incoterm or "",
             "invoice_number": header.invoice_global_number or "",
         }
