@@ -102,12 +102,11 @@
                 'g-invoice-global': 'invoice_global_number',
                 'g-payment-terms': 'payment_terms',
                 'g-country-origin': 'country_origin',
-                'g-incoterm': 'incoterm',
-                'g-general-notes': 'general_notes',
                 'g-port-origin': 'port_origin',
                 'g-port-destination': 'port_destination',
+                'g-incoterm': 'incoterm',
+                'g-general-notes': 'general_notes',
             };
-
             for (const [domId, key] of Object.entries(map)) {
                 const el = document.getElementById(domId);
                 if (el && p[key]) el.value = p[key];
