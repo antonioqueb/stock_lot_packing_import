@@ -104,6 +104,8 @@
                 'g-country-origin': 'country_origin',
                 'g-incoterm': 'incoterm',
                 'g-general-notes': 'general_notes',
+                'g-port-origin': 'port_origin',
+                'g-port-destination': 'port_destination',
             };
 
             for (const [domId, key] of Object.entries(map)) {
