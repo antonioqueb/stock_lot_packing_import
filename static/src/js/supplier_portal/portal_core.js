@@ -120,6 +120,8 @@
                 invoice_global_number: document.getElementById('g-invoice-global')?.value || '',
                 payment_terms: document.getElementById('g-payment-terms')?.value || '',
                 country_origin: document.getElementById('g-country-origin')?.value || '',
+                port_origin: document.getElementById('g-port-origin')?.value || '',
+                port_destination: document.getElementById('g-port-destination')?.value || '',
                 incoterm: document.getElementById('g-incoterm')?.value || '',
                 general_notes: document.getElementById('g-general-notes')?.value || '',
             };

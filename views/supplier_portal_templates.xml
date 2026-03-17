@@ -5,12 +5,13 @@
             <t t-set="no_header" t-value="True"/>
             <t t-set="no_footer" t-value="True"/>
             <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no"/>
-            
+
             <t t-set="head">
                 <t t-call-assets="web.assets_frontend" t-css="true" t-js="true"/>
                 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&amp;family=JetBrains+Mono:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
                 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"/>
             </t>
+
             <div class="supplier-portal-body">
                 <t t-out="0"/>
             </div>
@@ -19,7 +20,7 @@
 
     <template id="supplier_portal_view">
         <t t-call="stock_lot_packing_import.portal_layout">
-            
+
             <div id="portal-data-store" style="display:none;" t-att-data-payload="portal_json"/>
 
             <div class="o_portal_wrapper">
@@ -37,6 +38,7 @@
                             <span class="label" data-i18n="po_label">Orden</span>
                             <span class="value" t-esc="picking.origin or 'N/A'"/>
                         </div>
+
                         <div class="lang-selector-wrapper">
                             <i class="fa fa-globe"/>
                             <select id="lang-selector" class="lang-select">
@@ -66,42 +68,93 @@
                                         <i class="fa fa-hashtag"/>
                                         <span data-i18n="lbl_proforma">No. Proforma (PI)</span>
                                     </label>
-                                    <input type="text" id="g-proforma-number" class="form-control" data-i18n-placeholder="ph_proforma" placeholder="PI-9920"/>
+                                    <input type="text"
+                                           id="g-proforma-number"
+                                           class="form-control"
+                                           data-i18n-placeholder="ph_proforma"
+                                           placeholder="PI-9920"/>
                                 </div>
+
                                 <div class="form-group">
                                     <label>
                                         <i class="fa fa-file-o"/>
                                         <span data-i18n="lbl_invoice_global">Factura Global</span>
                                     </label>
-                                    <input type="text" id="g-invoice-global" class="form-control" placeholder="INV-GLOBAL-001"/>
+                                    <input type="text"
+                                           id="g-invoice-global"
+                                           class="form-control"
+                                           placeholder="INV-GLOBAL-001"/>
                                 </div>
+
                                 <div class="form-group">
                                     <label>
                                         <i class="fa fa-credit-card"/>
                                         <span data-i18n="lbl_payment">Condiciones de Pago</span>
                                     </label>
-                                    <input type="text" id="g-payment-terms" class="form-control" data-i18n-placeholder="ph_payment" placeholder="T/T 30% advance"/>
+                                    <input type="text"
+                                           id="g-payment-terms"
+                                           class="form-control"
+                                           data-i18n-placeholder="ph_payment"
+                                           placeholder="T/T 30% advance"/>
                                 </div>
+
                                 <div class="form-group">
                                     <label>
                                         <i class="fa fa-flag-o"/>
                                         <span data-i18n="lbl_country">Pais Origen</span>
                                     </label>
-                                    <input type="text" id="g-country-origin" class="form-control" data-i18n-placeholder="ph_country" placeholder="China"/>
+                                    <input type="text"
+                                           id="g-country-origin"
+                                           class="form-control"
+                                           data-i18n-placeholder="ph_country"
+                                           placeholder="China"/>
                                 </div>
+
+                                <div class="form-group">
+                                    <label>
+                                        <i class="fa fa-anchor"/>
+                                        <span data-i18n="lbl_port_origin">Puerto Origen</span>
+                                    </label>
+                                    <input type="text"
+                                           id="g-port-origin"
+                                           class="form-control"
+                                           data-i18n-placeholder="ph_origin"
+                                           placeholder="Shanghai"/>
+                                </div>
+
+                                <div class="form-group">
+                                    <label>
+                                        <i class="fa fa-map-marker"/>
+                                        <span data-i18n="lbl_port_dest">Puerto Destino</span>
+                                    </label>
+                                    <input type="text"
+                                           id="g-port-destination"
+                                           class="form-control"
+                                           data-i18n-placeholder="ph_dest"
+                                           placeholder="Manzanillo"/>
+                                </div>
+
                                 <div class="form-group">
                                     <label>
                                         <i class="fa fa-balance-scale"/>
                                         <span data-i18n="lbl_incoterm">Incoterm</span>
                                     </label>
-                                    <input type="text" id="g-incoterm" class="form-control" data-i18n-placeholder="ph_incoterm" placeholder="CIF"/>
+                                    <input type="text"
+                                           id="g-incoterm"
+                                           class="form-control"
+                                           data-i18n-placeholder="ph_incoterm"
+                                           placeholder="CIF"/>
                                 </div>
+
                                 <div class="form-group full-width">
                                     <label>
                                         <i class="fa fa-comment-o"/>
                                         <span data-i18n="lbl_general_notes">Observaciones Generales</span>
                                     </label>
-                                    <textarea id="g-general-notes" class="form-control" rows="2" placeholder="Notas generales sobre esta operacion..."/>
+                                    <textarea id="g-general-notes"
+                                              class="form-control"
+                                              rows="2"
+                                              placeholder="Notas generales sobre esta operacion..."/>
                                 </div>
                             </div>
 
@@ -122,6 +175,7 @@
                                 <h3 data-i18n="sec_shipments">Embarques</h3>
                                 <span class="shipment-count-badge" id="shipment-count-badge">0</span>
                             </div>
+
                             <button id="btn-add-shipment" type="button" class="btn-add-shipment">
                                 <i class="fa fa-plus"/>
                                 <span data-i18n="btn_add_shipment">Agregar Embarque</span>
@@ -135,7 +189,6 @@
                             </div>
                         </div>
                     </div>
-
                 </div>
 
                 <!-- FOOTER -->
