@@ -96,20 +96,19 @@
         }
 
         fillGlobalsForm() {
-            const p = this.proforma;
+            const p = this.proforma || {};
             const map = {
                 'g-proforma-number': 'proforma_number',
                 'g-invoice-global': 'invoice_global_number',
                 'g-payment-terms': 'payment_terms',
                 'g-country-origin': 'country_origin',
-                'g-port-origin': 'port_origin',
-                'g-port-destination': 'port_destination',
                 'g-incoterm': 'incoterm',
                 'g-general-notes': 'general_notes',
             };
+
             for (const [domId, key] of Object.entries(map)) {
                 const el = document.getElementById(domId);
-                if (el && p[key]) el.value = p[key];
+                if (el) el.value = p[key] || '';
             }
 
             this.updateStatusBadge();
@@ -121,8 +120,6 @@
                 invoice_global_number: document.getElementById('g-invoice-global')?.value || '',
                 payment_terms: document.getElementById('g-payment-terms')?.value || '',
                 country_origin: document.getElementById('g-country-origin')?.value || '',
-                port_origin: document.getElementById('g-port-origin')?.value || '',
-                port_destination: document.getElementById('g-port-destination')?.value || '',
                 incoterm: document.getElementById('g-incoterm')?.value || '',
                 general_notes: document.getElementById('g-general-notes')?.value || '',
             };
@@ -145,14 +142,17 @@
             }
 
             try {
+                const payload = this.getGlobalsFromForm();
                 const res = await jsonRpc('/supplier/api/v2/save_globals', {
                     token: this.token,
-                    globals_data: this.getGlobalsFromForm(),
+                    globals_data: payload,
                 });
 
                 if (res.success) {
                     this.toast(this.t('msg_saved'), 'success');
-                    Object.assign(this.proforma, this.getGlobalsFromForm());
+                    Object.assign(this.proforma, payload);
+                    await this.reloadProforma();
+                    this.renderAll();
                 } else {
                     this.toast(this.t('msg_error') + (res.message || ''), 'error');
                 }
@@ -349,10 +349,15 @@
             if (!confirm(this.t('msg_confirm_delete'))) return;
 
             try {
-                await jsonRpc('/supplier/api/v2/delete_shipment', {
+                const res = await jsonRpc('/supplier/api/v2/delete_shipment', {
                     token: this.token,
                     shipment_id: shipmentId,
                 });
+
+                if (!res.success) {
+                    this.toast(this.t('msg_error') + (res.message || ''), 'error');
+                    return;
+                }
 
                 if (this.expandedShipmentId === shipmentId) {
                     this.expandedShipmentId = null;

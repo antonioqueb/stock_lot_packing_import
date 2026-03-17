@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from datetime import timedelta
+
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
 
@@ -7,12 +9,20 @@ class PurchaseSupplierPortalLinkWizard(models.TransientModel):
     _name = 'purchase.supplier.portal.link.wizard'
     _description = 'Wizard: Copiar Link Portal Proveedor'
 
-    purchase_id = fields.Many2one('purchase.order', string='Orden de Compra', required=True, readonly=True)
-    access_id = fields.Many2one('stock.picking.supplier.access', string='Acceso', readonly=True)
+    purchase_id = fields.Many2one(
+        'purchase.order',
+        string='Orden de Compra',
+        required=True,
+        readonly=True,
+    )
+    access_id = fields.Many2one(
+        'stock.picking.supplier.access',
+        string='Acceso',
+        readonly=True,
+    )
 
     portal_url = fields.Char(string='Link', readonly=True)
     expiration_date = fields.Datetime(string='Expira', readonly=True)
-    picking_id = fields.Many2one('stock.picking', string='Recepción', readonly=True)
 
     @api.model
     def default_get(self, fields_list):
@@ -28,35 +38,27 @@ class PurchaseSupplierPortalLinkWizard(models.TransientModel):
         if po.state not in ['purchase', 'done']:
             raise UserError(_("Debe confirmar la Orden de Compra antes de generar el link."))
 
-        target_picking = po._get_target_incoming_picking_for_supplier_portal()
-        if not target_picking:
-            raise UserError(_("No se encontraron recepciones pendientes para esta Orden de Compra."))
-
-        access = po._get_or_create_supplier_access(target_picking)
+        access = po._get_or_create_supplier_access()
 
         res.update({
             'access_id': access.id,
             'portal_url': access.portal_url,
             'expiration_date': access.expiration_date,
-            'picking_id': access.picking_id.id,
         })
         return res
 
     def action_refresh(self):
-        """Refresca picking vigente y renueva expiración manteniendo el mismo token."""
         self.ensure_one()
-        po = self.purchase_id
-        target_picking = po._get_target_incoming_picking_for_supplier_portal()
-        if not target_picking:
-            raise UserError(_("No se encontraron recepciones pendientes para esta Orden de Compra."))
 
-        access = po._get_or_create_supplier_access(target_picking)
+        new_expiration = fields.Datetime.now() + timedelta(days=365)
+
+        self.access_id.write({
+            'expiration_date': new_expiration,
+        })
 
         self.write({
-            'access_id': access.id,
-            'portal_url': access.portal_url,
-            'expiration_date': access.expiration_date,
-            'picking_id': access.picking_id.id,
+            'portal_url': self.access_id.portal_url,
+            'expiration_date': self.access_id.expiration_date,
         })
 
         return {
@@ -64,7 +66,7 @@ class PurchaseSupplierPortalLinkWizard(models.TransientModel):
             'tag': 'display_notification',
             'params': {
                 'title': _('Link actualizado'),
-                'message': _('Se renovó la vigencia y se apuntó a la recepción vigente. El link NO cambió.'),
+                'message': _('Se renovó la vigencia del link. El token no cambió.'),
                 'type': 'success',
                 'sticky': False,
             }

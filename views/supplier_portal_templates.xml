@@ -35,17 +35,17 @@
 
                     <div class="header-controls">
                         <div class="po-info">
-                            <span class="label" data-i18n="po_label">Orden</span>
-                            <span class="value" t-esc="picking.origin or 'N/A'"/>
+                            <div>
+                                <span class="label" data-i18n="po_label">Orden de Compra:</span>
+                                <span class="value" id="portal-po-name">-</span>
+                            </div>
                         </div>
 
                         <div class="lang-selector-wrapper">
                             <i class="fa fa-globe"/>
                             <select id="lang-selector" class="lang-select">
-                                <option value="en" selected="selected">EN</option>
+                                <option value="en">EN</option>
                                 <option value="es">ES</option>
-                                <option value="pt">PT</option>
-                                <option value="it">IT</option>
                                 <option value="zh">ZH</option>
                             </select>
                         </div>
@@ -108,30 +108,6 @@
                                            class="form-control"
                                            data-i18n-placeholder="ph_country"
                                            placeholder="China"/>
-                                </div>
-
-                                <div class="form-group">
-                                    <label>
-                                        <i class="fa fa-anchor"/>
-                                        <span data-i18n="lbl_port_origin">Puerto Origen</span>
-                                    </label>
-                                    <input type="text"
-                                           id="g-port-origin"
-                                           class="form-control"
-                                           data-i18n-placeholder="ph_origin"
-                                           placeholder="Shanghai"/>
-                                </div>
-
-                                <div class="form-group">
-                                    <label>
-                                        <i class="fa fa-map-marker"/>
-                                        <span data-i18n="lbl_port_dest">Puerto Destino</span>
-                                    </label>
-                                    <input type="text"
-                                           id="g-port-destination"
-                                           class="form-control"
-                                           data-i18n-placeholder="ph_dest"
-                                           placeholder="Manzanillo"/>
                                 </div>
 
                                 <div class="form-group">

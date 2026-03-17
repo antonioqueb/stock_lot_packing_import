@@ -8,21 +8,23 @@
                 <sheet>
                     <group>
                         <field name="purchase_id" readonly="1"/>
-                        <field name="picking_id" readonly="1"/>
                         <field name="expiration_date" readonly="1"/>
                     </group>
 
                     <group>
-                        <!-- Copia con widget -->
                         <field name="portal_url" readonly="1" widget="CopyClipboardChar"/>
                     </group>
 
                     <div class="alert alert-info" role="alert">
-                        Este link es único por Orden de Compra. Si vuelve a generar/abrir, se reutiliza el mismo token.
+                        Este link es único por Orden de Compra.
+                        <br/>
+                        El portal captura primero la información general de la operación y después uno o varios embarques.
+                        <br/>
+                        Cada embarque generará su propia recepción.
                     </div>
                 </sheet>
                 <footer>
-                    <button string="Renovar vigencia / Actualizar recepción"
+                    <button string="Renovar vigencia"
                             type="object"
                             name="action_refresh"
                             class="btn-primary"/>

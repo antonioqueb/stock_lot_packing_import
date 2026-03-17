@@ -13,15 +13,7 @@ class SupplierPortalBaseService:
     Helpers comunes reutilizables por los servicios del portal.
     """
 
-    # =====================================================================
-    #  PARAM HELPER — Odoo 19 compatibility
-    # =====================================================================
-
     def get_params(self):
-        """
-        Retrieve the JSON-RPC params dict in a way that works across
-        all Odoo 19 builds.
-        """
         try:
             params = request.params
             if params and isinstance(params, dict):
@@ -48,10 +40,6 @@ class SupplierPortalBaseService:
             pass
 
         return {}
-
-    # =====================================================================
-    #  HELPERS GENERALES
-    # =====================================================================
 
     def validate_token(self, token):
         access = request.env["stock.picking.supplier.access"].sudo().search(
@@ -153,36 +141,23 @@ class SupplierPortalBaseService:
 
         return False
 
-    def get_picking_moves_for_portal(self, picking):
-        moves = False
-        if hasattr(picking, "move_ids_without_package"):
-            moves = picking.move_ids_without_package
-        if not moves:
-            moves = picking.move_ids
-        return moves.filtered(lambda move: move.state != "cancel")
-
-    def build_products_payload(self, picking):
-        moves = self.get_picking_moves_for_portal(picking)
+    def build_products_payload_from_purchase(self, purchase):
         bucket = {}
 
-        for move in moves:
-            product = move.product_id
-            if not product:
-                continue
-
-            product_id = product.id
-            if product_id not in bucket:
+        for line in purchase.order_line.filtered(lambda l: not l.display_type and l.product_id):
+            product = line.product_id
+            if product.id not in bucket:
                 unit_type = product.product_tmpl_id.x_unidad_del_producto or "Placa"
-                bucket[product_id] = {
-                    "id": product_id,
+                bucket[product.id] = {
+                    "id": product.id,
                     "name": product.display_name or product.name,
                     "code": product.default_code or "",
                     "qty_ordered": 0.0,
-                    "uom": (move.product_uom and move.product_uom.name) or "",
+                    "uom": (line.product_uom and line.product_uom.name) or "",
                     "unit_type": unit_type,
                 }
 
-            bucket[product_id]["qty_ordered"] += (move.product_uom_qty or 0.0)
+            bucket[product.id]["qty_ordered"] += (line.product_qty or 0.0)
 
         products = list(bucket.values())
         products.sort(key=lambda item: (item.get("name") or "").lower())

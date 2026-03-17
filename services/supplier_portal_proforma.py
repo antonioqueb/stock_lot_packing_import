@@ -16,11 +16,10 @@ _logger = logging.getLogger(__name__)
 class SupplierPortalProformaService(SupplierPortalBaseService):
     """
     Servicio principal del dominio portal:
-    - serialización de proforma
-    - progress/completion
-    - shipments/containers/invoices/packings
-    - imágenes por fila/bloque
-    - payload del portal
+    - token por OC
+    - cabecera general por OC
+    - múltiples embarques
+    - una recepción por embarque
     """
 
     def __init__(self):
@@ -36,7 +35,7 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
         shipment_container_ids = set(shipment.container_ids.ids)
         invalid = [cid for cid in normalized if cid not in shipment_container_ids]
         if invalid:
-            return False, "Uno o mas contenedores no pertenecen al embarque actual."
+            return False, "Uno o más contenedores no pertenecen al embarque actual."
         return True, normalized
 
     def validate_packing_scope_and_containers(self, shipment, packing_vals, rows=None):
@@ -50,7 +49,7 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
         valid_container_ids = result
 
         if scope == "specific_containers" and not valid_container_ids:
-            return False, "Si el packing aplica a contenedores especificos, debe seleccionar al menos un contenedor.", None
+            return False, "Si el packing aplica a contenedores específicos, debe seleccionar al menos uno.", None
 
         if rows:
             shipment_container_ids = set(shipment.container_ids.ids)
@@ -111,8 +110,8 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
         globals_filled = (
             bool(proforma.proforma_number)
             and bool(proforma.payment_terms)
-            and bool(proforma.port_origin)
-            and bool(proforma.port_destination)
+            and bool(proforma.country_origin)
+            and bool(proforma.incoterm)
         )
         if globals_filled:
             completed_weight += weight
@@ -135,7 +134,6 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
         ])
 
         doc_index_by_shipment = {}
-
         for doc in all_docs:
             if doc.shipment_id:
                 doc_index_by_shipment.setdefault(doc.shipment_id, set()).add(doc.document_type)
@@ -194,7 +192,6 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
         percent = round((completed_weight / total_weight) * 100) if total_weight else 0
         return {"percent": percent, "sections": sections}
 
-
     def can_complete(self, proforma):
         if not proforma or not proforma.shipment_ids:
             return False, "Debe existir al menos un embarque."
@@ -231,10 +228,19 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
     #  SERIALIZACION
     # =====================================================================
 
+    def _get_shipment_picking(self, shipment):
+        return request.env["stock.picking"].sudo().search(
+            [("supplier_shipment_id", "=", shipment.id)],
+            order="id desc",
+            limit=1,
+        )
+
     def serialize_proforma(self, header):
         shipments = []
 
         for shipment in self.sorted_shipments(header.shipment_ids):
+            picking = self._get_shipment_picking(shipment)
+
             containers = [{
                 "id": container.id,
                 "container_number": container.container_number or "",
@@ -360,6 +366,9 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                 "has_packings_without_container": any(item["has_rows_without_container"] for item in packings),
                 "all_container_ids": list(shipment_container_ids),
                 "documents": shipment_documents,
+                "picking_id": picking.id if picking else False,
+                "picking_name": picking.name if picking else "",
+                "picking_state": picking.state if picking else "",
             })
 
         progress = self.compute_progress(header)
@@ -370,8 +379,6 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
             "invoice_global_number": header.invoice_global_number or "",
             "payment_terms": header.payment_terms or "",
             "country_origin": header.country_origin or "",
-            "port_origin": header.port_origin or "",
-            "port_destination": header.port_destination or "",
             "incoterm": header.incoterm or "",
             "general_notes": header.general_notes or "",
             "status": header.status or "draft",
@@ -392,68 +399,35 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
         if access.is_expired:
             return request.render("stock_lot_packing_import.portal_expired")
 
-        if access.purchase_id:
-            po = access.purchase_id
-            pickings = po.picking_ids.filtered(
-                lambda picking: picking.picking_type_code == "incoming" and picking.state not in ("done", "cancel")
-            )
-            if pickings:
-                target_picking = pickings.sorted(key=lambda p: p.id, reverse=True)[0]
-                if access.picking_id.id != target_picking.id:
-                    access.write({"picking_id": target_picking.id})
-
-        picking = access.picking_id
-        if not picking:
+        po = access.purchase_id
+        if not po:
             return request.render("stock_lot_packing_import.portal_not_found")
 
-        products = self.build_products_payload(picking)
-
+        products = self.build_products_payload_from_purchase(po)
         proforma = self.get_or_create_proforma(access)
         proforma_data = self.serialize_proforma(proforma) if proforma else {}
 
-        existing_rows = []
-        if picking.spreadsheet_id and not proforma_data.get("shipments"):
-            try:
-                existing_rows = picking.sudo().get_packing_list_data_for_portal()
-            except Exception:
-                _logger.exception("[Portal] Error leyendo existing_rows desde spreadsheet del picking %s.", picking.id)
-                existing_rows = []
-
-        header_data = {
-            "invoice_number": picking.supplier_invoice_number or "",
-            "shipment_date": str(picking.supplier_shipment_date) if picking.supplier_shipment_date else "",
-            "proforma_number": picking.supplier_proforma_number or "",
-            "bl_number": picking.supplier_bl_number or "",
-            "origin": picking.supplier_origin or "",
-            "destination": picking.supplier_destination or "",
-            "country_origin": picking.supplier_country_origin or "",
-            "vessel": picking.supplier_vessel or "",
-            "incoterm": picking.supplier_incoterm_payment or "",
-            "payment_terms": picking.supplier_payment_terms or "",
-            "merchandise_desc": picking.supplier_merchandise_desc or "",
-            "container_no": picking.supplier_container_no or "",
-            "seal_no": picking.supplier_seal_no or "",
-            "container_type": picking.supplier_container_type or "",
-            "total_packages": picking.supplier_total_packages or 0,
-            "gross_weight": picking.supplier_gross_weight or 0.0,
-            "volume": picking.supplier_volume or 0.0,
-            "status": picking.supplier_status or "",
-        }
-
         full_data = {
             "products": products,
-            "existing_rows": existing_rows,
-            "header": header_data,
+            "existing_rows": [],
+            "header": {
+                "proforma_number": proforma.proforma_number or "" if proforma else "",
+                "invoice_number": proforma.invoice_global_number or "" if proforma else "",
+                "payment_terms": proforma.payment_terms or "" if proforma else "",
+                "country_origin": proforma.country_origin or "" if proforma else "",
+                "incoterm": proforma.incoterm or "" if proforma else "",
+                "general_notes": proforma.general_notes or "" if proforma else "",
+            },
             "proforma": proforma_data,
             "token": token,
-            "poName": access.purchase_id.name if access.purchase_id else (picking.origin or ""),
-            "pickingName": picking.name or "",
-            "companyName": picking.company_id.name or "",
+            "poName": po.name or "",
+            "pickingName": "",
+            "vendor_name": po.partner_id.name or "",
+            "companyName": po.company_id.name or "",
             "apiVersion": 2,
         }
 
         values = {
-            "picking": picking,
             "portal_json": Markup(json.dumps(full_data, ensure_ascii=False)),
         }
         return request.render("stock_lot_packing_import.supplier_portal_view", values)
@@ -465,7 +439,7 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
     def save_globals(self, token, globals_data):
         access = self.validate_token(token)
         if not access:
-            return {"success": False, "message": "Token invalido."}
+            return {"success": False, "message": "Token inválido."}
 
         proforma = self.get_or_create_proforma(access)
         if not proforma:
@@ -486,14 +460,10 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                 if js_key in globals_data:
                     vals[py_field] = globals_data[js_key] or ""
 
-
-
         if vals:
             proforma.write(vals)
 
-        self.sync_service.sync_flat_to_picking(proforma, access.picking_id)
-        self.sync_service.sync_packing_rows_to_spreadsheet(proforma, access.picking_id)
-
+        self.sync_service.sync_all_shipments(proforma)
         return {"success": True, "proforma_id": proforma.id}
 
     # =====================================================================
@@ -503,7 +473,7 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
     def create_shipment(self, token, shipment_data):
         access = self.validate_token(token)
         if not access:
-            return {"success": False, "message": "Token invalido."}
+            return {"success": False, "message": "Token inválido."}
 
         proforma = self.get_or_create_proforma(access)
         if not proforma:
@@ -532,14 +502,21 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
 
         shipment = request.env["supplier.shipment"].sudo().create(vals)
         proforma.write({"status": "partial"})
-        self.sync_service.sync_flat_to_picking(proforma, access.picking_id)
 
-        return {"success": True, "shipment_id": shipment.id, "name": shipment.name}
+        picking = self.sync_service.get_or_create_picking_for_shipment(shipment)
+        self.sync_service.sync_shipment_header_to_picking(shipment)
+
+        return {
+            "success": True,
+            "shipment_id": shipment.id,
+            "name": shipment.name,
+            "picking_id": picking.id if picking else False,
+        }
 
     def update_shipment(self, token, shipment_id, shipment_data):
         access = self.validate_token(token)
         if not access:
-            return {"success": False, "message": "Token invalido."}
+            return {"success": False, "message": "Token inválido."}
 
         proforma = self.get_or_create_proforma(access)
         shipment = request.env["supplier.shipment"].sudo().browse(self.safe_int(shipment_id))
@@ -568,26 +545,30 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
         if vals:
             shipment.write(vals)
 
-        self.sync_service.sync_flat_to_picking(shipment.proforma_id, access.picking_id)
+        self.sync_service.sync_shipment(shipment)
         return {"success": True}
 
     def delete_shipment(self, token, shipment_id):
         access = self.validate_token(token)
         if not access:
-            return {"success": False, "message": "Token invalido."}
+            return {"success": False, "message": "Token inválido."}
 
         proforma = self.get_or_create_proforma(access)
         shipment = request.env["supplier.shipment"].sudo().browse(self.safe_int(shipment_id))
         if not shipment.exists() or not self.belongs_to_proforma(proforma, shipment=shipment):
             return {"success": False, "message": "Embarque no encontrado o no autorizado."}
 
+        if not self.sync_service.delete_picking_for_shipment(shipment):
+            return {
+                "success": False,
+                "message": "No se puede eliminar el embarque porque su recepción ya fue procesada o no pudo limpiarse.",
+            }
+
         shipment.unlink()
 
         if proforma and not proforma.shipment_ids:
             proforma.write({"status": "draft"})
 
-        self.sync_service.sync_flat_to_picking(proforma, access.picking_id)
-        self.sync_service.sync_packing_rows_to_spreadsheet(proforma, access.picking_id)
         return {"success": True}
 
     # =====================================================================
@@ -597,7 +578,7 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
     def save_containers(self, token, shipment_id, containers):
         access = self.validate_token(token)
         if not access:
-            return {"success": False, "message": "Token invalido."}
+            return {"success": False, "message": "Token inválido."}
 
         proforma = self.get_or_create_proforma(access)
         shipment = request.env["supplier.shipment"].sudo().browse(self.safe_int(shipment_id))
@@ -648,11 +629,11 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
             if used_in_packings or used_in_rows or used_in_invoices:
                 return {
                     "success": False,
-                    "message": "No puede eliminar contenedores que ya estan siendo usados en packings, filas o invoices.",
+                    "message": "No puede eliminar contenedores que ya están siendo usados en packings, filas o invoices.",
                 }
             to_delete.unlink()
 
-        self.sync_service.sync_flat_to_picking(proforma, access.picking_id)
+        self.sync_service.sync_shipment_header_to_picking(shipment)
         return {"success": True, "container_ids": list(existing_ids)}
 
     # =====================================================================
@@ -662,7 +643,7 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
     def save_invoices(self, token, shipment_id, invoices):
         access = self.validate_token(token)
         if not access:
-            return {"success": False, "message": "Token invalido."}
+            return {"success": False, "message": "Token inválido."}
 
         proforma = self.get_or_create_proforma(access)
         shipment = request.env["supplier.shipment"].sudo().browse(self.safe_int(shipment_id))
@@ -684,7 +665,7 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
             if scope == "specific_containers" and not result:
                 return {
                     "success": False,
-                    "message": "Si el invoice aplica a contenedores especificos, debe seleccionar al menos un contenedor.",
+                    "message": "Si el invoice aplica a contenedores específicos, debe seleccionar al menos un contenedor.",
                 }
 
             vals = {
@@ -722,7 +703,7 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
     def save_packing(self, token, shipment_id, packing_data, rows):
         access = self.validate_token(token)
         if not access:
-            return {"success": False, "message": "Token invalido."}
+            return {"success": False, "message": "Token inválido."}
 
         proforma = self.get_or_create_proforma(access)
         shipment = request.env["supplier.shipment"].sudo().browse(self.safe_int(shipment_id))
@@ -785,7 +766,7 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                 if row_container_id and row_container_id not in shipment_container_ids:
                     return {
                         "success": False,
-                        "message": "La fila %s contiene un contenedor invalido para este embarque." % idx,
+                        "message": "La fila %s contiene un contenedor inválido para este embarque." % idx,
                     }
 
                 if scope == "specific_containers" and row_container_id and row_container_id not in packing_container_ids:
@@ -853,24 +834,25 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                         if not existing:
                             return {
                                 "success": False,
-                                "message": 'El bloque "%s" no tiene fotografia. Suba al menos una foto por bloque antes de guardar.' % block_name,
+                                "message": 'El bloque "%s" no tiene fotografía. Suba al menos una foto por bloque antes de guardar.' % block_name,
                             }
 
-        self.sync_service.sync_packing_rows_to_spreadsheet(proforma, access.picking_id)
+        self.sync_service.sync_shipment(shipment)
         return {"success": True, "packing_id": packing.id}
 
     def delete_packing(self, token, packing_id):
         access = self.validate_token(token)
         if not access:
-            return {"success": False, "message": "Token invalido."}
+            return {"success": False, "message": "Token inválido."}
 
         proforma = self.get_or_create_proforma(access)
         packing = request.env["supplier.shipment.packing"].sudo().browse(self.safe_int(packing_id))
         if not packing.exists() or not self.belongs_to_proforma(proforma, packing=packing):
             return {"success": False, "message": "Packing no encontrado o no autorizado."}
 
+        shipment = packing.shipment_id
         packing.unlink()
-        self.sync_service.sync_packing_rows_to_spreadsheet(proforma, access.picking_id)
+        self.sync_service.sync_shipment(shipment)
         return {"success": True}
 
     # =====================================================================
@@ -880,7 +862,7 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
     def complete_proforma(self, token):
         access = self.validate_token(token)
         if not access:
-            return {"success": False, "message": "Token invalido."}
+            return {"success": False, "message": "Token inválido."}
 
         proforma = self.get_or_create_proforma(access)
         if not proforma:
@@ -901,7 +883,7 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                 if packing.scope == "specific_containers" and not packing.container_ids:
                     return {
                         "success": False,
-                        "message": "Existe un packing con alcance a contenedores especificos pero sin contenedores asignados.",
+                        "message": "Existe un packing con alcance a contenedores específicos pero sin contenedores asignados.",
                     }
 
                 if packing.scope == "specific_containers":
@@ -931,18 +913,17 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                     if not existing:
                         return {
                             "success": False,
-                            "message": 'El bloque "%s" en el embarque "%s" no tiene fotografia.' % (block_name, shipment.name),
+                            "message": 'El bloque "%s" en el embarque "%s" no tiene fotografía.' % (block_name, shipment.name),
                         }
 
         proforma.write({"status": "complete"})
-        self.sync_service.sync_flat_to_picking(proforma, access.picking_id)
-        self.sync_service.sync_packing_rows_to_spreadsheet(proforma, access.picking_id)
+        self.sync_service.sync_all_shipments(proforma)
         return {"success": True}
 
     def reload_proforma(self, token):
         access = self.validate_token(token)
         if not access:
-            return {"success": False, "message": "Token invalido."}
+            return {"success": False, "message": "Token inválido."}
 
         proforma = self.get_or_create_proforma(access)
         if not proforma:
@@ -957,7 +938,7 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
     def upload_row_image(self, token, row_id, image_data, image_name):
         access = self.validate_token(token)
         if not access:
-            return {"success": False, "message": "Token invalido."}
+            return {"success": False, "message": "Token inválido."}
 
         proforma = self.get_or_create_proforma(access)
         row = request.env["supplier.shipment.packing.row"].sudo().browse(self.safe_int(row_id))
@@ -977,7 +958,7 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
     def delete_row_image(self, token, row_id):
         access = self.validate_token(token)
         if not access:
-            return {"success": False, "message": "Token invalido."}
+            return {"success": False, "message": "Token inválido."}
 
         proforma = self.get_or_create_proforma(access)
         row = request.env["supplier.shipment.packing.row"].sudo().browse(self.safe_int(row_id))
@@ -997,7 +978,7 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
     def upload_block_image(self, token, shipment_id, block_name, product_id, image_data, image_name):
         access = self.validate_token(token)
         if not access:
-            return {"success": False, "message": "Token invalido."}
+            return {"success": False, "message": "Token inválido."}
 
         proforma = self.get_or_create_proforma(access)
         shipment = request.env["supplier.shipment"].sudo().browse(self.safe_int(shipment_id))
@@ -1008,7 +989,7 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
             return {"success": False, "message": "Nombre de bloque requerido."}
 
         if not image_data:
-            return {"success": False, "message": "No se recibio imagen."}
+            return {"success": False, "message": "No se recibió imagen."}
 
         record = request.env["supplier.shipment.block.image"].sudo().create({
             "shipment_id": shipment.id,
@@ -1022,7 +1003,7 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
     def delete_block_image(self, token, block_image_id):
         access = self.validate_token(token)
         if not access:
-            return {"success": False, "message": "Token invalido."}
+            return {"success": False, "message": "Token inválido."}
 
         proforma = self.get_or_create_proforma(access)
         record = request.env["supplier.shipment.block.image"].sudo().browse(self.safe_int(block_image_id))
@@ -1038,7 +1019,7 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
     def get_block_images(self, token, shipment_id):
         access = self.validate_token(token)
         if not access:
-            return {"success": False, "message": "Token invalido."}
+            return {"success": False, "message": "Token inválido."}
 
         proforma = self.get_or_create_proforma(access)
         shipment = request.env["supplier.shipment"].sudo().browse(self.safe_int(shipment_id))
@@ -1062,19 +1043,15 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
     def submit_legacy_pl_data(self, token, rows, header, files):
         access = self.validate_token(token)
         if not access:
-            return {"success": False, "message": "Token invalido."}
+            return {"success": False, "message": "Token inválido."}
 
-        picking = access.picking_id
-        if not picking:
-            return {"success": False, "message": "Picking no encontrado."}
-        if picking.state in ("done", "cancel"):
-            return {"success": False, "message": "La recepcion ya fue procesada."}
+        po = access.purchase_id
+        if not po:
+            return {"success": False, "message": "Orden de compra no encontrada."}
 
-        try:
-            picking.sudo().update_packing_list_from_portal(rows or [], header_data=header)
-            if files:
-                picking.sudo()._process_portal_attachments(files)
-            return {"success": True}
-        except Exception as err:
-            _logger.exception("[Portal] Error en submit legacy del picking %s.", picking.id)
-            return {"success": False, "message": str(err)}
+        # Legacy ya no debe aterrizar contra una recepción global.
+        # Se deja bloqueado explícitamente para no mezclar datos de múltiples embarques.
+        return {
+            "success": False,
+            "message": "El flujo legacy submit ya no está permitido porque ahora cada embarque genera su propia recepción.",
+        }

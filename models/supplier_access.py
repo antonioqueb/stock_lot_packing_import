@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import uuid
 from datetime import timedelta
+
 from odoo import models, fields, api
 
 
@@ -9,17 +10,35 @@ class SupplierAccess(models.Model):
     _description = 'Token de Acceso a Portal de Proveedor'
     _order = 'create_date desc'
 
-    picking_id = fields.Many2one('stock.picking', string="Recepción", required=True, ondelete='cascade')
-    purchase_id = fields.Many2one('purchase.order', string="Orden de Compra", ondelete='cascade')
+    purchase_id = fields.Many2one(
+        'purchase.order',
+        string="Orden de Compra",
+        required=True,
+        ondelete='cascade',
+    )
+
+    # Se conserva SOLO por compatibilidad visual / legacy.
+    # Ya no es el ancla funcional del portal.
+    picking_id = fields.Many2one(
+        'stock.picking',
+        string="Recepción legacy",
+        required=False,
+        ondelete='set null',
+        help='Campo legacy. El portal ya no depende de una sola recepción.',
+    )
 
     access_token = fields.Char(
-        string="Token", required=True, default=lambda self: str(uuid.uuid4()), readonly=True, copy=False
+        string="Token",
+        required=True,
+        default=lambda self: str(uuid.uuid4()),
+        readonly=True,
+        copy=False,
     )
     expiration_date = fields.Datetime(
         string="Expira",
         required=True,
         default=lambda self: fields.Datetime.now() + timedelta(days=365),
-        copy=False
+        copy=False,
     )
     is_expired = fields.Boolean(compute="_compute_expired", store=False)
     portal_url = fields.Char(compute="_compute_url", store=False)
