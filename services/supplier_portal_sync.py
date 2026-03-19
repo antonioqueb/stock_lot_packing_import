@@ -66,7 +66,7 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
             "name": po_line.name or po_line.product_id.display_name,
             "product_id": po_line.product_id.id,
             "product_uom_qty": po_line.product_qty or 0.0,
-            "product_uom": po_line.product_uom.id,
+            "product_uom": po_line.product_uom_id.id,
             "picking_id": picking.id,
             "location_id": picking.location_id.id,
             "location_dest_id": picking.location_dest_id.id,
