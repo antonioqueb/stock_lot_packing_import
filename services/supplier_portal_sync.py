@@ -15,10 +15,6 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
     - 1 recepción (stock.picking) por embarque
     """
 
-    # =====================================================================
-    #  HELPERS PICKING POR EMBARQUE
-    # =====================================================================
-
     def _find_picking_for_shipment(self, shipment):
         return self.env["stock.picking"].sudo().search(
             [("supplier_shipment_id", "=", shipment.id)],
@@ -62,8 +58,7 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
         return "%s / %s" % (po.name or "PO", shipment_name)
 
     def _prepare_move_vals_from_po_line(self, picking, po_line):
-        return {
-            "name": po_line.name or po_line.product_id.display_name,
+        vals = {
             "product_id": po_line.product_id.id,
             "product_uom_qty": po_line.product_qty or 0.0,
             "product_uom": po_line.product_uom_id.id,
@@ -72,8 +67,12 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
             "location_dest_id": picking.location_dest_id.id,
             "company_id": picking.company_id.id,
             "partner_id": picking.partner_id.id if picking.partner_id else False,
-            "purchase_line_id": po_line.id if "purchase_line_id" in self.env["stock.move"]._fields else False,
         }
+
+        if "purchase_line_id" in self.env["stock.move"]._fields:
+            vals["purchase_line_id"] = po_line.id
+
+        return vals
 
     def _seed_moves_from_purchase(self, picking, po):
         move_model = self.env["stock.move"].sudo()
@@ -96,7 +95,6 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
 
         unlinked_po_pickings = self._get_unlinked_po_pickings(po)
 
-        # Reutilizar la primera recepción incoming estándar no ligada aún.
         if unlinked_po_pickings:
             picking = unlinked_po_pickings[0]
             picking.sudo().write({
@@ -126,10 +124,6 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
         picking = self.env["stock.picking"].sudo().create(vals)
         self._seed_moves_from_purchase(picking, po)
         return picking
-
-    # =====================================================================
-    #  SYNC CABECERA DEL EMBARQUE -> PICKING
-    # =====================================================================
 
     def sync_shipment_header_to_picking(self, shipment):
         picking = self.get_or_create_picking_for_shipment(shipment)
@@ -172,10 +166,6 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
                 shipment.id, picking.id,
             )
             return False
-
-    # =====================================================================
-    #  SYNC FILAS DEL EMBARQUE -> SPREADSHEET DEL PICKING
-    # =====================================================================
 
     def sync_shipment_rows_to_spreadsheet(self, shipment):
         picking = self.get_or_create_picking_for_shipment(shipment)
@@ -252,10 +242,6 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
             )
             return False
 
-    # =====================================================================
-    #  SYNC COMPLETO
-    # =====================================================================
-
     def sync_shipment(self, shipment):
         picking = self.sync_shipment_header_to_picking(shipment)
         if not picking:
@@ -266,10 +252,6 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
     def sync_all_shipments(self, proforma):
         for shipment in self.sorted_shipments(proforma.shipment_ids):
             self.sync_shipment(shipment)
-
-    # =====================================================================
-    #  DELETE / UNLINK PICKING DE EMBARQUE
-    # =====================================================================
 
     def delete_picking_for_shipment(self, shipment):
         picking = self._find_picking_for_shipment(shipment)
