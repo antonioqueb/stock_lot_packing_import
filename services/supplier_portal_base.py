@@ -11,6 +11,7 @@ _logger = logging.getLogger(__name__)
 class SupplierPortalBaseService:
     """
     Helpers comunes reutilizables por los servicios del portal.
+    Compatibles con Odoo 19.
     """
 
     def get_params(self):
@@ -85,11 +86,13 @@ class SupplierPortalBaseService:
     def normalize_id_list(self, values):
         if not values:
             return []
+
         result = []
         for value in values:
             int_value = self.safe_int(value, 0)
             if int_value:
                 result.append(int_value)
+
         return list(dict.fromkeys(result))
 
     def belongs_to_proforma(
@@ -106,12 +109,17 @@ class SupplierPortalBaseService:
 
         try:
             if shipment is not None:
-                return bool(shipment.exists() and shipment.proforma_id.id == proforma.id)
+                return bool(
+                    shipment.exists()
+                    and shipment.proforma_id
+                    and shipment.proforma_id.id == proforma.id
+                )
 
             if packing is not None:
                 return bool(
                     packing.exists()
                     and packing.shipment_id
+                    and packing.shipment_id.proforma_id
                     and packing.shipment_id.proforma_id.id == proforma.id
                 )
 
@@ -120,6 +128,7 @@ class SupplierPortalBaseService:
                     row.exists()
                     and row.packing_id
                     and row.packing_id.shipment_id
+                    and row.packing_id.shipment_id.proforma_id
                     and row.packing_id.shipment_id.proforma_id.id == proforma.id
                 )
 
@@ -127,6 +136,7 @@ class SupplierPortalBaseService:
                 return bool(
                     invoice.exists()
                     and invoice.shipment_id
+                    and invoice.shipment_id.proforma_id
                     and invoice.shipment_id.proforma_id.id == proforma.id
                 )
 
@@ -134,6 +144,7 @@ class SupplierPortalBaseService:
                 return bool(
                     container.exists()
                     and container.shipment_id
+                    and container.shipment_id.proforma_id
                     and container.shipment_id.proforma_id.id == proforma.id
                 )
         except Exception:
@@ -153,7 +164,7 @@ class SupplierPortalBaseService:
                     "name": product.display_name or product.name,
                     "code": product.default_code or "",
                     "qty_ordered": 0.0,
-                    "uom": (line.product_uom and line.product_uom.name) or "",
+                    "uom": (line.product_uom_id and line.product_uom_id.name) or "",
                     "unit_type": unit_type,
                 }
 
