@@ -55,10 +55,7 @@
             return this.packingRows[rowsKey];
         },
 
-        /**
-         * Reload proforma WITHOUT clearing packing rows cache.
-         * Used by block photo operations so unsaved row data is preserved.
-         */
+        // Recarga proforma sin limpiar el caché de filas
         async reloadProformaKeepingRows() {
             try {
                 const res = await jsonRpc('/supplier/api/v2/reload', { token: this.token });
@@ -70,6 +67,23 @@
             } catch (e) {
                 console.error('[Portal] reloadProformaKeepingRows ERROR:', e.message);
             }
+        },
+
+        // Refresca SOLO la sección de fotos de bloque dentro del area,
+        // sin tocar la tabla de filas ni perder datos no guardados.
+        async _refreshBlockPhotosInPlace(area, pk, s, rowsKey) {
+            await this.reloadProformaKeepingRows();
+
+            const updatedShipment = (this.proforma.shipments || []).find(x => x.id === s.id);
+            if (!updatedShipment) return;
+
+            const updatedPacking = (updatedShipment.packings || []).find(p => p.id === pk.id) || pk;
+
+            // Quitar sección anterior y volver a insertarla con datos frescos
+            const existing = area.querySelector('.block-photos-section');
+            if (existing) existing.remove();
+
+            this._renderBlockPhotoSections(area, updatedPacking, updatedShipment, rowsKey);
         },
 
         renderPackingRows(area, pk, s) {
@@ -278,6 +292,17 @@
                     if (span) {
                         span.textContent = ((row.alto || 0) * (row.ancho || 0)).toFixed(2);
                     }
+                }
+
+                // Cuando cambia el campo bloque, refrescar la sección de fotos
+                // para que aparezca/desaparezca el slot del bloque de inmediato
+                if (field === 'bloque') {
+                    clearTimeout(this._bloqueRefreshTimer);
+                    this._bloqueRefreshTimer = setTimeout(() => {
+                        const existing = area.querySelector('.block-photos-section');
+                        if (existing) existing.remove();
+                        this._renderBlockPhotoSections(area, pk, s, rowsKey);
+                    }, 600);
                 }
             });
 
@@ -553,18 +578,7 @@
 
                 if (res.success) {
                     this.toast(this.t('msg_saved'), 'success');
-
-                    await this.reloadProformaKeepingRows();
-
-                    const updatedShipment = (this.proforma.shipments || []).find(x => x.id === shipmentId);
-                    if (updatedShipment) {
-                        const updatedPacking = (updatedShipment.packings || []).find(p => p.id === (packingId || pk.id));
-                        if (updatedPacking) {
-                            this.renderPackingRows(area, updatedPacking, updatedShipment);
-                        } else {
-                            this.renderPackingRows(area, pk, updatedShipment);
-                        }
-                    }
+                    await this._refreshBlockPhotosInPlace(area, pk, s, rowsKey);
                 } else {
                     this.toast(this.t('msg_error') + (res.message || ''), 'error');
                 }
@@ -582,18 +596,7 @@
 
                 if (res.success) {
                     this.toast(this.t('msg_photo_deleted') || 'Foto eliminada', 'success');
-
-                    await this.reloadProformaKeepingRows();
-
-                    const updatedShipment = (this.proforma.shipments || []).find(x => x.id === shipmentId);
-                    if (updatedShipment) {
-                        const updatedPacking = (updatedShipment.packings || []).find(p => p.id === pk.id);
-                        if (updatedPacking) {
-                            this.renderPackingRows(area, updatedPacking, updatedShipment);
-                        } else {
-                            this.renderPackingRows(area, pk, updatedShipment);
-                        }
-                    }
+                    await this._refreshBlockPhotosInPlace(area, pk, s, rowsKey);
                 } else {
                     this.toast(this.t('msg_error') + (res.message || ''), 'error');
                 }

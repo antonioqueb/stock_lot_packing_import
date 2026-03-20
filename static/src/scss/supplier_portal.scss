@@ -1512,3 +1512,118 @@ body {
     background: rgba(0, 0, 0, 0.08);
     color: $text-primary;
 }
+
+/* ═══════════════════════════════════════════════════
+   AUTOSAVE BAR
+   ═══════════════════════════════════════════════════ */
+.autosave-bar {
+    display: flex;
+    align-items: center;
+    gap: $sp-3;
+    margin-bottom: $sp-4;
+    padding: $sp-2 $sp-3;
+    background: $bg-inset;
+    border: 1px solid $border-subtle;
+    border-radius: $radius-sm;
+    font-size: 0.74rem;
+    color: $text-tertiary;
+
+    .autosave-label {
+        display: flex;
+        align-items: center;
+        gap: $sp-1;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+
+        i { color: $primary-muted; }
+    }
+
+    .autosave-indicator {
+        font-size: 0.74rem;
+        font-weight: 600;
+        min-width: 80px;
+    }
+}
+
+/* ═══════════════════════════════════════════════════
+   MODERN DATE INPUT
+   ═══════════════════════════════════════════════════ */
+.modern-date-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+
+    .modern-date-input {
+        width: 100%;
+        background: $bg-input;
+        border: 1px solid $border-default;
+        color: $text-primary;
+        border-radius: $radius-sm;
+        padding: 0 $sp-3;
+        padding-right: 34px;          // espacio para el icono
+        font-size: 0.85rem;
+        font-family: $font-body;
+        height: $input-h;
+        box-sizing: border-box;
+        cursor: pointer;
+        appearance: none;             // quitar el picker nativo feo en algunos browsers
+        -webkit-appearance: none;
+
+        // Ocultar el icono nativo de Chrome/Edge
+        &::-webkit-calendar-picker-indicator {
+            opacity: 0;
+            position: absolute;
+            right: 0;
+            width: 34px;
+            height: 100%;
+            cursor: pointer;
+        }
+
+        &:focus {
+            outline: none;
+            border-color: $text-secondary;
+            box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.04);
+        }
+    }
+
+    .modern-date-icon {
+        position: absolute;
+        right: $sp-3;
+        color: $primary-muted;
+        font-size: 0.85rem;
+        pointer-events: none;         // clicks pasan al input
+        line-height: 1;
+    }
+}
+
+// Dentro de sub-item-field y sf-field
+.sub-item-field .modern-date-wrapper,
+.sf-field .modern-date-wrapper {
+    width: 100%;
+}
+
+/* ═══════════════════════════════════════════════════
+   INFO HINT (BL tab message)
+   ═══════════════════════════════════════════════════ */
+.info-hint {
+    margin-top: $sp-3;
+    padding: $sp-3 $sp-4;
+    background: #f0f9ff;
+    border: 1px solid #bae6fd;
+    border-radius: $radius-md;
+    font-size: 0.82rem;
+    color: #0369a1;
+    line-height: 1.5;
+
+    i { margin-right: $sp-1; }
+
+    strong { font-weight: 700; }
+}
+
+/* Indicador inline de autosave dentro de packing card */
+.pk-autosave-indicator {
+    min-width: 60px;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+}
