@@ -36,7 +36,10 @@
 
         // ------------------------------------------------------------------
         //  MOTOR DE AUTOSAVE GENÉRICO
-        //  Recibe: el contenedor DOM, función async saveFn(), delay en ms
+        //  Recibe: el contenedor DOM, función async saveFn(), delay en ms,
+        //          y opcionalmente el objeto `s` del shipment para sincronizar
+        //          en memoria después de guardar (evita que cambiar pestaña
+        //          pinte valores anteriores).
         //  saveFn debe retornar { success, message? }
         // ------------------------------------------------------------------
         _bindAutosave(el, saveFn, delay) {
@@ -54,6 +57,27 @@
                     try {
                         const res = await saveFn();
                         if (res && res.success === false) throw new Error(res.message || 'Error');
+
+                        // Sincronizar proforma en memoria para que cambiar de
+                        // pestaña no repinte los valores anteriores
+                        try {
+                            const reload = await jsonRpc('/supplier/api/v2/reload', { token: this.token });
+                            if (reload.success && reload.proforma) {
+                                // Preservar caché de filas de packings
+                                const savedRows = { ...this.packingRows };
+                                this.proforma = reload.proforma;
+                                this.packingRows = savedRows;
+                                // Actualizar chips del header del shipment sin re-render completo
+                                const container = document.getElementById('shipments-container');
+                                if (container) {
+                                    (this.proforma.shipments || []).forEach(updatedS => {
+                                        const block = container.querySelector(`.shipment-block[data-shipment-id="${updatedS.id}"]`);
+                                        if (block) this.updateShipmentBlockHeader(block, updatedS);
+                                    });
+                                }
+                            }
+                        } catch (_e) { /* reload fallido no es crítico */ }
+
                         if (indicator) {
                             indicator.innerHTML = '<i class="fa fa-check"></i> Guardado';
                             indicator.style.color = '#16a34a';
@@ -557,6 +581,15 @@
                             try {
                                 var res = await doSaveMeta();
                                 if (res && res.success === false) throw new Error(res.message);
+                                // Sincronizar en memoria
+                                try {
+                                    var reload = await jsonRpc('/supplier/api/v2/reload', { token: self.token });
+                                    if (reload.success && reload.proforma) {
+                                        var savedRows = Object.assign({}, self.packingRows);
+                                        self.proforma = reload.proforma;
+                                        self.packingRows = savedRows;
+                                    }
+                                } catch (_e) {}
                                 if (indicator) {
                                     indicator.innerHTML = '<i class="fa fa-check"></i>';
                                     indicator.style.color = '#16a34a';
