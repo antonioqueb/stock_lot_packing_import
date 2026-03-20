@@ -47,6 +47,11 @@
             const indicator = el.querySelector('.autosave-indicator');
             let timer = null;
 
+            // Extraer tabName y shipmentId del id del contenedor (stab-{tab}-{sid})
+            const elIdMatch = el.id && el.id.match(/^stab-([a-z_]+)-(\d+)$/);
+            const tabName    = elIdMatch ? elIdMatch[1] : null;
+            const shipmentId = elIdMatch ? parseInt(elIdMatch[2], 10) : null;
+
             const trigger = () => {
                 if (timer) clearTimeout(timer);
                 timer = setTimeout(async () => {
@@ -58,35 +63,50 @@
                         const res = await saveFn();
                         if (res && res.success === false) throw new Error(res.message || 'Error');
 
-                        // Sincronizar proforma en memoria para que cambiar de
-                        // pestaña no repinte los valores anteriores
+                        // Recargar proforma en memoria
                         try {
                             const reload = await jsonRpc('/supplier/api/v2/reload', { token: this.token });
                             if (reload.success && reload.proforma) {
-                                // Preservar caché de filas de packings
                                 const savedRows = { ...this.packingRows };
                                 this.proforma = reload.proforma;
                                 this.packingRows = savedRows;
-                                // Actualizar chips del header del shipment sin re-render completo
-                                const container = document.getElementById('shipments-container');
-                                if (container) {
+
+                                // Actualizar chips de cabecera de todos los shipment blocks
+                                const shipContainer = document.getElementById('shipments-container');
+                                if (shipContainer) {
                                     (this.proforma.shipments || []).forEach(updatedS => {
-                                        const block = container.querySelector(`.shipment-block[data-shipment-id="${updatedS.id}"]`);
+                                        const block = shipContainer.querySelector(`.shipment-block[data-shipment-id="${updatedS.id}"]`);
                                         if (block) this.updateShipmentBlockHeader(block, updatedS);
                                     });
                                 }
-                            }
-                        } catch (_e) { /* reload fallido no es crítico */ }
 
-                        if (indicator) {
-                            indicator.innerHTML = '<i class="fa fa-check"></i> Guardado';
-                            indicator.style.color = '#16a34a';
-                            setTimeout(() => { if (indicator) indicator.innerHTML = ''; }, 2500);
+                                // Re-renderizar la pestaña activa con datos frescos
+                                if (tabName && shipmentId) {
+                                    const freshS = (this.proforma.shipments || []).find(x => x.id === shipmentId);
+                                    if (freshS) {
+                                        this.renderTabContent(tabName, freshS);
+                                    }
+                                }
+                            }
+                        } catch (_e) { /* reload fallido no es critico */ }
+
+                        // Mostrar checkmark en el indicador que puede haberse re-renderizado
+                        const currentIndicator = tabName && shipmentId
+                            ? document.querySelector(`#stab-${tabName}-${shipmentId} .autosave-indicator`)
+                            : indicator;
+                        if (currentIndicator) {
+                            currentIndicator.innerHTML = '<i class="fa fa-check"></i> Guardado';
+                            currentIndicator.style.color = '#16a34a';
+                            setTimeout(() => { if (currentIndicator) currentIndicator.innerHTML = ''; }, 2500);
                         }
+
                     } catch (err) {
-                        if (indicator) {
-                            indicator.innerHTML = '<i class="fa fa-exclamation-triangle"></i> ' + (err.message || 'Error');
-                            indicator.style.color = '#dc2626';
+                        const currentIndicator = tabName && shipmentId
+                            ? document.querySelector(`#stab-${tabName}-${shipmentId} .autosave-indicator`)
+                            : indicator;
+                        if (currentIndicator) {
+                            currentIndicator.innerHTML = '<i class="fa fa-exclamation-triangle"></i> ' + (err.message || 'Error');
+                            currentIndicator.style.color = '#dc2626';
                         }
                     }
                 }, delay);
@@ -588,6 +608,13 @@
                                         var savedRows = Object.assign({}, self.packingRows);
                                         self.proforma = reload.proforma;
                                         self.packingRows = savedRows;
+                                        // Re-renderizar la pestaña packings con datos frescos
+                                        // Solo si la pestaña packings está activa Y ninguna fila está siendo editada
+                                        var isPackingsTabActive = (self.activeTabByShipment[s.id] === 'packings');
+                                        if (isPackingsTabActive) {
+                                            var freshS = (self.proforma.shipments || []).find(function (x) { return x.id === s.id; });
+                                            if (freshS) self.renderTabContent('packings', freshS);
+                                        }
                                     }
                                 } catch (_e) {}
                                 if (indicator) {
