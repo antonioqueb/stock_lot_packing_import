@@ -80,11 +80,19 @@
                                     });
                                 }
 
-                                // Re-renderizar la pestaña activa con datos frescos
-                                if (tabName && shipmentId) {
+                                // CRÍTICO: mutar el objeto s que está capturado en el closure
+                                // de saveFn para que los campos del DOM reflejen los datos reales.
+                                // NO llamamos renderTabContent aquí porque eso recrearía los
+                                // closures con un nuevo objeto freshS pero saveFn seguiría
+                                // apuntando al s viejo — causando que el siguiente autosave
+                                // sobreescriba con valores anteriores.
+                                if (shipmentId) {
                                     const freshS = (this.proforma.shipments || []).find(x => x.id === shipmentId);
                                     if (freshS) {
-                                        this.renderTabContent(tabName, freshS);
+                                        // Mutar el s original para que contenga datos frescos
+                                        Object.assign(s, freshS);
+                                        // Actualizar valores visibles en el DOM sin reenlazar eventos
+                                        this._syncDOMFromShipment(tabName, freshS);
                                     }
                                 }
                             }
@@ -117,6 +125,52 @@
                     ? 'change' : 'input';
                 input.addEventListener(evt, trigger);
             });
+        },
+
+        // ------------------------------------------------------------------
+        //  SYNC DOM → SHIPMENT (sin re-render, sin reenlazar eventos)
+        //  Actualiza los valores visibles en los inputs del tab activo
+        //  usando los datos frescos del servidor, preservando los closures
+        //  de autosave que ya están registrados.
+        // ------------------------------------------------------------------
+        _syncDOMFromShipment(tabName, freshS) {
+            if (!tabName || !freshS) return;
+            const el = document.getElementById('stab-' + tabName + '-' + freshS.id);
+            if (!el) return;
+
+            // Actualizar inputs con data-sf (logistics, bl)
+            el.querySelectorAll('[data-sf]').forEach(function (input) {
+                const field = input.dataset.sf;
+                if (!field || freshS[field] === undefined) return;
+                const val = freshS[field] || '';
+                if (input.value !== String(val)) {
+                    input.value = val;
+                }
+            });
+
+            // Actualizar containers: data-cnt-idx + data-cnt-f
+            if (tabName === 'containers' && freshS.containers) {
+                freshS.containers.forEach(function (c, idx) {
+                    el.querySelectorAll('[data-cnt-idx="' + idx + '"]').forEach(function (input) {
+                        const f = input.dataset.cntF;
+                        if (!f || c[f] === undefined) return;
+                        const val = String(c[f] !== null && c[f] !== undefined ? c[f] : '');
+                        if (input.value !== val) input.value = val;
+                    });
+                });
+            }
+
+            // Actualizar invoices: data-inv-idx + data-inv-f
+            if (tabName === 'invoices' && freshS.invoices) {
+                freshS.invoices.forEach(function (inv, idx) {
+                    el.querySelectorAll('[data-inv-idx="' + idx + '"]').forEach(function (input) {
+                        const f = input.dataset.invF;
+                        if (!f || inv[f] === undefined) return;
+                        const val = String(inv[f] !== null && inv[f] !== undefined ? inv[f] : '');
+                        if (input.value !== val) input.value = val;
+                    });
+                });
+            }
         },
 
         // ------------------------------------------------------------------
@@ -608,12 +662,20 @@
                                         var savedRows = Object.assign({}, self.packingRows);
                                         self.proforma = reload.proforma;
                                         self.packingRows = savedRows;
-                                        // Re-renderizar la pestaña packings con datos frescos
-                                        // Solo si la pestaña packings está activa Y ninguna fila está siendo editada
-                                        var isPackingsTabActive = (self.activeTabByShipment[s.id] === 'packings');
-                                        if (isPackingsTabActive) {
-                                            var freshS = (self.proforma.shipments || []).find(function (x) { return x.id === s.id; });
-                                            if (freshS) self.renderTabContent('packings', freshS);
+                                        // Mutar pk y s en lugar de re-renderizar.
+                                        // Re-renderizar recrearía closures con objetos distintos
+                                        // y el siguiente autosave usaría datos de la versión anterior.
+                                        var freshS = (self.proforma.shipments || []).find(function (x) { return x.id === s.id; });
+                                        if (freshS) {
+                                            Object.assign(s, freshS);
+                                            var freshPk = (freshS.packings || []).find(function (p) { return p.id === pk.id; });
+                                            if (freshPk) Object.assign(pk, freshPk);
+                                            // Actualizar chips del header del shipment block
+                                            var shipContainer = document.getElementById('shipments-container');
+                                            if (shipContainer) {
+                                                var block = shipContainer.querySelector('.shipment-block[data-shipment-id="' + s.id + '"]');
+                                                if (block) self.updateShipmentBlockHeader(block, freshS);
+                                            }
                                         }
                                     }
                                 } catch (_e) {}
