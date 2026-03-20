@@ -35,7 +35,7 @@
             };
         },
 
-        normalizePackingRowsCache(pk) {
+        normalizePackingRowsCache(pk, shipmentProducts) {
             const rowsKey = `pk_${pk.id}`;
             if (!this.packingRows[rowsKey]) {
                 if (pk.rows && pk.rows.length > 0) {
@@ -47,7 +47,7 @@
                     }));
                 } else {
                     this.packingRows[rowsKey] = [];
-                    this.products.forEach(p => {
+                    (shipmentProducts || []).forEach(p => {
                         this.packingRows[rowsKey].push(this._newProductRow(p));
                     });
                 }
@@ -63,7 +63,6 @@
             try {
                 const res = await jsonRpc('/supplier/api/v2/reload', { token: this.token });
                 if (res.success && res.proforma) {
-                    // Preserve existing packingRows cache — only update proforma metadata
                     const savedRows = { ...this.packingRows };
                     this.proforma = res.proforma;
                     this.packingRows = savedRows;
@@ -77,15 +76,32 @@
             if (!pk) return;
 
             const rowsKey = `pk_${pk.id}`;
-            const rows = this.normalizePackingRowsCache(pk);
+            const shipmentProducts = (s.products && s.products.length) ? s.products : this.products;
+            const rows = this.normalizePackingRowsCache(pk, shipmentProducts);
             const containers = (s.containers || []).filter(c => c.id && (c.container_number || c.seal_number));
+
+            const lblAvailable = this.currentLang === 'es' ? 'Disponible' : (this.currentLang === 'zh' ? '可分配' : 'Available');
+            const lblCurrent = this.currentLang === 'es' ? 'En este embarque' : (this.currentLang === 'zh' ? '当前发货' : 'Current shipment');
+            const lblRemaining = this.currentLang === 'es' ? 'Remanente' : (this.currentLang === 'zh' ? '剩余' : 'Remaining');
 
             let html = '';
 
-            this.products.forEach(product => {
+            shipmentProducts.forEach(product => {
                 const unitType = product.unit_type || 'Placa';
                 const typeLabel = this.t(`lbl_type_${unitType.toLowerCase()}`);
                 const pRows = rows.filter(r => r.product_id === product.id);
+
+                const qtyOrdered = Number(product.qty_ordered || 0);
+                const qtyAvailable = Number(
+                    product.qty_available !== undefined ? product.qty_available : qtyOrdered
+                );
+                const qtyCurrent = Number(product.qty_current_shipment || 0);
+                const qtyRemainingAfter = Number(
+                    product.qty_remaining_after !== undefined
+                        ? product.qty_remaining_after
+                        : (qtyAvailable - qtyCurrent)
+                );
+                const isOverAssigned = !!product.is_over_assigned || (qtyRemainingAfter < -0.000001);
 
                 html += `<div class="product-section">
                     <div class="product-header">
@@ -95,7 +111,12 @@
                                 <span class="badge bg-secondary ms-2" style="font-size:0.7em">${typeLabel}</span>
                             </h3>
                         </div>
-                        <div class="meta">${this.t('requested')} <strong class="text-dark">${product.qty_ordered} ${product.uom}</strong></div>
+                        <div class="meta" style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;">
+                            <span>${this.t('requested')} <strong class="text-dark">${qtyOrdered.toFixed(2)} ${esc(product.uom || '')}</strong></span>
+                            <span>${lblAvailable}: <strong class="${isOverAssigned ? 'text-danger' : 'text-dark'}">${qtyAvailable.toFixed(2)} ${esc(product.uom || '')}</strong></span>
+                            <span>${lblCurrent}: <strong class="${isOverAssigned ? 'text-danger' : 'text-dark'}">${qtyCurrent.toFixed(2)} ${esc(product.uom || '')}</strong></span>
+                            <span>${lblRemaining}: <strong class="${isOverAssigned ? 'text-danger' : 'text-dark'}">${qtyRemainingAfter.toFixed(2)} ${esc(product.uom || '')}</strong></span>
+                        </div>
                     </div>
                     <div class="table-responsive">
                         <table class="portal-table">
@@ -143,7 +164,6 @@
                             </button>
                         </div>`;
 
-                    // Container column - always first
                     html += `<td data-label="${this.t('col_container_assign')}">
                         <div class="input-group-portal">
                             <select class="row-container-select input-field" data-field="container_id" data-row-id="${rid}" data-pk-key="${rowsKey}">
@@ -321,7 +341,8 @@
                     const pid = parseInt(addBtn.dataset.productId, 10);
                     const key = addBtn.dataset.pkKey;
                     const count = parseInt(addBtn.dataset.count, 10) || 1;
-                    const p = this.products.find(x => x.id === pid);
+                    const productPool = (s.products && s.products.length) ? s.products : this.products;
+                    const p = productPool.find(x => x.id === pid) || this.products.find(x => x.id === pid);
                     if (p) {
                         for (let i = 0; i < count; i++) {
                             this.packingRows[key].push(this._newProductRow(p));
@@ -389,13 +410,13 @@
         },
 
         // =================================================================
-        //  FOTOS DE BLOQUE — Sección, render, upload, delete
+        //  FOTOS DE BLOQUE
         // =================================================================
 
         _renderBlockPhotoSections(area, pk, s, rowsKey) {
             const rows = this.packingRows[rowsKey] || [];
+            const productPool = (s.products && s.products.length) ? s.products : this.products;
 
-            // Extraer bloques unicos (block_name + product_id)
             const blocksByKey = {};
             rows.forEach(r => {
                 const bloque = (r.bloque || '').trim();
@@ -409,7 +430,6 @@
             const uniqueBlocks = Object.values(blocksByKey);
             if (uniqueBlocks.length === 0) return;
 
-            // Indexar fotos existentes del shipment
             const existingImages = (s.block_images || []);
             const imagesByBlock = {};
             existingImages.forEach(img => {
@@ -432,7 +452,7 @@
                 const key = `${product_id}__${block_name}`;
                 const imgs = imagesByBlock[key] || [];
                 const hasPhoto = imgs.length > 0;
-                const product = this.products.find(p => p.id === product_id);
+                const product = productPool.find(p => p.id === product_id) || this.products.find(p => p.id === product_id);
                 const productName = product ? product.name : '';
 
                 const borderColor = hasPhoto ? '#bbf7d0' : '#fecaca';
@@ -479,7 +499,6 @@
         },
 
         _bindBlockPhotoEvents(area, pk, s, rowsKey) {
-            // Upload
             area.querySelectorAll('.block-photo-input').forEach(input => {
                 if (input._blockBound) return;
                 input._blockBound = true;
@@ -507,7 +526,6 @@
                 });
             });
 
-            // Delete
             area.querySelectorAll('.btn-delete-block-photo').forEach(btn => {
                 if (btn._blockBound) return;
                 btn._blockBound = true;
@@ -536,10 +554,8 @@
                 if (res.success) {
                     this.toast(this.t('msg_saved'), 'success');
 
-                    // Reload proforma but KEEP packing rows cache intact
                     await this.reloadProformaKeepingRows();
 
-                    // Find the updated shipment and packing from reloaded proforma
                     const updatedShipment = (this.proforma.shipments || []).find(x => x.id === shipmentId);
                     if (updatedShipment) {
                         const updatedPacking = (updatedShipment.packings || []).find(p => p.id === (packingId || pk.id));
@@ -567,10 +583,8 @@
                 if (res.success) {
                     this.toast(this.t('msg_photo_deleted') || 'Foto eliminada', 'success');
 
-                    // Reload proforma but KEEP packing rows cache intact
                     await this.reloadProformaKeepingRows();
 
-                    // Find the updated shipment and packing from reloaded proforma
                     const updatedShipment = (this.proforma.shipments || []).find(x => x.id === shipmentId);
                     if (updatedShipment) {
                         const updatedPacking = (updatedShipment.packings || []).find(p => p.id === pk.id);

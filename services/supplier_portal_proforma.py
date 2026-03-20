@@ -94,6 +94,51 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
         }
 
     # =====================================================================
+    #  BALANCE DE CANTIDADES
+    # =====================================================================
+
+    def _build_quantity_balance(self, proforma):
+        if not proforma or not proforma.purchase_id:
+            return []
+
+        po = proforma.purchase_id
+        ordered_map = self.sync_service._po_ordered_qty_map(po)
+
+        current_map = {}
+        for shipment in proforma.shipment_ids:
+            ship_map = self.sync_service._shipment_qty_map(shipment)
+            for pid, qty in ship_map.items():
+                current_map[pid] = current_map.get(pid, 0.0) + qty
+
+        product_line_map = {}
+        for line in po.order_line.filtered(lambda l: not l.display_type and l.product_id):
+            if line.product_id.id not in product_line_map:
+                product_line_map[line.product_id.id] = line
+
+        balance = []
+        for pid, line in product_line_map.items():
+            qty_ordered = ordered_map.get(pid, 0.0)
+            qty_assigned = current_map.get(pid, 0.0)
+            qty_diff = qty_assigned - qty_ordered
+
+            balance.append({
+                "product_id": pid,
+                "product_name": line.product_id.display_name or line.product_id.name,
+                "product_code": line.product_id.default_code or "",
+                "uom": line.product_uom_id.name or "",
+                "qty_ordered": qty_ordered,
+                "qty_assigned": qty_assigned,
+                "qty_missing": max(0.0, qty_ordered - qty_assigned),
+                "qty_excess": max(0.0, qty_assigned - qty_ordered),
+                "is_under": bool(qty_assigned + 0.000001 < qty_ordered),
+                "is_over": bool(qty_assigned - 0.000001 > qty_ordered),
+                "is_exact": abs(qty_diff) <= 0.000001,
+            })
+
+        balance.sort(key=lambda item: (item.get("product_name") or "").lower())
+        return balance
+
+    # =====================================================================
     #  PROGRESO Y COMPLETITUD
     # =====================================================================
 
@@ -240,6 +285,7 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
 
         for shipment in self.sorted_shipments(header.shipment_ids):
             picking = self._get_shipment_picking(shipment)
+            shipment_products = self.sync_service.build_products_payload_for_shipment(shipment)
 
             containers = [{
                 "id": container.id,
@@ -369,9 +415,11 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                 "picking_id": picking.id if picking else False,
                 "picking_name": picking.name if picking else "",
                 "picking_state": picking.state if picking else "",
+                "products": shipment_products,
             })
 
         progress = self.compute_progress(header)
+        quantity_balance = self._build_quantity_balance(header)
 
         return {
             "id": header.id,
@@ -385,6 +433,7 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
             "shipments": shipments,
             "global_documents": [],
             "progress": progress,
+            "quantity_balance": quantity_balance,
         }
 
     # =====================================================================
@@ -634,6 +683,7 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
             to_delete.unlink()
 
         self.sync_service.sync_shipment_header_to_picking(shipment)
+        self.sync_service.sync_shipment(shipment)
         return {"success": True, "container_ids": list(existing_ids)}
 
     # =====================================================================
@@ -915,6 +965,25 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                             "success": False,
                             "message": 'El bloque "%s" en el embarque "%s" no tiene fotografía.' % (block_name, shipment.name),
                         }
+
+        # Validación de exceso total contra lo pedido en OC
+        balance = self._build_quantity_balance(proforma)
+        over_items = [item for item in balance if item["is_over"]]
+        if over_items:
+            first = over_items[0]
+            return {
+                "success": False,
+                "message": (
+                    'Se detectó sobreasignación. El producto "%s" suma %.3f %s en embarques, '
+                    "pero la OC solo pidió %.3f %s."
+                ) % (
+                    first["product_name"],
+                    first["qty_assigned"],
+                    first["uom"],
+                    first["qty_ordered"],
+                    first["uom"],
+                ),
+            }
 
         proforma.write({"status": "complete"})
         self.sync_service.sync_all_shipments(proforma)

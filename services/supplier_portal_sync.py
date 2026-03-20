@@ -9,11 +9,22 @@ _logger = logging.getLogger(__name__)
 
 class SupplierPortalSyncService(SupplierPortalBaseService):
     """
-    Sincronización de portal -> Odoo con nueva lógica:
+    Sincronización de portal -> Odoo con lógica corregida:
     - 1 token por OC
     - 1 proforma general por OC
     - 1 recepción (stock.picking) por embarque
+    - cada picking usa cantidades del embarque actual o, si aún no hay captura,
+      el remanente disponible contra otros embarques
     """
+
+    @property
+    def env(self):
+        from odoo.http import request
+        return request.env
+
+    # =====================================================================
+    #  HELPERS BASE
+    # =====================================================================
 
     def _find_picking_for_shipment(self, shipment):
         return self.env["stock.picking"].sudo().search(
@@ -21,11 +32,6 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
             order="id desc",
             limit=1,
         )
-
-    @property
-    def env(self):
-        from odoo.http import request
-        return request.env
 
     def _get_incoming_picking_type(self, po):
         picking_type = getattr(po, "picking_type_id", False)
@@ -57,10 +63,128 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
         shipment_name = shipment.name or ("EMB-%s" % shipment.id)
         return "%s / %s" % (po.name or "PO", shipment_name)
 
-    def _prepare_move_vals_from_po_line(self, picking, po_line):
+    # =====================================================================
+    #  CÁLCULO DE CANTIDADES
+    # =====================================================================
+
+    def _row_effective_qty(self, row):
+        """
+        Cantidad efectiva de una fila del packing:
+        - Placa: alto * ancho
+        - Pieza / Formato: quantity
+        """
+        tipo = (row.tipo or "Placa").strip().lower()
+        if tipo == "placa":
+            return round((row.alto or 0.0) * (row.ancho or 0.0), 6)
+        return row.quantity or 0.0
+
+    def _po_ordered_qty_map(self, po):
+        """
+        Cantidad maestra pedida por producto.
+        Si existe x_qty_solicitada_original, esa manda.
+        """
+        result = {}
+        for line in po.order_line.filtered(lambda l: not l.display_type and l.product_id):
+            base_qty = line.x_qty_solicitada_original or line.product_qty or 0.0
+            pid = line.product_id.id
+            result[pid] = result.get(pid, 0.0) + base_qty
+        return result
+
+    def _shipment_qty_map(self, shipment):
+        """
+        Cantidad capturada actualmente en el shipment, basada en packings/rows.
+        """
+        result = {}
+        for packing in shipment.packing_ids:
+            for row in packing.row_ids:
+                pid = row.product_id.id
+                qty = self._row_effective_qty(row)
+                result[pid] = result.get(pid, 0.0) + qty
+        return result
+
+    def _other_shipments_qty_map(self, shipment):
+        """
+        Cantidad ya asignada/capturada en otros embarques de la misma proforma.
+        """
+        result = {}
+        proforma = shipment.proforma_id
+        for other in proforma.shipment_ids.filtered(lambda s: s.id != shipment.id):
+            other_map = self._shipment_qty_map(other)
+            for pid, qty in other_map.items():
+                result[pid] = result.get(pid, 0.0) + qty
+        return result
+
+    def _remaining_qty_map_for_shipment(self, shipment):
+        """
+        Remanente disponible para este shipment:
+        solicitado original - ya capturado en otros shipments
+        """
+        po = shipment.proforma_id.purchase_id
+        ordered = self._po_ordered_qty_map(po)
+        assigned_other = self._other_shipments_qty_map(shipment)
+
+        result = {}
+        for pid, qty_ordered in ordered.items():
+            result[pid] = qty_ordered - assigned_other.get(pid, 0.0)
+        return result
+
+    def build_products_payload_for_shipment(self, shipment):
+        """
+        Payload detallado por shipment para el portal:
+        - qty_ordered: total pedido en OC
+        - qty_assigned_other: ya capturado en otros embarques
+        - qty_current_shipment: lo que lleva este embarque
+        - qty_available: remanente disponible para este embarque
+        - qty_remaining_after: remanente después de lo capturado en este embarque
+        """
+        po = shipment.proforma_id.purchase_id
+        ordered = self._po_ordered_qty_map(po)
+        other = self._other_shipments_qty_map(shipment)
+        current = self._shipment_qty_map(shipment)
+
+        product_line_map = {}
+        for line in po.order_line.filtered(lambda l: not l.display_type and l.product_id):
+            if line.product_id.id not in product_line_map:
+                product_line_map[line.product_id.id] = line
+
+        products = []
+        for pid, line in product_line_map.items():
+            qty_ordered = ordered.get(pid, 0.0)
+            qty_other = other.get(pid, 0.0)
+            qty_current = current.get(pid, 0.0)
+            qty_available = qty_ordered - qty_other
+            qty_remaining_after = qty_ordered - qty_other - qty_current
+            qty_over_assigned = max(0.0, -qty_remaining_after)
+
+            product = line.product_id
+            unit_type = product.product_tmpl_id.x_unidad_del_producto or "Placa"
+
+            products.append({
+                "id": product.id,
+                "name": product.display_name or product.name,
+                "code": product.default_code or "",
+                "uom": line.product_uom_id.name or "",
+                "unit_type": unit_type,
+                "qty_ordered": qty_ordered,
+                "qty_assigned_other": qty_other,
+                "qty_current_shipment": qty_current,
+                "qty_available": qty_available,
+                "qty_remaining_after": qty_remaining_after,
+                "qty_over_assigned": qty_over_assigned,
+                "is_over_assigned": bool(qty_over_assigned > 0.000001),
+            })
+
+        products.sort(key=lambda item: (item.get("name") or "").lower())
+        return products
+
+    # =====================================================================
+    #  MOVES DEL PICKING
+    # =====================================================================
+
+    def _prepare_move_vals_from_po_line(self, picking, po_line, qty):
         vals = {
             "product_id": po_line.product_id.id,
-            "product_uom_qty": po_line.product_qty or 0.0,
+            "product_uom_qty": qty or 0.0,
             "product_uom": po_line.product_uom_id.id,
             "picking_id": picking.id,
             "location_id": picking.location_id.id,
@@ -74,19 +198,113 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
 
         return vals
 
-    def _seed_moves_from_purchase(self, picking, po):
-        move_model = self.env["stock.move"].sudo()
-        existing_products = set(picking.move_ids.mapped("product_id").ids)
+    def _cleanup_zero_move(self, move):
+        """
+        Si un move queda en 0:
+        - si no tiene move lines, se intenta cancelar/unlink
+        - si ya tiene move lines, solo se pone en 0
+        """
+        if move.state in ("done", "cancel"):
+            return
 
-        for line in po.order_line.filtered(lambda l: not l.display_type and l.product_id):
-            if line.product_id.id in existing_products:
-                continue
-            vals = self._prepare_move_vals_from_po_line(picking, line)
-            move_model.create(vals)
+        try:
+            if move.move_line_ids:
+                move.sudo().write({"product_uom_qty": 0.0})
+                return
+        except Exception:
+            pass
+
+        try:
+            if hasattr(move, "_action_cancel"):
+                move.sudo()._action_cancel()
+        except Exception:
+            pass
+
+        try:
+            move.sudo().unlink()
+        except Exception:
+            try:
+                move.sudo().write({"product_uom_qty": 0.0})
+            except Exception:
+                _logger.warning(
+                    "[Portal] No se pudo limpiar move %s en picking %s.",
+                    move.id, move.picking_id.id
+                )
+
+    def _sync_picking_moves_from_shipment(self, shipment):
+        """
+        Sincroniza el picking del shipment:
+        - si el shipment ya tiene rows, usa esas cantidades
+        - si aún no tiene rows, usa el remanente disponible
+        """
+        picking = self._find_picking_for_shipment(shipment)
+        if not picking:
+            return False
+
+        if picking.state == "done":
+            return picking
+
+        po = shipment.proforma_id.purchase_id
+        if not po:
+            return picking
+
+        ordered_qty_map = self._po_ordered_qty_map(po)
+        current_qty_map = self._shipment_qty_map(shipment)
+        remaining_qty_map = self._remaining_qty_map_for_shipment(shipment)
+
+        has_current_rows = any(qty > 0 for qty in current_qty_map.values())
+        target_qty_map = current_qty_map if has_current_rows else remaining_qty_map
+
+        # Un producto por shipment a nivel operativo
+        product_line_map = {}
+        for po_line in po.order_line.filtered(lambda l: not l.display_type and l.product_id):
+            if po_line.product_id.id not in product_line_map:
+                product_line_map[po_line.product_id.id] = po_line
+
+        existing_moves = {}
+        for move in picking.move_ids.filtered(lambda m: m.state != "cancel" and m.product_id):
+            existing_moves[move.product_id.id] = move
+
+        valid_product_ids = set(product_line_map.keys())
+
+        for pid, po_line in product_line_map.items():
+            ordered_qty = ordered_qty_map.get(pid, 0.0)
+            target_qty = max(0.0, min(target_qty_map.get(pid, 0.0), ordered_qty))
+
+            existing_move = existing_moves.get(pid)
+
+            if target_qty > 0:
+                if existing_move:
+                    if existing_move.state != "done":
+                        vals = {
+                            "product_uom_qty": target_qty,
+                            "product_uom": po_line.product_uom_id.id,
+                        }
+                        if "purchase_line_id" in existing_move._fields:
+                            vals["purchase_line_id"] = po_line.id
+                        existing_move.sudo().write(vals)
+                else:
+                    vals = self._prepare_move_vals_from_po_line(picking, po_line, target_qty)
+                    self.env["stock.move"].sudo().create(vals)
+            else:
+                if existing_move:
+                    self._cleanup_zero_move(existing_move)
+
+        # Limpiar moves sobrantes que no pertenecen ya a la OC agrupada
+        for move in picking.move_ids.filtered(lambda m: m.state != "done" and m.state != "cancel"):
+            if move.product_id.id not in valid_product_ids:
+                self._cleanup_zero_move(move)
+
+        return picking
+
+    # =====================================================================
+    #  PICKING POR SHIPMENT
+    # =====================================================================
 
     def get_or_create_picking_for_shipment(self, shipment):
         picking = self._find_picking_for_shipment(shipment)
         if picking:
+            self._sync_picking_moves_from_shipment(shipment)
             return picking
 
         po = shipment.proforma_id.purchase_id
@@ -101,6 +319,7 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
                 "supplier_shipment_id": shipment.id,
                 "origin": self._prepare_picking_origin(po, shipment),
             })
+            self._sync_picking_moves_from_shipment(shipment)
             return picking
 
         picking_type = self._get_incoming_picking_type(po)
@@ -122,8 +341,12 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
             vals["move_type"] = po.picking_ids[:1].move_type if po.picking_ids else "direct"
 
         picking = self.env["stock.picking"].sudo().create(vals)
-        self._seed_moves_from_purchase(picking, po)
+        self._sync_picking_moves_from_shipment(shipment)
         return picking
+
+    # =====================================================================
+    #  CABECERA / SPREADSHEET
+    # =====================================================================
 
     def sync_shipment_header_to_picking(self, shipment):
         picking = self.get_or_create_picking_for_shipment(shipment)
@@ -246,12 +469,18 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
         picking = self.sync_shipment_header_to_picking(shipment)
         if not picking:
             return False
+
+        self._sync_picking_moves_from_shipment(shipment)
         self.sync_shipment_rows_to_spreadsheet(shipment)
         return picking
 
     def sync_all_shipments(self, proforma):
         for shipment in self.sorted_shipments(proforma.shipment_ids):
             self.sync_shipment(shipment)
+
+    # =====================================================================
+    #  ELIMINACIÓN
+    # =====================================================================
 
     def delete_picking_for_shipment(self, shipment):
         picking = self._find_picking_for_shipment(shipment)

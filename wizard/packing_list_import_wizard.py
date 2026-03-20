@@ -284,7 +284,6 @@ class PackingListImportWizard(models.TransientModel):
                 "x_referencia_proveedor": data.get("ref_proveedor"),
             })
 
-            # Guardar datos de la fila para matching de imágenes
             lot_creation_map.append({
                 'lot': lot,
                 'product_id': product.id,
@@ -368,22 +367,12 @@ class PackingListImportWizard(models.TransientModel):
         """
         Busca imágenes subidas por el proveedor en las packing.rows del portal
         y las vincula a los lotes recién creados como stock.lot.image.
-
-        Recibe lot_creation_map: lista de dicts con las claves de matching
-        (product_id, grosor, alto, ancho, quantity, bloque, tipo) y el lot creado.
-
-        Estrategia de matching secuencial:
-        - Las filas del portal y los lotes creados están en el mismo orden
-          (ambos se generan recorriendo los rows del spreadsheet/portal en secuencia).
-        - Se itera en paralelo: row del portal con imagen → lote en la misma posición.
-        - Fallback por dimensiones si el orden no cuadra.
         """
         if not lot_creation_map:
             return
 
         picking = self.picking_id
 
-        # Buscar la proforma asociada vía purchase_id
         po = self.env["purchase.order"].search([
             ("picking_ids", "in", picking.id)
         ], limit=1)
@@ -397,7 +386,6 @@ class PackingListImportWizard(models.TransientModel):
             _logger.info("[PL_IMAGES] Sin proforma para PO %s, no hay imágenes del portal.", po.name)
             return
 
-        # Recolectar todas las rows con imagen, en orden de secuencia
         rows_with_image = []
         for shipment in proforma.shipment_ids.sorted('sequence'):
             for packing in shipment.packing_ids:
@@ -422,7 +410,6 @@ class PackingListImportWizard(models.TransientModel):
             matched_lot_data = None
             matched_idx = None
 
-            # Paso 1: Buscar match exacto por producto + dimensiones
             for i, lot_data in enumerate(lot_creation_map):
                 if i in used_lot_indices:
                     continue
@@ -454,7 +441,6 @@ class PackingListImportWizard(models.TransientModel):
                         matched_idx = i
                         break
 
-            # Paso 2: Fallback — primer lote del mismo producto no usado
             if not matched_lot_data:
                 for i, lot_data in enumerate(lot_creation_map):
                     if i in used_lot_indices:
@@ -503,6 +489,10 @@ class PackingListImportWizard(models.TransientModel):
     # =========================================================================
 
     def _sync_quantities_to_po_lines(self):
+        """
+        Sincroniza SOLO campos informativos en la OC.
+        NO modifica product_qty de la compra, porque esa es la demanda original.
+        """
         picking = self.picking_id
         po = self.env["purchase.order"].search([("picking_ids", "in", picking.id)], limit=1)
 
@@ -510,21 +500,27 @@ class PackingListImportWizard(models.TransientModel):
             _logger.warning("[PL_SYNC] No se encontró PO asociada al picking.")
             return
 
-        for po_line in po.order_line:
-            product = po_line.product_id
-            move_lines = picking.move_line_ids.filtered(lambda ml: ml.product_id == product)
-            total_embarcado = sum(move_lines.mapped("qty_done"))
+        incoming_pickings = po.picking_ids.filtered(
+            lambda p: p.picking_type_code == "incoming" and p.state != "cancel"
+        )
 
-            if total_embarcado <= 0:
-                continue
+        for po_line in po.order_line.filtered(lambda l: not l.display_type and l.product_id):
+            total_embarcado = sum(
+                incoming_pickings.move_line_ids.filtered(
+                    lambda ml: ml.product_id.id == po_line.product_id.id
+                ).mapped("qty_done")
+            )
 
-            vals = {"x_qty_embarcada": total_embarcado}
+            vals = {
+                "x_qty_embarcada": total_embarcado,
+            }
+
             if not po_line.x_qty_solicitada_original:
                 vals["x_qty_solicitada_original"] = po_line.product_qty
-            vals["product_qty"] = total_embarcado
+
             po_line.write(vals)
 
-        _logger.info("[PL_SYNC] Cantidades sincronizadas a la OC %s.", po.name)
+        _logger.info("[PL_SYNC] Cantidades informativas sincronizadas a la OC %s.", po.name)
 
     # =========================================================================
     #  LECTURA DE SPREADSHEET
