@@ -1,93 +1,94 @@
 /* static/src/scss/supplier_portal.scss */
-/* v5.2 — White Canvas, Warm Accents, Wide Layout */
+/* v5.3 — White Canvas, Warm Accents, Wide Layout */
+/* Fixed: renamed @mixin hover → @mixin portal-hover to avoid Bootstrap conflict */
 
 /* ═══════════════════════════════════════════════════
    DESIGN TOKENS
    ═══════════════════════════════════════════════════ */
 
 /* Surfaces — white dominant */
-$bg-body:          #F7F7F6;
-$bg-card:          #FFFFFF;
-$bg-input:         #FFFFFF;
-$bg-elevated:      #FFFFFF;
-$bg-subtle:        #F5F4F2;
-$bg-inset:         #FAFAF9;
+$sp-portal-bg-body:          #F7F7F6;
+$sp-portal-bg-card:          #FFFFFF;
+$sp-portal-bg-input:         #FFFFFF;
+$sp-portal-bg-elevated:      #FFFFFF;
+$sp-portal-bg-subtle:        #F5F4F2;
+$sp-portal-bg-inset:         #FAFAF9;
 
 /* Brand — warm walnut, used sparingly */
-$primary:          #6B4226;
-$primary-hover:    #553418;
-$primary-muted:    #A67C5B;
-$primary-surface:  #FAF8F6;
-$primary-ghost:    rgba(107, 66, 38, 0.03);
+$sp-portal-primary:          #6B4226;
+$sp-portal-primary-hover:    #553418;
+$sp-portal-primary-muted:    #A67C5B;
+$sp-portal-primary-surface:  #FAF8F6;
+$sp-portal-primary-ghost:    rgba(107, 66, 38, 0.03);
 
 /* Neutral scale — high contrast */
-$text-primary:     #111111;
-$text-secondary:   #4A4A4A;
-$text-tertiary:    #888888;
-$text-inverse:     #FFFFFF;
+$sp-portal-text-primary:     #111111;
+$sp-portal-text-secondary:   #4A4A4A;
+$sp-portal-text-tertiary:    #888888;
+$sp-portal-text-inverse:     #FFFFFF;
 
-$border-default:   #E8E8E6;
-$border-subtle:    #F0F0EE;
-$border-strong:    #D4D4D0;
+$sp-portal-border-default:   #E8E8E6;
+$sp-portal-border-subtle:    #F0F0EE;
+$sp-portal-border-strong:    #D4D4D0;
 
 /* Semantic (kept for toasts/status only) */
-$green:            #059669;
-$red:              #DC2626;
-$amber:            #D97706;
+$sp-portal-green:            #059669;
+$sp-portal-red:              #DC2626;
+$sp-portal-amber:            #D97706;
 
 /* Radius system */
-$radius-sm:        6px;
-$radius-md:        10px;
-$radius-lg:        14px;
-$radius-xl:        20px;
-$radius-pill:      100px;
+$sp-portal-radius-sm:        6px;
+$sp-portal-radius-md:        10px;
+$sp-portal-radius-lg:        14px;
+$sp-portal-radius-xl:        20px;
+$sp-portal-radius-pill:      100px;
 
 /* Shadows — clean & subtle */
-$shadow-xs:        0 1px 2px rgba(0,0,0,0.03);
-$shadow-sm:        0 1px 4px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02);
-$shadow-md:        0 4px 12px rgba(0,0,0,0.05), 0 1px 3px rgba(0,0,0,0.03);
-$shadow-lg:        0 8px 24px rgba(0,0,0,0.06), 0 2px 6px rgba(0,0,0,0.03);
-$shadow-xl:        0 16px 40px rgba(0,0,0,0.08), 0 4px 10px rgba(0,0,0,0.03);
-$shadow-primary:   0 4px 16px rgba(107, 66, 38, 0.14);
+$sp-portal-shadow-xs:        0 1px 2px rgba(0,0,0,0.03);
+$sp-portal-shadow-sm:        0 1px 4px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02);
+$sp-portal-shadow-md:        0 4px 12px rgba(0,0,0,0.05), 0 1px 3px rgba(0,0,0,0.03);
+$sp-portal-shadow-lg:        0 8px 24px rgba(0,0,0,0.06), 0 2px 6px rgba(0,0,0,0.03);
+$sp-portal-shadow-xl:        0 16px 40px rgba(0,0,0,0.08), 0 4px 10px rgba(0,0,0,0.03);
+$sp-portal-shadow-primary:   0 4px 16px rgba(107, 66, 38, 0.14);
 
 /* Spacing scale (4px base) */
-$sp-1: 4px;
-$sp-2: 8px;
-$sp-3: 12px;
-$sp-4: 16px;
-$sp-5: 20px;
-$sp-6: 24px;
-$sp-8: 32px;
-$sp-10: 40px;
-$sp-12: 48px;
+$sp-portal-1: 4px;
+$sp-portal-2: 8px;
+$sp-portal-3: 12px;
+$sp-portal-4: 16px;
+$sp-portal-5: 20px;
+$sp-portal-6: 24px;
+$sp-portal-8: 32px;
+$sp-portal-10: 40px;
+$sp-portal-12: 48px;
 
 /* Typography */
-$font-body:    'DM Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-$font-display: 'DM Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-$font-mono:    'JetBrains Mono', 'SF Mono', 'Cascadia Code', monospace;
+$sp-portal-font-body:    'DM Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+$sp-portal-font-display: 'DM Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+$sp-portal-font-mono:    'JetBrains Mono', 'SF Mono', 'Cascadia Code', monospace;
 
 /* Timing */
-$ease-out:     cubic-bezier(0.16, 1, 0.3, 1);
-$ease-spring:  cubic-bezier(0.34, 1.56, 0.64, 1);
-$duration-fast: 150ms;
-$duration-base: 220ms;
-$duration-slow: 350ms;
+$sp-portal-ease-out:     cubic-bezier(0.16, 1, 0.3, 1);
+$sp-portal-ease-spring:  cubic-bezier(0.34, 1.56, 0.64, 1);
+$sp-portal-duration-fast: 150ms;
+$sp-portal-duration-base: 220ms;
+$sp-portal-duration-slow: 350ms;
 
 /* Input height */
-$input-h: 36px;
+$sp-portal-input-h: 36px;
 
 /* ═══════════════════════════════════════════════════
    BREAKPOINTS
    ═══════════════════════════════════════════════════ */
-@mixin mobile {
+@mixin sp-portal-mobile {
     @media (max-width: 767.98px) { @content; }
 }
 
-@mixin tablet {
+@mixin sp-portal-tablet {
     @media (min-width: 768px) and (max-width: 1024px) { @content; }
 }
 
-@mixin hover {
+@mixin sp-portal-hover {
     @media (hover: hover) and (pointer: fine) { &:hover { @content; } }
 }
 
@@ -95,9 +96,9 @@ $input-h: 36px;
    BASE
    ═══════════════════════════════════════════════════ */
 body {
-    background-color: $bg-body;
-    color: $text-primary;
-    font-family: $font-body;
+    background-color: $sp-portal-bg-body;
+    color: $sp-portal-text-primary;
+    font-family: $sp-portal-font-body;
     font-size: 0.9375rem;
     line-height: 1.55;
     overflow-x: hidden;
@@ -113,8 +114,8 @@ body {
    ═══════════════════════════════════════════════════ */
 .o_portal_header {
     background: rgba(255, 255, 255, 0.96);
-    border-bottom: 1px solid $border-default;
-    padding: $sp-3 $sp-6;
+    border-bottom: 1px solid $sp-portal-border-default;
+    padding: $sp-portal-3 $sp-portal-6;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -123,17 +124,17 @@ body {
     z-index: 1000;
     backdrop-filter: blur(20px) saturate(1.1);
     -webkit-backdrop-filter: blur(20px) saturate(1.1);
-    box-shadow: $shadow-xs;
+    box-shadow: $sp-portal-shadow-xs;
     flex-wrap: wrap;
-    gap: $sp-3;
+    gap: $sp-portal-3;
     min-height: 56px;
 
     .brand {
-        font-family: $font-display;
+        font-family: $sp-portal-font-display;
         font-size: 1.1rem;
         font-weight: 700;
         letter-spacing: 0.04em;
-        color: $primary;
+        color: $sp-portal-primary;
         display: flex;
         align-items: center;
         white-space: nowrap;
@@ -142,27 +143,27 @@ body {
         img {
             height: 32px;
             width: auto;
-            margin-right: $sp-3;
-            border-radius: $radius-sm;
+            margin-right: $sp-portal-3;
+            border-radius: $sp-portal-radius-sm;
         }
     }
 
     .header-controls {
         display: flex;
         align-items: center;
-        gap: $sp-4;
+        gap: $sp-portal-4;
         flex-wrap: wrap;
     }
 
     .po-info {
         text-align: right;
         min-width: 100px;
-        padding: $sp-2 $sp-3;
-        background: $bg-card;
+        padding: $sp-portal-2 $sp-portal-3;
+        background: $sp-portal-bg-card;
 
         .label {
             font-size: 0.62rem;
-            color: $text-tertiary;
+            color: $sp-portal-text-tertiary;
             text-transform: uppercase;
             letter-spacing: 0.08em;
             display: block;
@@ -173,9 +174,9 @@ body {
 
         .value {
             font-weight: 700;
-            color: $text-primary;
+            color: $sp-portal-text-primary;
             font-size: 0.88rem;
-            font-family: $font-mono;
+            font-family: $sp-portal-font-mono;
             letter-spacing: -0.01em;
             line-height: 1.2;
         }
@@ -184,47 +185,47 @@ body {
     .lang-selector-wrapper {
         display: flex;
         align-items: center;
-        background: $bg-card;
-        padding: $sp-1 $sp-3;
-        border-radius: $radius-sm;
-        border: 1px solid $border-default;
-        transition: border-color $duration-fast $ease-out;
+        background: $sp-portal-bg-card;
+        padding: $sp-portal-1 $sp-portal-3;
+        border-radius: $sp-portal-radius-sm;
+        border: 1px solid $sp-portal-border-default;
+        transition: border-color $sp-portal-duration-fast $sp-portal-ease-out;
 
-        @include hover {
-            border-color: $border-strong;
+        @include sp-portal-hover {
+            border-color: $sp-portal-border-strong;
         }
 
         .lang-select {
             background: transparent;
-            color: $text-primary;
+            color: $sp-portal-text-primary;
             border: none;
             font-size: 0.82rem;
             font-weight: 500;
             cursor: pointer;
             outline: none;
             max-width: 100px;
-            font-family: $font-body;
+            font-family: $sp-portal-font-body;
 
             option {
-                background: $bg-card;
-                color: $text-primary;
+                background: $sp-portal-bg-card;
+                color: $sp-portal-text-primary;
             }
         }
     }
 
-    @include mobile {
-        padding: $sp-3;
+    @include sp-portal-mobile {
+        padding: $sp-portal-3;
         flex-direction: column;
         align-items: stretch;
 
         .brand {
             justify-content: center;
-            margin-bottom: $sp-2;
+            margin-bottom: $sp-portal-2;
         }
 
         .header-controls {
             justify-content: space-between;
-            gap: $sp-2;
+            gap: $sp-portal-2;
         }
     }
 }
@@ -235,19 +236,19 @@ body {
 .o_portal_container {
     max-width: 85%;
     width: 85%;
-    margin: $sp-8 auto;
+    margin: $sp-portal-8 auto;
     padding-bottom: 160px;
 
-    @include tablet {
+    @include sp-portal-tablet {
         max-width: 92%;
         width: 92%;
     }
 
-    @include mobile {
+    @include sp-portal-mobile {
         max-width: 100%;
         width: 100%;
-        padding: 0 $sp-3 160px $sp-3;
-        margin-top: $sp-5;
+        padding: 0 $sp-portal-3 160px $sp-portal-3;
+        margin-top: $sp-portal-5;
     }
 }
 
@@ -255,36 +256,36 @@ body {
    SHIPMENT CARD (top-level info cards)
    ═══════════════════════════════════════════════════ */
 .shipment-card {
-    background: $bg-card;
-    border: 1px solid $border-default;
-    border-radius: $radius-lg;
-    margin-bottom: $sp-6;
-    box-shadow: $shadow-sm;
+    background: $sp-portal-bg-card;
+    border: 1px solid $sp-portal-border-default;
+    border-radius: $sp-portal-radius-lg;
+    margin-bottom: $sp-portal-6;
+    box-shadow: $sp-portal-shadow-sm;
     overflow: hidden;
-    transition: box-shadow $duration-base $ease-out;
+    transition: box-shadow $sp-portal-duration-base $sp-portal-ease-out;
 
-    @include hover {
-        box-shadow: $shadow-md;
+    @include sp-portal-hover {
+        box-shadow: $sp-portal-shadow-md;
     }
 
     .card-header {
-        background: $bg-card;
-        padding: $sp-4 $sp-5;
-        border-bottom: 1px solid $border-default;
+        background: $sp-portal-bg-card;
+        padding: $sp-portal-4 $sp-portal-5;
+        border-bottom: 1px solid $sp-portal-border-default;
         display: flex;
         align-items: center;
-        gap: $sp-3;
+        gap: $sp-portal-3;
 
         i {
-            color: $primary-muted;
+            color: $sp-portal-primary-muted;
             font-size: 1rem;
         }
 
         h3 {
             margin: 0;
-            font-family: $font-display;
+            font-family: $sp-portal-font-display;
             font-size: 0.88rem;
-            color: $text-primary;
+            color: $sp-portal-text-primary;
             font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 0.05em;
@@ -292,20 +293,20 @@ body {
     }
 
     .card-body {
-        padding: $sp-5;
+        padding: $sp-portal-5;
     }
 
     .card-actions {
         display: flex;
         justify-content: flex-end;
-        padding-top: $sp-4;
-        margin-top: $sp-4;
-        border-top: 1px solid $border-subtle;
+        padding-top: $sp-portal-4;
+        margin-top: $sp-portal-4;
+        border-top: 1px solid $sp-portal-border-subtle;
     }
 
-    @include mobile {
-        border-radius: $radius-md;
-        .card-body { padding: $sp-4; }
+    @include sp-portal-mobile {
+        border-radius: $sp-portal-radius-md;
+        .card-body { padding: $sp-portal-4; }
     }
 }
 
@@ -315,47 +316,47 @@ body {
 .modern-form-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: $sp-5;
+    gap: $sp-portal-5;
 
-    @include tablet { grid-template-columns: repeat(2, 1fr); }
-    @include mobile { grid-template-columns: 1fr; gap: $sp-4; }
+    @include sp-portal-tablet { grid-template-columns: repeat(2, 1fr); }
+    @include sp-portal-mobile { grid-template-columns: 1fr; gap: $sp-portal-4; }
 
     .form-group {
         display: flex;
         flex-direction: column;
 
         label {
-            color: $text-secondary;
+            color: $sp-portal-text-secondary;
             font-size: 0.72rem;
-            margin-bottom: $sp-2;
+            margin-bottom: $sp-portal-2;
             font-weight: 600;
             letter-spacing: 0.04em;
             text-transform: uppercase;
             display: flex;
             align-items: center;
-            gap: $sp-1;
+            gap: $sp-portal-1;
         }
 
         .form-control {
-            background-color: $bg-input !important;
-            border: 1px solid $border-default !important;
-            color: $text-primary !important;
-            border-radius: $radius-sm;
-            padding: 0 $sp-3;
+            background-color: $sp-portal-bg-input !important;
+            border: 1px solid $sp-portal-border-default !important;
+            color: $sp-portal-text-primary !important;
+            border-radius: $sp-portal-radius-sm;
+            padding: 0 $sp-portal-3;
             font-size: 0.875rem;
-            font-family: $font-body;
-            height: $input-h;
+            font-family: $sp-portal-font-body;
+            height: $sp-portal-input-h;
             box-sizing: border-box;
-            transition: border-color $duration-fast $ease-out, box-shadow $duration-fast $ease-out;
+            transition: border-color $sp-portal-duration-fast $sp-portal-ease-out, box-shadow $sp-portal-duration-fast $sp-portal-ease-out;
             width: 100%;
 
             &:focus {
-                border-color: $text-secondary !important;
+                border-color: $sp-portal-text-secondary !important;
                 box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.05);
                 outline: none;
             }
 
-            &::placeholder { color: $text-tertiary; }
+            &::placeholder { color: $sp-portal-text-tertiary; }
         }
     }
 
@@ -368,8 +369,8 @@ body {
 .badge-status {
     display: inline-flex;
     align-items: center;
-    padding: $sp-1 $sp-3;
-    border-radius: $radius-pill;
+    padding: $sp-portal-1 $sp-portal-3;
+    border-radius: $sp-portal-radius-pill;
     font-size: 0.65rem;
     font-weight: 700;
     text-transform: uppercase;
@@ -384,29 +385,29 @@ body {
 /* ═══════════════════════════════════════════════════
    SHIPMENTS SECTION
    ═══════════════════════════════════════════════════ */
-.shipments-section { margin-bottom: $sp-8; }
+.shipments-section { margin-bottom: $sp-portal-8; }
 
 .section-header-bar {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: $sp-5;
+    margin-bottom: $sp-portal-5;
 
     .section-title {
         display: flex;
         align-items: center;
-        gap: $sp-3;
+        gap: $sp-portal-3;
 
         i {
-            color: $primary-muted;
+            color: $sp-portal-primary-muted;
             font-size: 1.15rem;
         }
 
         h3 {
             margin: 0;
-            font-family: $font-display;
+            font-family: $sp-portal-font-display;
             font-size: 1.1rem;
-            color: $text-primary;
+            color: $sp-portal-text-primary;
             font-weight: 700;
             letter-spacing: -0.01em;
         }
@@ -419,28 +420,28 @@ body {
     justify-content: center;
     min-width: 22px;
     height: 22px;
-    border-radius: $radius-pill;
-    background: $text-primary;
-    color: $text-inverse;
+    border-radius: $sp-portal-radius-pill;
+    background: $sp-portal-text-primary;
+    color: $sp-portal-text-inverse;
     font-size: 0.7rem;
     font-weight: 700;
-    padding: 0 $sp-2;
-    font-family: $font-mono;
+    padding: 0 $sp-portal-2;
+    font-family: $sp-portal-font-mono;
 }
 
 /* ═══════════════════════════════════════════════════
    BUTTONS — Unified system
    ═══════════════════════════════════════════════════ */
-@mixin btn-base {
+@mixin sp-portal-btn-base {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: $sp-2;
+    gap: $sp-portal-2;
     border: none;
-    font-family: $font-body;
+    font-family: $sp-portal-font-body;
     font-weight: 600;
     cursor: pointer;
-    transition: all $duration-fast $ease-out;
+    transition: all $sp-portal-duration-fast $sp-portal-ease-out;
     white-space: nowrap;
 
     &:active { transform: scale(0.97); }
@@ -448,50 +449,50 @@ body {
 }
 
 .btn-add-shipment {
-    @include btn-base;
-    padding: $sp-2 $sp-5;
-    border-radius: $radius-md;
-    background: $text-primary;
-    color: $text-inverse;
+    @include sp-portal-btn-base;
+    padding: $sp-portal-2 $sp-portal-5;
+    border-radius: $sp-portal-radius-md;
+    background: $sp-portal-text-primary;
+    color: $sp-portal-text-inverse;
     font-size: 0.82rem;
-    box-shadow: $shadow-xs;
+    box-shadow: $sp-portal-shadow-xs;
 
-    @include hover {
+    @include sp-portal-hover {
         background: #000;
-        box-shadow: $shadow-md;
+        box-shadow: $sp-portal-shadow-md;
         transform: translateY(-1px);
     }
 }
 
 .btn-save-section {
-    @include btn-base;
-    padding: $sp-2 $sp-6;
-    border-radius: $radius-md;
-    background: $primary;
-    color: $text-inverse;
+    @include sp-portal-btn-base;
+    padding: $sp-portal-2 $sp-portal-6;
+    border-radius: $sp-portal-radius-md;
+    background: $sp-portal-primary;
+    color: $sp-portal-text-inverse;
     font-size: 0.82rem;
-    box-shadow: $shadow-xs;
+    box-shadow: $sp-portal-shadow-xs;
 
-    @include hover {
-        background: $primary-hover;
-        box-shadow: $shadow-primary;
+    @include sp-portal-hover {
+        background: $sp-portal-primary-hover;
+        box-shadow: $sp-portal-shadow-primary;
         transform: translateY(-1px);
     }
 }
 
 .btn-primary-custom {
-    @include btn-base;
-    background: $text-primary;
-    color: $text-inverse;
-    padding: $sp-3 $sp-8;
-    border-radius: $radius-pill;
+    @include sp-portal-btn-base;
+    background: $sp-portal-text-primary;
+    color: $sp-portal-text-inverse;
+    padding: $sp-portal-3 $sp-portal-8;
+    border-radius: $sp-portal-radius-pill;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.05em;
     font-size: 0.85rem;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
 
-    @include hover {
+    @include sp-portal-hover {
         background: #000;
         box-shadow: 0 6px 24px rgba(0, 0, 0, 0.2);
         transform: translateY(-1px);
@@ -503,15 +504,15 @@ body {
    ═══════════════════════════════════════════════════ */
 .empty-state {
     text-align: center;
-    padding: $sp-12 $sp-8;
-    color: $text-tertiary;
-    background: $bg-card;
-    border: 1.5px dashed $border-strong;
-    border-radius: $radius-lg;
+    padding: $sp-portal-12 $sp-portal-8;
+    color: $sp-portal-text-tertiary;
+    background: $sp-portal-bg-card;
+    border: 1.5px dashed $sp-portal-border-strong;
+    border-radius: $sp-portal-radius-lg;
 
     i {
-        color: $border-strong;
-        margin-bottom: $sp-4;
+        color: $sp-portal-border-strong;
+        margin-bottom: $sp-portal-4;
         opacity: 0.5;
     }
 
@@ -526,17 +527,17 @@ body {
    SHIPMENT BLOCK (accordion)
    ═══════════════════════════════════════════════════ */
 .shipment-block {
-    background: $bg-card;
-    border: 1px solid $border-default;
-    border-radius: $radius-lg;
-    margin-bottom: $sp-3;
-    box-shadow: $shadow-xs;
+    background: $sp-portal-bg-card;
+    border: 1px solid $sp-portal-border-default;
+    border-radius: $sp-portal-radius-lg;
+    margin-bottom: $sp-portal-3;
+    box-shadow: $sp-portal-shadow-xs;
     overflow: hidden;
-    transition: box-shadow $duration-base $ease-out, border-color $duration-base $ease-out;
+    transition: box-shadow $sp-portal-duration-base $sp-portal-ease-out, border-color $sp-portal-duration-base $sp-portal-ease-out;
 
     &.expanded {
-        box-shadow: $shadow-md;
-        border-color: $border-strong;
+        box-shadow: $sp-portal-shadow-md;
+        border-color: $sp-portal-border-strong;
     }
 }
 
@@ -544,41 +545,41 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: $sp-3 $sp-5;
-    background: $bg-card;
+    padding: $sp-portal-3 $sp-portal-5;
+    background: $sp-portal-bg-card;
     cursor: pointer;
     user-select: none;
     border-bottom: 1px solid transparent;
-    transition: background $duration-fast $ease-out;
+    transition: background $sp-portal-duration-fast $sp-portal-ease-out;
 
     .expanded & {
-        background: $bg-subtle;
-        border-bottom-color: $border-default;
+        background: $sp-portal-bg-subtle;
+        border-bottom-color: $sp-portal-border-default;
     }
 
-    @include hover {
-        background: $bg-inset;
+    @include sp-portal-hover {
+        background: $sp-portal-bg-inset;
     }
 }
 
 .shipment-block-title {
     display: flex;
     align-items: center;
-    gap: $sp-3;
+    gap: $sp-portal-3;
     min-width: 0;
 
     .shipment-name {
         font-weight: 700;
         font-size: 0.95rem;
-        color: $text-primary;
+        color: $sp-portal-text-primary;
         letter-spacing: -0.01em;
     }
 
     .shipment-status-pill {
         display: inline-flex;
         align-items: center;
-        padding: 2px $sp-3;
-        border-radius: $radius-pill;
+        padding: 2px $sp-portal-3;
+        border-radius: $sp-portal-radius-pill;
         font-size: 0.65rem;
         font-weight: 700;
         text-transform: uppercase;
@@ -597,20 +598,20 @@ body {
 
     .shipment-summary-chips {
         display: flex;
-        gap: $sp-1;
-        margin-left: $sp-2;
+        gap: $sp-portal-1;
+        margin-left: $sp-portal-2;
 
         .chip {
             display: inline-flex;
             align-items: center;
             gap: 3px;
-            padding: 2px $sp-2;
-            border-radius: $radius-sm;
+            padding: 2px $sp-portal-2;
+            border-radius: $sp-portal-radius-sm;
             font-size: 0.67rem;
             font-weight: 600;
-            background: $bg-subtle;
-            color: $text-tertiary;
-            font-family: $font-mono;
+            background: $sp-portal-bg-subtle;
+            color: $sp-portal-text-tertiary;
+            font-family: $sp-portal-font-mono;
 
             i { font-size: 0.6rem; opacity: 0.5; }
         }
@@ -619,39 +620,39 @@ body {
 
 .shipment-block-actions {
     display: flex;
-    gap: $sp-1;
+    gap: $sp-portal-1;
 
     button {
         width: 30px;
         height: 30px;
-        border-radius: $radius-sm;
-        border: 1px solid $border-default;
-        background: $bg-card;
-        color: $text-tertiary;
+        border-radius: $sp-portal-radius-sm;
+        border: 1px solid $sp-portal-border-default;
+        background: $sp-portal-bg-card;
+        color: $sp-portal-text-tertiary;
         display: inline-flex;
         align-items: center;
         justify-content: center;
         cursor: pointer;
-        transition: all $duration-fast $ease-out;
+        transition: all $sp-portal-duration-fast $sp-portal-ease-out;
         font-size: 0.8rem;
 
-        @include hover {
-            background: $bg-subtle;
-            color: $text-secondary;
-            border-color: $border-strong;
+        @include sp-portal-hover {
+            background: $sp-portal-bg-subtle;
+            color: $sp-portal-text-secondary;
+            border-color: $sp-portal-border-strong;
         }
     }
 
     .btn-delete-shipment {
-        @include hover {
+        @include sp-portal-hover {
             background: #FEF2F2;
-            color: $red;
+            color: $sp-portal-red;
             border-color: #FECACA;
         }
     }
 
     .btn-toggle-shipment i {
-        transition: transform $duration-base $ease-out;
+        transition: transform $sp-portal-duration-base $sp-portal-ease-out;
     }
     .expanded & .btn-toggle-shipment i {
         transform: rotate(180deg);
@@ -659,8 +660,8 @@ body {
 }
 
 .shipment-block-body {
-    padding: $sp-5;
-    @include mobile { padding: $sp-4; }
+    padding: $sp-portal-5;
+    @include sp-portal-mobile { padding: $sp-portal-4; }
 }
 
 /* ═══════════════════════════════════════════════════
@@ -669,8 +670,8 @@ body {
 .shipment-tabs {
     display: flex;
     gap: 0;
-    border-bottom: 1px solid $border-default;
-    margin-bottom: $sp-5;
+    border-bottom: 1px solid $sp-portal-border-default;
+    margin-bottom: $sp-portal-5;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
@@ -678,25 +679,25 @@ body {
 }
 
 .shipment-tab {
-    padding: $sp-3 $sp-5;
+    padding: $sp-portal-3 $sp-portal-5;
     font-size: 0.8rem;
     font-weight: 600;
-    color: $text-tertiary;
+    color: $sp-portal-text-tertiary;
     cursor: pointer;
     border-bottom: 2px solid transparent;
-    transition: all $duration-fast $ease-out;
+    transition: all $sp-portal-duration-fast $sp-portal-ease-out;
     white-space: nowrap;
     display: flex;
     align-items: center;
-    gap: $sp-2;
+    gap: $sp-portal-2;
 
-    @include hover {
-        color: $text-secondary;
+    @include sp-portal-hover {
+        color: $sp-portal-text-secondary;
     }
 
     &.active {
-        color: $text-primary;
-        border-bottom-color: $text-primary;
+        color: $sp-portal-text-primary;
+        border-bottom-color: $sp-portal-text-primary;
         font-weight: 700;
     }
 
@@ -706,19 +707,19 @@ body {
         justify-content: center;
         min-width: 18px;
         height: 18px;
-        border-radius: $radius-pill;
-        background: $border-subtle;
-        color: $text-tertiary;
+        border-radius: $sp-portal-radius-pill;
+        background: $sp-portal-border-subtle;
+        color: $sp-portal-text-tertiary;
         font-size: 0.62rem;
         font-weight: 700;
-        padding: 0 $sp-1;
-        font-family: $font-mono;
-        transition: all $duration-fast $ease-out;
+        padding: 0 $sp-portal-1;
+        font-family: $sp-portal-font-mono;
+        transition: all $sp-portal-duration-fast $sp-portal-ease-out;
     }
 
     &.active .tab-count {
-        background: $text-primary;
-        color: $text-inverse;
+        background: $sp-portal-text-primary;
+        color: $sp-portal-text-inverse;
     }
 }
 
@@ -731,51 +732,51 @@ body {
    SUB-ITEM CARDS (Invoices, Packings, Containers)
    ═══════════════════════════════════════════════════ */
 .sub-item-card {
-    background: $bg-card;
-    border: 1px solid $border-default;
-    border-radius: $radius-md;
-    padding: $sp-4;
-    margin-bottom: $sp-3;
+    background: $sp-portal-bg-card;
+    border: 1px solid $sp-portal-border-default;
+    border-radius: $sp-portal-radius-md;
+    padding: $sp-portal-4;
+    margin-bottom: $sp-portal-3;
     position: relative;
-    transition: border-color $duration-fast $ease-out, box-shadow $duration-fast $ease-out;
+    transition: border-color $sp-portal-duration-fast $sp-portal-ease-out, box-shadow $sp-portal-duration-fast $sp-portal-ease-out;
 
-    @include hover {
-        box-shadow: $shadow-xs;
+    @include sp-portal-hover {
+        box-shadow: $sp-portal-shadow-xs;
     }
 
     .sub-item-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: $sp-4;
-        padding-bottom: $sp-3;
-        border-bottom: 1px solid $border-subtle;
+        margin-bottom: $sp-portal-4;
+        padding-bottom: $sp-portal-3;
+        border-bottom: 1px solid $sp-portal-border-subtle;
 
         .sub-item-title {
             font-weight: 700;
             font-size: 0.85rem;
-            color: $text-primary;
+            color: $sp-portal-text-primary;
             letter-spacing: -0.01em;
         }
 
         .sub-item-actions button {
             width: 26px;
             height: 26px;
-            border-radius: $radius-sm;
-            border: 1px solid $border-default;
-            background: $bg-card;
-            color: $text-tertiary;
+            border-radius: $sp-portal-radius-sm;
+            border: 1px solid $sp-portal-border-default;
+            background: $sp-portal-bg-card;
+            color: $sp-portal-text-tertiary;
             cursor: pointer;
             font-size: 0.7rem;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            transition: all $duration-fast $ease-out;
-            margin-left: $sp-1;
+            transition: all $sp-portal-duration-fast $sp-portal-ease-out;
+            margin-left: $sp-portal-1;
 
-            @include hover {
+            @include sp-portal-hover {
                 background: #FEF2F2;
-                color: $red;
+                color: $sp-portal-red;
                 border-color: #FECACA;
             }
         }
@@ -784,9 +785,9 @@ body {
     .sub-item-grid {
         display: grid;
         grid-template-columns: repeat(3, 1fr);
-        gap: $sp-3;
+        gap: $sp-portal-3;
 
-        @include mobile { grid-template-columns: 1fr; }
+        @include sp-portal-mobile { grid-template-columns: 1fr; }
     }
 
     .sub-item-field {
@@ -795,7 +796,7 @@ body {
 
         label {
             font-size: 0.68rem;
-            color: $text-tertiary;
+            color: $sp-portal-text-tertiary;
             font-weight: 600;
             margin-bottom: 3px;
             text-transform: uppercase;
@@ -803,39 +804,39 @@ body {
         }
 
         input, select {
-            background: $bg-input;
-            border: 1px solid $border-default;
-            color: $text-primary;
-            border-radius: $radius-sm;
-            padding: 0 $sp-2;
+            background: $sp-portal-bg-input;
+            border: 1px solid $sp-portal-border-default;
+            color: $sp-portal-text-primary;
+            border-radius: $sp-portal-radius-sm;
+            padding: 0 $sp-portal-2;
             font-size: 0.82rem;
-            font-family: $font-body;
-            height: $input-h;
+            font-family: $sp-portal-font-body;
+            height: $sp-portal-input-h;
             box-sizing: border-box;
-            transition: border-color $duration-fast $ease-out, box-shadow $duration-fast $ease-out;
+            transition: border-color $sp-portal-duration-fast $sp-portal-ease-out, box-shadow $sp-portal-duration-fast $sp-portal-ease-out;
 
             &:focus {
                 outline: none;
-                border-color: $text-secondary;
+                border-color: $sp-portal-text-secondary;
                 box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.04);
             }
         }
 
         textarea {
-            background: $bg-input;
-            border: 1px solid $border-default;
-            color: $text-primary;
-            border-radius: $radius-sm;
-            padding: $sp-2;
+            background: $sp-portal-bg-input;
+            border: 1px solid $sp-portal-border-default;
+            color: $sp-portal-text-primary;
+            border-radius: $sp-portal-radius-sm;
+            padding: $sp-portal-2;
             font-size: 0.82rem;
-            font-family: $font-body;
+            font-family: $sp-portal-font-body;
             box-sizing: border-box;
             resize: vertical;
-            transition: border-color $duration-fast $ease-out, box-shadow $duration-fast $ease-out;
+            transition: border-color $sp-portal-duration-fast $sp-portal-ease-out, box-shadow $sp-portal-duration-fast $sp-portal-ease-out;
 
             &:focus {
                 outline: none;
-                border-color: $text-secondary;
+                border-color: $sp-portal-text-secondary;
                 box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.04);
             }
         }
@@ -845,20 +846,20 @@ body {
 }
 
 .btn-add-sub-item {
-    @include btn-base;
+    @include sp-portal-btn-base;
     width: 100%;
-    padding: $sp-3;
-    border-radius: $radius-md;
-    border: 1.5px dashed $border-strong;
+    padding: $sp-portal-3;
+    border-radius: $sp-portal-radius-md;
+    border: 1.5px dashed $sp-portal-border-strong;
     background: transparent;
-    color: $text-tertiary;
+    color: $sp-portal-text-tertiary;
     font-size: 0.82rem;
-    margin-top: $sp-2;
+    margin-top: $sp-portal-2;
 
-    @include hover {
-        color: $text-secondary;
-        border-color: $text-tertiary;
-        background: $bg-subtle;
+    @include sp-portal-hover {
+        color: $sp-portal-text-secondary;
+        border-color: $sp-portal-text-tertiary;
+        background: $sp-portal-bg-subtle;
     }
 }
 
@@ -866,12 +867,12 @@ body {
    PRODUCT SECTION (Packing rows table)
    ═══════════════════════════════════════════════════ */
 .product-section {
-    background: $bg-card;
-    border: 1px solid $border-default;
-    border-radius: $radius-lg;
-    margin-bottom: $sp-5;
+    background: $sp-portal-bg-card;
+    border: 1px solid $sp-portal-border-default;
+    border-radius: $sp-portal-radius-lg;
+    margin-bottom: $sp-portal-5;
     overflow: visible;
-    box-shadow: $shadow-sm;
+    box-shadow: $sp-portal-shadow-sm;
 
     &.is-collapsed {
         .table-responsive {
@@ -880,53 +881,53 @@ body {
     }
 
     .product-header {
-        background: $bg-card;
-        padding: $sp-4 $sp-5;
+        background: $sp-portal-bg-card;
+        padding: $sp-portal-4 $sp-portal-5;
         display: flex;
         justify-content: space-between;
         align-items: center;
-        border-bottom: 1px solid $border-default;
+        border-bottom: 1px solid $sp-portal-border-default;
         flex-wrap: wrap;
-        gap: $sp-3;
+        gap: $sp-portal-3;
 
         h3 {
             margin: 0;
-            font-family: $font-display;
+            font-family: $sp-portal-font-display;
             font-size: 1rem;
-            color: $text-primary;
+            color: $sp-portal-text-primary;
             font-weight: 700;
             letter-spacing: -0.01em;
         }
 
         .badge {
-            background-color: $text-primary;
-            color: $text-inverse;
-            padding: 3px $sp-2;
-            border-radius: $radius-sm;
+            background-color: $sp-portal-text-primary;
+            color: $sp-portal-text-inverse;
+            padding: 3px $sp-portal-2;
+            border-radius: $sp-portal-radius-sm;
             font-weight: 700;
             font-size: 0.68rem;
-            font-family: $font-mono;
+            font-family: $sp-portal-font-mono;
             letter-spacing: 0.02em;
         }
 
         .meta {
-            color: $text-secondary;
+            color: $sp-portal-text-secondary;
             font-size: 0.85rem;
             font-weight: 600;
             white-space: nowrap;
-            font-family: $font-mono;
+            font-family: $sp-portal-font-mono;
         }
     }
 
     .product-header-main {
         display: flex;
         flex-direction: column;
-        gap: $sp-2;
+        gap: $sp-portal-2;
     }
 
     .product-header-submeta {
         display: flex;
-        gap: $sp-2;
+        gap: $sp-portal-2;
         flex-wrap: wrap;
     }
 
@@ -941,21 +942,21 @@ body {
     position: sticky;
     top: 70px;
     z-index: 30;
-    box-shadow: $shadow-xs;
+    box-shadow: $sp-portal-shadow-xs;
 }
 
 .btn-toggle-product {
-    @include btn-base;
-    padding: $sp-2 $sp-3;
-    border-radius: $radius-sm;
-    border: 1px solid $border-default;
-    background: $bg-card;
-    color: $text-secondary;
+    @include sp-portal-btn-base;
+    padding: $sp-portal-2 $sp-portal-3;
+    border-radius: $sp-portal-radius-sm;
+    border: 1px solid $sp-portal-border-default;
+    background: $sp-portal-bg-card;
+    color: $sp-portal-text-secondary;
     font-size: 0.78rem;
 
-    @include hover {
-        background: $bg-subtle;
-        border-color: $border-strong;
+    @include sp-portal-hover {
+        background: $sp-portal-bg-subtle;
+        border-color: $sp-portal-border-strong;
     }
 }
 
@@ -965,54 +966,54 @@ body {
 .portal-table {
     width: 100%;
     border-collapse: collapse;
-    color: $text-primary;
+    color: $sp-portal-text-primary;
     table-layout: auto;
 
     thead {
-        background: $bg-inset;
+        background: $sp-portal-bg-inset;
 
         th {
             text-align: left;
-            padding: $sp-3;
-            color: $text-tertiary;
+            padding: $sp-portal-3;
+            color: $sp-portal-text-tertiary;
             font-size: 0.68rem;
             font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 0.06em;
-            border-bottom: 1px solid $border-default;
+            border-bottom: 1px solid $sp-portal-border-default;
             white-space: nowrap;
-            background: $bg-inset;
+            background: $sp-portal-bg-inset;
         }
     }
 
     tbody {
         tr {
-            transition: background $duration-fast $ease-out;
+            transition: background $sp-portal-duration-fast $sp-portal-ease-out;
 
-            @include hover {
-                background: $bg-inset;
+            @include sp-portal-hover {
+                background: $sp-portal-bg-inset;
             }
         }
 
         td {
-            padding: $sp-2 $sp-3;
-            border-bottom: 1px solid $border-subtle;
+            padding: $sp-portal-2 $sp-portal-3;
+            border-bottom: 1px solid $sp-portal-border-subtle;
             vertical-align: middle;
             font-size: 0.85rem;
 
             .area-display {
-                color: $primary;
+                color: $sp-portal-primary;
                 font-weight: 700;
-                font-family: $font-mono;
+                font-family: $sp-portal-font-mono;
                 font-size: 0.88rem;
                 letter-spacing: -0.02em;
             }
         }
     }
 
-    .bg-light { background-color: $bg-inset; }
+    .bg-light { background-color: $sp-portal-bg-inset; }
 
-    @include mobile {
+    @include sp-portal-mobile {
         display: block;
 
         thead { display: none; }
@@ -1020,20 +1021,20 @@ body {
 
         tr {
             display: block;
-            background: $bg-card;
-            margin: $sp-3 0;
-            border-radius: $radius-md;
-            border: 1px solid $border-default;
-            padding: $sp-4;
+            background: $sp-portal-bg-card;
+            margin: $sp-portal-3 0;
+            border-radius: $sp-portal-radius-md;
+            border: 1px solid $sp-portal-border-default;
+            padding: $sp-portal-4;
             position: relative;
-            box-shadow: $shadow-xs;
+            box-shadow: $sp-portal-shadow-xs;
         }
 
         td {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: $sp-2 0;
+            padding: $sp-portal-2 0;
             border: none;
             text-align: right;
 
@@ -1042,9 +1043,9 @@ body {
                 font-size: 0.7rem;
                 text-transform: uppercase;
                 letter-spacing: 0.05em;
-                color: $text-tertiary;
+                color: $sp-portal-text-tertiary;
                 font-weight: 700;
-                margin-right: $sp-4;
+                margin-right: $sp-portal-4;
                 text-align: left;
                 flex-shrink: 0;
             }
@@ -1052,8 +1053,8 @@ body {
 
         td:last-child {
             position: absolute;
-            top: $sp-3;
-            right: $sp-3;
+            top: $sp-portal-3;
+            right: $sp-portal-3;
             padding: 0;
             width: auto;
 
@@ -1070,10 +1071,10 @@ body {
         position: sticky;
         top: 148px;
         z-index: 20;
-        box-shadow: inset 0 -1px 0 $border-default;
+        box-shadow: inset 0 -1px 0 $sp-portal-border-default;
     }
 
-    @include mobile {
+    @include sp-portal-mobile {
         thead th {
             position: static;
         }
@@ -1090,53 +1091,53 @@ body {
     width: 100%;
 
     input, select {
-        background: $bg-input;
-        border: 1px solid $border-default;
-        color: $text-primary;
-        padding: 0 $sp-2;
-        border-radius: $radius-sm;
+        background: $sp-portal-bg-input;
+        border: 1px solid $sp-portal-border-default;
+        color: $sp-portal-text-primary;
+        padding: 0 $sp-portal-2;
+        border-radius: $sp-portal-radius-sm;
         width: 100%;
         min-width: 0;
-        font-family: $font-mono;
+        font-family: $sp-portal-font-mono;
         font-size: 0.82rem;
-        height: $input-h;
-        line-height: $input-h;
+        height: $sp-portal-input-h;
+        line-height: $sp-portal-input-h;
         box-sizing: border-box;
-        transition: border-color $duration-fast $ease-out, box-shadow $duration-fast $ease-out;
+        transition: border-color $sp-portal-duration-fast $sp-portal-ease-out, box-shadow $sp-portal-duration-fast $sp-portal-ease-out;
 
         &:focus {
             outline: none;
-            border-color: $text-secondary;
-            background: $bg-card;
+            border-color: $sp-portal-text-secondary;
+            background: $sp-portal-bg-card;
             box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.04);
         }
     }
 
     .btn-fill-down {
-        background: $bg-subtle;
-        border: 1px solid $border-default;
-        color: $text-tertiary;
+        background: $sp-portal-bg-subtle;
+        border: 1px solid $sp-portal-border-default;
+        color: $sp-portal-text-tertiary;
         padding: 0;
-        border-radius: $radius-sm;
+        border-radius: $sp-portal-radius-sm;
         min-width: 28px;
         flex-shrink: 0;
-        height: $input-h;
+        height: $sp-portal-input-h;
         font-size: 0.75rem;
         cursor: pointer;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        transition: all $duration-fast $ease-out;
+        transition: all $sp-portal-duration-fast $sp-portal-ease-out;
 
-        @include hover {
-            color: $text-inverse;
-            background: $text-primary;
-            border-color: $text-primary;
+        @include sp-portal-hover {
+            color: $sp-portal-text-inverse;
+            background: $sp-portal-text-primary;
+            border-color: $sp-portal-text-primary;
         }
 
         &:active { transform: translateY(1px); }
 
-        @include mobile { display: none; }
+        @include sp-portal-mobile { display: none; }
     }
 }
 
@@ -1148,46 +1149,46 @@ body {
 .btn-action {
     width: 30px;
     height: 30px;
-    border-radius: $radius-sm;
+    border-radius: $sp-portal-radius-sm;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     background: #FEF2F2;
-    color: $red;
+    color: $sp-portal-red;
     border: 1px solid #FECACA;
-    transition: all $duration-fast $ease-out;
+    transition: all $sp-portal-duration-fast $sp-portal-ease-out;
     font-size: 0.8rem;
 
-    @include hover {
+    @include sp-portal-hover {
         background: #FEE2E2;
-        box-shadow: $shadow-xs;
+        box-shadow: $sp-portal-shadow-xs;
     }
 }
 
 .table-actions {
-    padding: $sp-4;
+    padding: $sp-portal-4;
     display: flex;
-    gap: $sp-3;
-    background: $bg-inset;
-    border-top: 1px solid $border-subtle;
+    gap: $sp-portal-3;
+    background: $sp-portal-bg-inset;
+    border-top: 1px solid $sp-portal-border-subtle;
     flex-wrap: wrap;
 
     .btn-add-row {
-        @include btn-base;
+        @include sp-portal-btn-base;
         flex: 1;
         min-width: 120px;
-        padding: $sp-3;
-        border-radius: $radius-md;
-        background: $bg-card;
-        border: 1.5px dashed $border-strong;
-        color: $text-tertiary;
+        padding: $sp-portal-3;
+        border-radius: $sp-portal-radius-md;
+        background: $sp-portal-bg-card;
+        border: 1.5px dashed $sp-portal-border-strong;
+        color: $sp-portal-text-tertiary;
         font-size: 0.85rem;
 
-        @include hover {
-            color: $text-secondary;
-            border-color: $text-tertiary;
-            background: $bg-subtle;
+        @include sp-portal-hover {
+            color: $sp-portal-text-secondary;
+            border-color: $sp-portal-text-tertiary;
+            background: $sp-portal-bg-subtle;
         }
     }
 }
@@ -1196,8 +1197,8 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: $sp-4;
-    gap: $sp-3;
+    margin-bottom: $sp-portal-4;
+    gap: $sp-portal-3;
     flex-wrap: wrap;
 }
 
@@ -1206,12 +1207,12 @@ body {
     align-items: center;
     gap: 6px;
     padding: 6px 10px;
-    border-radius: $radius-pill;
-    background: $bg-subtle;
-    color: $text-secondary;
+    border-radius: $sp-portal-radius-pill;
+    background: $sp-portal-bg-subtle;
+    color: $sp-portal-text-secondary;
     font-size: 0.76rem;
     font-weight: 700;
-    border: 1px solid $border-default;
+    border: 1px solid $sp-portal-border-default;
 }
 
 /* ═══════════════════════════════════════════════════
@@ -1220,11 +1221,11 @@ body {
 .shipment-form-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: $sp-4;
-    margin-bottom: $sp-4;
+    gap: $sp-portal-4;
+    margin-bottom: $sp-portal-4;
 
-    @include tablet { grid-template-columns: repeat(2, 1fr); }
-    @include mobile { grid-template-columns: 1fr; }
+    @include sp-portal-tablet { grid-template-columns: repeat(2, 1fr); }
+    @include sp-portal-mobile { grid-template-columns: 1fr; }
 
     .sf-field {
         display: flex;
@@ -1232,53 +1233,53 @@ body {
 
         label {
             font-size: 0.7rem;
-            color: $text-tertiary;
+            color: $sp-portal-text-tertiary;
             font-weight: 600;
-            margin-bottom: $sp-1;
+            margin-bottom: $sp-portal-1;
             text-transform: uppercase;
             letter-spacing: 0.05em;
         }
 
         input, select {
-            background: $bg-input;
-            border: 1px solid $border-default;
-            color: $text-primary;
-            border-radius: $radius-sm;
-            padding: 0 $sp-3;
+            background: $sp-portal-bg-input;
+            border: 1px solid $sp-portal-border-default;
+            color: $sp-portal-text-primary;
+            border-radius: $sp-portal-radius-sm;
+            padding: 0 $sp-portal-3;
             font-size: 0.85rem;
-            font-family: $font-body;
-            height: $input-h;
+            font-family: $sp-portal-font-body;
+            height: $sp-portal-input-h;
             box-sizing: border-box;
-            transition: border-color $duration-fast $ease-out, box-shadow $duration-fast $ease-out;
+            transition: border-color $sp-portal-duration-fast $sp-portal-ease-out, box-shadow $sp-portal-duration-fast $sp-portal-ease-out;
 
             &:focus {
                 outline: none;
-                border-color: $text-secondary;
+                border-color: $sp-portal-text-secondary;
                 box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.04);
             }
 
-            &::placeholder { color: $text-tertiary; }
+            &::placeholder { color: $sp-portal-text-tertiary; }
         }
 
         textarea {
-            background: $bg-input;
-            border: 1px solid $border-default;
-            color: $text-primary;
-            border-radius: $radius-sm;
-            padding: $sp-2 $sp-3;
+            background: $sp-portal-bg-input;
+            border: 1px solid $sp-portal-border-default;
+            color: $sp-portal-text-primary;
+            border-radius: $sp-portal-radius-sm;
+            padding: $sp-portal-2 $sp-portal-3;
             font-size: 0.85rem;
-            font-family: $font-body;
+            font-family: $sp-portal-font-body;
             box-sizing: border-box;
             resize: vertical;
-            transition: border-color $duration-fast $ease-out, box-shadow $duration-fast $ease-out;
+            transition: border-color $sp-portal-duration-fast $sp-portal-ease-out, box-shadow $sp-portal-duration-fast $sp-portal-ease-out;
 
             &:focus {
                 outline: none;
-                border-color: $text-secondary;
+                border-color: $sp-portal-text-secondary;
                 box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.04);
             }
 
-            &::placeholder { color: $text-tertiary; }
+            &::placeholder { color: $sp-portal-text-tertiary; }
         }
 
         &.sf-wide { grid-column: 1 / -1; }
@@ -1294,8 +1295,8 @@ body {
     left: 0;
     width: 100%;
     background: rgba(255, 255, 255, 0.97);
-    padding: $sp-4 $sp-6;
-    border-top: 1px solid $border-default;
+    padding: $sp-portal-4 $sp-portal-6;
+    border-top: 1px solid $sp-portal-border-default;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -1305,49 +1306,49 @@ body {
     box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.04);
 
     .summary {
-        color: $text-primary;
+        color: $sp-portal-text-primary;
         font-size: 0.85rem;
         display: flex;
-        gap: $sp-6;
+        gap: $sp-portal-6;
 
         div {
             display: flex;
             align-items: center;
-            gap: $sp-2;
+            gap: $sp-portal-2;
             font-weight: 600;
 
             > i {
-                color: $text-tertiary;
+                color: $sp-portal-text-tertiary;
                 font-size: 0.8rem;
             }
         }
 
         .text-accent {
-            color: $text-primary;
+            color: $sp-portal-text-primary;
             font-weight: 800;
             font-size: 1.05rem;
-            font-family: $font-mono;
+            font-family: $sp-portal-font-mono;
         }
     }
 
-    @include mobile {
+    @include sp-portal-mobile {
         flex-direction: column;
-        gap: $sp-3;
-        padding: $sp-3;
+        gap: $sp-portal-3;
+        padding: $sp-portal-3;
 
         .summary {
             width: 100%;
             justify-content: space-around;
             font-size: 0.82rem;
-            background: $bg-subtle;
-            padding: $sp-3;
-            border-radius: $radius-md;
-            border: 1px solid $border-subtle;
+            background: $sp-portal-bg-subtle;
+            padding: $sp-portal-3;
+            border-radius: $sp-portal-radius-md;
+            border: 1px solid $sp-portal-border-subtle;
         }
 
         .btn-primary-custom {
             width: 100%;
-            padding: $sp-4;
+            padding: $sp-portal-4;
             font-size: 0.95rem;
         }
     }
@@ -1359,34 +1360,34 @@ body {
 .portal-toast {
     position: fixed;
     top: 70px;
-    right: $sp-5;
+    right: $sp-portal-5;
     z-index: 2000;
-    padding: $sp-3 $sp-5;
-    border-radius: $radius-md;
+    padding: $sp-portal-3 $sp-portal-5;
+    border-radius: $sp-portal-radius-md;
     font-size: 0.82rem;
     font-weight: 600;
-    box-shadow: $shadow-lg;
+    box-shadow: $sp-portal-shadow-lg;
     transform: translateX(calc(100% + 40px));
-    transition: transform $duration-slow $ease-out;
+    transition: transform $sp-portal-duration-slow $sp-portal-ease-out;
 
     &.show { transform: translateX(0); }
 
     &.toast-success {
-        background: $bg-card;
-        color: $green;
+        background: $sp-portal-bg-card;
+        color: $sp-portal-green;
         border: 1px solid #D1FAE5;
     }
 
     &.toast-error {
-        background: $bg-card;
-        color: $red;
+        background: $sp-portal-bg-card;
+        color: $sp-portal-red;
         border: 1px solid #FECACA;
     }
 
     &.toast-info {
-        background: $bg-card;
-        color: $text-primary;
-        border: 1px solid $border-default;
+        background: $sp-portal-bg-card;
+        color: $sp-portal-text-primary;
+        border: 1px solid $sp-portal-border-default;
     }
 }
 
@@ -1401,20 +1402,20 @@ body {
     align-items: center;
     justify-content: center;
     z-index: 10;
-    border-radius: $radius-lg;
+    border-radius: $sp-portal-radius-lg;
     backdrop-filter: blur(4px);
 
     .spinner {
         width: 28px;
         height: 28px;
-        border: 2.5px solid $border-default;
-        border-top-color: $text-primary;
+        border: 2.5px solid $sp-portal-border-default;
+        border-top-color: $sp-portal-text-primary;
         border-radius: 50%;
-        animation: spin 0.7s linear infinite;
+        animation: sp-portal-spin 0.7s linear infinite;
     }
 }
 
-@keyframes spin {
+@keyframes sp-portal-spin {
     to { transform: rotate(360deg); }
 }
 
@@ -1425,19 +1426,19 @@ body {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: $input-h;
-    height: $input-h;
-    border-radius: $radius-sm;
-    border: 1.5px dashed $border-strong;
-    background: $bg-inset;
-    transition: all $duration-fast $ease-out;
+    width: $sp-portal-input-h;
+    height: $sp-portal-input-h;
+    border-radius: $sp-portal-radius-sm;
+    border: 1.5px dashed $sp-portal-border-strong;
+    background: $sp-portal-bg-inset;
+    transition: all $sp-portal-duration-fast $sp-portal-ease-out;
     cursor: pointer;
     margin: 0;
     padding: 0;
 
-    @include hover {
-        background: $bg-subtle;
-        border-color: $text-tertiary;
+    @include sp-portal-hover {
+        background: $sp-portal-bg-subtle;
+        border-color: $sp-portal-text-tertiary;
         border-style: solid;
         transform: scale(1.04);
     }
@@ -1446,7 +1447,7 @@ body {
 
     i {
         font-size: 0.95rem;
-        color: $text-tertiary;
+        color: $sp-portal-text-tertiary;
     }
 }
 
@@ -1454,27 +1455,27 @@ body {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: $input-h;
-    height: $input-h;
-    border-radius: $radius-sm;
+    width: $sp-portal-input-h;
+    height: $sp-portal-input-h;
+    border-radius: $sp-portal-radius-sm;
     border: 1px solid #BBF7D0;
     background: #F0FDF4;
     cursor: pointer;
-    transition: all $duration-fast $ease-out;
+    transition: all $sp-portal-duration-fast $sp-portal-ease-out;
     padding: 0;
     position: relative;
 
-    @include hover {
+    @include sp-portal-hover {
         background: #FEF2F2;
         border-color: #FECACA;
 
-        i { color: $red !important; }
+        i { color: $sp-portal-red !important; }
 
         &::after {
             content: '\00d7';
             position: absolute;
             font-size: 0.65rem;
-            color: $red;
+            color: $sp-portal-red;
             font-weight: 700;
             top: -3px;
             right: -3px;
@@ -1494,48 +1495,48 @@ body {
    PACKING ROWS AREA
    ═══════════════════════════════════════════════════ */
 .packing-rows-area {
-    margin-top: $sp-4;
+    margin-top: $sp-portal-4;
 }
 
 .packing-setup-empty {
     display: flex;
     align-items: center;
-    gap: $sp-5;
-    padding: $sp-6;
-    border: 1.5px dashed $border-strong;
-    border-radius: $radius-lg;
-    background: $bg-inset;
+    gap: $sp-portal-5;
+    padding: $sp-portal-6;
+    border: 1.5px dashed $sp-portal-border-strong;
+    border-radius: $sp-portal-radius-lg;
+    background: $sp-portal-bg-inset;
 
     .packing-setup-empty-icon {
         width: 60px;
         height: 60px;
         border-radius: 50%;
-        background: $bg-card;
-        border: 1px solid $border-default;
+        background: $sp-portal-bg-card;
+        border: 1px solid $sp-portal-border-default;
         display: flex;
         align-items: center;
         justify-content: center;
-        color: $primary-muted;
+        color: $sp-portal-primary-muted;
         font-size: 1.4rem;
         flex-shrink: 0;
     }
 
     .packing-setup-empty-body {
         h4 {
-            margin: 0 0 $sp-2 0;
+            margin: 0 0 $sp-portal-2 0;
             font-size: 1rem;
-            color: $text-primary;
+            color: $sp-portal-text-primary;
             font-weight: 700;
         }
 
         p {
-            margin: 0 0 $sp-4 0;
-            color: $text-secondary;
+            margin: 0 0 $sp-portal-4 0;
+            color: $sp-portal-text-secondary;
             font-size: 0.88rem;
         }
     }
 
-    @include mobile {
+    @include sp-portal-mobile {
         flex-direction: column;
         text-align: center;
     }
@@ -1544,7 +1545,7 @@ body {
 /* ═══════════════════════════════════════════════════
    MOBILE OVERRIDES
    ═══════════════════════════════════════════════════ */
-@include mobile {
+@include sp-portal-mobile {
     .btn-photo-upload, .btn-photo-done {
         width: 40px;
         height: 40px;
@@ -1578,10 +1579,10 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-    background: $border-strong;
+    background: $sp-portal-border-strong;
     border-radius: 3px;
 
-    &:hover { background: $text-tertiary; }
+    &:hover { background: $sp-portal-text-tertiary; }
 }
 
 /* ═══════════════════════════════════════════════════
@@ -1621,7 +1622,7 @@ body {
     padding-bottom: 190px;
 }
 
-@include mobile {
+@include sp-portal-mobile {
     .portal-progress-strip {
         height: 10px;
     }
@@ -1640,7 +1641,7 @@ body {
    ═══════════════════════════════════════════════════ */
 ::selection {
     background: rgba(0, 0, 0, 0.08);
-    color: $text-primary;
+    color: $sp-portal-text-primary;
 }
 
 /* ═══════════════════════════════════════════════════
@@ -1649,23 +1650,23 @@ body {
 .autosave-bar {
     display: flex;
     align-items: center;
-    gap: $sp-3;
-    margin-bottom: $sp-4;
-    padding: $sp-2 $sp-3;
-    background: $bg-inset;
-    border: 1px solid $border-subtle;
-    border-radius: $radius-sm;
+    gap: $sp-portal-3;
+    margin-bottom: $sp-portal-4;
+    padding: $sp-portal-2 $sp-portal-3;
+    background: $sp-portal-bg-inset;
+    border: 1px solid $sp-portal-border-subtle;
+    border-radius: $sp-portal-radius-sm;
     font-size: 0.74rem;
-    color: $text-tertiary;
+    color: $sp-portal-text-tertiary;
 
     .autosave-label {
         display: flex;
         align-items: center;
-        gap: $sp-1;
+        gap: $sp-portal-1;
         font-weight: 600;
         letter-spacing: 0.02em;
 
-        i { color: $primary-muted; }
+        i { color: $sp-portal-primary-muted; }
     }
 
     .autosave-indicator {
@@ -1685,15 +1686,15 @@ body {
 
     .modern-date-input {
         width: 100%;
-        background: $bg-input;
-        border: 1px solid $border-default;
-        color: $text-primary;
-        border-radius: $radius-sm;
-        padding: 0 $sp-3;
+        background: $sp-portal-bg-input;
+        border: 1px solid $sp-portal-border-default;
+        color: $sp-portal-text-primary;
+        border-radius: $sp-portal-radius-sm;
+        padding: 0 $sp-portal-3;
         padding-right: 34px;
         font-size: 0.85rem;
-        font-family: $font-body;
-        height: $input-h;
+        font-family: $sp-portal-font-body;
+        height: $sp-portal-input-h;
         box-sizing: border-box;
         cursor: pointer;
         appearance: none;
@@ -1710,15 +1711,15 @@ body {
 
         &:focus {
             outline: none;
-            border-color: $text-secondary;
+            border-color: $sp-portal-text-secondary;
             box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.04);
         }
     }
 
     .modern-date-icon {
         position: absolute;
-        right: $sp-3;
-        color: $primary-muted;
+        right: $sp-portal-3;
+        color: $sp-portal-primary-muted;
         font-size: 0.85rem;
         pointer-events: none;
         line-height: 1;
@@ -1734,16 +1735,16 @@ body {
    INFO HINT (BL tab message)
    ═══════════════════════════════════════════════════ */
 .info-hint {
-    margin-top: $sp-3;
-    padding: $sp-3 $sp-4;
+    margin-top: $sp-portal-3;
+    padding: $sp-portal-3 $sp-portal-4;
     background: #f0f9ff;
     border: 1px solid #bae6fd;
-    border-radius: $radius-md;
+    border-radius: $sp-portal-radius-md;
     font-size: 0.82rem;
     color: #0369a1;
     line-height: 1.5;
 
-    i { margin-right: $sp-1; }
+    i { margin-right: $sp-portal-1; }
 
     strong { font-weight: 700; }
 }
@@ -1766,7 +1767,7 @@ body {
     display: none;
     align-items: center;
     justify-content: center;
-    padding: $sp-6;
+    padding: $sp-portal-6;
     backdrop-filter: blur(4px);
 
     &.show {
@@ -1777,10 +1778,10 @@ body {
 .portal-modal {
     width: min(1100px, 100%);
     max-height: calc(100vh - 60px);
-    background: $bg-card;
-    border-radius: $radius-xl;
-    box-shadow: $shadow-xl;
-    border: 1px solid $border-default;
+    background: $sp-portal-bg-card;
+    border-radius: $sp-portal-radius-xl;
+    box-shadow: $sp-portal-shadow-xl;
+    border: 1px solid $sp-portal-border-default;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -1790,21 +1791,21 @@ body {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    gap: $sp-4;
-    padding: $sp-5 $sp-6;
-    border-bottom: 1px solid $border-default;
-    background: $bg-card;
+    gap: $sp-portal-4;
+    padding: $sp-portal-5 $sp-portal-6;
+    border-bottom: 1px solid $sp-portal-border-default;
+    background: $sp-portal-bg-card;
 
     h3 {
-        margin: 0 0 $sp-1 0;
+        margin: 0 0 $sp-portal-1 0;
         font-size: 1.1rem;
         font-weight: 800;
-        color: $text-primary;
+        color: $sp-portal-text-primary;
     }
 
     p {
         margin: 0;
-        color: $text-secondary;
+        color: $sp-portal-text-secondary;
         font-size: 0.88rem;
     }
 }
@@ -1813,45 +1814,45 @@ body {
     width: 36px;
     height: 36px;
     border-radius: 50%;
-    border: 1px solid $border-default;
-    background: $bg-card;
-    color: $text-tertiary;
+    border: 1px solid $sp-portal-border-default;
+    background: $sp-portal-bg-card;
+    color: $sp-portal-text-tertiary;
     cursor: pointer;
     display: inline-flex;
     align-items: center;
     justify-content: center;
 
-    @include hover {
-        background: $bg-subtle;
-        color: $text-primary;
+    @include sp-portal-hover {
+        background: $sp-portal-bg-subtle;
+        color: $sp-portal-text-primary;
     }
 }
 
 .portal-modal-body {
-    padding: $sp-5 $sp-6;
+    padding: $sp-portal-5 $sp-portal-6;
     overflow: auto;
-    background: $bg-body;
+    background: $sp-portal-bg-body;
 }
 
 .portal-modal-footer {
     display: flex;
     justify-content: flex-end;
-    gap: $sp-3;
-    padding: $sp-4 $sp-6;
-    border-top: 1px solid $border-default;
-    background: $bg-card;
+    gap: $sp-portal-3;
+    padding: $sp-portal-4 $sp-portal-6;
+    border-top: 1px solid $sp-portal-border-default;
+    background: $sp-portal-bg-card;
 }
 
 .setup-product-card {
-    background: $bg-card;
-    border: 1px solid $border-default;
-    border-radius: $radius-lg;
-    margin-bottom: $sp-4;
+    background: $sp-portal-bg-card;
+    border: 1px solid $sp-portal-border-default;
+    border-radius: $sp-portal-radius-lg;
+    margin-bottom: $sp-portal-4;
     overflow: hidden;
 
     &.is-enabled {
-        border-color: $primary-muted;
-        box-shadow: $shadow-sm;
+        border-color: $sp-portal-primary-muted;
+        box-shadow: $sp-portal-shadow-sm;
     }
 }
 
@@ -1859,28 +1860,28 @@ body {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: $sp-3;
-    padding: $sp-4 $sp-5;
-    background: $bg-card;
-    border-bottom: 1px solid $border-subtle;
+    gap: $sp-portal-3;
+    padding: $sp-portal-4 $sp-portal-5;
+    background: $sp-portal-bg-card;
+    border-bottom: 1px solid $sp-portal-border-subtle;
 }
 
 .setup-product-check {
     display: flex;
     align-items: center;
-    gap: $sp-3;
+    gap: $sp-portal-3;
     font-weight: 700;
-    color: $text-primary;
+    color: $sp-portal-text-primary;
     margin: 0;
 
     input[type="checkbox"] {
         width: 18px;
         height: 18px;
-        accent-color: $primary;
+        accent-color: $sp-portal-primary;
     }
 
     small {
-        color: $text-tertiary;
+        color: $sp-portal-text-tertiary;
         font-weight: 500;
     }
 }
@@ -1889,23 +1890,23 @@ body {
     display: inline-flex;
     align-items: center;
     padding: 5px 10px;
-    border-radius: $radius-pill;
-    background: $bg-subtle;
-    border: 1px solid $border-default;
-    color: $text-secondary;
+    border-radius: $sp-portal-radius-pill;
+    background: $sp-portal-bg-subtle;
+    border: 1px solid $sp-portal-border-default;
+    color: $sp-portal-text-secondary;
     font-size: 0.72rem;
     font-weight: 700;
 }
 
 .setup-product-body {
-    padding: $sp-5;
-    background: $bg-card;
+    padding: $sp-portal-5;
+    background: $sp-portal-bg-card;
 }
 
 .setup-product-controls {
     display: flex;
-    gap: $sp-4;
-    margin-bottom: $sp-4;
+    gap: $sp-portal-4;
+    margin-bottom: $sp-portal-4;
     flex-wrap: wrap;
 }
 
@@ -1919,23 +1920,23 @@ body {
     label {
         font-size: 0.72rem;
         font-weight: 700;
-        color: $text-tertiary;
+        color: $sp-portal-text-tertiary;
         text-transform: uppercase;
         letter-spacing: 0.05em;
     }
 
     input {
-        height: $input-h;
-        border-radius: $radius-sm;
-        border: 1px solid $border-default;
-        background: $bg-input;
-        color: $text-primary;
-        padding: 0 $sp-3;
+        height: $sp-portal-input-h;
+        border-radius: $sp-portal-radius-sm;
+        border: 1px solid $sp-portal-border-default;
+        background: $sp-portal-bg-input;
+        color: $sp-portal-text-primary;
+        padding: 0 $sp-portal-3;
         font-size: 0.86rem;
 
         &:focus {
             outline: none;
-            border-color: $text-secondary;
+            border-color: $sp-portal-text-secondary;
             box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.04);
         }
     }
@@ -1944,32 +1945,32 @@ body {
 .setup-blocks-list {
     display: flex;
     flex-direction: column;
-    gap: $sp-3;
+    gap: $sp-portal-3;
 }
 
 .setup-block-row {
-    border: 1px dashed $border-strong;
-    background: $bg-inset;
-    border-radius: $radius-md;
-    padding: $sp-4;
+    border: 1px dashed $sp-portal-border-strong;
+    background: $sp-portal-bg-inset;
+    border-radius: $sp-portal-radius-md;
+    padding: $sp-portal-4;
 }
 
 .setup-block-title {
     font-weight: 800;
-    color: $primary;
-    margin-bottom: $sp-3;
+    color: $sp-portal-primary;
+    margin-bottom: $sp-portal-3;
 }
 
 .setup-block-grid {
     display: grid;
     grid-template-columns: 1.2fr 1fr 1.2fr;
-    gap: $sp-3;
+    gap: $sp-portal-3;
 
-    @include tablet {
+    @include sp-portal-tablet {
         grid-template-columns: 1fr 1fr;
     }
 
-    @include mobile {
+    @include sp-portal-mobile {
         grid-template-columns: 1fr;
     }
 }
@@ -1981,7 +1982,7 @@ body {
 .setup-photo-upload {
     display: flex;
     align-items: center;
-    gap: $sp-3;
+    gap: $sp-portal-3;
     flex-wrap: wrap;
 }
 
@@ -1990,17 +1991,17 @@ body {
     align-items: center;
     gap: 8px;
     padding: 9px 12px;
-    border-radius: $radius-sm;
-    border: 1.5px dashed $primary-muted;
-    background: $bg-card;
-    color: $primary;
+    border-radius: $sp-portal-radius-sm;
+    border: 1.5px dashed $sp-portal-primary-muted;
+    background: $sp-portal-bg-card;
+    color: $sp-portal-primary;
     cursor: pointer;
     font-size: 0.82rem;
     font-weight: 700;
     margin: 0;
 
-    @include hover {
-        background: $primary-surface;
+    @include sp-portal-hover {
+        background: $sp-portal-primary-surface;
         border-style: solid;
     }
 }
@@ -2013,29 +2014,29 @@ body {
     font-weight: 700;
 
     &.ok {
-        color: $green;
+        color: $sp-portal-green;
     }
 
     &.missing {
-        color: $red;
+        color: $sp-portal-red;
     }
 }
 
-@include mobile {
+@include sp-portal-mobile {
     .portal-modal-overlay {
-        padding: $sp-3;
+        padding: $sp-portal-3;
     }
 
     .portal-modal {
         max-height: calc(100vh - 24px);
-        border-radius: $radius-lg;
+        border-radius: $sp-portal-radius-lg;
     }
 
     .portal-modal-header,
     .portal-modal-body,
     .portal-modal-footer {
-        padding-left: $sp-4;
-        padding-right: $sp-4;
+        padding-left: $sp-portal-4;
+        padding-right: $sp-portal-4;
     }
 
     .portal-modal-footer {
