@@ -1,0 +1,21 @@
+/* _container.scss — Main portal container */
+@import 'tokens';
+
+.o_portal_container {
+    max-width: 85%;
+    width: 85%;
+    margin: $sp-portal-8 auto;
+    padding-bottom: 190px;
+
+    @include sp-portal-tablet {
+        max-width: 92%;
+        width: 92%;
+    }
+
+    @include sp-portal-mobile {
+        max-width: 100%;
+        width: 100%;
+        padding: 0 $sp-portal-3 210px $sp-portal-3;
+        margin-top: $sp-portal-5;
+    }
+}

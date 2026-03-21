@@ -1,0 +1,207 @@
+/* _shipments.scss — Shipments section header, accordion blocks */
+@import 'tokens';
+
+.shipments-section { margin-bottom: $sp-portal-8; }
+
+.section-header-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: $sp-portal-5;
+
+    .section-title {
+        display: flex;
+        align-items: center;
+        gap: $sp-portal-3;
+
+        i {
+            color: $sp-portal-primary-muted;
+            font-size: 1.15rem;
+        }
+
+        h3 {
+            margin: 0;
+            font-family: $sp-portal-font-display;
+            font-size: 1.1rem;
+            color: $sp-portal-text-primary;
+            font-weight: 700;
+            letter-spacing: -0.01em;
+        }
+    }
+}
+
+.shipment-count-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    height: 22px;
+    border-radius: $sp-portal-radius-pill;
+    background: $sp-portal-text-primary;
+    color: $sp-portal-text-inverse;
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 0 $sp-portal-2;
+    font-family: $sp-portal-font-mono;
+}
+
+/* Empty state */
+.empty-state {
+    text-align: center;
+    padding: $sp-portal-12 $sp-portal-8;
+    color: $sp-portal-text-tertiary;
+    background: $sp-portal-bg-card;
+    border: 1.5px dashed $sp-portal-border-strong;
+    border-radius: $sp-portal-radius-lg;
+
+    i {
+        color: $sp-portal-border-strong;
+        margin-bottom: $sp-portal-4;
+        opacity: 0.5;
+    }
+
+    p {
+        margin: 0;
+        font-size: 0.88rem;
+        line-height: 1.5;
+    }
+}
+
+/* Shipment block (accordion) */
+.shipment-block {
+    background: $sp-portal-bg-card;
+    border: 1px solid $sp-portal-border-default;
+    border-radius: $sp-portal-radius-lg;
+    margin-bottom: $sp-portal-3;
+    box-shadow: $sp-portal-shadow-xs;
+    overflow: hidden;
+    transition: box-shadow $sp-portal-duration-base $sp-portal-ease-out, border-color $sp-portal-duration-base $sp-portal-ease-out;
+
+    &.expanded {
+        box-shadow: $sp-portal-shadow-md;
+        border-color: $sp-portal-border-strong;
+    }
+}
+
+.shipment-block-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: $sp-portal-3 $sp-portal-5;
+    background: $sp-portal-bg-card;
+    cursor: pointer;
+    user-select: none;
+    border-bottom: 1px solid transparent;
+    transition: background $sp-portal-duration-fast $sp-portal-ease-out;
+
+    .expanded & {
+        background: $sp-portal-bg-subtle;
+        border-bottom-color: $sp-portal-border-default;
+    }
+
+    @include sp-portal-hover {
+        background: $sp-portal-bg-inset;
+    }
+}
+
+.shipment-block-title {
+    display: flex;
+    align-items: center;
+    gap: $sp-portal-3;
+    min-width: 0;
+
+    .shipment-name {
+        font-weight: 700;
+        font-size: 0.95rem;
+        color: $sp-portal-text-primary;
+        letter-spacing: -0.01em;
+    }
+
+    .shipment-status-pill {
+        display: inline-flex;
+        align-items: center;
+        padding: 2px $sp-portal-3;
+        border-radius: $sp-portal-radius-pill;
+        font-size: 0.65rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        line-height: 1;
+        white-space: nowrap;
+
+        &.st-draft          { background: #F3F4F6; color: #6B7280; }
+        &.st-in_production   { background: #DBEAFE; color: #1D4ED8; }
+        &.st-booked          { background: #E0E7FF; color: #4338CA; }
+        &.st-departed        { background: #FEF3C7; color: #92400E; }
+        &.st-in_transit      { background: #FDE68A; color: #78350F; }
+        &.st-arrived         { background: #D1FAE5; color: #065F46; }
+        &.st-delivered       { background: #A7F3D0; color: #047857; }
+    }
+
+    .shipment-summary-chips {
+        display: flex;
+        gap: $sp-portal-1;
+        margin-left: $sp-portal-2;
+
+        .chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            padding: 2px $sp-portal-2;
+            border-radius: $sp-portal-radius-sm;
+            font-size: 0.67rem;
+            font-weight: 600;
+            background: $sp-portal-bg-subtle;
+            color: $sp-portal-text-tertiary;
+            font-family: $sp-portal-font-mono;
+
+            i { font-size: 0.6rem; opacity: 0.5; }
+        }
+    }
+}
+
+.shipment-block-actions {
+    display: flex;
+    gap: $sp-portal-1;
+
+    button {
+        width: 30px;
+        height: 30px;
+        border-radius: $sp-portal-radius-sm;
+        border: 1px solid $sp-portal-border-default;
+        background: $sp-portal-bg-card;
+        color: $sp-portal-text-tertiary;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all $sp-portal-duration-fast $sp-portal-ease-out;
+        font-size: 0.8rem;
+
+        @include sp-portal-hover {
+            background: $sp-portal-bg-subtle;
+            color: $sp-portal-text-secondary;
+            border-color: $sp-portal-border-strong;
+        }
+    }
+
+    .btn-delete-shipment {
+        @include sp-portal-hover {
+            background: #FEF2F2;
+            color: $sp-portal-red;
+            border-color: #FECACA;
+        }
+    }
+
+    .btn-toggle-shipment i {
+        transition: transform $sp-portal-duration-base $sp-portal-ease-out;
+    }
+    .expanded & .btn-toggle-shipment i {
+        transform: rotate(180deg);
+    }
+}
+
+.shipment-block-body {
+    padding: $sp-portal-5;
+    @include sp-portal-mobile { padding: $sp-portal-4; }
+}

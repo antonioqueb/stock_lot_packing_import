@@ -1,0 +1,54 @@
+/* _date_input.scss — Modern date wrapper */
+@import 'tokens';
+
+.modern-date-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+
+    .modern-date-input {
+        width: 100%;
+        background: $sp-portal-bg-input;
+        border: 1px solid $sp-portal-border-default;
+        color: $sp-portal-text-primary;
+        border-radius: $sp-portal-radius-sm;
+        padding: 0 $sp-portal-3;
+        padding-right: 34px;
+        font-size: 0.85rem;
+        font-family: $sp-portal-font-body;
+        height: $sp-portal-input-h;
+        box-sizing: border-box;
+        cursor: pointer;
+        appearance: none;
+        -webkit-appearance: none;
+
+        &::-webkit-calendar-picker-indicator {
+            opacity: 0;
+            position: absolute;
+            right: 0;
+            width: 34px;
+            height: 100%;
+            cursor: pointer;
+        }
+
+        &:focus {
+            outline: none;
+            border-color: $sp-portal-text-secondary;
+            box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.04);
+        }
+    }
+
+    .modern-date-icon {
+        position: absolute;
+        right: $sp-portal-3;
+        color: $sp-portal-primary-muted;
+        font-size: 0.85rem;
+        pointer-events: none;
+        line-height: 1;
+    }
+}
+
+.sub-item-field .modern-date-wrapper,
+.sf-field .modern-date-wrapper {
+    width: 100%;
+}

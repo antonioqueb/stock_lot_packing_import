@@ -1,0 +1,18 @@
+/* _badges.scss — Status badges */
+@import 'tokens';
+
+.badge-status {
+    display: inline-flex;
+    align-items: center;
+    padding: $sp-portal-1 $sp-portal-3;
+    border-radius: $sp-portal-radius-pill;
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    line-height: 1;
+
+    &.status-draft   { background: #F3F4F6; color: #6B7280; }
+    &.status-partial { background: #FEF3C7; color: #92400E; }
+    &.status-complete { background: #D1FAE5; color: #065F46; }
+}

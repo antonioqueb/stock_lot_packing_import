@@ -17,8 +17,31 @@
     ],
     'assets': {
         'web.assets_frontend': [
-            'stock_lot_packing_import/static/src/scss/supplier_portal.scss',
+            # ── SCSS Modules ──
+            'stock_lot_packing_import/static/src/scss/_tokens.scss',
+            'stock_lot_packing_import/static/src/scss/_base.scss',
+            'stock_lot_packing_import/static/src/scss/_header.scss',
+            'stock_lot_packing_import/static/src/scss/_container.scss',
+            'stock_lot_packing_import/static/src/scss/_cards.scss',
+            'stock_lot_packing_import/static/src/scss/_badges.scss',
+            'stock_lot_packing_import/static/src/scss/_buttons.scss',
+            'stock_lot_packing_import/static/src/scss/_shipments.scss',
+            'stock_lot_packing_import/static/src/scss/_tabs.scss',
+            'stock_lot_packing_import/static/src/scss/_sub_items.scss',
+            'stock_lot_packing_import/static/src/scss/_product_sections.scss',
+            'stock_lot_packing_import/static/src/scss/_inputs.scss',
+            'stock_lot_packing_import/static/src/scss/_packing_rows.scss',
+            'stock_lot_packing_import/static/src/scss/_photos.scss',
+            'stock_lot_packing_import/static/src/scss/_footer.scss',
+            'stock_lot_packing_import/static/src/scss/_progress.scss',
+            'stock_lot_packing_import/static/src/scss/_toast.scss',
+            'stock_lot_packing_import/static/src/scss/_loading.scss',
+            'stock_lot_packing_import/static/src/scss/_autosave.scss',
+            'stock_lot_packing_import/static/src/scss/_date_input.scss',
+            'stock_lot_packing_import/static/src/scss/_modal.scss',
+            'stock_lot_packing_import/static/src/scss/_info_hint.scss',
 
+            # ── JS Portal ──
             'stock_lot_packing_import/static/src/js/supplier_portal/namespace.js',
             'stock_lot_packing_import/static/src/js/supplier_portal/translations.js',
             'stock_lot_packing_import/static/src/js/supplier_portal/utils.js',

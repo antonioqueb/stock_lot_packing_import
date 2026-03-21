@@ -1,0 +1,68 @@
+/* _footer.scss — Submit footer */
+@import 'tokens';
+
+.submit-footer {
+    position: fixed;
+    bottom: 12px;
+    left: 0;
+    width: 100%;
+    background: rgba(255, 255, 255, 0.97);
+    padding: $sp-portal-4 $sp-portal-6;
+    border-top: 1px solid $sp-portal-border-default;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 999;
+    backdrop-filter: blur(20px) saturate(1.1);
+    -webkit-backdrop-filter: blur(20px) saturate(1.1);
+    box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.04);
+
+    .summary {
+        color: $sp-portal-text-primary;
+        font-size: 0.85rem;
+        display: flex;
+        gap: $sp-portal-6;
+
+        div {
+            display: flex;
+            align-items: center;
+            gap: $sp-portal-2;
+            font-weight: 600;
+
+            > i {
+                color: $sp-portal-text-tertiary;
+                font-size: 0.8rem;
+            }
+        }
+
+        .text-accent {
+            color: $sp-portal-text-primary;
+            font-weight: 800;
+            font-size: 1.05rem;
+            font-family: $sp-portal-font-mono;
+        }
+    }
+
+    @include sp-portal-mobile {
+        bottom: 10px;
+        flex-direction: column;
+        gap: $sp-portal-3;
+        padding: $sp-portal-3;
+
+        .summary {
+            width: 100%;
+            justify-content: space-around;
+            font-size: 0.82rem;
+            background: $sp-portal-bg-subtle;
+            padding: $sp-portal-3;
+            border-radius: $sp-portal-radius-md;
+            border: 1px solid $sp-portal-border-subtle;
+        }
+
+        .btn-primary-custom {
+            width: 100%;
+            padding: $sp-portal-4;
+            font-size: 0.95rem;
+        }
+    }
+}

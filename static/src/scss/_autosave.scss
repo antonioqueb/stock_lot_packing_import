@@ -1,0 +1,38 @@
+/* _autosave.scss — Autosave bar */
+@import 'tokens';
+
+.autosave-bar {
+    display: flex;
+    align-items: center;
+    gap: $sp-portal-3;
+    margin-bottom: $sp-portal-4;
+    padding: $sp-portal-2 $sp-portal-3;
+    background: $sp-portal-bg-inset;
+    border: 1px solid $sp-portal-border-subtle;
+    border-radius: $sp-portal-radius-sm;
+    font-size: 0.74rem;
+    color: $sp-portal-text-tertiary;
+
+    .autosave-label {
+        display: flex;
+        align-items: center;
+        gap: $sp-portal-1;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+
+        i { color: $sp-portal-primary-muted; }
+    }
+
+    .autosave-indicator {
+        font-size: 0.74rem;
+        font-weight: 600;
+        min-width: 80px;
+    }
+}
+
+.pk-autosave-indicator {
+    min-width: 60px;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+}

@@ -1,0 +1,116 @@
+/* _sub_items.scss — Sub-item cards (invoices, packings, containers) */
+@import 'tokens';
+
+.sub-item-card {
+    background: $sp-portal-bg-card;
+    border: 1px solid $sp-portal-border-default;
+    border-radius: $sp-portal-radius-md;
+    padding: $sp-portal-4;
+    margin-bottom: $sp-portal-3;
+    position: relative;
+    transition: border-color $sp-portal-duration-fast $sp-portal-ease-out, box-shadow $sp-portal-duration-fast $sp-portal-ease-out;
+
+    @include sp-portal-hover {
+        box-shadow: $sp-portal-shadow-xs;
+    }
+
+    .sub-item-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: $sp-portal-4;
+        padding-bottom: $sp-portal-3;
+        border-bottom: 1px solid $sp-portal-border-subtle;
+
+        .sub-item-title {
+            font-weight: 700;
+            font-size: 0.85rem;
+            color: $sp-portal-text-primary;
+            letter-spacing: -0.01em;
+        }
+
+        .sub-item-actions button {
+            width: 26px;
+            height: 26px;
+            border-radius: $sp-portal-radius-sm;
+            border: 1px solid $sp-portal-border-default;
+            background: $sp-portal-bg-card;
+            color: $sp-portal-text-tertiary;
+            cursor: pointer;
+            font-size: 0.7rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: all $sp-portal-duration-fast $sp-portal-ease-out;
+            margin-left: $sp-portal-1;
+
+            @include sp-portal-hover {
+                background: #FEF2F2;
+                color: $sp-portal-red;
+                border-color: #FECACA;
+            }
+        }
+    }
+
+    .sub-item-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: $sp-portal-3;
+
+        @include sp-portal-mobile { grid-template-columns: 1fr; }
+    }
+
+    .sub-item-field {
+        display: flex;
+        flex-direction: column;
+
+        label {
+            font-size: 0.68rem;
+            color: $sp-portal-text-tertiary;
+            font-weight: 600;
+            margin-bottom: 3px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        input, select {
+            background: $sp-portal-bg-input;
+            border: 1px solid $sp-portal-border-default;
+            color: $sp-portal-text-primary;
+            border-radius: $sp-portal-radius-sm;
+            padding: 0 $sp-portal-2;
+            font-size: 0.82rem;
+            font-family: $sp-portal-font-body;
+            height: $sp-portal-input-h;
+            box-sizing: border-box;
+            transition: border-color $sp-portal-duration-fast $sp-portal-ease-out, box-shadow $sp-portal-duration-fast $sp-portal-ease-out;
+
+            &:focus {
+                outline: none;
+                border-color: $sp-portal-text-secondary;
+                box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.04);
+            }
+        }
+
+        textarea {
+            background: $sp-portal-bg-input;
+            border: 1px solid $sp-portal-border-default;
+            color: $sp-portal-text-primary;
+            border-radius: $sp-portal-radius-sm;
+            padding: $sp-portal-2;
+            font-size: 0.82rem;
+            font-family: $sp-portal-font-body;
+            box-sizing: border-box;
+            resize: vertical;
+            transition: border-color $sp-portal-duration-fast $sp-portal-ease-out, box-shadow $sp-portal-duration-fast $sp-portal-ease-out;
+
+            &:focus {
+                outline: none;
+                border-color: $sp-portal-text-secondary;
+                box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.04);
+            }
+        }
+    }
+
+    .sub-item-field-wide { grid-column: 1 / -1; }
+}

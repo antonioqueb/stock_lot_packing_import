@@ -1,0 +1,355 @@
+/* _product_sections.scss — Product sticky headers, collapse, data table */
+@import 'tokens';
+
+.packing-products-list {
+    display: flex;
+    flex-direction: column;
+    gap: $sp-portal-4;
+}
+
+.ps-product-wrapper {
+    background: $sp-portal-bg-card;
+    border: 1px solid $sp-portal-border-default;
+    border-radius: $sp-portal-radius-lg;
+    overflow: visible;
+    box-shadow: $sp-portal-shadow-sm;
+    transition: box-shadow $sp-portal-duration-base $sp-portal-ease-out;
+
+    &.ps-expanded {
+        box-shadow: $sp-portal-shadow-md;
+    }
+}
+
+/* Sticky product header */
+.ps-product-sticky-header {
+    position: sticky;
+    top: 56px;
+    z-index: 40;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: $sp-portal-3 $sp-portal-5;
+    background: $sp-portal-bg-card;
+    border-bottom: 1px solid $sp-portal-border-default;
+    cursor: pointer;
+    user-select: none;
+    gap: $sp-portal-3;
+    flex-wrap: wrap;
+    border-radius: $sp-portal-radius-lg $sp-portal-radius-lg 0 0;
+    transition: background $sp-portal-duration-fast $sp-portal-ease-out, box-shadow $sp-portal-duration-fast $sp-portal-ease-out;
+    box-shadow: none;
+
+    .ps-collapsed & {
+        border-radius: $sp-portal-radius-lg;
+        border-bottom: none;
+    }
+
+    @include sp-portal-hover {
+        background: $sp-portal-bg-inset;
+    }
+}
+
+.ps-header-left {
+    display: flex;
+    align-items: center;
+    gap: $sp-portal-3;
+    min-width: 0;
+    flex: 1;
+}
+
+.ps-toggle-btn {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    border-radius: $sp-portal-radius-sm;
+    border: 1px solid $sp-portal-border-default;
+    background: $sp-portal-bg-card;
+    color: $sp-portal-text-secondary;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: all $sp-portal-duration-fast $sp-portal-ease-out;
+
+    @include sp-portal-hover {
+        background: $sp-portal-bg-subtle;
+        border-color: $sp-portal-border-strong;
+        color: $sp-portal-text-primary;
+    }
+
+    i {
+        transition: transform $sp-portal-duration-base $sp-portal-ease-out;
+    }
+}
+
+.ps-header-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.ps-product-name {
+    font-family: $sp-portal-font-display;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: $sp-portal-text-primary;
+    letter-spacing: -0.01em;
+    display: flex;
+    align-items: center;
+    gap: $sp-portal-2;
+    flex-wrap: wrap;
+}
+
+.ps-product-code {
+    color: $sp-portal-text-tertiary;
+    font-size: 0.78rem;
+    font-weight: 500;
+    font-family: $sp-portal-font-mono;
+}
+
+.ps-type-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px $sp-portal-2;
+    border-radius: $sp-portal-radius-sm;
+    background: $sp-portal-text-primary;
+    color: $sp-portal-text-inverse;
+    font-size: 0.62rem;
+    font-weight: 700;
+    font-family: $sp-portal-font-mono;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
+.ps-product-chips {
+    display: flex;
+    gap: $sp-portal-2;
+    flex-wrap: wrap;
+}
+
+.ps-header-right {
+    display: flex;
+    align-items: center;
+    gap: $sp-portal-3;
+    flex-wrap: wrap;
+}
+
+.ps-qty-chips {
+    display: flex;
+    gap: $sp-portal-3;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.ps-qty-chip {
+    font-size: 0.76rem;
+    color: $sp-portal-text-secondary;
+    font-weight: 600;
+    white-space: nowrap;
+    font-family: $sp-portal-font-mono;
+
+    strong {
+        color: $sp-portal-text-primary;
+        font-weight: 800;
+
+        &.text-danger {
+            color: $sp-portal-red;
+        }
+    }
+}
+
+/* Collapsible body */
+.ps-product-body {
+    padding: 0;
+    overflow: hidden;
+}
+
+.ps-table-scroll {
+    overflow-x: auto;
+    overflow-y: visible;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Data table */
+.ps-data-table {
+    width: 100%;
+    border-collapse: collapse;
+    color: $sp-portal-text-primary;
+    table-layout: auto;
+
+    thead {
+        background: $sp-portal-bg-inset;
+
+        th {
+            text-align: left;
+            padding: $sp-portal-3;
+            color: $sp-portal-text-tertiary;
+            font-size: 0.68rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            border-bottom: 1px solid $sp-portal-border-default;
+            white-space: nowrap;
+            background: $sp-portal-bg-inset;
+            position: sticky;
+            top: 116px;
+            z-index: 30;
+            box-shadow: inset 0 -1px 0 $sp-portal-border-default;
+        }
+    }
+
+    tbody {
+        tr {
+            transition: background $sp-portal-duration-fast $sp-portal-ease-out;
+
+            @include sp-portal-hover {
+                background: $sp-portal-bg-inset;
+            }
+        }
+
+        td {
+            padding: $sp-portal-2 $sp-portal-3;
+            border-bottom: 1px solid $sp-portal-border-subtle;
+            vertical-align: middle;
+            font-size: 0.85rem;
+
+            .area-display {
+                color: $sp-portal-primary;
+                font-weight: 700;
+                font-family: $sp-portal-font-mono;
+                font-size: 0.88rem;
+                letter-spacing: -0.02em;
+            }
+        }
+    }
+
+    .bg-light { background-color: $sp-portal-bg-inset; }
+
+    @include sp-portal-mobile {
+        display: block;
+
+        thead { display: none; }
+        tbody { display: block; }
+
+        tr {
+            display: block;
+            background: $sp-portal-bg-card;
+            margin: $sp-portal-3 0;
+            border-radius: $sp-portal-radius-md;
+            border: 1px solid $sp-portal-border-default;
+            padding: $sp-portal-4;
+            position: relative;
+            box-shadow: $sp-portal-shadow-xs;
+        }
+
+        td {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: $sp-portal-2 0;
+            border: none;
+            text-align: right;
+
+            &::before {
+                content: attr(data-label);
+                font-size: 0.7rem;
+                text-transform: uppercase;
+                letter-spacing: 0.05em;
+                color: $sp-portal-text-tertiary;
+                font-weight: 700;
+                margin-right: $sp-portal-4;
+                text-align: left;
+                flex-shrink: 0;
+            }
+        }
+
+        td:last-child {
+            position: absolute;
+            top: $sp-portal-3;
+            right: $sp-portal-3;
+            padding: 0;
+            width: auto;
+
+            &::before { content: none; }
+            .btn-action { width: 30px; height: 30px; }
+        }
+
+        .input-group-portal { width: 55%; }
+
+        thead th {
+            position: static !important;
+        }
+    }
+}
+
+/* Legacy .portal-table for non-packing tables */
+.portal-table:not(.ps-data-table) {
+    width: 100%;
+    border-collapse: collapse;
+    color: $sp-portal-text-primary;
+    table-layout: auto;
+
+    thead {
+        background: $sp-portal-bg-inset;
+
+        th {
+            text-align: left;
+            padding: $sp-portal-3;
+            color: $sp-portal-text-tertiary;
+            font-size: 0.68rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            border-bottom: 1px solid $sp-portal-border-default;
+            white-space: nowrap;
+            background: $sp-portal-bg-inset;
+        }
+    }
+
+    tbody {
+        tr {
+            transition: background $sp-portal-duration-fast $sp-portal-ease-out;
+            @include sp-portal-hover { background: $sp-portal-bg-inset; }
+        }
+
+        td {
+            padding: $sp-portal-2 $sp-portal-3;
+            border-bottom: 1px solid $sp-portal-border-subtle;
+            vertical-align: middle;
+            font-size: 0.85rem;
+
+            .area-display {
+                color: $sp-portal-primary;
+                font-weight: 700;
+                font-family: $sp-portal-font-mono;
+                font-size: 0.88rem;
+                letter-spacing: -0.02em;
+            }
+        }
+    }
+}
+
+/* Mobile overrides for product sections */
+@include sp-portal-mobile {
+    .ps-product-sticky-header {
+        position: static !important;
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .ps-header-right {
+        width: 100%;
+    }
+
+    .ps-qty-chips {
+        width: 100%;
+        gap: $sp-portal-2;
+        font-size: 0.7rem;
+    }
+
+    .ps-data-table thead th {
+        position: static !important;
+    }
+}

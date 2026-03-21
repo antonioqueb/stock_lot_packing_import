@@ -1,0 +1,37 @@
+/* _base.scss — Body, scrollbar, selection */
+@import 'tokens';
+
+body {
+    background-color: $sp-portal-bg-body;
+    color: $sp-portal-text-primary;
+    font-family: $sp-portal-font-body;
+    font-size: 0.9375rem;
+    line-height: 1.55;
+    overflow-x: hidden;
+    margin: 0;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+::selection {
+    background: rgba(0, 0, 0, 0.08);
+    color: $sp-portal-text-primary;
+}
+
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: $sp-portal-border-strong;
+    border-radius: 3px;
+
+    &:hover { background: $sp-portal-text-tertiary; }
+}
