@@ -1,6 +1,9 @@
 /* static/src/scss/supplier_portal.scss */
-/* v5.3 — White Canvas, Warm Accents, Wide Layout */
-/* Fixed: renamed @mixin hover → @mixin portal-hover to avoid Bootstrap conflict */
+/* v5.4 — White Canvas, Warm Accents, Wide Layout */
+/* Fixed:
+   1) removed width: min(1100px, 100%) because LibSass/Odoo may fail on mixed units
+   2) kept custom mixin names to avoid Bootstrap collisions
+*/
 
 /* ═══════════════════════════════════════════════════
    DESIGN TOKENS
@@ -89,7 +92,9 @@ $sp-portal-input-h: 36px;
 }
 
 @mixin sp-portal-hover {
-    @media (hover: hover) and (pointer: fine) { &:hover { @content; } }
+    @media (hover: hover) and (pointer: fine) {
+        &:hover { @content; }
+    }
 }
 
 /* ═══════════════════════════════════════════════════
@@ -675,6 +680,7 @@ body {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
+
     &::-webkit-scrollbar { display: none; }
 }
 
@@ -725,6 +731,7 @@ body {
 
 .shipment-tab-content {
     display: none;
+
     &.active { display: block; }
 }
 
@@ -875,9 +882,7 @@ body {
     box-shadow: $sp-portal-shadow-sm;
 
     &.is-collapsed {
-        .table-responsive {
-            display: none;
-        }
+        .table-responsive { display: none; }
     }
 
     .product-header {
@@ -1075,9 +1080,7 @@ body {
     }
 
     @include sp-portal-mobile {
-        thead th {
-            position: static;
-        }
+        thead th { position: static; }
     }
 }
 
@@ -1546,24 +1549,23 @@ body {
    MOBILE OVERRIDES
    ═══════════════════════════════════════════════════ */
 @include sp-portal-mobile {
-    .btn-photo-upload, .btn-photo-done {
+    .btn-photo-upload,
+    .btn-photo-done {
         width: 40px;
         height: 40px;
+
         i { font-size: 1.15rem; }
     }
 
     .table-actions {
         flex-direction: column;
+
         .btn-add-row { width: 100%; }
     }
 
-    .sticky-product-header {
-        position: static;
-    }
+    .sticky-product-header { position: static; }
 
-    .sticky-table-head thead th {
-        position: static;
-    }
+    .sticky-table-head thead th { position: static; }
 }
 
 /* ═══════════════════════════════════════════════════
@@ -1776,7 +1778,8 @@ body {
 }
 
 .portal-modal {
-    width: min(1100px, 100%);
+    width: 100%;
+    max-width: 1100px;
     max-height: calc(100vh - 60px);
     background: $sp-portal-bg-card;
     border-radius: $sp-portal-radius-xl;
@@ -2013,13 +2016,8 @@ body {
     font-size: 0.78rem;
     font-weight: 700;
 
-    &.ok {
-        color: $sp-portal-green;
-    }
-
-    &.missing {
-        color: $sp-portal-red;
-    }
+    &.ok { color: $sp-portal-green; }
+    &.missing { color: $sp-portal-red; }
 }
 
 @include sp-portal-mobile {
