@@ -7,10 +7,6 @@
 
     const CURRENCY_CODES = ['USD', 'EUR', 'CNY', 'MXN', 'GBP', 'JPY', 'INR', 'BRL', 'KRW', 'AUD', 'CAD', 'CHF'];
 
-    // =========================================================================
-    //  HELPERS DE UI
-    // =========================================================================
-
     function makeAutosaveBar(lang) {
         const label = lang === 'es' ? 'Guardado automático'
                     : lang === 'zh' ? '自动保存'
@@ -28,23 +24,12 @@
         </div>`;
     }
 
-    // =========================================================================
-    //  MIXIN
-    // =========================================================================
-
     M.mixins.ShipmentTabsMixin = {
 
-        // ------------------------------------------------------------------
-        //  HELPER: obtener el shipment fresco desde this.proforma
-        //  Siempre usar esto al cambiar de pestaña para no leer el s stale.
-        // ------------------------------------------------------------------
         _getFreshShipment(shipmentId) {
             return (this.proforma.shipments || []).find(x => x.id === shipmentId) || null;
         },
 
-        // ------------------------------------------------------------------
-        //  MOTOR DE AUTOSAVE GENÉRICO
-        // ------------------------------------------------------------------
         _bindAutosave(el, saveFn, delay) {
             delay = delay || 900;
             const indicator = el.querySelector('.autosave-indicator');
@@ -65,7 +50,6 @@
                         const res = await saveFn();
                         if (res && res.success === false) throw new Error(res.message || 'Error');
 
-                        // Recargar proforma en memoria
                         try {
                             const reload = await jsonRpc('/supplier/api/v2/reload', { token: this.token });
                             if (reload.success && reload.proforma) {
@@ -73,7 +57,6 @@
                                 this.proforma = reload.proforma;
                                 this.packingRows = savedRows;
 
-                                // Actualizar chips de cabecera de todos los shipment blocks
                                 const shipContainer = document.getElementById('shipments-container');
                                 if (shipContainer) {
                                     (this.proforma.shipments || []).forEach(updatedS => {
@@ -82,28 +65,19 @@
                                     });
                                 }
 
-                                // CRÍTICO: Re-renderizar el tab activo con datos frescos del servidor.
-                                // Esto garantiza que si el usuario cambia de pestaña y regresa,
-                                // verá exactamente lo que se guardó, no el estado stale del objeto s.
                                 if (shipmentId && tabName) {
                                     const freshS = this._getFreshShipment(shipmentId);
                                     if (freshS) {
-                                        // Solo re-renderizar si el tab TODAVÍA está activo en el DOM.
-                                        // Evitar re-render de pestañas que el usuario ya no está viendo.
                                         const tabEl = document.getElementById(`stab-${tabName}-${shipmentId}`);
                                         if (tabEl && tabEl.classList.contains('active')) {
-                                            // Re-render silencioso: preservamos filas de packing
                                             this._rerenderTabSilent(tabName, freshS);
                                         }
-                                        // Siempre actualizar la referencia interna del body
-                                        // para que el próximo cambio de pestaña use datos frescos.
                                         this._updateShipmentBodyRef(shipmentId, freshS);
                                     }
                                 }
                             }
-                        } catch (_e) { /* reload fallido no es crítico */ }
+                        } catch (_e) {}
 
-                        // Mostrar checkmark
                         const currentIndicator = tabName && shipmentId
                             ? document.querySelector(`#stab-${tabName}-${shipmentId} .autosave-indicator`)
                             : indicator;
@@ -132,13 +106,7 @@
             });
         },
 
-        // ------------------------------------------------------------------
-        //  Re-render silencioso de un tab con datos frescos.
-        //  Preserva las filas de packing en caché.
-        // ------------------------------------------------------------------
         _rerenderTabSilent(tabName, freshS) {
-            // packings tiene su propio autosave interno — no re-renderizar
-            // para no destruir el estado de los inputs de filas no guardadas.
             if (tabName === 'packings') return;
 
             const el = document.getElementById(`stab-${tabName}-${freshS.id}`);
@@ -153,22 +121,11 @@
             }
         },
 
-        // ------------------------------------------------------------------
-        //  Actualiza la referencia del shipment en el body del bloque,
-        //  guardando el freshS en un dataset para que el click de pestaña
-        //  siempre tenga los datos más recientes.
-        // ------------------------------------------------------------------
         _updateShipmentBodyRef(shipmentId, freshS) {
             const block = document.querySelector(`.shipment-block[data-shipment-id="${shipmentId}"]`);
             if (!block) return;
-            // Almacenar la referencia serializada del shipment fresco.
-            // Se usa en el click de pestaña para re-renderizar con datos reales.
             block._freshShipmentData = freshS;
         },
-
-        // ------------------------------------------------------------------
-        //  SYNC DOM → MEMORY (helpers de compatibilidad, se mantienen)
-        // ------------------------------------------------------------------
 
         _syncContainersFromDOM(s) {
             var el = document.getElementById('stab-containers-' + s.id);
@@ -206,11 +163,6 @@
                 });
             });
         },
-
-        // ------------------------------------------------------------------
-        //  SHELL DE PESTAÑAS
-        //  CAMBIO CLAVE: el click de pestaña siempre busca el shipment fresco.
-        // ------------------------------------------------------------------
 
         renderShipmentBody(bodyEl, s) {
             var activeTab = this.activeTabByShipment[s.id] || 'logistics';
@@ -257,7 +209,6 @@
             tabsHtml += '</div>';
             bodyEl.innerHTML = tabsHtml + contentHtml;
 
-            // Guardar el shipmentId en el bodyEl para recuperarlo al cambiar pestaña
             bodyEl._shipmentId = s.id;
 
             var self = this;
@@ -272,9 +223,6 @@
                         c.classList.toggle('active', c.id === 'stab-' + tname + '-' + s.id);
                     });
 
-                    // CAMBIO CLAVE: siempre usar el shipment fresco al cambiar de pestaña.
-                    // Si el autosave ya actualizó this.proforma, usamos esos datos.
-                    // Esto garantiza que el usuario vea lo que se guardó, no el estado inicial.
                     var freshS = self._getFreshShipment(s.id);
                     var block = document.querySelector('.shipment-block[data-shipment-id="' + s.id + '"]');
                     if (block && block._freshShipmentData) {
@@ -284,7 +232,6 @@
                 });
             });
 
-            // Renderizar la pestaña activa inicial también con datos frescos si están disponibles
             var block = document.querySelector('.shipment-block[data-shipment-id="' + s.id + '"]');
             var initialS = (block && block._freshShipmentData) ? block._freshShipmentData : s;
             this.renderTabContent(activeTab, initialS);
@@ -302,10 +249,6 @@
                 case 'documents':  this.renderDocumentsTab(el, s); break;
             }
         },
-
-        // ------------------------------------------------------------------
-        //  LOGISTICS TAB — autosave
-        // ------------------------------------------------------------------
 
         renderLogisticsTab(el, s) {
             var typeOpts = ['maritime', 'air', 'land'].map(function (v) {
@@ -361,10 +304,6 @@
             });
         },
 
-        // ------------------------------------------------------------------
-        //  B/L TAB — autosave
-        // ------------------------------------------------------------------
-
         renderBLTab(el, s) {
             var infoMsg = this.currentLang === 'es'
                 ? 'El archivo B/L se sube en la pestaña <strong>Documentos</strong>.'
@@ -398,10 +337,6 @@
                 });
             });
         },
-
-        // ------------------------------------------------------------------
-        //  INVOICES TAB — autosave
-        // ------------------------------------------------------------------
 
         renderInvoicesTab(el, s) {
             var invoices = s.invoices || [];
@@ -499,10 +434,6 @@
             });
         },
 
-        // ------------------------------------------------------------------
-        //  CONTAINERS TAB — autosave
-        // ------------------------------------------------------------------
-
         renderContainersTab(el, s) {
             var containers = s.containers || [];
             var self = this;
@@ -598,15 +529,15 @@
             });
         },
 
-        // ------------------------------------------------------------------
-        //  PACKINGS TAB
-        // ------------------------------------------------------------------
-
         renderPackingsTab(el, s) {
             var packings = s.packings || [];
             var self = this;
             var html = '';
-            packings.forEach(function (pk, idx) { html += self._packingCard(pk, idx, s); });
+
+            packings.forEach(function (pk, idx) {
+                html += self._packingCard(pk, idx, s);
+            });
+
             html += '<button type="button" class="btn-add-sub-item btn-add-pk">' + this.t('btn_add_packing') + '</button>';
             el.innerHTML = html;
 
@@ -631,7 +562,6 @@
                 });
             });
 
-            // Autosave per-packing para número y fecha
             packings.forEach(function (pk) {
                 var pkCard = el.querySelector('.packing-card[data-packing-id="' + pk.id + '"]');
                 if (!pkCard) return;
@@ -673,7 +603,6 @@
                                             Object.assign(s, freshS);
                                             var freshPk = (freshS.packings || []).find(function (p) { return p.id === pk.id; });
                                             if (freshPk) Object.assign(pk, freshPk);
-                                            // Guardar referencia fresca en el bloque
                                             self._updateShipmentBodyRef(s.id, freshS);
                                             var shipContainer = document.getElementById('shipments-container');
                                             if (shipContainer) {
@@ -698,7 +627,6 @@
                     });
                 });
 
-                // Botón guardar filas
                 var btnSavePk = pkCard.querySelector('.btn-save-pk');
                 if (btnSavePk) {
                     btnSavePk.addEventListener('click', function () {
@@ -715,6 +643,16 @@
                 var area = document.getElementById('pk-rows-' + pk.id);
                 if (area) self.renderPackingRows(area, pk, s);
             });
+
+            if (this.autoOpenPackingSetupId) {
+                var targetPk = packings.find(function (p) { return p.id === self.autoOpenPackingSetupId; });
+                if (targetPk) {
+                    self.autoOpenPackingSetupId = null;
+                    setTimeout(function () {
+                        self.openPackingSetupModal(targetPk, s);
+                    }, 50);
+                }
+            }
         },
 
         _packingCard(pk, idx, s) {
@@ -756,10 +694,13 @@
         async createPacking(s) {
             try {
                 var res = await jsonRpc('/supplier/api/v2/save_packing', {
-                    token: this.token, shipment_id: s.id,
-                    packing_data: { packing_number: '', scope: 'full_shipment' }, rows: [],
+                    token: this.token,
+                    shipment_id: s.id,
+                    packing_data: { packing_number: '', scope: 'full_shipment' },
+                    rows: [],
                 });
                 if (res.success) {
+                    this.autoOpenPackingSetupId = res.packing_id;
                     await this.reloadProforma();
                     this.renderAll();
                     this.toast(this.t('msg_saved'), 'success');
@@ -778,34 +719,49 @@
             var rowsKey = 'pk_' + packingId;
             var rows = this.packingRows[rowsKey] || [];
 
+            if (!rows.length) {
+                this.toast(this.t('setup_no_rows_error') || 'Primero configura el layout del packing.', 'error');
+                return;
+            }
+
             var usedContainerIds = [...new Set(rows.map(r => asInt(r.container_id)).filter(Boolean))];
             pkData.scope = usedContainerIds.length > 0 ? 'specific_containers' : 'full_shipment';
             pkData.container_ids = usedContainerIds;
 
             var rowsPayload = rows.filter(function (r) {
                 if (r.tipo === 'Placa') return (r.alto > 0 && r.ancho > 0) || r.ref_proveedor || r.numero_placa || r.bloque;
-                return (r.quantity > 0) || r.ref_proveedor || r.color;
+                return (r.quantity > 0) || r.ref_proveedor || r.color || r.bloque;
             }).map(function (r) {
                 return {
-                    id: r.id || 0, product_id: r.product_id,
-                    container_id: asInt(r.container_id || 0), tipo: r.tipo,
-                    grosor: r.grosor || '', alto: r.alto || 0, ancho: r.ancho || 0,
-                    peso: r.peso || 0, quantity: r.quantity || 0,
-                    bloque: r.bloque || '', numero_placa: r.numero_placa || '',
-                    atado: r.atado || '', color: r.color || '',
-                    grupo_name: r.grupo_name || '', pedimento: r.pedimento || '',
+                    id: r.id || 0,
+                    product_id: r.product_id,
+                    container_id: asInt(r.container_id || 0),
+                    tipo: r.tipo,
+                    grosor: r.grosor || '',
+                    alto: r.alto || 0,
+                    ancho: r.ancho || 0,
+                    peso: r.peso || 0,
+                    quantity: r.quantity || 0,
+                    bloque: r.bloque || '',
+                    numero_placa: r.numero_placa || '',
+                    atado: r.atado || '',
+                    color: r.color || '',
+                    grupo_name: r.grupo_name || '',
+                    pedimento: r.pedimento || '',
                     ref_proveedor: r.ref_proveedor || '',
                 };
             });
 
             try {
                 var res = await jsonRpc('/supplier/api/v2/save_packing', {
-                    token: this.token, shipment_id: shipmentId,
+                    token: this.token,
+                    shipment_id: shipmentId,
                     packing_data: pkData,
                     rows: rowsPayload.length > 0 ? rowsPayload : [],
                 });
                 if (res.success) {
                     delete this.packingRows[rowsKey];
+                    delete this.packingSetupState[packingId];
                     await this.reloadProforma();
                     this.renderAll();
                     this.toast(this.t('msg_saved'), 'success');
@@ -816,10 +772,6 @@
                 this.toast(this.t('msg_error') + e.message, 'error');
             }
         },
-
-        // ------------------------------------------------------------------
-        //  PHOTO UPLOAD / DELETE
-        // ------------------------------------------------------------------
 
         async uploadRowImage(serverRowId, localRowId, pkKey, file, area) {
             try {

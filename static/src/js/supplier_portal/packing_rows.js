@@ -5,33 +5,33 @@
     const { esc, asInt, readFileAsBase64, jsonRpc } = M.utils;
 
     M.mixins.PackingRowsMixin = {
-        _newProductRow(product) {
-            const unitType = product.unit_type || 'Placa';
+        _newProductRow(product, defaults = {}) {
+            const unitType = defaults.tipo || product.unit_type || 'Placa';
             return {
                 _id: this.nextRowId++,
                 id: 0,
                 product_id: product.id,
                 tipo: unitType,
-                bloque: '',
-                numero_placa: '',
-                atado: '',
-                grosor: '',
-                alto: 0,
-                ancho: 0,
-                peso: 0,
-                quantity: 0,
-                weight: 0,
-                color: '',
-                ref_proveedor: '',
-                grupo_name: '',
-                pedimento: '',
-                crate_h: '',
-                crate_w: '',
-                crate_t: '',
-                fmt_h: '',
-                fmt_w: '',
-                container_id: 0,
-                has_image: false,
+                bloque: defaults.bloque || '',
+                numero_placa: defaults.numero_placa || '',
+                atado: defaults.atado || '',
+                grosor: defaults.grosor || '',
+                alto: defaults.alto || 0,
+                ancho: defaults.ancho || 0,
+                peso: defaults.peso || 0,
+                quantity: defaults.quantity !== undefined ? defaults.quantity : 0,
+                weight: defaults.weight || 0,
+                color: defaults.color || '',
+                ref_proveedor: defaults.ref_proveedor || '',
+                grupo_name: defaults.grupo_name || '',
+                pedimento: defaults.pedimento || '',
+                crate_h: defaults.crate_h || '',
+                crate_w: defaults.crate_w || '',
+                crate_t: defaults.crate_t || '',
+                fmt_h: defaults.fmt_h || '',
+                fmt_w: defaults.fmt_w || '',
+                container_id: asInt(defaults.container_id || 0),
+                has_image: !!defaults.has_image,
             };
         },
 
@@ -47,30 +47,28 @@
                     }));
                 } else {
                     this.packingRows[rowsKey] = [];
-                    (shipmentProducts || []).forEach(p => {
-                        this.packingRows[rowsKey].push(this._newProductRow(p));
-                    });
                 }
             }
             return this.packingRows[rowsKey];
         },
 
-        // Recarga proforma sin limpiar el caché de filas
         async reloadProformaKeepingRows() {
             try {
                 const res = await jsonRpc('/supplier/api/v2/reload', { token: this.token });
                 if (res.success && res.proforma) {
                     const savedRows = { ...this.packingRows };
+                    const savedSetup = { ...this.packingSetupState };
+                    const savedCollapse = { ...this.productCollapseState };
                     this.proforma = res.proforma;
                     this.packingRows = savedRows;
+                    this.packingSetupState = savedSetup;
+                    this.productCollapseState = savedCollapse;
                 }
             } catch (e) {
                 console.error('[Portal] reloadProformaKeepingRows ERROR:', e.message);
             }
         },
 
-        // Refresca SOLO la sección de fotos de bloque dentro del area,
-        // sin tocar la tabla de filas ni perder datos no guardados.
         async _refreshBlockPhotosInPlace(area, pk, s, rowsKey) {
             await this.reloadProformaKeepingRows();
 
@@ -79,31 +77,499 @@
 
             const updatedPacking = (updatedShipment.packings || []).find(p => p.id === pk.id) || pk;
 
-            // Quitar sección anterior y volver a insertarla con datos frescos
             const existing = area.querySelector('.block-photos-section');
             if (existing) existing.remove();
 
             this._renderBlockPhotoSections(area, updatedPacking, updatedShipment, rowsKey);
         },
 
+        _getShipmentProducts(s) {
+            return (s.products && s.products.length) ? s.products : this.products;
+        },
+
+        _getPackingSetupState(pk, s) {
+            if (!this.packingSetupState[pk.id]) {
+                const shipmentProducts = this._getShipmentProducts(s);
+                this.packingSetupState[pk.id] = {
+                    packing_id: pk.id,
+                    shipment_id: s.id,
+                    products: shipmentProducts.map(p => ({
+                        product_id: p.id,
+                        product_name: p.name,
+                        product_code: p.code || '',
+                        unit_type: p.unit_type || 'Placa',
+                        enabled: false,
+                        blocks: [],
+                    })),
+                };
+            }
+            return this.packingSetupState[pk.id];
+        },
+
+        _ensureSetupBlocksLength(productState, targetCount) {
+            const count = Math.max(0, parseInt(targetCount, 10) || 0);
+            const current = productState.blocks || [];
+
+            if (current.length < count) {
+                for (let i = current.length; i < count; i++) {
+                    current.push({
+                        uid: `${productState.product_id}_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 7)}`,
+                        block_name: '',
+                        slab_count: 0,
+                        uploaded_file_name: '',
+                    });
+                }
+            } else if (current.length > count) {
+                current.splice(count);
+            }
+
+            productState.blocks = current;
+        },
+
+        _getBlockImagesForShipment(shipment, productId, blockName) {
+            const target = String(blockName || '').trim().toLowerCase();
+            if (!target) return [];
+            return (shipment.block_images || []).filter(img => {
+                return asInt(img.product_id) === asInt(productId) &&
+                    String(img.block_name || '').trim().toLowerCase() === target;
+            });
+        },
+
+        _getProductCollapseKey(pkId, productId) {
+            return `pk_${pkId}_product_${productId}`;
+        },
+
+        _isProductCollapsed(pkId, productId) {
+            const key = this._getProductCollapseKey(pkId, productId);
+            return !!this.productCollapseState[key];
+        },
+
+        _toggleProductCollapsed(pkId, productId) {
+            const key = this._getProductCollapseKey(pkId, productId);
+            this.productCollapseState[key] = !this.productCollapseState[key];
+        },
+
+        openPackingSetupModal(pk, s) {
+            const freshShipment = this._getFreshShipment ? (this._getFreshShipment(s.id) || s) : s;
+            const state = this._getPackingSetupState(pk, freshShipment);
+
+            let overlay = document.getElementById('portal-packing-setup-overlay');
+            if (!overlay) {
+                overlay = document.createElement('div');
+                overlay.id = 'portal-packing-setup-overlay';
+                overlay.className = 'portal-modal-overlay';
+                document.body.appendChild(overlay);
+            }
+
+            const shipmentProducts = this._getShipmentProducts(freshShipment);
+
+            let html = `
+                <div class="portal-modal">
+                    <div class="portal-modal-header">
+                        <div>
+                            <h3>${this.t('setup_modal_title') || 'Configurar packing'}</h3>
+                            <p>${this.t('setup_modal_subtitle') || 'Define bloques, cantidad de placas y fotografía por bloque antes de capturar.'}</p>
+                        </div>
+                        <button type="button" class="portal-modal-close" data-action="close-setup-modal">
+                            <i class="fa fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="portal-modal-body">`;
+
+            state.products.forEach(productState => {
+                const product = shipmentProducts.find(p => p.id === productState.product_id) || {
+                    id: productState.product_id,
+                    name: productState.product_name,
+                    code: productState.product_code,
+                    unit_type: productState.unit_type,
+                };
+
+                const countLabel = product.unit_type === 'Placa'
+                    ? (this.t('setup_count_label_slabs') || 'Placas dentro del bloque')
+                    : (this.t('setup_count_label_units') || 'Piezas dentro del bloque');
+
+                html += `
+                    <div class="setup-product-card ${productState.enabled ? 'is-enabled' : ''}" data-product-id="${product.id}">
+                        <div class="setup-product-header">
+                            <label class="setup-product-check">
+                                <input type="checkbox"
+                                       class="setup-product-enable"
+                                       data-product-id="${product.id}"
+                                       ${productState.enabled ? 'checked' : ''}/>
+                                <span>${esc(product.name)}</span>
+                                <small>${esc(product.code || '')}</small>
+                            </label>
+                            <span class="setup-product-badge">${esc(product.unit_type || 'Placa')}</span>
+                        </div>`;
+
+                if (productState.enabled) {
+                    html += `
+                        <div class="setup-product-body">
+                            <div class="setup-product-controls">
+                                <div class="setup-inline-field">
+                                    <label>${this.t('setup_blocks_qty') || '¿Cuántos bloques se cargarán?'}</label>
+                                    <input type="number"
+                                           min="0"
+                                           class="setup-block-count"
+                                           data-product-id="${product.id}"
+                                           value="${productState.blocks.length}"/>
+                                </div>
+                            </div>`;
+
+                    if ((productState.blocks || []).length > 0) {
+                        html += `<div class="setup-blocks-list">`;
+                        productState.blocks.forEach((block, idx) => {
+                            const existingImgs = this._getBlockImagesForShipment(freshShipment, product.id, block.block_name);
+                            const hasPhoto = existingImgs.length > 0;
+                            const photoStatus = hasPhoto
+                                ? `<span class="setup-photo-status ok"><i class="fa fa-check-circle"></i> ${this.t('setup_photo_ok') || 'Foto cargada'} (${existingImgs.length})</span>`
+                                : `<span class="setup-photo-status missing"><i class="fa fa-exclamation-circle"></i> ${this.t('setup_photo_missing') || 'Foto pendiente'}</span>`;
+
+                            html += `
+                                <div class="setup-block-row" data-product-id="${product.id}" data-block-index="${idx}">
+                                    <div class="setup-block-title">
+                                        ${this.t('setup_block_label') || 'Bloque'} ${idx + 1}
+                                    </div>
+
+                                    <div class="setup-block-grid">
+                                        <div class="setup-inline-field">
+                                            <label>${this.t('col_block') || 'Bloque'}</label>
+                                            <input type="text"
+                                                   class="setup-block-name"
+                                                   data-product-id="${product.id}"
+                                                   data-block-index="${idx}"
+                                                   value="${esc(block.block_name || '')}"
+                                                   placeholder="${this.t('setup_block_name_placeholder') || 'Ej. B-01'}"/>
+                                        </div>
+
+                                        <div class="setup-inline-field">
+                                            <label>${countLabel}</label>
+                                            <input type="number"
+                                                   min="0"
+                                                   class="setup-block-slab-count"
+                                                   data-product-id="${product.id}"
+                                                   data-block-index="${idx}"
+                                                   value="${esc(block.slab_count || 0)}"/>
+                                        </div>
+
+                                        <div class="setup-inline-field setup-photo-field">
+                                            <label>${this.t('col_photo') || 'Foto'}</label>
+                                            <div class="setup-photo-upload">
+                                                <label class="setup-photo-button">
+                                                    <i class="fa fa-camera"></i>
+                                                    <span>${this.t('setup_upload_photo') || 'Subir foto'}</span>
+                                                    <input type="file"
+                                                           accept="image/*"
+                                                           capture="environment"
+                                                           class="setup-block-photo-input"
+                                                           data-product-id="${product.id}"
+                                                           data-block-index="${idx}"
+                                                           style="display:none"/>
+                                                </label>
+                                                ${photoStatus}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>`;
+                        });
+                        html += `</div>`;
+                    }
+                    html += `</div>`;
+                }
+
+                html += `</div>`;
+            });
+
+            html += `
+                    </div>
+                    <div class="portal-modal-footer">
+                        <button type="button" class="btn-add-row" data-action="close-setup-modal">
+                            ${this.t('btn_cancel') || 'Cancelar'}
+                        </button>
+                        <button type="button" class="btn-save-section" data-action="apply-setup" data-packing-id="${pk.id}" data-shipment-id="${freshShipment.id}">
+                            <i class="fa fa-check"></i> ${this.t('setup_apply') || 'Generar filas'}
+                        </button>
+                    </div>
+                </div>`;
+
+            overlay.innerHTML = html;
+            overlay.classList.add('show');
+
+            overlay.querySelectorAll('[data-action="close-setup-modal"]').forEach(btn => {
+                btn.addEventListener('click', () => this.closePackingSetupModal());
+            });
+
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) this.closePackingSetupModal();
+            }, { once: true });
+
+            overlay.querySelectorAll('.setup-product-enable').forEach(input => {
+                input.addEventListener('change', () => {
+                    const productId = asInt(input.dataset.productId);
+                    const setupState = this._getPackingSetupState(pk, freshShipment);
+                    const productState = setupState.products.find(p => p.product_id === productId);
+                    if (!productState) return;
+                    productState.enabled = !!input.checked;
+                    if (productState.enabled && !productState.blocks.length) {
+                        this._ensureSetupBlocksLength(productState, 1);
+                    }
+                    this.openPackingSetupModal(pk, freshShipment);
+                });
+            });
+
+            overlay.querySelectorAll('.setup-block-count').forEach(input => {
+                input.addEventListener('input', () => {
+                    const productId = asInt(input.dataset.productId);
+                    const setupState = this._getPackingSetupState(pk, freshShipment);
+                    const productState = setupState.products.find(p => p.product_id === productId);
+                    if (!productState) return;
+                    this._ensureSetupBlocksLength(productState, input.value);
+                    this.openPackingSetupModal(pk, freshShipment);
+                });
+            });
+
+            overlay.querySelectorAll('.setup-block-name').forEach(input => {
+                input.addEventListener('input', () => {
+                    const productId = asInt(input.dataset.productId);
+                    const blockIndex = asInt(input.dataset.blockIndex);
+                    const setupState = this._getPackingSetupState(pk, freshShipment);
+                    const productState = setupState.products.find(p => p.product_id === productId);
+                    if (!productState || !productState.blocks[blockIndex]) return;
+                    productState.blocks[blockIndex].block_name = input.value || '';
+                });
+            });
+
+            overlay.querySelectorAll('.setup-block-slab-count').forEach(input => {
+                input.addEventListener('input', () => {
+                    const productId = asInt(input.dataset.productId);
+                    const blockIndex = asInt(input.dataset.blockIndex);
+                    const setupState = this._getPackingSetupState(pk, freshShipment);
+                    const productState = setupState.products.find(p => p.product_id === productId);
+                    if (!productState || !productState.blocks[blockIndex]) return;
+                    productState.blocks[blockIndex].slab_count = parseInt(input.value, 10) || 0;
+                });
+            });
+
+            overlay.querySelectorAll('.setup-block-photo-input').forEach(input => {
+                input.addEventListener('change', async () => {
+                    const file = input.files && input.files[0];
+                    if (!file) return;
+
+                    if (file.size > 5 * 1024 * 1024) {
+                        this.toast(this.t('msg_photo_too_large'), 'error');
+                        input.value = '';
+                        return;
+                    }
+                    if (!file.type.startsWith('image/')) {
+                        this.toast(this.t('msg_photo_invalid'), 'error');
+                        input.value = '';
+                        return;
+                    }
+
+                    const productId = asInt(input.dataset.productId);
+                    const blockIndex = asInt(input.dataset.blockIndex);
+                    const setupState = this._getPackingSetupState(pk, freshShipment);
+                    const productState = setupState.products.find(p => p.product_id === productId);
+                    const blockState = productState && productState.blocks ? productState.blocks[blockIndex] : null;
+
+                    if (!blockState || !String(blockState.block_name || '').trim()) {
+                        this.toast(this.t('setup_block_name_required') || 'Primero escribe el nombre del bloque.', 'error');
+                        input.value = '';
+                        return;
+                    }
+
+                    try {
+                        const fileData = await readFileAsBase64(file);
+                        const res = await jsonRpc('/supplier/api/v2/upload_block_image', {
+                            token: this.token,
+                            shipment_id: freshShipment.id,
+                            block_name: blockState.block_name,
+                            product_id: productId,
+                            image_data: fileData.data,
+                            image_name: fileData.name,
+                        });
+
+                        if (res.success) {
+                            blockState.uploaded_file_name = fileData.name;
+                            this.toast(this.t('msg_saved'), 'success');
+                            await this.reloadProformaKeepingRows();
+                            const updatedShipment = (this.proforma.shipments || []).find(x => x.id === freshShipment.id) || freshShipment;
+                            this.openPackingSetupModal(pk, updatedShipment);
+                        } else {
+                            this.toast(this.t('msg_error') + (res.message || ''), 'error');
+                        }
+                    } catch (e) {
+                        this.toast(this.t('msg_error') + e.message, 'error');
+                    } finally {
+                        input.value = '';
+                    }
+                });
+            });
+
+            const applyBtn = overlay.querySelector('[data-action="apply-setup"]');
+            if (applyBtn) {
+                applyBtn.addEventListener('click', async () => {
+                    const setupState = this._getPackingSetupState(pk, freshShipment);
+                    const validation = this._validatePackingSetup(setupState, freshShipment);
+                    if (!validation.valid) {
+                        this.toast(validation.message, 'error');
+                        return;
+                    }
+
+                    const rowsKey = `pk_${pk.id}`;
+                    const shipmentProductsMap = {};
+                    this._getShipmentProducts(freshShipment).forEach(p => {
+                        shipmentProductsMap[p.id] = p;
+                    });
+
+                    const generatedRows = [];
+                    setupState.products
+                        .filter(p => p.enabled)
+                        .forEach(productState => {
+                            const product = shipmentProductsMap[productState.product_id];
+                            if (!product) return;
+
+                            (productState.blocks || []).forEach(block => {
+                                const blockName = String(block.block_name || '').trim();
+                                const count = parseInt(block.slab_count, 10) || 0;
+                                if (!blockName || count <= 0) return;
+
+                                for (let i = 0; i < count; i++) {
+                                    generatedRows.push(this._newProductRow(product, {
+                                        bloque: blockName,
+                                        numero_placa: product.unit_type === 'Placa' ? String(i + 1) : '',
+                                        quantity: product.unit_type === 'Placa' ? 0 : 1,
+                                        tipo: product.unit_type || 'Placa',
+                                    }));
+                                }
+                            });
+                        });
+
+                    this.packingRows[rowsKey] = generatedRows;
+                    this.closePackingSetupModal();
+
+                    const area = document.getElementById(`pk-rows-${pk.id}`);
+                    if (area) {
+                        const updatedShipment = (this.proforma.shipments || []).find(x => x.id === freshShipment.id) || freshShipment;
+                        this.renderPackingRows(area, pk, updatedShipment);
+                        area.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                });
+            }
+        },
+
+        closePackingSetupModal() {
+            const overlay = document.getElementById('portal-packing-setup-overlay');
+            if (overlay) {
+                overlay.classList.remove('show');
+                overlay.innerHTML = '';
+            }
+        },
+
+        _validatePackingSetup(setupState, shipment) {
+            const enabledProducts = (setupState.products || []).filter(p => p.enabled);
+            if (!enabledProducts.length) {
+                return {
+                    valid: false,
+                    message: this.t('setup_select_product_error') || 'Selecciona al menos un producto para este packing.',
+                };
+            }
+
+            let hasAnyRow = false;
+
+            for (const productState of enabledProducts) {
+                if (!productState.blocks || !productState.blocks.length) {
+                    return {
+                        valid: false,
+                        message: `${productState.product_name}: ${this.t('setup_blocks_required_error') || 'debes indicar al menos un bloque.'}`,
+                    };
+                }
+
+                for (const block of productState.blocks) {
+                    const blockName = String(block.block_name || '').trim();
+                    const count = parseInt(block.slab_count, 10) || 0;
+
+                    if (!blockName) {
+                        return {
+                            valid: false,
+                            message: `${productState.product_name}: ${this.t('setup_block_name_required') || 'falta el nombre del bloque.'}`,
+                        };
+                    }
+
+                    if (count <= 0) {
+                        return {
+                            valid: false,
+                            message: `${productState.product_name} / ${blockName}: ${this.t('setup_block_count_required') || 'la cantidad debe ser mayor a cero.'}`,
+                        };
+                    }
+
+                    const imgs = this._getBlockImagesForShipment(shipment, productState.product_id, blockName);
+                    if (!imgs.length) {
+                        return {
+                            valid: false,
+                            message: `${productState.product_name} / ${blockName}: ${this.t('setup_block_photo_required') || 'debes subir una foto del bloque.'}`,
+                        };
+                    }
+
+                    hasAnyRow = true;
+                }
+            }
+
+            if (!hasAnyRow) {
+                return {
+                    valid: false,
+                    message: this.t('setup_no_rows_error') || 'La configuración no genera filas.',
+                };
+            }
+
+            return { valid: true };
+        },
+
         renderPackingRows(area, pk, s) {
             if (!pk) return;
 
             const rowsKey = `pk_${pk.id}`;
-            const shipmentProducts = (s.products && s.products.length) ? s.products : this.products;
+            const shipmentProducts = this._getShipmentProducts(s);
             const rows = this.normalizePackingRowsCache(pk, shipmentProducts);
             const containers = (s.containers || []).filter(c => c.id && (c.container_number || c.seal_number));
 
-            const lblAvailable = this.currentLang === 'es' ? 'Disponible' : (this.currentLang === 'zh' ? '可分配' : 'Available');
-            const lblCurrent = this.currentLang === 'es' ? 'En este embarque' : (this.currentLang === 'zh' ? '当前发货' : 'Current shipment');
-            const lblRemaining = this.currentLang === 'es' ? 'Remanente' : (this.currentLang === 'zh' ? '剩余' : 'Remaining');
+            if (!rows.length) {
+                area.innerHTML = `
+                    <div class="packing-setup-empty">
+                        <div class="packing-setup-empty-icon">
+                            <i class="fa fa-list-alt"></i>
+                        </div>
+                        <div class="packing-setup-empty-body">
+                            <h4>${this.t('setup_empty_title') || 'Configura primero la estructura del packing'}</h4>
+                            <p>${this.t('setup_empty_desc') || 'Antes de capturar filas, indica por producto cuántos bloques se cargarán, cuántas placas/piezas tendrá cada bloque y sube la fotografía correspondiente.'}</p>
+                            <button type="button" class="btn-save-section btn-open-packing-setup" data-packing-id="${pk.id}">
+                                <i class="fa fa-sliders"></i> ${this.t('setup_open_wizard') || 'Configurar packing'}
+                            </button>
+                        </div>
+                    </div>`;
+                area.querySelector('.btn-open-packing-setup')?.addEventListener('click', () => {
+                    this.openPackingSetupModal(pk, s);
+                });
+                return;
+            }
 
-            let html = '';
+            const productsWithRows = shipmentProducts.filter(product => rows.some(r => r.product_id === product.id));
 
-            shipmentProducts.forEach(product => {
+            let html = `
+                <div class="packing-top-toolbar">
+                    <div class="packing-top-toolbar-left">
+                        <span class="packing-toolbar-chip">
+                            <i class="fa fa-list"></i> ${rows.length} ${this.t('setup_rows_generated') || 'filas generadas'}
+                        </span>
+                    </div>
+                </div>`;
+
+            productsWithRows.forEach(product => {
                 const unitType = product.unit_type || 'Placa';
                 const typeLabel = this.t(`lbl_type_${unitType.toLowerCase()}`);
                 const pRows = rows.filter(r => r.product_id === product.id);
+                const uniqueBlocks = [...new Set(pRows.map(r => String(r.bloque || '').trim()).filter(Boolean))];
+                const isCollapsed = this._isProductCollapsed(pk.id, product.id);
 
                 const qtyOrdered = Number(product.qty_ordered || 0);
                 const qtyAvailable = Number(
@@ -117,148 +583,153 @@
                 );
                 const isOverAssigned = !!product.is_over_assigned || (qtyRemainingAfter < -0.000001);
 
-                html += `<div class="product-section">
-                    <div class="product-header">
-                        <div>
+                html += `<div class="product-section ${isCollapsed ? 'is-collapsed' : ''}" data-product-id="${product.id}" data-pk-id="${pk.id}">
+                    <div class="product-header sticky-product-header">
+                        <div class="product-header-main">
                             <h3>${esc(product.name)}
                                 <span class="text-muted small ms-2">(${esc(product.code)})</span>
                                 <span class="badge bg-secondary ms-2" style="font-size:0.7em">${typeLabel}</span>
                             </h3>
+                            <div class="product-header-submeta">
+                                <span class="packing-toolbar-chip"><i class="fa fa-cubes"></i> ${uniqueBlocks.length} ${this.t('setup_blocks_label_short') || 'bloques'}</span>
+                                <span class="packing-toolbar-chip"><i class="fa fa-list-ol"></i> ${pRows.length} ${this.t('setup_rows_label_short') || 'filas'}</span>
+                            </div>
                         </div>
+
                         <div class="meta" style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;">
                             <span>${this.t('requested')} <strong class="text-dark">${qtyOrdered.toFixed(2)} ${esc(product.uom || '')}</strong></span>
-                            <span>${lblAvailable}: <strong class="${isOverAssigned ? 'text-danger' : 'text-dark'}">${qtyAvailable.toFixed(2)} ${esc(product.uom || '')}</strong></span>
-                            <span>${lblCurrent}: <strong class="${isOverAssigned ? 'text-danger' : 'text-dark'}">${qtyCurrent.toFixed(2)} ${esc(product.uom || '')}</strong></span>
-                            <span>${lblRemaining}: <strong class="${isOverAssigned ? 'text-danger' : 'text-dark'}">${qtyRemainingAfter.toFixed(2)} ${esc(product.uom || '')}</strong></span>
+                            <span>${this.currentLang === 'es' ? 'Disponible' : (this.currentLang === 'zh' ? '可分配' : 'Available')}: <strong class="${isOverAssigned ? 'text-danger' : 'text-dark'}">${qtyAvailable.toFixed(2)} ${esc(product.uom || '')}</strong></span>
+                            <span>${this.currentLang === 'es' ? 'En este embarque' : (this.currentLang === 'zh' ? '当前发货' : 'Current shipment')}: <strong class="${isOverAssigned ? 'text-danger' : 'text-dark'}">${qtyCurrent.toFixed(2)} ${esc(product.uom || '')}</strong></span>
+                            <span>${this.currentLang === 'es' ? 'Remanente' : (this.currentLang === 'zh' ? '剩余' : 'Remaining')}: <strong class="${isOverAssigned ? 'text-danger' : 'text-dark'}">${qtyRemainingAfter.toFixed(2)} ${esc(product.uom || '')}</strong></span>
+                            <button type="button" class="btn-toggle-product" data-product-id="${product.id}" data-pk-id="${pk.id}">
+                                <i class="fa ${isCollapsed ? 'fa-chevron-down' : 'fa-chevron-up'}"></i>
+                                ${isCollapsed ? (this.t('btn_expand_rows') || 'Ver Filas') : (this.t('btn_hide_rows') || 'Ocultar Filas')}
+                            </button>
                         </div>
-                    </div>
-                    <div class="table-responsive">
-                        <table class="portal-table">
+                    </div>`;
+
+                if (!isCollapsed) {
+                    html += `<div class="table-responsive">
+                        <table class="portal-table sticky-table-head">
                             <thead>
                                 <tr>
                                     <th>${this.t('col_container_assign')}</th>`;
 
-                if (unitType === 'Placa') {
-                    html += `<th>${this.t('col_block')}</th>
-                             <th>${this.t('col_atado')}</th>
-                             <th>${this.t('col_plate_num')}</th>
-                             <th>${this.t('col_thickness')}</th>
-                             <th>${this.t('col_height')}</th>
-                             <th>${this.t('col_width')}</th>
-                             <th>${this.t('col_area')}</th>`;
-                } else if (unitType === 'Formato') {
-                    html += `<th>${this.t('lbl_packages')}</th>
-                             <th>${this.t('col_qty')}</th>
-                             <th>${this.t('col_weight')}</th>`;
-                } else {
-                    html += `<th>${this.t('lbl_packages')}</th>
-                             <th>${this.t('col_qty')}</th>
-                             <th>${this.t('col_weight')}</th>
-                             <th>${this.t('lbl_desc_goods')}</th>`;
-                }
+                    if (unitType === 'Placa') {
+                        html += `<th>${this.t('col_block')}</th>
+                                 <th>${this.t('col_atado')}</th>
+                                 <th>${this.t('col_plate_num')}</th>
+                                 <th>${this.t('col_thickness')}</th>
+                                 <th>${this.t('col_height')}</th>
+                                 <th>${this.t('col_width')}</th>
+                                 <th>${this.t('col_area')}</th>`;
+                    } else if (unitType === 'Formato') {
+                        html += `<th>${this.t('lbl_packages')}</th>
+                                 <th>${this.t('col_qty')}</th>
+                                 <th>${this.t('col_weight')}</th>`;
+                    } else {
+                        html += `<th>${this.t('lbl_packages')}</th>
+                                 <th>${this.t('col_qty')}</th>
+                                 <th>${this.t('col_weight')}</th>
+                                 <th>${this.t('lbl_desc_goods')}</th>`;
+                    }
 
-                html += `<th style="width:60px">${this.t('col_photo')}</th>
-                         <th style="width:50px"></th>
-                         </tr>
-                            </thead>
-                            <tbody>`;
+                    html += `<th style="width:60px">${this.t('col_photo')}</th>
+                             <th style="width:50px"></th>
+                             </tr>
+                                </thead>
+                                <tbody>`;
 
-                pRows.forEach(row => {
-                    const rid = row._id;
-                    const serverRowId = row.id || 0;
-                    const hasImage = row.has_image || false;
+                    pRows.forEach(row => {
+                        const rid = row._id;
+                        const serverRowId = row.id || 0;
+                        const hasImage = row.has_image || false;
 
-                    html += `<tr data-row-id="${rid}" data-pk-key="${rowsKey}">`;
+                        html += `<tr data-row-id="${rid}" data-pk-key="${rowsKey}">`;
 
-                    const inp = (field, val, ph, type = 'text', step = '') =>
-                        `<div class="input-group-portal">
-                            <input type="${type}" step="${step}" class="input-field" data-field="${field}" value="${esc(val || '')}" placeholder="${ph}">
-                            <button type="button" class="btn-fill-down" data-row-id="${rid}" data-field="${field}" data-pk-key="${rowsKey}" tabindex="-1">
-                                <i class="fa fa-arrow-down"></i>
-                            </button>
-                        </div>`;
+                        const inp = (field, val, ph, type = 'text', step = '') =>
+                            `<div class="input-group-portal">
+                                <input type="${type}" step="${step}" class="input-field" data-field="${field}" value="${esc(val || '')}" placeholder="${ph}">
+                                <button type="button" class="btn-fill-down" data-row-id="${rid}" data-field="${field}" data-pk-key="${rowsKey}" tabindex="-1">
+                                    <i class="fa fa-arrow-down"></i>
+                                </button>
+                            </div>`;
 
-                    html += `<td data-label="${this.t('col_container_assign')}">
-                        <div class="input-group-portal">
-                            <select class="row-container-select input-field" data-field="container_id" data-row-id="${rid}" data-pk-key="${rowsKey}">
-                                <option value="">${this.t('opt_select')}</option>
-                                ${containers.map(c => `
-                                    <option value="${c.id}" ${asInt(row.container_id) === c.id ? 'selected' : ''}>
-                                        ${esc(c.container_number || '#' + c.id)}
-                                    </option>
-                                `).join('')}
-                            </select>
-                            <button type="button" class="btn-fill-down" data-row-id="${rid}" data-field="container_id" data-pk-key="${rowsKey}" tabindex="-1">
-                                <i class="fa fa-arrow-down"></i>
+                        html += `<td data-label="${this.t('col_container_assign')}">
+                            <div class="input-group-portal">
+                                <select class="row-container-select input-field" data-field="container_id" data-row-id="${rid}" data-pk-key="${rowsKey}">
+                                    <option value="">${this.t('opt_select')}</option>
+                                    ${containers.map(c => `
+                                        <option value="${c.id}" ${asInt(row.container_id) === c.id ? 'selected' : ''}>
+                                            ${esc(c.container_number || '#' + c.id)}
+                                        </option>
+                                    `).join('')}
+                                </select>
+                                <button type="button" class="btn-fill-down" data-row-id="${rid}" data-field="container_id" data-pk-key="${rowsKey}" tabindex="-1">
+                                    <i class="fa fa-arrow-down"></i>
+                                </button>
+                            </div>
+                        </td>`;
+
+                        if (unitType === 'Placa') {
+                            const areaVal = ((row.alto || 0) * (row.ancho || 0)).toFixed(2);
+                            html += `
+                                <td data-label="${this.t('col_block')}">${inp('bloque', row.bloque, '')}</td>
+                                <td data-label="${this.t('col_atado')}">${inp('atado', row.atado, '')}</td>
+                                <td data-label="${this.t('col_plate_num')}">${inp('numero_placa', row.numero_placa, '')}</td>
+                                <td data-label="${this.t('col_thickness')}">${inp('grosor', row.grosor, '', 'text')}</td>
+                                <td data-label="${this.t('col_height')}">${inp('alto', row.alto, '', 'number', '0.01')}</td>
+                                <td data-label="${this.t('col_width')}">${inp('ancho', row.ancho, '', 'number', '0.01')}</td>
+                                <td data-label="${this.t('col_area')}"><span class="area-display">${areaVal}</span></td>`;
+                        } else if (unitType === 'Formato') {
+                            html += `
+                                <td>${inp('atado', row.atado, '')}</td>
+                                <td>${inp('quantity', row.quantity, '', 'number', '1')}</td>
+                                <td>${inp('peso', row.peso, '', 'number', '0.01')}</td>`;
+                        } else {
+                            html += `
+                                <td>${inp('atado', row.atado, '')}</td>
+                                <td>${inp('quantity', row.quantity, '', 'number', '1')}</td>
+                                <td>${inp('peso', row.peso, '', 'number', '0.01')}</td>
+                                <td>${inp('color', row.color, '')}</td>`;
+                        }
+
+                        if (!serverRowId) {
+                            html += `<td data-label="${this.t('col_photo')}" class="text-center">
+                                <span class="text-muted" style="font-size:0.7rem" title="${this.t('msg_photo_save_first')}">—</span>
+                            </td>`;
+                        } else if (hasImage) {
+                            html += `<td data-label="${this.t('col_photo')}" class="text-center">
+                                <button class="btn-photo-done" type="button" data-server-row-id="${serverRowId}" data-row-id="${rid}" title="${this.t('msg_confirm_delete_photo')}">
+                                    <i class="fa fa-check-circle" style="color:#16a34a;font-size:1.1rem"></i>
+                                </button>
+                            </td>`;
+                        } else {
+                            html += `<td data-label="${this.t('col_photo')}" class="text-center">
+                                <label class="btn-photo-upload" title="${this.t('col_photo')}" style="cursor:pointer;margin:0">
+                                    <i class="fa fa-camera" style="color:#8B5A2B;font-size:1rem"></i>
+                                    <input type="file" accept="image/*" capture="environment" data-server-row-id="${serverRowId}" data-row-id="${rid}" class="photo-file-input" style="display:none"/>
+                                </label>
+                            </td>`;
+                        }
+
+                        html += `<td class="text-center">
+                            <button class="btn-action btn-delete-row" type="button"><i class="fa fa-trash"></i></button>
+                        </td>`;
+
+                        html += `</tr>`;
+                    });
+
+                    html += `</tbody></table>
+                        <div class="table-actions">
+                            <button class="btn-add-row action-add-pk-row" data-product-id="${product.id}" data-pk-key="${rowsKey}" data-count="1" type="button">
+                                ${this.t('btn_add_row')}
                             </button>
                         </div>
-                    </td>`;
+                    </div>`;
+                }
 
-                    if (unitType === 'Placa') {
-                        const areaVal = ((row.alto || 0) * (row.ancho || 0)).toFixed(2);
-                        html += `
-                            <td data-label="${this.t('col_block')}">${inp('bloque', row.bloque, '')}</td>
-                            <td data-label="${this.t('col_atado')}">${inp('atado', row.atado, '')}</td>
-                            <td data-label="${this.t('col_plate_num')}">${inp('numero_placa', row.numero_placa, '')}</td>
-                            <td data-label="${this.t('col_thickness')}">${inp('grosor', row.grosor, '', 'text')}</td>
-                            <td data-label="${this.t('col_height')}">${inp('alto', row.alto, '', 'number', '0.01')}</td>
-                            <td data-label="${this.t('col_width')}">${inp('ancho', row.ancho, '', 'number', '0.01')}</td>
-                            <td data-label="${this.t('col_area')}"><span class="area-display">${areaVal}</span></td>`;
-                    } else if (unitType === 'Formato') {
-                        html += `
-                            <td>${inp('atado', row.atado, '')}</td>
-                            <td>${inp('quantity', row.quantity, '', 'number', '1')}</td>
-                            <td>${inp('peso', row.peso, '', 'number', '0.01')}</td>`;
-                    } else {
-                        html += `
-                            <td>${inp('atado', row.atado, '')}</td>
-                            <td>${inp('quantity', row.quantity, '', 'number', '1')}</td>
-                            <td>${inp('peso', row.peso, '', 'number', '0.01')}</td>
-                            <td>${inp('color', row.color, '')}</td>`;
-                    }
-
-                    if (!serverRowId) {
-                        html += `<td data-label="${this.t('col_photo')}" class="text-center">
-                            <span class="text-muted" style="font-size:0.7rem" title="${this.t('msg_photo_save_first')}">—</span>
-                        </td>`;
-                    } else if (hasImage) {
-                        html += `<td data-label="${this.t('col_photo')}" class="text-center">
-                            <button class="btn-photo-done" type="button" data-server-row-id="${serverRowId}" data-row-id="${rid}" title="${this.t('msg_confirm_delete_photo')}">
-                                <i class="fa fa-check-circle" style="color:#16a34a;font-size:1.1rem"></i>
-                            </button>
-                        </td>`;
-                    } else {
-                        html += `<td data-label="${this.t('col_photo')}" class="text-center">
-                            <label class="btn-photo-upload" title="${this.t('col_photo')}" style="cursor:pointer;margin:0">
-                                <i class="fa fa-camera" style="color:#8B5A2B;font-size:1rem"></i>
-                                <input type="file" accept="image/*" capture="environment" data-server-row-id="${serverRowId}" data-row-id="${rid}" class="photo-file-input" style="display:none"/>
-                            </label>
-                        </td>`;
-                    }
-
-                    html += `<td class="text-center">
-                        <button class="btn-action btn-delete-row" type="button"><i class="fa fa-trash"></i></button>
-                    </td>`;
-
-                    html += `</tr>`;
-                });
-
-                html += `</tbody></table>
-                    <div class="table-actions">
-                        <button class="btn-add-row action-add-pk-row" data-product-id="${product.id}" data-pk-key="${rowsKey}" data-count="1" type="button">
-                            ${this.t('btn_add_row')}
-                        </button>
-                        <button class="btn-add-row action-add-pk-row" data-product-id="${product.id}" data-pk-key="${rowsKey}" data-count="5" type="button">
-                            ${this.t('btn_add_5')}
-                        </button>
-                        <button class="btn-add-row action-add-pk-row" data-product-id="${product.id}" data-pk-key="${rowsKey}" data-count="15" type="button">
-                            ${this.t('btn_add_15')}
-                        </button>
-                        <button class="btn-add-row action-add-pk-row" data-product-id="${product.id}" data-pk-key="${rowsKey}" data-count="30" type="button">
-                            ${this.t('btn_add_30')}
-                        </button>
-                    </div>
-                </div></div>`;
+                html += `</div>`;
             });
 
             area.innerHTML = html;
@@ -274,6 +745,8 @@
                 if (!e.target.classList.contains('input-field')) return;
 
                 const tr = e.target.closest('tr');
+                if (!tr) return;
+
                 const rid = parseInt(tr.dataset.rowId, 10);
                 const key = tr.dataset.pkKey;
                 const field = e.target.dataset.field;
@@ -294,8 +767,6 @@
                     }
                 }
 
-                // Cuando cambia el campo bloque, refrescar la sección de fotos
-                // para que aparezca/desaparezca el slot del bloque de inmediato
                 if (field === 'bloque') {
                     clearTimeout(this._bloqueRefreshTimer);
                     this._bloqueRefreshTimer = setTimeout(() => {
@@ -342,6 +813,21 @@
                 const addBtn = e.target.closest('.action-add-pk-row');
                 const fillBtn = e.target.closest('.btn-fill-down');
                 const photoDoneBtn = e.target.closest('.btn-photo-done');
+                const openSetupBtn = e.target.closest('.btn-open-packing-setup');
+                const toggleProductBtn = e.target.closest('.btn-toggle-product');
+
+                if (openSetupBtn) {
+                    this.openPackingSetupModal(pk, s);
+                    return;
+                }
+
+                if (toggleProductBtn) {
+                    const productId = asInt(toggleProductBtn.dataset.productId);
+                    const packingId = asInt(toggleProductBtn.dataset.pkId);
+                    this._toggleProductCollapsed(packingId, productId);
+                    this.renderPackingRows(area, pk, s);
+                    return;
+                }
 
                 if (photoDoneBtn) {
                     this.deleteRowImage(
@@ -366,11 +852,17 @@
                     const pid = parseInt(addBtn.dataset.productId, 10);
                     const key = addBtn.dataset.pkKey;
                     const count = parseInt(addBtn.dataset.count, 10) || 1;
-                    const productPool = (s.products && s.products.length) ? s.products : this.products;
+                    const productPool = this._getShipmentProducts(s);
                     const p = productPool.find(x => x.id === pid) || this.products.find(x => x.id === pid);
                     if (p) {
+                        const lastProductRow = [...(this.packingRows[key] || [])].reverse().find(r => r.product_id === pid);
                         for (let i = 0; i < count; i++) {
-                            this.packingRows[key].push(this._newProductRow(p));
+                            this.packingRows[key].push(this._newProductRow(p, lastProductRow ? {
+                                bloque: lastProductRow.bloque || '',
+                                atado: lastProductRow.atado || '',
+                                container_id: lastProductRow.container_id || 0,
+                                quantity: p.unit_type === 'Placa' ? 0 : 1,
+                            } : {}));
                         }
                         this.renderPackingRows(area, pk, s);
                     }
@@ -434,13 +926,9 @@
             }
         },
 
-        // =================================================================
-        //  FOTOS DE BLOQUE
-        // =================================================================
-
         _renderBlockPhotoSections(area, pk, s, rowsKey) {
             const rows = this.packingRows[rowsKey] || [];
-            const productPool = (s.products && s.products.length) ? s.products : this.products;
+            const productPool = this._getShipmentProducts(s);
 
             const blocksByKey = {};
             rows.forEach(r => {

@@ -19,6 +19,11 @@
             this.nextRowId = 1;
             this._eventsBound = false;
 
+            // NUEVO
+            this.packingSetupState = {};
+            this.productCollapseState = {};
+            this.autoOpenPackingSetupId = null;
+
             if (document.readyState === 'loading') {
                 document.addEventListener('DOMContentLoaded', () => this.init());
             } else {
