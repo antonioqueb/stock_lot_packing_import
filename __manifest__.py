@@ -17,8 +17,10 @@
     ],
     'assets': {
         'web.assets_frontend': [
-            # ── SCSS Modules ──
+            # ── SCSS: Variables PRIMERO (los demás las heredan por concatenación) ──
             'stock_lot_packing_import/static/src/scss/_tokens.scss',
+
+            # ── SCSS: Componentes (orden no importa, pero lógico) ──
             'stock_lot_packing_import/static/src/scss/_base.scss',
             'stock_lot_packing_import/static/src/scss/_header.scss',
             'stock_lot_packing_import/static/src/scss/_container.scss',
