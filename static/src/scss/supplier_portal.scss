@@ -1,9 +1,5 @@
 /* static/src/scss/supplier_portal.scss */
-/* v5.4 — White Canvas, Warm Accents, Wide Layout */
-/* Fixed:
-   1) removed width: min(1100px, 100%) because LibSass/Odoo may fail on mixed units
-   2) kept custom mixin names to avoid Bootstrap collisions
-*/
+/* v5.5 — Fixed product headers: sticky + collapsible */
 
 /* ═══════════════════════════════════════════════════
    DESIGN TOKENS
@@ -871,104 +867,183 @@ body {
 }
 
 /* ═══════════════════════════════════════════════════
-   PRODUCT SECTION (Packing rows table)
+   PRODUCT SECTION — NEW: Sticky Header + Collapse
    ═══════════════════════════════════════════════════ */
-.product-section {
+
+.packing-products-list {
+    display: flex;
+    flex-direction: column;
+    gap: $sp-portal-4;
+}
+
+.ps-product-wrapper {
     background: $sp-portal-bg-card;
     border: 1px solid $sp-portal-border-default;
     border-radius: $sp-portal-radius-lg;
-    margin-bottom: $sp-portal-5;
     overflow: visible;
     box-shadow: $sp-portal-shadow-sm;
+    transition: box-shadow $sp-portal-duration-base $sp-portal-ease-out;
 
-    &.is-collapsed {
-        .table-responsive { display: none; }
-    }
-
-    .product-header {
-        background: $sp-portal-bg-card;
-        padding: $sp-portal-4 $sp-portal-5;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        border-bottom: 1px solid $sp-portal-border-default;
-        flex-wrap: wrap;
-        gap: $sp-portal-3;
-
-        h3 {
-            margin: 0;
-            font-family: $sp-portal-font-display;
-            font-size: 1rem;
-            color: $sp-portal-text-primary;
-            font-weight: 700;
-            letter-spacing: -0.01em;
-        }
-
-        .badge {
-            background-color: $sp-portal-text-primary;
-            color: $sp-portal-text-inverse;
-            padding: 3px $sp-portal-2;
-            border-radius: $sp-portal-radius-sm;
-            font-weight: 700;
-            font-size: 0.68rem;
-            font-family: $sp-portal-font-mono;
-            letter-spacing: 0.02em;
-        }
-
-        .meta {
-            color: $sp-portal-text-secondary;
-            font-size: 0.85rem;
-            font-weight: 600;
-            white-space: nowrap;
-            font-family: $sp-portal-font-mono;
-        }
-    }
-
-    .product-header-main {
-        display: flex;
-        flex-direction: column;
-        gap: $sp-portal-2;
-    }
-
-    .product-header-submeta {
-        display: flex;
-        gap: $sp-portal-2;
-        flex-wrap: wrap;
-    }
-
-    .table-responsive {
-        padding: 0;
-        overflow-x: auto;
-        overflow-y: visible;
+    &.ps-expanded {
+        box-shadow: $sp-portal-shadow-md;
     }
 }
 
-.sticky-product-header {
+/* ── Sticky product header ── */
+.ps-product-sticky-header {
     position: sticky;
-    top: 70px;
-    z-index: 30;
-    box-shadow: $sp-portal-shadow-xs;
+    top: 56px; /* height of main portal header */
+    z-index: 40;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: $sp-portal-3 $sp-portal-5;
+    background: $sp-portal-bg-card;
+    border-bottom: 1px solid $sp-portal-border-default;
+    cursor: pointer;
+    user-select: none;
+    gap: $sp-portal-3;
+    flex-wrap: wrap;
+    border-radius: $sp-portal-radius-lg $sp-portal-radius-lg 0 0;
+    transition: background $sp-portal-duration-fast $sp-portal-ease-out, box-shadow $sp-portal-duration-fast $sp-portal-ease-out;
+
+    /* When scrolled into sticky position, add a subtle shadow */
+    box-shadow: none;
+
+    .ps-collapsed & {
+        border-radius: $sp-portal-radius-lg;
+        border-bottom: none;
+    }
+
+    @include sp-portal-hover {
+        background: $sp-portal-bg-inset;
+    }
 }
 
-.btn-toggle-product {
-    @include sp-portal-btn-base;
-    padding: $sp-portal-2 $sp-portal-3;
+.ps-header-left {
+    display: flex;
+    align-items: center;
+    gap: $sp-portal-3;
+    min-width: 0;
+    flex: 1;
+}
+
+.ps-toggle-btn {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
     border-radius: $sp-portal-radius-sm;
     border: 1px solid $sp-portal-border-default;
     background: $sp-portal-bg-card;
     color: $sp-portal-text-secondary;
-    font-size: 0.78rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: all $sp-portal-duration-fast $sp-portal-ease-out;
 
     @include sp-portal-hover {
         background: $sp-portal-bg-subtle;
         border-color: $sp-portal-border-strong;
+        color: $sp-portal-text-primary;
+    }
+
+    i {
+        transition: transform $sp-portal-duration-base $sp-portal-ease-out;
     }
 }
 
-/* ═══════════════════════════════════════════════════
-   TABLE
-   ═══════════════════════════════════════════════════ */
-.portal-table {
+.ps-header-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.ps-product-name {
+    font-family: $sp-portal-font-display;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: $sp-portal-text-primary;
+    letter-spacing: -0.01em;
+    display: flex;
+    align-items: center;
+    gap: $sp-portal-2;
+    flex-wrap: wrap;
+}
+
+.ps-product-code {
+    color: $sp-portal-text-tertiary;
+    font-size: 0.78rem;
+    font-weight: 500;
+    font-family: $sp-portal-font-mono;
+}
+
+.ps-type-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px $sp-portal-2;
+    border-radius: $sp-portal-radius-sm;
+    background: $sp-portal-text-primary;
+    color: $sp-portal-text-inverse;
+    font-size: 0.62rem;
+    font-weight: 700;
+    font-family: $sp-portal-font-mono;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
+.ps-product-chips {
+    display: flex;
+    gap: $sp-portal-2;
+    flex-wrap: wrap;
+}
+
+.ps-header-right {
+    display: flex;
+    align-items: center;
+    gap: $sp-portal-3;
+    flex-wrap: wrap;
+}
+
+.ps-qty-chips {
+    display: flex;
+    gap: $sp-portal-3;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.ps-qty-chip {
+    font-size: 0.76rem;
+    color: $sp-portal-text-secondary;
+    font-weight: 600;
+    white-space: nowrap;
+    font-family: $sp-portal-font-mono;
+
+    strong {
+        color: $sp-portal-text-primary;
+        font-weight: 800;
+
+        &.text-danger {
+            color: $sp-portal-red;
+        }
+    }
+}
+
+/* ── Collapsible body ── */
+.ps-product-body {
+    padding: 0;
+    overflow: hidden;
+}
+
+.ps-table-scroll {
+    overflow-x: auto;
+    overflow-y: visible;
+    -webkit-overflow-scrolling: touch;
+}
+
+.ps-data-table {
     width: 100%;
     border-collapse: collapse;
     color: $sp-portal-text-primary;
@@ -988,6 +1063,13 @@ body {
             border-bottom: 1px solid $sp-portal-border-default;
             white-space: nowrap;
             background: $sp-portal-bg-inset;
+
+            /* Sticky thead within the product wrapper */
+            position: sticky;
+            /* top = portal header (56px) + product sticky header (~60px) */
+            top: 116px;
+            z-index: 30;
+            box-shadow: inset 0 -1px 0 $sp-portal-border-default;
         }
     }
 
@@ -1068,19 +1150,57 @@ body {
         }
 
         .input-group-portal { width: 55%; }
+
+        thead th {
+            position: static !important;
+        }
     }
 }
 
-.sticky-table-head {
-    thead th {
-        position: sticky;
-        top: 148px;
-        z-index: 20;
-        box-shadow: inset 0 -1px 0 $sp-portal-border-default;
+/* Legacy .portal-table kept for non-packing tables */
+.portal-table:not(.ps-data-table) {
+    width: 100%;
+    border-collapse: collapse;
+    color: $sp-portal-text-primary;
+    table-layout: auto;
+
+    thead {
+        background: $sp-portal-bg-inset;
+
+        th {
+            text-align: left;
+            padding: $sp-portal-3;
+            color: $sp-portal-text-tertiary;
+            font-size: 0.68rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            border-bottom: 1px solid $sp-portal-border-default;
+            white-space: nowrap;
+            background: $sp-portal-bg-inset;
+        }
     }
 
-    @include sp-portal-mobile {
-        thead th { position: static; }
+    tbody {
+        tr {
+            transition: background $sp-portal-duration-fast $sp-portal-ease-out;
+            @include sp-portal-hover { background: $sp-portal-bg-inset; }
+        }
+
+        td {
+            padding: $sp-portal-2 $sp-portal-3;
+            border-bottom: 1px solid $sp-portal-border-subtle;
+            vertical-align: middle;
+            font-size: 0.85rem;
+
+            .area-display {
+                color: $sp-portal-primary;
+                font-weight: 700;
+                font-family: $sp-portal-font-mono;
+                font-size: 0.88rem;
+                letter-spacing: -0.02em;
+            }
+        }
     }
 }
 
@@ -1563,9 +1683,25 @@ body {
         .btn-add-row { width: 100%; }
     }
 
-    .sticky-product-header { position: static; }
+    .ps-product-sticky-header {
+        position: static !important;
+        flex-direction: column;
+        align-items: flex-start;
+    }
 
-    .sticky-table-head thead th { position: static; }
+    .ps-header-right {
+        width: 100%;
+    }
+
+    .ps-qty-chips {
+        width: 100%;
+        gap: $sp-portal-2;
+        font-size: 0.7rem;
+    }
+
+    .ps-data-table thead th {
+        position: static !important;
+    }
 }
 
 /* ═══════════════════════════════════════════════════

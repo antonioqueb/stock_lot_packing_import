@@ -141,6 +141,10 @@
 
         _isProductCollapsed(pkId, productId) {
             const key = this._getProductCollapseKey(pkId, productId);
+            // Default: collapsed (true) — user expands what they need
+            if (this.productCollapseState[key] === undefined) {
+                return false; // first time: show expanded
+            }
             return !!this.productCollapseState[key];
         },
 
@@ -525,6 +529,10 @@
             return { valid: true };
         },
 
+        // =================================================================
+        //  MAIN RENDER — product sections with sticky headers & collapse
+        // =================================================================
+
         renderPackingRows(area, pk, s) {
             if (!pk) return;
 
@@ -562,7 +570,8 @@
                             <i class="fa fa-list"></i> ${rows.length} ${this.t('setup_rows_generated') || 'filas generadas'}
                         </span>
                     </div>
-                </div>`;
+                </div>
+                <div class="packing-products-list">`;
 
             productsWithRows.forEach(product => {
                 const unitType = product.unit_type || 'Placa';
@@ -583,155 +592,165 @@
                 );
                 const isOverAssigned = !!product.is_over_assigned || (qtyRemainingAfter < -0.000001);
 
-                html += `<div class="product-section ${isCollapsed ? 'is-collapsed' : ''}" data-product-id="${product.id}" data-pk-id="${pk.id}">
-                    <div class="product-header sticky-product-header">
-                        <div class="product-header-main">
-                            <h3>${esc(product.name)}
-                                <span class="text-muted small ms-2">(${esc(product.code)})</span>
-                                <span class="badge bg-secondary ms-2" style="font-size:0.7em">${typeLabel}</span>
-                            </h3>
-                            <div class="product-header-submeta">
+                html += `<div class="ps-product-wrapper ${isCollapsed ? 'ps-collapsed' : 'ps-expanded'}" data-product-id="${product.id}" data-pk-id="${pk.id}">`;
+
+                // ── STICKY PRODUCT HEADER ──
+                html += `<div class="ps-product-sticky-header" data-product-id="${product.id}" data-pk-id="${pk.id}">
+                    <div class="ps-header-left">
+                        <button type="button" class="ps-toggle-btn" data-product-id="${product.id}" data-pk-id="${pk.id}">
+                            <i class="fa ${isCollapsed ? 'fa-chevron-right' : 'fa-chevron-down'}"></i>
+                        </button>
+                        <div class="ps-header-info">
+                            <div class="ps-product-name">
+                                ${esc(product.name)}
+                                <span class="ps-product-code">${esc(product.code)}</span>
+                                <span class="ps-type-badge">${typeLabel}</span>
+                            </div>
+                            <div class="ps-product-chips">
                                 <span class="packing-toolbar-chip"><i class="fa fa-cubes"></i> ${uniqueBlocks.length} ${this.t('setup_blocks_label_short') || 'bloques'}</span>
                                 <span class="packing-toolbar-chip"><i class="fa fa-list-ol"></i> ${pRows.length} ${this.t('setup_rows_label_short') || 'filas'}</span>
                             </div>
                         </div>
-
-                        <div class="meta" style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;">
-                            <span>${this.t('requested')} <strong class="text-dark">${qtyOrdered.toFixed(2)} ${esc(product.uom || '')}</strong></span>
-                            <span>${this.currentLang === 'es' ? 'Disponible' : (this.currentLang === 'zh' ? '可分配' : 'Available')}: <strong class="${isOverAssigned ? 'text-danger' : 'text-dark'}">${qtyAvailable.toFixed(2)} ${esc(product.uom || '')}</strong></span>
-                            <span>${this.currentLang === 'es' ? 'En este embarque' : (this.currentLang === 'zh' ? '当前发货' : 'Current shipment')}: <strong class="${isOverAssigned ? 'text-danger' : 'text-dark'}">${qtyCurrent.toFixed(2)} ${esc(product.uom || '')}</strong></span>
-                            <span>${this.currentLang === 'es' ? 'Remanente' : (this.currentLang === 'zh' ? '剩余' : 'Remaining')}: <strong class="${isOverAssigned ? 'text-danger' : 'text-dark'}">${qtyRemainingAfter.toFixed(2)} ${esc(product.uom || '')}</strong></span>
-                            <button type="button" class="btn-toggle-product" data-product-id="${product.id}" data-pk-id="${pk.id}">
-                                <i class="fa ${isCollapsed ? 'fa-chevron-down' : 'fa-chevron-up'}"></i>
-                                ${isCollapsed ? (this.t('btn_expand_rows') || 'Ver Filas') : (this.t('btn_hide_rows') || 'Ocultar Filas')}
-                            </button>
+                    </div>
+                    <div class="ps-header-right">
+                        <div class="ps-qty-chips">
+                            <span class="ps-qty-chip">${this.t('requested')} <strong>${qtyOrdered.toFixed(2)}</strong> ${esc(product.uom || '')}</span>
+                            <span class="ps-qty-chip">${this.currentLang === 'es' ? 'Disponible' : 'Available'}: <strong class="${isOverAssigned ? 'text-danger' : ''}">${qtyAvailable.toFixed(2)}</strong></span>
+                            <span class="ps-qty-chip">${this.currentLang === 'es' ? 'Embarque' : 'Shipment'}: <strong class="${isOverAssigned ? 'text-danger' : ''}">${qtyCurrent.toFixed(2)}</strong></span>
+                            <span class="ps-qty-chip">${this.currentLang === 'es' ? 'Remanente' : 'Remaining'}: <strong class="${isOverAssigned ? 'text-danger' : ''}">${qtyRemainingAfter.toFixed(2)}</strong></span>
                         </div>
-                    </div>`;
+                    </div>
+                </div>`;
 
-                if (!isCollapsed) {
-                    html += `<div class="table-responsive">
-                        <table class="portal-table sticky-table-head">
-                            <thead>
-                                <tr>
-                                    <th>${this.t('col_container_assign')}</th>`;
+                // ── COLLAPSIBLE BODY ──
+                html += `<div class="ps-product-body" style="${isCollapsed ? 'display:none;' : ''}">`;
 
-                    if (unitType === 'Placa') {
-                        html += `<th>${this.t('col_block')}</th>
-                                 <th>${this.t('col_atado')}</th>
-                                 <th>${this.t('col_plate_num')}</th>
-                                 <th>${this.t('col_thickness')}</th>
-                                 <th>${this.t('col_height')}</th>
-                                 <th>${this.t('col_width')}</th>
-                                 <th>${this.t('col_area')}</th>`;
-                    } else if (unitType === 'Formato') {
-                        html += `<th>${this.t('lbl_packages')}</th>
-                                 <th>${this.t('col_qty')}</th>
-                                 <th>${this.t('col_weight')}</th>`;
-                    } else {
-                        html += `<th>${this.t('lbl_packages')}</th>
-                                 <th>${this.t('col_qty')}</th>
-                                 <th>${this.t('col_weight')}</th>
-                                 <th>${this.t('lbl_desc_goods')}</th>`;
-                    }
+                // ── TABLE ──
+                html += `<div class="ps-table-scroll">
+                    <table class="portal-table ps-data-table">
+                        <thead>
+                            <tr>
+                                <th>${this.t('col_container_assign')}</th>`;
 
-                    html += `<th style="width:60px">${this.t('col_photo')}</th>
-                             <th style="width:50px"></th>
-                             </tr>
-                                </thead>
-                                <tbody>`;
-
-                    pRows.forEach(row => {
-                        const rid = row._id;
-                        const serverRowId = row.id || 0;
-                        const hasImage = row.has_image || false;
-
-                        html += `<tr data-row-id="${rid}" data-pk-key="${rowsKey}">`;
-
-                        const inp = (field, val, ph, type = 'text', step = '') =>
-                            `<div class="input-group-portal">
-                                <input type="${type}" step="${step}" class="input-field" data-field="${field}" value="${esc(val || '')}" placeholder="${ph}">
-                                <button type="button" class="btn-fill-down" data-row-id="${rid}" data-field="${field}" data-pk-key="${rowsKey}" tabindex="-1">
-                                    <i class="fa fa-arrow-down"></i>
-                                </button>
-                            </div>`;
-
-                        html += `<td data-label="${this.t('col_container_assign')}">
-                            <div class="input-group-portal">
-                                <select class="row-container-select input-field" data-field="container_id" data-row-id="${rid}" data-pk-key="${rowsKey}">
-                                    <option value="">${this.t('opt_select')}</option>
-                                    ${containers.map(c => `
-                                        <option value="${c.id}" ${asInt(row.container_id) === c.id ? 'selected' : ''}>
-                                            ${esc(c.container_number || '#' + c.id)}
-                                        </option>
-                                    `).join('')}
-                                </select>
-                                <button type="button" class="btn-fill-down" data-row-id="${rid}" data-field="container_id" data-pk-key="${rowsKey}" tabindex="-1">
-                                    <i class="fa fa-arrow-down"></i>
-                                </button>
-                            </div>
-                        </td>`;
-
-                        if (unitType === 'Placa') {
-                            const areaVal = ((row.alto || 0) * (row.ancho || 0)).toFixed(2);
-                            html += `
-                                <td data-label="${this.t('col_block')}">${inp('bloque', row.bloque, '')}</td>
-                                <td data-label="${this.t('col_atado')}">${inp('atado', row.atado, '')}</td>
-                                <td data-label="${this.t('col_plate_num')}">${inp('numero_placa', row.numero_placa, '')}</td>
-                                <td data-label="${this.t('col_thickness')}">${inp('grosor', row.grosor, '', 'text')}</td>
-                                <td data-label="${this.t('col_height')}">${inp('alto', row.alto, '', 'number', '0.01')}</td>
-                                <td data-label="${this.t('col_width')}">${inp('ancho', row.ancho, '', 'number', '0.01')}</td>
-                                <td data-label="${this.t('col_area')}"><span class="area-display">${areaVal}</span></td>`;
-                        } else if (unitType === 'Formato') {
-                            html += `
-                                <td>${inp('atado', row.atado, '')}</td>
-                                <td>${inp('quantity', row.quantity, '', 'number', '1')}</td>
-                                <td>${inp('peso', row.peso, '', 'number', '0.01')}</td>`;
-                        } else {
-                            html += `
-                                <td>${inp('atado', row.atado, '')}</td>
-                                <td>${inp('quantity', row.quantity, '', 'number', '1')}</td>
-                                <td>${inp('peso', row.peso, '', 'number', '0.01')}</td>
-                                <td>${inp('color', row.color, '')}</td>`;
-                        }
-
-                        if (!serverRowId) {
-                            html += `<td data-label="${this.t('col_photo')}" class="text-center">
-                                <span class="text-muted" style="font-size:0.7rem" title="${this.t('msg_photo_save_first')}">—</span>
-                            </td>`;
-                        } else if (hasImage) {
-                            html += `<td data-label="${this.t('col_photo')}" class="text-center">
-                                <button class="btn-photo-done" type="button" data-server-row-id="${serverRowId}" data-row-id="${rid}" title="${this.t('msg_confirm_delete_photo')}">
-                                    <i class="fa fa-check-circle" style="color:#16a34a;font-size:1.1rem"></i>
-                                </button>
-                            </td>`;
-                        } else {
-                            html += `<td data-label="${this.t('col_photo')}" class="text-center">
-                                <label class="btn-photo-upload" title="${this.t('col_photo')}" style="cursor:pointer;margin:0">
-                                    <i class="fa fa-camera" style="color:#8B5A2B;font-size:1rem"></i>
-                                    <input type="file" accept="image/*" capture="environment" data-server-row-id="${serverRowId}" data-row-id="${rid}" class="photo-file-input" style="display:none"/>
-                                </label>
-                            </td>`;
-                        }
-
-                        html += `<td class="text-center">
-                            <button class="btn-action btn-delete-row" type="button"><i class="fa fa-trash"></i></button>
-                        </td>`;
-
-                        html += `</tr>`;
-                    });
-
-                    html += `</tbody></table>
-                        <div class="table-actions">
-                            <button class="btn-add-row action-add-pk-row" data-product-id="${product.id}" data-pk-key="${rowsKey}" data-count="1" type="button">
-                                ${this.t('btn_add_row')}
-                            </button>
-                        </div>
-                    </div>`;
+                if (unitType === 'Placa') {
+                    html += `<th>${this.t('col_block')}</th>
+                             <th>${this.t('col_atado')}</th>
+                             <th>${this.t('col_plate_num')}</th>
+                             <th>${this.t('col_thickness')}</th>
+                             <th>${this.t('col_height')}</th>
+                             <th>${this.t('col_width')}</th>
+                             <th>${this.t('col_area')}</th>`;
+                } else if (unitType === 'Formato') {
+                    html += `<th>${this.t('lbl_packages')}</th>
+                             <th>${this.t('col_qty')}</th>
+                             <th>${this.t('col_weight')}</th>`;
+                } else {
+                    html += `<th>${this.t('lbl_packages')}</th>
+                             <th>${this.t('col_qty')}</th>
+                             <th>${this.t('col_weight')}</th>
+                             <th>${this.t('lbl_desc_goods')}</th>`;
                 }
 
-                html += `</div>`;
+                html += `<th style="width:60px">${this.t('col_photo')}</th>
+                         <th style="width:50px"></th>
+                         </tr>
+                            </thead>
+                            <tbody>`;
+
+                pRows.forEach(row => {
+                    const rid = row._id;
+                    const serverRowId = row.id || 0;
+                    const hasImage = row.has_image || false;
+
+                    html += `<tr data-row-id="${rid}" data-pk-key="${rowsKey}">`;
+
+                    const inp = (field, val, ph, type = 'text', step = '') =>
+                        `<div class="input-group-portal">
+                            <input type="${type}" step="${step}" class="input-field" data-field="${field}" value="${esc(val || '')}" placeholder="${ph}">
+                            <button type="button" class="btn-fill-down" data-row-id="${rid}" data-field="${field}" data-pk-key="${rowsKey}" tabindex="-1">
+                                <i class="fa fa-arrow-down"></i>
+                            </button>
+                        </div>`;
+
+                    html += `<td data-label="${this.t('col_container_assign')}">
+                        <div class="input-group-portal">
+                            <select class="row-container-select input-field" data-field="container_id" data-row-id="${rid}" data-pk-key="${rowsKey}">
+                                <option value="">${this.t('opt_select')}</option>
+                                ${containers.map(c => `
+                                    <option value="${c.id}" ${asInt(row.container_id) === c.id ? 'selected' : ''}>
+                                        ${esc(c.container_number || '#' + c.id)}
+                                    </option>
+                                `).join('')}
+                            </select>
+                            <button type="button" class="btn-fill-down" data-row-id="${rid}" data-field="container_id" data-pk-key="${rowsKey}" tabindex="-1">
+                                <i class="fa fa-arrow-down"></i>
+                            </button>
+                        </div>
+                    </td>`;
+
+                    if (unitType === 'Placa') {
+                        const areaVal = ((row.alto || 0) * (row.ancho || 0)).toFixed(2);
+                        html += `
+                            <td data-label="${this.t('col_block')}">${inp('bloque', row.bloque, '')}</td>
+                            <td data-label="${this.t('col_atado')}">${inp('atado', row.atado, '')}</td>
+                            <td data-label="${this.t('col_plate_num')}">${inp('numero_placa', row.numero_placa, '')}</td>
+                            <td data-label="${this.t('col_thickness')}">${inp('grosor', row.grosor, '', 'text')}</td>
+                            <td data-label="${this.t('col_height')}">${inp('alto', row.alto, '', 'number', '0.01')}</td>
+                            <td data-label="${this.t('col_width')}">${inp('ancho', row.ancho, '', 'number', '0.01')}</td>
+                            <td data-label="${this.t('col_area')}"><span class="area-display">${areaVal}</span></td>`;
+                    } else if (unitType === 'Formato') {
+                        html += `
+                            <td>${inp('atado', row.atado, '')}</td>
+                            <td>${inp('quantity', row.quantity, '', 'number', '1')}</td>
+                            <td>${inp('peso', row.peso, '', 'number', '0.01')}</td>`;
+                    } else {
+                        html += `
+                            <td>${inp('atado', row.atado, '')}</td>
+                            <td>${inp('quantity', row.quantity, '', 'number', '1')}</td>
+                            <td>${inp('peso', row.peso, '', 'number', '0.01')}</td>
+                            <td>${inp('color', row.color, '')}</td>`;
+                    }
+
+                    if (!serverRowId) {
+                        html += `<td data-label="${this.t('col_photo')}" class="text-center">
+                            <span class="text-muted" style="font-size:0.7rem" title="${this.t('msg_photo_save_first')}">—</span>
+                        </td>`;
+                    } else if (hasImage) {
+                        html += `<td data-label="${this.t('col_photo')}" class="text-center">
+                            <button class="btn-photo-done" type="button" data-server-row-id="${serverRowId}" data-row-id="${rid}" title="${this.t('msg_confirm_delete_photo')}">
+                                <i class="fa fa-check-circle" style="color:#16a34a;font-size:1.1rem"></i>
+                            </button>
+                        </td>`;
+                    } else {
+                        html += `<td data-label="${this.t('col_photo')}" class="text-center">
+                            <label class="btn-photo-upload" title="${this.t('col_photo')}" style="cursor:pointer;margin:0">
+                                <i class="fa fa-camera" style="color:#8B5A2B;font-size:1rem"></i>
+                                <input type="file" accept="image/*" capture="environment" data-server-row-id="${serverRowId}" data-row-id="${rid}" class="photo-file-input" style="display:none"/>
+                            </label>
+                        </td>`;
+                    }
+
+                    html += `<td class="text-center">
+                        <button class="btn-action btn-delete-row" type="button"><i class="fa fa-trash"></i></button>
+                    </td>`;
+
+                    html += `</tr>`;
+                });
+
+                html += `</tbody></table></div>`;
+
+                // ── ADD ROW ACTIONS ──
+                html += `<div class="table-actions">
+                    <button class="btn-add-row action-add-pk-row" data-product-id="${product.id}" data-pk-key="${rowsKey}" data-count="1" type="button">
+                        ${this.t('btn_add_row')}
+                    </button>
+                </div>`;
+
+                html += `</div>`; // close ps-product-body
+                html += `</div>`; // close ps-product-wrapper
             });
 
+            html += `</div>`; // close packing-products-list
             area.innerHTML = html;
             this.bindPackingRowsEvents(area, pk, s, rowsKey);
             this._renderBlockPhotoSections(area, pk, s, rowsKey);
@@ -814,16 +833,20 @@
                 const fillBtn = e.target.closest('.btn-fill-down');
                 const photoDoneBtn = e.target.closest('.btn-photo-done');
                 const openSetupBtn = e.target.closest('.btn-open-packing-setup');
-                const toggleProductBtn = e.target.closest('.btn-toggle-product');
+                const toggleProductBtn = e.target.closest('.ps-toggle-btn');
+                const stickyHeader = e.target.closest('.ps-product-sticky-header');
 
                 if (openSetupBtn) {
                     this.openPackingSetupModal(pk, s);
                     return;
                 }
 
-                if (toggleProductBtn) {
-                    const productId = asInt(toggleProductBtn.dataset.productId);
-                    const packingId = asInt(toggleProductBtn.dataset.pkId);
+                // Toggle via button OR clicking the sticky header
+                if (toggleProductBtn || (stickyHeader && !e.target.closest('button') && !e.target.closest('a'))) {
+                    const header = toggleProductBtn ? toggleProductBtn.closest('.ps-product-sticky-header') : stickyHeader;
+                    if (!header) return;
+                    const productId = asInt(header.dataset.productId);
+                    const packingId = asInt(header.dataset.pkId);
                     this._toggleProductCollapsed(packingId, productId);
                     this.renderPackingRows(area, pk, s);
                     return;
