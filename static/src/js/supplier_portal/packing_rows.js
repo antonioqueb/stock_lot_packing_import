@@ -1092,5 +1092,247 @@
                 </label>`;
             }
         },
+
+        // =================================================================
+        //  MISSING BLOCK PHOTOS — detect & modal
+        // =================================================================
+
+        _detectBlocksWithoutPhoto(rows, shipment) {
+            const blocksByKey = {};
+            (rows || []).forEach(r => {
+                const bloque = String(r.bloque || '').trim();
+                if (!bloque) return;
+                const key = `${r.product_id}__${bloque}`;
+                if (!blocksByKey[key]) {
+                    const productPool = this._getShipmentProducts(shipment);
+                    const product = productPool.find(p => p.id === r.product_id) || this.products.find(p => p.id === r.product_id);
+                    blocksByKey[key] = {
+                        product_id: r.product_id,
+                        product_name: product ? product.name : '',
+                        block_name: bloque,
+                    };
+                }
+            });
+
+            const existingImages = shipment.block_images || [];
+            const missing = [];
+
+            Object.values(blocksByKey).forEach(block => {
+                const hasPhoto = existingImages.some(img =>
+                    asInt(img.product_id) === asInt(block.product_id) &&
+                    String(img.block_name || '').trim().toLowerCase() === block.block_name.toLowerCase()
+                );
+                if (!hasPhoto) {
+                    missing.push(block);
+                }
+            });
+
+            return missing;
+        },
+
+        _openMissingBlockPhotosModal(missingBlocks, shipment, onAllUploaded) {
+            let overlay = document.getElementById('portal-missing-photos-overlay');
+            if (!overlay) {
+                overlay = document.createElement('div');
+                overlay.id = 'portal-missing-photos-overlay';
+                overlay.className = 'portal-modal-overlay';
+                document.body.appendChild(overlay);
+            }
+
+            const titleText = this.currentLang === 'es'
+                ? 'Bloques sin fotografía'
+                : this.currentLang === 'zh'
+                ? '缺少照片的荒料'
+                : 'Blocks missing photos';
+
+            const subtitleText = this.currentLang === 'es'
+                ? 'Los siguientes bloques no tienen foto. Sube al menos una foto por bloque para poder guardar.'
+                : this.currentLang === 'zh'
+                ? '以下荒料缺少照片。请为每个荒料上传至少一张照片后再保存。'
+                : 'The following blocks have no photo. Upload at least one photo per block to save.';
+
+            const btnSaveText = this.currentLang === 'es'
+                ? 'Continuar guardando'
+                : this.currentLang === 'zh'
+                ? '继续保存'
+                : 'Continue saving';
+
+            const self = this;
+            const uploadedSet = new Set();
+
+            const render = () => {
+                let html = `
+                    <div class="portal-modal" style="max-width:700px;">
+                        <div class="portal-modal-header">
+                            <div>
+                                <h3><i class="fa fa-camera" style="color:#d97706;margin-right:8px;"></i>${titleText}</h3>
+                                <p>${subtitleText}</p>
+                            </div>
+                            <button type="button" class="portal-modal-close" data-action="close-missing-modal">
+                                <i class="fa fa-times"></i>
+                            </button>
+                        </div>
+                        <div class="portal-modal-body">`;
+
+                missingBlocks.forEach((block, idx) => {
+                    const isUploaded = uploadedSet.has(`${block.product_id}__${block.block_name}`);
+                    const borderColor = isUploaded ? '#bbf7d0' : '#fecaca';
+                    const bgColor = isUploaded ? '#f0fdf4' : '#fef2f2';
+                    const statusHtml = isUploaded
+                        ? `<span style="display:inline-flex;align-items:center;gap:4px;font-size:0.78rem;color:#16a34a;font-weight:700;"><i class="fa fa-check-circle"></i> ${self.t('setup_photo_ok') || 'Foto cargada'}</span>`
+                        : `<span style="display:inline-flex;align-items:center;gap:4px;font-size:0.78rem;color:#dc2626;font-weight:700;"><i class="fa fa-exclamation-circle"></i> ${self.t('setup_photo_missing') || 'Foto pendiente'}</span>`;
+
+                    html += `
+                        <div style="display:flex;align-items:center;gap:14px;padding:14px 16px;margin-bottom:8px;background:${bgColor};border:1.5px solid ${borderColor};border-radius:10px;flex-wrap:wrap;transition:all 0.2s ease;">
+                            <div style="flex:1;min-width:160px;">
+                                <div style="font-weight:700;color:#1f2937;font-size:0.9rem;">
+                                    <i class="fa fa-cube" style="color:#6B4226;margin-right:6px;"></i>${esc(block.block_name)}
+                                </div>
+                                <div style="font-size:0.72rem;color:#888;margin-top:2px;">${esc(block.product_name)}</div>
+                            </div>
+                            <div style="display:flex;align-items:center;gap:10px;">
+                                ${statusHtml}
+                                ${!isUploaded ? `
+                                <label style="cursor:pointer;margin:0;display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border:1.5px dashed #f87171;border-radius:8px;font-size:0.82rem;color:#6B4226;background:#fff;font-weight:700;transition:all 0.15s ease;">
+                                    <i class="fa fa-camera"></i> ${self.t('setup_upload_photo') || 'Subir foto'}
+                                    <input type="file" accept="image/*" capture="environment"
+                                        class="missing-block-photo-input"
+                                        data-block-idx="${idx}"
+                                        data-product-id="${block.product_id}"
+                                        data-block-name="${esc(block.block_name)}"
+                                        style="display:none"/>
+                                </label>` : ''}
+                            </div>
+                        </div>`;
+                });
+
+                const allDone = missingBlocks.every(b => uploadedSet.has(`${b.product_id}__${b.block_name}`));
+
+                html += `
+                        </div>
+                        <div class="portal-modal-footer">
+                            <button type="button" class="btn-add-row" data-action="close-missing-modal">
+                                ${self.t('btn_cancel') || 'Cancelar'}
+                            </button>
+                            <button type="button" class="btn-save-section" data-action="continue-save" ${!allDone ? 'disabled' : ''} style="${!allDone ? 'opacity:0.4;cursor:not-allowed;' : ''}">
+                                <i class="fa fa-check"></i> ${btnSaveText}
+                            </button>
+                        </div>
+                    </div>`;
+
+                overlay.innerHTML = html;
+                overlay.classList.add('show');
+
+                // Close buttons
+                overlay.querySelectorAll('[data-action="close-missing-modal"]').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        overlay.classList.remove('show');
+                        overlay.innerHTML = '';
+                    });
+                });
+
+                overlay.addEventListener('click', (e) => {
+                    if (e.target === overlay) {
+                        overlay.classList.remove('show');
+                        overlay.innerHTML = '';
+                    }
+                }, { once: true });
+
+                // Photo inputs
+                overlay.querySelectorAll('.missing-block-photo-input').forEach(input => {
+                    input.addEventListener('change', async (e) => {
+                        const file = e.target.files && e.target.files[0];
+                        if (!file) return;
+
+                        if (file.size > 5 * 1024 * 1024) {
+                            self.toast(self.t('msg_photo_too_large'), 'error');
+                            input.value = '';
+                            return;
+                        }
+                        if (!file.type.startsWith('image/')) {
+                            self.toast(self.t('msg_photo_invalid'), 'error');
+                            input.value = '';
+                            return;
+                        }
+
+                        const productId = asInt(input.dataset.productId);
+                        const blockName = input.dataset.blockName;
+
+                        try {
+                            const fileData = await readFileAsBase64(file);
+                            const res = await jsonRpc('/supplier/api/v2/upload_block_image', {
+                                token: self.token,
+                                shipment_id: shipment.id,
+                                block_name: blockName,
+                                product_id: productId,
+                                image_data: fileData.data,
+                                image_name: fileData.name,
+                            });
+
+                            if (res.success) {
+                                uploadedSet.add(`${productId}__${blockName}`);
+                                self.toast(self.t('msg_saved'), 'success');
+                                await self.reloadProformaKeepingRows();
+                                render(); // re-render modal with updated state
+                            } else {
+                                self.toast(self.t('msg_error') + (res.message || ''), 'error');
+                            }
+                        } catch (err) {
+                            self.toast(self.t('msg_error') + err.message, 'error');
+                        } finally {
+                            input.value = '';
+                        }
+                    });
+                });
+
+                // Continue save button
+                const continueBtn = overlay.querySelector('[data-action="continue-save"]');
+                if (continueBtn && allDone) {
+                    continueBtn.addEventListener('click', () => {
+                        overlay.classList.remove('show');
+                        overlay.innerHTML = '';
+                        if (typeof onAllUploaded === 'function') {
+                            onAllUploaded();
+                        }
+                    });
+                }
+            };
+
+            render();
+        },
+
+        /**
+         * Wraps _autoSavePackingRows with block photo validation.
+         * If missing photos are detected, shows the modal first.
+         * Returns a promise that resolves with the save result.
+         */
+        async savePackingWithPhotoCheck(packingId, shipmentId, formEl) {
+            const rowsKey = 'pk_' + packingId;
+            const rows = this.packingRows[rowsKey] || [];
+
+            // Get fresh shipment data
+            const freshShipment = this._getFreshShipment ? this._getFreshShipment(shipmentId) : null;
+            const shipment = freshShipment || (this.proforma.shipments || []).find(s => s.id === shipmentId);
+
+            if (!shipment) {
+                return this._autoSavePackingRows(packingId, shipmentId, formEl);
+            }
+
+            const missingBlocks = this._detectBlocksWithoutPhoto(rows, shipment);
+
+            if (missingBlocks.length === 0) {
+                // All blocks have photos — save directly
+                return this._autoSavePackingRows(packingId, shipmentId, formEl);
+            }
+
+            // Show modal and wait for resolution
+            return new Promise((resolve) => {
+                this._openMissingBlockPhotosModal(missingBlocks, shipment, async () => {
+                    // User uploaded all missing photos — now save
+                    const result = await this._autoSavePackingRows(packingId, shipmentId, formEl);
+                    resolve(result);
+                });
+            });
+        },
     };
 })();

@@ -724,50 +724,19 @@
                 return;
             }
 
-            var usedContainerIds = [...new Set(rows.map(r => asInt(r.container_id)).filter(Boolean))];
-            pkData.scope = usedContainerIds.length > 0 ? 'specific_containers' : 'full_shipment';
-            pkData.container_ids = usedContainerIds;
-
-            var rowsPayload = rows.filter(function (r) {
-                if (r.tipo === 'Placa') return (r.alto > 0 && r.ancho > 0) || r.ref_proveedor || r.numero_placa || r.bloque;
-                return (r.quantity > 0) || r.ref_proveedor || r.color || r.bloque;
-            }).map(function (r) {
-                return {
-                    id: r.id || 0,
-                    product_id: r.product_id,
-                    container_id: asInt(r.container_id || 0),
-                    tipo: r.tipo,
-                    grosor: r.grosor || '',
-                    alto: r.alto || 0,
-                    ancho: r.ancho || 0,
-                    peso: r.peso || 0,
-                    quantity: r.quantity || 0,
-                    bloque: r.bloque || '',
-                    numero_placa: r.numero_placa || '',
-                    atado: r.atado || '',
-                    color: r.color || '',
-                    grupo_name: r.grupo_name || '',
-                    pedimento: r.pedimento || '',
-                    ref_proveedor: r.ref_proveedor || '',
-                };
-            });
-
+            // ── Use savePackingWithPhotoCheck to detect missing block photos ──
             try {
-                var res = await jsonRpc('/supplier/api/v2/save_packing', {
-                    token: this.token,
-                    shipment_id: shipmentId,
-                    packing_data: pkData,
-                    rows: rowsPayload.length > 0 ? rowsPayload : [],
-                });
-                if (res.success) {
+                var res = await this.savePackingWithPhotoCheck(packingId, shipmentId, formEl);
+                if (res && res.success) {
                     delete this.packingRows[rowsKey];
                     delete this.packingSetupState[packingId];
                     await this.reloadProforma();
                     this.renderAll();
                     this.toast(this.t('msg_saved'), 'success');
-                } else {
+                } else if (res) {
                     this.toast(this.t('msg_error') + (res.message || ''), 'error');
                 }
+                // If res is undefined, the modal was cancelled — do nothing
             } catch (e) {
                 this.toast(this.t('msg_error') + e.message, 'error');
             }
