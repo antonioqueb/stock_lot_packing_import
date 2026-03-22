@@ -73,7 +73,8 @@
     border-radius: $sp-portal-radius-lg;
     margin-bottom: $sp-portal-3;
     box-shadow: $sp-portal-shadow-xs;
-    overflow: hidden;
+    /* CHANGED: overflow visible so that sticky positioning works on descendant elements */
+    overflow: visible;
     transition: box-shadow $sp-portal-duration-base $sp-portal-ease-out, border-color $sp-portal-duration-base $sp-portal-ease-out;
 
     &.expanded {
@@ -91,6 +92,7 @@
     cursor: pointer;
     user-select: none;
     border-bottom: 1px solid transparent;
+    border-radius: $sp-portal-radius-lg $sp-portal-radius-lg 0 0;
     transition: background $sp-portal-duration-fast $sp-portal-ease-out;
 
     .expanded & {
