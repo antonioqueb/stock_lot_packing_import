@@ -207,27 +207,19 @@
     table-layout: fixed;
 
     /* ═══════════════════════════════════════════════════════════════
-       COLUMN WIDTHS por tipo de producto (Placa / Formato / Pieza)
-       Grosor, Alto, Ancho → reducidos (~7%)
-       Bloque, Atado, Contenedor, No.Placa → reciben el espacio extra
-       ═══════════════════════════════════════════════════════════════ */
+       COLUMN WIDTHS — Foto y Delete son compactas (px fijo),
+       el resto se reparte proporcionalmente todo el ancho.
 
-    /* ── PLACA: 10 columnas ──
+       PLACA: 10 columnas
        Contenedor | Bloque | Atado | No.Placa | Grosor | Alto | Ancho | Área | Foto | ×
-    */
+    ═══════════════════════════════════════════════════════════════ */
+
     &.ps-thead-only,
     &.ps-tbody-only {
         thead th, tbody td {
-            &:nth-child(1) { width: 13%; }   /* Contenedor */
-            &:nth-child(2) { width: 14%; }   /* Bloque */
-            &:nth-child(3) { width: 11%; }   /* Atado */
-            &:nth-child(4) { width: 10%; }   /* No. Placa */
-            &:nth-child(5) { width: 7%; }    /* Grosor — compacto */
-            &:nth-child(6) { width: 7%; }    /* Alto — compacto */
-            &:nth-child(7) { width: 7%; }    /* Ancho — compacto */
-            &:nth-child(8) { width: 8%; }    /* Área */
-            &:nth-child(9) { width: 5%; }  /* Foto */
-            &:nth-child(10) { width: 5%; } /* Acciones */
+            /* Foto y Delete: ancho fijo compacto */
+            &:nth-last-child(2) { width: 40px; min-width: 40px; max-width: 40px; } /* Foto */
+            &:last-child         { width: 36px; min-width: 36px; max-width: 36px; } /* Delete */
         }
     }
 
@@ -304,6 +296,8 @@
             border: none;
             text-align: right;
             width: 100% !important;
+            min-width: 0 !important;
+            max-width: none !important;
 
             &::before {
                 content: attr(data-label);
