@@ -372,7 +372,7 @@
                     if (!productState) return;
                     productState.enabled = !!input.checked;
                     if (productState.enabled && !productState.blocks.length) {
-                        this._ensureSetupBlocksLength(productState, 1);
+                        // No auto-create blocks — let user type the count
                     }
                     this.openPackingSetupModal(pk, freshShipment);
                 });
