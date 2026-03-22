@@ -19,14 +19,9 @@
     }
 }
 
-/*
- * UNIFIED STICKY BLOCK:
- * Wraps both the product header AND the thead so they scroll as ONE unit.
- * No gap, no independent positioning — they are glued together.
- */
 .ps-sticky-block {
     position: sticky;
-    top: 56px; /* height of .o_portal_header */
+    top: 56px;
     z-index: 40;
     background: $sp-portal-bg-card;
     border-radius: $sp-portal-radius-lg $sp-portal-radius-lg 0 0;
@@ -36,9 +31,7 @@
     }
 }
 
-/* Product header — NO LONGER sticky by itself */
 .ps-product-sticky-header {
-    /* position: sticky removed — parent .ps-sticky-block handles it */
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -173,21 +166,14 @@
     }
 }
 
-/*
- * STICKY THEAD inside the unified block.
- * Since .ps-sticky-block is already sticky, thead just flows naturally
- * right below the product header — NO separate sticky needed.
- */
 .ps-sticky-thead {
     background: $sp-portal-bg-inset;
 }
 
-/* Collapsible body — NO overflow */
 .ps-product-body {
     padding: 0;
 }
 
-/* Table scroll wrapper */
 .ps-table-scroll {
     overflow-x: clip;
     overflow-y: visible;
@@ -207,19 +193,41 @@
     table-layout: fixed;
 
     /* ═══════════════════════════════════════════════════════════════
-       COLUMN WIDTHS — Foto y Delete son compactas (px fijo),
-       el resto se reparte proporcionalmente todo el ancho.
+       PLACA: 10 columnas — total = 100%
+       ─────────────────────────────────────────────────────────────
+       1  Contenedor   14%   ┐
+       2  Bloque       16%   │ texto largo → más espacio
+       3  Atado        12%   │
+       4  No.Placa     12%   ┘
+       5  Grosor        7%   ┐
+       6  Alto          7%   │ numéricos compactos
+       7  Ancho         7%   │
+       8  Área          7%   ┘
+       9  Foto        3.5%   ← solo icono
+       10 Delete      3.5%   ← solo icono
+       ─────────────────────────────────────────────────────────────
+       Total: 14+16+12+12+7+7+7+7+3.5+3.5 = 89%
+       El 11% restante se redistribuye por table-layout:fixed
+       entre todas las columnas proporcionalmente.
 
-       PLACA: 10 columnas
-       Contenedor | Bloque | Atado | No.Placa | Grosor | Alto | Ancho | Área | Foto | ×
-    ═══════════════════════════════════════════════════════════════ */
+       Pero para que quede exacto al 100%:
+       14 + 16.5 + 12 + 12 + 7 + 7 + 7 + 7 + 3.5 + 3 = 89
+       Ajustamos Contenedor y Bloque para absorber el sobrante.
+       ═══════════════════════════════════════════════════════════════ */
 
     &.ps-thead-only,
     &.ps-tbody-only {
         thead th, tbody td {
-            /* Foto y Delete: ancho fijo compacto */
-            &:nth-last-child(2) { width: 40px; min-width: 40px; max-width: 40px; } /* Foto */
-            &:last-child         { width: 36px; min-width: 36px; max-width: 36px; } /* Delete */
+            &:nth-child(1)  { width: 15%;  }  /* Contenedor */
+            &:nth-child(2)  { width: 17%;  }  /* Bloque */
+            &:nth-child(3)  { width: 13%;  }  /* Atado */
+            &:nth-child(4)  { width: 13%;  }  /* No. Placa */
+            &:nth-child(5)  { width: 7%;   }  /* Grosor */
+            &:nth-child(6)  { width: 7%;   }  /* Alto */
+            &:nth-child(7)  { width: 7%;   }  /* Ancho */
+            &:nth-child(8)  { width: 7%;   }  /* Área */
+            &:nth-child(9)  { width: 3.5%; }  /* Foto */
+            &:nth-child(10) { width: 3.5%; }  /* Delete */
         }
     }
 
@@ -296,8 +304,6 @@
             border: none;
             text-align: right;
             width: 100% !important;
-            min-width: 0 !important;
-            max-width: none !important;
 
             &::before {
                 content: attr(data-label);
