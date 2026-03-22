@@ -273,7 +273,7 @@
                                            min="0"
                                            class="setup-block-count"
                                            data-product-id="${product.id}"
-                                           value="${productState.blocks.length}"/>
+                                           value="${productState.blocks.length || ''}"/>
                                 </div>
                             </div>`;
 
@@ -310,7 +310,7 @@
                                                    class="setup-block-slab-count"
                                                    data-product-id="${product.id}"
                                                    data-block-index="${idx}"
-                                                   value="${esc(block.slab_count || 0)}"/>
+                                                   value="${block.slab_count ? esc(block.slab_count) : ''}"/>
                                         </div>
 
                                         <div class="setup-inline-field setup-photo-field">
