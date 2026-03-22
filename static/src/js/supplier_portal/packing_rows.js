@@ -778,10 +778,35 @@
                         </thead>
                         <tbody>`;
 
-                pRows.forEach(row => {
+                let lastBlockName = null;
+                let blockIndex = 0;
+                const blockColors = ['#6B4226', '#2563eb', '#059669', '#d97706', '#7c3aed', '#dc2626', '#0891b2', '#be185d'];
+
+                pRows.forEach((row, rowIdx) => {
                     const rid = row._id;
                     const serverRowId = row.id || 0;
                     const hasImage = row.has_image || false;
+                    const currentBlock = String(row.bloque || '').trim();
+
+                    // ── Block separator when block name changes ──
+                    if (currentBlock && currentBlock !== lastBlockName) {
+                        const colCount = unitType === 'Placa' ? 10 : unitType === 'Formato' ? 6 : 7;
+                        const blockColor = blockColors[blockIndex % blockColors.length];
+                        const rowsInBlock = pRows.filter(r => String(r.bloque || '').trim() === currentBlock).length;
+                        html += `<tr class="block-separator-row">
+                            <td colspan="${colCount}" style="padding:0;border-bottom:none;">
+                                <div style="display:flex;align-items:center;gap:10px;padding:10px 12px 6px;margin-top:${rowIdx === 0 ? '0' : '6px'};">
+                                    <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:100px;background:${blockColor};color:#fff;font-size:0.72rem;font-weight:700;letter-spacing:0.03em;text-transform:uppercase;">
+                                        <i class="fa fa-cube"></i> ${esc(currentBlock)}
+                                    </span>
+                                    <span style="font-size:0.7rem;color:#888;font-weight:600;">${rowsInBlock} ${unitType === 'Placa' ? (this.t('setup_rows_label_short') || 'filas') : (this.t('setup_rows_label_short') || 'filas')}</span>
+                                    <span style="flex:1;height:1px;background:linear-gradient(to right, ${blockColor}33, transparent);"></span>
+                                </div>
+                            </td>
+                        </tr>`;
+                        lastBlockName = currentBlock;
+                        blockIndex++;
+                    }
 
                     html += `<tr data-row-id="${rid}" data-pk-key="${rowsKey}">`;
 
