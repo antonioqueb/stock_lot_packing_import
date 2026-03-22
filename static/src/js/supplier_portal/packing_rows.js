@@ -889,6 +889,12 @@
                     <button class="btn-add-row action-add-pk-row" data-product-id="${product.id}" data-pk-key="${rowsKey}" data-count="1" type="button">
                         ${this.t('btn_add_row')}
                     </button>
+                    <button class="btn-add-row action-add-pk-row" data-product-id="${product.id}" data-pk-key="${rowsKey}" data-count="5" type="button">
+                        ${this.t('btn_add_5')}
+                    </button>
+                    <button class="btn-add-row action-add-pk-row" data-product-id="${product.id}" data-pk-key="${rowsKey}" data-count="10" type="button">
+                        ${this.t('btn_add_10') || 'Agregar 10 Filas'}
+                    </button>
                 </div>`;
 
                 html += `</div>`;
