@@ -192,28 +192,6 @@
     color: $sp-portal-text-primary;
     table-layout: fixed;
 
-    /* ═══════════════════════════════════════════════════════════════
-       PLACA: 10 columnas — total = 100%
-       ─────────────────────────────────────────────────────────────
-       1  Contenedor   14%   ┐
-       2  Bloque       16%   │ texto largo → más espacio
-       3  Atado        12%   │
-       4  No.Placa     12%   ┘
-       5  Grosor        7%   ┐
-       6  Alto          7%   │ numéricos compactos
-       7  Ancho         7%   │
-       8  Área          7%   ┘
-       9  Foto        3.5%   ← solo icono
-       10 Delete      3.5%   ← solo icono
-       ─────────────────────────────────────────────────────────────
-       Total: 14+16+12+12+7+7+7+7+3.5+3.5 = 89%
-       El 11% restante se redistribuye por table-layout:fixed
-       entre todas las columnas proporcionalmente.
-
-       Pero para que quede exacto al 100%:
-       14 + 16.5 + 12 + 12 + 7 + 7 + 7 + 7 + 3.5 + 3 = 89
-       Ajustamos Contenedor y Bloque para absorber el sobrante.
-       ═══════════════════════════════════════════════════════════════ */
 
     &.ps-thead-only,
     &.ps-tbody-only {
@@ -226,8 +204,8 @@
             &:nth-child(6)  { width: 10%;   }  /* Alto */
             &:nth-child(7)  { width: 10%;   }  /* Ancho */
             &:nth-child(8)  { width: 7%;   }  /* Área */
-            &:nth-child(9)  { width: 2.1%; }  /* Foto */
-            &:nth-child(10) { width: 2.1%; }  /* Delete */
+            &:nth-child(9)  { width: 2.75%; }  /* Foto */
+            &:nth-child(10) { width: 2.75%; }  /* Delete */
         }
     }
 
