@@ -619,6 +619,11 @@
         //  FILL HELPERS — scoped to block boundaries
         // =================================================================
 
+        /**
+         * Fill ALL rows DOWN from source row within the same block & product.
+         * For numero_placa: sequential increment.
+         * For other fields: copy value.
+         */
         _fillDown(rws, srcRow, field) {
             const srcIdx = rws.indexOf(srcRow);
             if (srcIdx < 0) return;
@@ -649,6 +654,11 @@
             }
         },
 
+        /**
+         * Fill ONE row down from source row (next row in same block & product).
+         * For numero_placa: increment by 1.
+         * For other fields: copy value.
+         */
         _fillOneDown(rws, srcRow, field) {
             const srcIdx = rws.indexOf(srcRow);
             if (srcIdx < 0) return;
@@ -662,6 +672,7 @@
                 const rBlock = String(r.bloque || '').trim();
                 if (rBlock !== srcBlock) break;
 
+                // Found the next row in the same block
                 if (field === 'numero_placa') {
                     const baseVal = parseInt(srcRow[field], 10);
                     if (!isNaN(baseVal)) {
@@ -670,7 +681,7 @@
                 } else {
                     r[field] = srcRow[field];
                 }
-                return;
+                return; // Only one row
             }
         },
 
@@ -838,8 +849,7 @@
                         const blockColor = blockColors[blockIndex % blockColors.length];
                         const rowsInBlock = pRows.filter(r => String(r.bloque || '').trim() === currentBlock).length;
                         html += `<tr class="block-separator-row">
-                            <td style="padding:0;border-bottom:none;"></td>
-                            <td colspan="${colCount - 1}" style="padding:0;border-bottom:none;">
+                            <td colspan="${colCount}" style="padding:0;border-bottom:none;">
                                 <div style="display:flex;align-items:center;gap:10px;padding:10px 12px 6px;margin-top:${rowIdx === 0 ? '0' : '6px'};">
                                     <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:100px;background:${blockColor};color:#fff;font-size:0.72rem;font-weight:700;letter-spacing:0.03em;text-transform:uppercase;">
                                         <i class="fa fa-cube"></i> ${esc(currentBlock)}
@@ -855,6 +865,7 @@
 
                     html += `<tr data-row-id="${rid}" data-pk-key="${rowsKey}">`;
 
+                    // ── inp helper: renders fill-one-down + input + fill-all-down ──
                     const inp = (field, val, ph, type = 'text', step = '') =>
                         `<div class="input-group-portal">
                             <input type="${type}" step="${step}" class="input-field" data-field="${field}" value="${esc(val || '')}" placeholder="${ph}">
@@ -1085,6 +1096,7 @@
                     return;
                 }
 
+                // ── FILL ALL DOWN (scoped to block) ──
                 if (fillDownBtn) {
                     const rid = parseInt(fillDownBtn.dataset.rowId, 10);
                     const field = fillDownBtn.dataset.field;
@@ -1098,6 +1110,7 @@
                     return;
                 }
 
+                // ── FILL ONE DOWN (next row in same block) ──
                 if (fillOneDownBtn) {
                     const rid = parseInt(fillOneDownBtn.dataset.rowId, 10);
                     const field = fillOneDownBtn.dataset.field;
