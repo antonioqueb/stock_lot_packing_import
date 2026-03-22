@@ -780,7 +780,7 @@
 
                 let lastBlockName = null;
                 let blockIndex = 0;
-                const blockColors = ['#6B4226', '#2563eb', '#059669', '#d97706', '#7c3aed', '#dc2626', '#0891b2', '#be185d'];
+                const blockColors = ['#6B4226', '#8B5E3C', '#A67C5B', '#5C3317', '#7A4B2A', '#9C6B3C', '#4A2C0A', '#B8860B'];
 
                 pRows.forEach((row, rowIdx) => {
                     const rid = row._id;
