@@ -150,6 +150,8 @@
                     if (!f) return;
                     inv[f] = f === 'amount' ? (parseFloat(input.value)||0) : (input.value||'');
                 });
+
+                inv.currency_name = String(inv.currency_name || '').trim().toUpperCase();
             });
         },
 
@@ -344,7 +346,7 @@
 
             var html = '';
             invoices.forEach(function (inv, idx) {
-                var selCur = inv.currency_name || 'USD';
+                var selCur = String(inv.currency_name || 'USD').trim().toUpperCase();
                 var currencySelHtml = CURRENCY_CODES.map(function (c) {
                     return '<option value="' + c + '" ' + (selCur === c ? 'selected' : '') + '>' + c + '</option>';
                 }).join('');
@@ -395,7 +397,10 @@
                     el.querySelectorAll('[data-inv-idx="' + idx + '"]').forEach(function (input) {
                         data[input.dataset.invF] = input.value;
                     });
+
                     data.amount = parseFloat(data.amount) || 0;
+                    data.currency_name = String(data.currency_name || '').trim().toUpperCase();
+
                     return data;
                 });
             };
@@ -411,8 +416,15 @@
             el.querySelector('.btn-add-inv').addEventListener('click', function () {
                 self._syncInvoicesFromDOM(s);
                 s.invoices = s.invoices || [];
-                s.invoices.push({ id: 0, invoice_number: '', invoice_date: '',
-                    amount: 0, currency_name: 'USD', scope: 'full_shipment', container_ids: [] });
+                s.invoices.push({
+                    id: 0,
+                    invoice_number: '',
+                    invoice_date: '',
+                    amount: 0,
+                    currency_name: 'USD',
+                    scope: 'full_shipment',
+                    container_ids: []
+                });
                 self.renderTabContent('invoices', s);
             });
 
@@ -724,7 +736,6 @@
                 return;
             }
 
-            // ── Use savePackingWithPhotoCheck to detect missing block photos ──
             try {
                 var res = await this.savePackingWithPhotoCheck(packingId, shipmentId, formEl);
                 if (res && res.success) {
@@ -736,7 +747,6 @@
                 } else if (res) {
                     this.toast(this.t('msg_error') + (res.message || ''), 'error');
                 }
-                // If res is undefined, the modal was cancelled — do nothing
             } catch (e) {
                 this.toast(this.t('msg_error') + e.message, 'error');
             }

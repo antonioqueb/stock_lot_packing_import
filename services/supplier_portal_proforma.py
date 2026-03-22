@@ -30,6 +30,49 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
     #  HELPERS DE VALIDACION
     # =====================================================================
 
+    def _resolve_currency_id(self, currency_value):
+        """
+        Acepta:
+        - currency_id numérico
+        - código ISO como USD, MXN, EUR
+        - símbolo o display_name como fallback
+        y devuelve el id de res.currency.
+        """
+        Currency = request.env["res.currency"].sudo()
+
+        if currency_value in (None, False, ""):
+            return False
+
+        # Caso 1: viene como ID
+        try:
+            if isinstance(currency_value, int) or str(currency_value).isdigit():
+                currency_id = int(currency_value)
+                currency = Currency.browse(currency_id)
+                return currency.id if currency.exists() else False
+        except Exception:
+            pass
+
+        # Caso 2: viene como texto/código ISO
+        code = str(currency_value).strip().upper()
+        if not code:
+            return False
+
+        currency = Currency.search([("name", "=", code)], limit=1)
+        if currency:
+            return currency.id
+
+        # Fallback por símbolo
+        currency = Currency.search([("symbol", "=", code)], limit=1)
+        if currency:
+            return currency.id
+
+        # Fallback por display_name
+        currency = Currency.search([("display_name", "ilike", code)], limit=1)
+        if currency:
+            return currency.id
+
+        return False
+
     def validate_container_ids_for_shipment(self, shipment, container_ids):
         normalized = self.normalize_id_list(container_ids)
         shipment_container_ids = set(shipment.container_ids.ids)
@@ -703,6 +746,12 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
         invoice_model = request.env["supplier.shipment.invoice"].sudo()
         existing_ids = set()
 
+        po_currency_id = False
+        if shipment.proforma_id and shipment.proforma_id.purchase_id and shipment.proforma_id.purchase_id.currency_id:
+            po_currency_id = shipment.proforma_id.purchase_id.currency_id.id
+
+        company_currency_id = request.env.company.currency_id.id if request.env.company.currency_id else False
+
         for invoice in (invoices or []):
             invoice_id = self.safe_int(invoice.get("id"), 0)
             scope = invoice.get("scope", "full_shipment")
@@ -718,16 +767,34 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                     "message": "Si el invoice aplica a contenedores específicos, debe seleccionar al menos un contenedor.",
                 }
 
+            currency_id = False
+
+            # 1) Si viene currency_id explícito, usarlo
+            if invoice.get("currency_id"):
+                currency_id = self._resolve_currency_id(invoice.get("currency_id"))
+
+            # 2) Si no, intentar resolver por currency_name / código ISO
+            if not currency_id and invoice.get("currency_name"):
+                currency_id = self._resolve_currency_id(invoice.get("currency_name"))
+
+            existing_record = invoice_model.browse(invoice_id) if invoice_id else invoice_model
+
+            # 3) Si es update y no vino moneda, conservar la actual
+            if not currency_id and invoice_id and existing_record.exists() and existing_record.currency_id:
+                currency_id = existing_record.currency_id.id
+
+            # 4) Fallback final
+            if not currency_id:
+                currency_id = po_currency_id or company_currency_id
+
             vals = {
                 "invoice_number": invoice.get("invoice_number", ""),
                 "invoice_date": invoice.get("invoice_date") or False,
                 "amount": self.safe_float(invoice.get("amount", 0)),
                 "scope": scope,
                 "container_ids": [(6, 0, result)],
+                "currency_id": currency_id or False,
             }
-
-            if invoice.get("currency_id"):
-                vals["currency_id"] = self.safe_int(invoice["currency_id"])
 
             if invoice_id:
                 record = invoice_model.browse(invoice_id)
@@ -966,7 +1033,6 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                             "message": 'El bloque "%s" en el embarque "%s" no tiene fotografía.' % (block_name, shipment.name),
                         }
 
-        # Validación de exceso total contra lo pedido en OC
         balance = self._build_quantity_balance(proforma)
         over_items = [item for item in balance if item["is_over"]]
         if over_items:
@@ -1118,8 +1184,6 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
         if not po:
             return {"success": False, "message": "Orden de compra no encontrada."}
 
-        # Legacy ya no debe aterrizar contra una recepción global.
-        # Se deja bloqueado explícitamente para no mezclar datos de múltiples embarques.
         return {
             "success": False,
             "message": "El flujo legacy submit ya no está permitido porque ahora cada embarque genera su propia recepción.",

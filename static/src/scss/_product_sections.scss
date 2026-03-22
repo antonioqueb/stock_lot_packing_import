@@ -204,7 +204,32 @@
     width: 100%;
     border-collapse: collapse;
     color: $sp-portal-text-primary;
-    table-layout: auto;
+    table-layout: fixed;
+
+    /* ═══════════════════════════════════════════════════════════════
+       COLUMN WIDTHS por tipo de producto (Placa / Formato / Pieza)
+       Grosor, Alto, Ancho → reducidos (~7%)
+       Bloque, Atado, Contenedor, No.Placa → reciben el espacio extra
+       ═══════════════════════════════════════════════════════════════ */
+
+    /* ── PLACA: 10 columnas ──
+       Contenedor | Bloque | Atado | No.Placa | Grosor | Alto | Ancho | Área | Foto | ×
+    */
+    &.ps-thead-only,
+    &.ps-tbody-only {
+        thead th, tbody td {
+            &:nth-child(1) { width: 13%; }   /* Contenedor */
+            &:nth-child(2) { width: 14%; }   /* Bloque */
+            &:nth-child(3) { width: 11%; }   /* Atado */
+            &:nth-child(4) { width: 10%; }   /* No. Placa */
+            &:nth-child(5) { width: 7%; }    /* Grosor — compacto */
+            &:nth-child(6) { width: 7%; }    /* Alto — compacto */
+            &:nth-child(7) { width: 7%; }    /* Ancho — compacto */
+            &:nth-child(8) { width: 8%; }    /* Área */
+            &:nth-child(9) { width: 60px; }  /* Foto */
+            &:nth-child(10) { width: 50px; } /* Acciones */
+        }
+    }
 
     thead {
         th {
@@ -219,8 +244,8 @@
             background: $sp-portal-bg-inset;
             border-bottom: none;
             box-shadow: inset 0 -1px 0 0 $sp-portal-border-default;
-
-            /* thead is NOT independently sticky anymore */
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
     }
 
@@ -239,6 +264,7 @@
             border-bottom: 1px solid $sp-portal-border-subtle;
             vertical-align: middle;
             font-size: 0.85rem;
+            overflow: hidden;
 
             .area-display {
                 color: $sp-portal-primary;
@@ -254,6 +280,7 @@
 
     @include sp-portal-mobile {
         display: block;
+        table-layout: auto;
 
         thead { display: none; }
         tbody { display: block; }
@@ -276,6 +303,7 @@
             padding: $sp-portal-2 0;
             border: none;
             text-align: right;
+            width: 100% !important;
 
             &::before {
                 content: attr(data-label);
@@ -295,7 +323,7 @@
             top: $sp-portal-3;
             right: $sp-portal-3;
             padding: 0;
-            width: auto;
+            width: auto !important;
 
             &::before { content: none; }
             .btn-action { width: 30px; height: 30px; }
