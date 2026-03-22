@@ -10,7 +10,6 @@
     background: $sp-portal-bg-card;
     border: 1px solid $sp-portal-border-default;
     border-radius: $sp-portal-radius-lg;
-    /* CRITICAL: overflow must be visible for sticky to work on descendants */
     overflow: visible;
     box-shadow: $sp-portal-shadow-sm;
     transition: box-shadow $sp-portal-duration-base $sp-portal-ease-out;
@@ -20,7 +19,7 @@
     }
 }
 
-/* Sticky product header */
+/* Sticky product header — fully opaque, no bleed-through */
 .ps-product-sticky-header {
     position: sticky;
     top: 56px;
@@ -36,12 +35,14 @@
     gap: $sp-portal-3;
     flex-wrap: wrap;
     border-radius: $sp-portal-radius-lg $sp-portal-radius-lg 0 0;
-    transition: background $sp-portal-duration-fast $sp-portal-ease-out, box-shadow $sp-portal-duration-fast $sp-portal-ease-out;
-    box-shadow: none;
+    transition: background $sp-portal-duration-fast $sp-portal-ease-out;
+    /* Extend white downward to seal gap with thead */
+    box-shadow: 0 1px 0 0 $sp-portal-bg-card;
 
     .ps-collapsed & {
         border-radius: $sp-portal-radius-lg;
         border-bottom: none;
+        box-shadow: none;
     }
 
     @include sp-portal-hover {
@@ -75,7 +76,6 @@
     @include sp-portal-hover {
         background: $sp-portal-bg-subtle;
         border-color: $sp-portal-border-strong;
-        color: $sp-portal-radius-sm;
         color: $sp-portal-text-primary;
     }
 
@@ -161,13 +161,12 @@
     }
 }
 
-/* Collapsible body — NO overflow, must be visible for sticky */
+/* Collapsible body — NO overflow */
 .ps-product-body {
     padding: 0;
-    /* DO NOT set overflow here — it breaks sticky on thead th */
 }
 
-/* Table scroll wrapper — clip on desktop preserves sticky, auto on mobile for horizontal scroll */
+/* Table scroll wrapper */
 .ps-table-scroll {
     overflow-x: clip;
     overflow-y: visible;
@@ -187,8 +186,6 @@
     table-layout: auto;
 
     thead {
-        background: $sp-portal-bg-inset;
-
         th {
             text-align: left;
             padding: $sp-portal-3;
@@ -197,20 +194,36 @@
             font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 0.06em;
-            border-bottom: 1px solid $sp-portal-border-default;
             white-space: nowrap;
+            position: relative;
+
+            /* Solid opaque — nothing visible behind */
             background: $sp-portal-bg-inset;
 
-            /*
-             * Sticky thead — the JS in packing_rows.js will compute and set
-             * the exact top value via a CSS custom property.
-             * Fallback: 108px = 56px portal header + ~52px product sticky header.
-             */
             position: sticky;
             top: var(--ps-thead-top, 108px);
             z-index: 30;
-            /* bottom border shadow so content doesn't bleed through */
-            box-shadow: inset 0 -1px 0 $sp-portal-border-default;
+
+            /*
+             * Pseudo-element that extends upward to cover the gap
+             * between the product sticky header and this thead.
+             * Uses the card background color so scrolling rows
+             * are completely hidden behind it.
+             */
+            &::before {
+                content: '';
+                position: absolute;
+                top: -3px;
+                left: 0;
+                right: 0;
+                height: 3px;
+                background: $sp-portal-bg-card;
+                z-index: 1;
+            }
+
+            /* Bottom border via box-shadow for clean rendering */
+            border-bottom: none;
+            box-shadow: inset 0 -1px 0 0 $sp-portal-border-default;
         }
     }
 
@@ -294,6 +307,7 @@
 
         thead th {
             position: static !important;
+            &::before { display: none; }
         }
     }
 }
@@ -345,12 +359,13 @@
     }
 }
 
-/* Mobile overrides for product sections */
+/* Mobile overrides */
 @include sp-portal-mobile {
     .ps-product-sticky-header {
         position: static !important;
         flex-direction: column;
         align-items: flex-start;
+        box-shadow: none;
     }
 
     .ps-header-right {
@@ -365,5 +380,6 @@
 
     .ps-data-table thead th {
         position: static !important;
+        &::before { display: none; }
     }
 }
