@@ -218,14 +218,14 @@
     &.ps-thead-only,
     &.ps-tbody-only {
         thead th, tbody td {
-            &:nth-child(1)  { width: 16%;  }  /* Contenedor */
-            &:nth-child(2)  { width: 18%;  }  /* Bloque */
-            &:nth-child(3)  { width: 14%;  }  /* Atado */
-            &:nth-child(4)  { width: 14%;  }  /* No. Placa */
-            &:nth-child(5)  { width: 7%;   }  /* Grosor */
-            &:nth-child(6)  { width: 7%;   }  /* Alto */
-            &:nth-child(7)  { width: 7%;   }  /* Ancho */
-            &:nth-child(8)  { width: 7%;   }  /* Área */
+            &:nth-child(1)  { width: 16.75%;  }  /* Contenedor */
+            &:nth-child(2)  { width: 16.75%;  }  /* Bloque */
+            &:nth-child(3)  { width: 16.75%;  }  /* Atado */
+            &:nth-child(4)  { width: 16.75%;  }  /* No. Placa */
+            &:nth-child(5)  { width: 9%;   }  /* Grosor */
+            &:nth-child(6)  { width: 9%;   }  /* Alto */
+            &:nth-child(7)  { width: 9%;   }  /* Ancho */
+            &:nth-child(8)  { width: 3%;   }  /* Área */
             &:nth-child(9)  { width: 1.5%; }  /* Foto */
             &:nth-child(10) { width: 1.5%; }  /* Delete */
         }
