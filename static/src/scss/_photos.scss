@@ -1,4 +1,4 @@
-/* _photos.scss — Photo upload/done buttons */
+/* _photos.scss — Photo upload/done buttons (Compact) */
 
 .btn-photo-upload {
     display: inline-flex;
@@ -24,7 +24,7 @@
     &:active { transform: scale(0.95); }
 
     i {
-        font-size: 0.95rem;
+        font-size: 0.82rem;
         color: $sp-portal-text-tertiary;
     }
 }
@@ -52,15 +52,15 @@
         &::after {
             content: '\00d7';
             position: absolute;
-            font-size: 0.65rem;
+            font-size: 0.56rem;
             color: $sp-portal-red;
             font-weight: 700;
-            top: -3px;
-            right: -3px;
+            top: -2px;
+            right: -2px;
             background: #FEF2F2;
             border-radius: 50%;
-            width: 14px;
-            height: 14px;
+            width: 12px;
+            height: 12px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -72,9 +72,9 @@
 @include sp-portal-mobile {
     .btn-photo-upload,
     .btn-photo-done {
-        width: 40px;
-        height: 40px;
+        width: 32px;
+        height: 32px;
 
-        i { font-size: 1.15rem; }
+        i { font-size: 1rem; }
     }
 }

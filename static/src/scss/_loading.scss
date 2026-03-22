@@ -1,4 +1,4 @@
-/* _loading.scss — Loading overlay spinner */
+/* _loading.scss — Loading overlay spinner (Compact) */
 
 .loading-overlay {
     position: absolute;
@@ -12,9 +12,9 @@
     backdrop-filter: blur(4px);
 
     .spinner {
-        width: 28px;
-        height: 28px;
-        border: 2.5px solid $sp-portal-border-default;
+        width: 22px;
+        height: 22px;
+        border: 2px solid $sp-portal-border-default;
         border-top-color: $sp-portal-text-primary;
         border-radius: 50%;
         animation: sp-portal-spin 0.7s linear infinite;

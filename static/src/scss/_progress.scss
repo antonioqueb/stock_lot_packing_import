@@ -1,16 +1,16 @@
-/* _progress.scss — Progress strip at bottom */
+/* _progress.scss — Progress strip at bottom (Compact) */
 
 .portal-progress-strip {
     position: fixed;
     left: 0;
     bottom: 0;
     width: 100vw;
-    height: 12px;
+    height: 8px;
     z-index: 1000;
     background: transparent;
 
     @include sp-portal-mobile {
-        height: 10px;
+        height: 6px;
     }
 }
 

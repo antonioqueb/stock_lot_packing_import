@@ -1,12 +1,12 @@
-/* _footer.scss — Submit footer */
+/* _footer.scss — Submit footer (Compact) */
 
 .submit-footer {
     position: fixed;
-    bottom: 12px;
+    bottom: 10px;
     left: 0;
     width: 100%;
     background: rgba(255, 255, 255, 0.97);
-    padding: $sp-portal-4 $sp-portal-6;
+    padding: $sp-portal-3 $sp-portal-5;
     border-top: 1px solid $sp-portal-border-default;
     display: flex;
     justify-content: space-between;
@@ -18,50 +18,50 @@
 
     .summary {
         color: $sp-portal-text-primary;
-        font-size: 0.85rem;
+        font-size: 0.72rem;
         display: flex;
-        gap: $sp-portal-6;
+        gap: $sp-portal-5;
 
         div {
             display: flex;
             align-items: center;
-            gap: $sp-portal-2;
+            gap: $sp-portal-1;
             font-weight: 600;
 
             > i {
                 color: $sp-portal-text-tertiary;
-                font-size: 0.8rem;
+                font-size: 0.68rem;
             }
         }
 
         .text-accent {
             color: $sp-portal-text-primary;
             font-weight: 800;
-            font-size: 1.05rem;
+            font-size: 0.88rem;
             font-family: $sp-portal-font-mono;
         }
     }
 
     @include sp-portal-mobile {
-        bottom: 10px;
+        bottom: 8px;
         flex-direction: column;
-        gap: $sp-portal-3;
-        padding: $sp-portal-3;
+        gap: $sp-portal-2;
+        padding: $sp-portal-2;
 
         .summary {
             width: 100%;
             justify-content: space-around;
-            font-size: 0.82rem;
+            font-size: 0.7rem;
             background: $sp-portal-bg-subtle;
-            padding: $sp-portal-3;
+            padding: $sp-portal-2;
             border-radius: $sp-portal-radius-md;
             border: 1px solid $sp-portal-border-subtle;
         }
 
         .btn-primary-custom {
             width: 100%;
-            padding: $sp-portal-4;
-            font-size: 0.95rem;
+            padding: $sp-portal-3;
+            font-size: 0.82rem;
         }
     }
 }

@@ -1,21 +1,21 @@
-/* _inputs.scss — Input groups, table actions, toolbar */
+/* _inputs.scss — Input groups, table actions, toolbar (Compact) */
 
 .input-group-portal {
     display: flex;
     align-items: center;
-    gap: 2px;
+    gap: 1px;
     width: 100%;
 
     input, select {
         background: $sp-portal-bg-input;
         border: 1px solid $sp-portal-border-default;
         color: $sp-portal-text-primary;
-        padding: 0 $sp-portal-2;
+        padding: 0 $sp-portal-1;
         border-radius: $sp-portal-radius-sm;
         width: 100%;
         min-width: 0;
         font-family: $sp-portal-font-mono;
-        font-size: 0.82rem;
+        font-size: 0.72rem;
         height: $sp-portal-input-h;
         line-height: $sp-portal-input-h;
         box-sizing: border-box;
@@ -29,7 +29,6 @@
         }
     }
 
-    /* Fill-down buttons: compact, minimal footprint */
     .btn-fill-down,
     .btn-fill-one-down {
         background: $sp-portal-bg-subtle;
@@ -37,11 +36,11 @@
         color: $sp-portal-text-tertiary;
         padding: 0;
         border-radius: $sp-portal-radius-sm;
-        min-width: 22px;
-        max-width: 22px;
+        min-width: 18px;
+        max-width: 18px;
         flex-shrink: 0;
         height: $sp-portal-input-h;
-        font-size: 0.65rem;
+        font-size: 0.56rem;
         cursor: pointer;
         display: inline-flex;
         align-items: center;
@@ -59,7 +58,6 @@
         @include sp-portal-mobile { display: none; }
     }
 
-    /* Fill-one-down: slightly different style to distinguish */
     .btn-fill-one-down {
         @include sp-portal-hover {
             background: $sp-portal-primary;
@@ -69,12 +67,12 @@
     }
 }
 
-.row-container-select { min-width: 110px; }
+.row-container-select { min-width: 90px; }
 
 .table-actions {
-    padding: $sp-portal-4;
+    padding: $sp-portal-3;
     display: flex;
-    gap: $sp-portal-3;
+    gap: $sp-portal-2;
     background: $sp-portal-bg-inset;
     border-top: 1px solid $sp-portal-border-subtle;
     flex-wrap: wrap;
@@ -82,13 +80,13 @@
     .btn-add-row {
         @include sp-portal-btn-base;
         flex: 1;
-        min-width: 120px;
-        padding: $sp-portal-3;
+        min-width: 100px;
+        padding: $sp-portal-2;
         border-radius: $sp-portal-radius-md;
         background: $sp-portal-bg-card;
         border: 1.5px dashed $sp-portal-border-strong;
         color: $sp-portal-text-tertiary;
-        font-size: 0.85rem;
+        font-size: 0.72rem;
 
         @include sp-portal-hover {
             color: $sp-portal-text-secondary;
@@ -107,20 +105,20 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: $sp-portal-4;
-    gap: $sp-portal-3;
+    margin-bottom: $sp-portal-3;
+    gap: $sp-portal-2;
     flex-wrap: wrap;
 }
 
 .packing-toolbar-chip {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 6px 10px;
+    gap: 4px;
+    padding: 4px 7px;
     border-radius: $sp-portal-radius-pill;
     background: $sp-portal-bg-subtle;
     color: $sp-portal-text-secondary;
-    font-size: 0.76rem;
+    font-size: 0.64rem;
     font-weight: 700;
     border: 1px solid $sp-portal-border-default;
 }

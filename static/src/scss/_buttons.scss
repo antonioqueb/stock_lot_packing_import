@@ -1,12 +1,12 @@
-/* _buttons.scss — All button variants */
+/* _buttons.scss — All button variants (Compact) */
 
 .btn-add-shipment {
     @include sp-portal-btn-base;
-    padding: $sp-portal-2 $sp-portal-5;
+    padding: $sp-portal-1 $sp-portal-4;
     border-radius: $sp-portal-radius-md;
     background: $sp-portal-text-primary;
     color: $sp-portal-text-inverse;
-    font-size: 0.82rem;
+    font-size: 0.72rem;
     box-shadow: $sp-portal-shadow-xs;
 
     @include sp-portal-hover {
@@ -18,11 +18,11 @@
 
 .btn-save-section {
     @include sp-portal-btn-base;
-    padding: $sp-portal-2 $sp-portal-6;
+    padding: $sp-portal-1 $sp-portal-5;
     border-radius: $sp-portal-radius-md;
     background: $sp-portal-primary;
     color: $sp-portal-text-inverse;
-    font-size: 0.82rem;
+    font-size: 0.72rem;
     box-shadow: $sp-portal-shadow-xs;
 
     @include sp-portal-hover {
@@ -36,12 +36,12 @@
     @include sp-portal-btn-base;
     background: $sp-portal-text-primary;
     color: $sp-portal-text-inverse;
-    padding: $sp-portal-3 $sp-portal-8;
+    padding: $sp-portal-2 $sp-portal-6;
     border-radius: $sp-portal-radius-pill;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    font-size: 0.85rem;
+    font-size: 0.74rem;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
 
     @include sp-portal-hover {
@@ -52,8 +52,8 @@
 }
 
 .btn-action {
-    width: 30px;
-    height: 30px;
+    width: 24px;
+    height: 24px;
     border-radius: $sp-portal-radius-sm;
     display: inline-flex;
     align-items: center;
@@ -63,7 +63,7 @@
     color: $sp-portal-red;
     border: 1px solid #FECACA;
     transition: all $sp-portal-duration-fast $sp-portal-ease-out;
-    font-size: 0.8rem;
+    font-size: 0.68rem;
 
     @include sp-portal-hover {
         background: #FEE2E2;
@@ -74,12 +74,12 @@
 .btn-add-sub-item {
     @include sp-portal-btn-base;
     width: 100%;
-    padding: $sp-portal-3;
+    padding: $sp-portal-2;
     border-radius: $sp-portal-radius-md;
     border: 1.5px dashed $sp-portal-border-strong;
     background: transparent;
     color: $sp-portal-text-tertiary;
-    font-size: 0.82rem;
+    font-size: 0.72rem;
     margin-top: $sp-portal-2;
 
     @include sp-portal-hover {

@@ -1,9 +1,9 @@
-/* _header.scss — Portal header */
+/* _header.scss — Portal header (Compact) */
 
 .o_portal_header {
     background: rgba(255, 255, 255, 0.96);
     border-bottom: 1px solid $sp-portal-border-default;
-    padding: $sp-portal-3 $sp-portal-6;
+    padding: $sp-portal-2 $sp-portal-5;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -14,12 +14,12 @@
     -webkit-backdrop-filter: blur(20px) saturate(1.1);
     box-shadow: $sp-portal-shadow-xs;
     flex-wrap: wrap;
-    gap: $sp-portal-3;
-    min-height: 56px;
+    gap: $sp-portal-2;
+    min-height: 42px;
 
     .brand {
         font-family: $sp-portal-font-display;
-        font-size: 1.1rem;
+        font-size: 0.88rem;
         font-weight: 700;
         letter-spacing: 0.04em;
         color: $sp-portal-primary;
@@ -29,9 +29,9 @@
         text-transform: uppercase;
 
         img {
-            height: 32px;
+            height: 26px;
             width: auto;
-            margin-right: $sp-portal-3;
+            margin-right: $sp-portal-2;
             border-radius: $sp-portal-radius-sm;
         }
     }
@@ -39,23 +39,23 @@
     .header-controls {
         display: flex;
         align-items: center;
-        gap: $sp-portal-4;
+        gap: $sp-portal-3;
         flex-wrap: wrap;
     }
 
     .po-info {
         text-align: right;
-        min-width: 100px;
-        padding: $sp-portal-2 $sp-portal-3;
+        min-width: 80px;
+        padding: $sp-portal-1 $sp-portal-2;
         background: $sp-portal-bg-card;
 
         .label {
-            font-size: 0.62rem;
+            font-size: 0.56rem;
             color: $sp-portal-text-tertiary;
             text-transform: uppercase;
             letter-spacing: 0.08em;
             display: block;
-            margin-bottom: 2px;
+            margin-bottom: 1px;
             font-weight: 600;
             line-height: 1;
         }
@@ -63,7 +63,7 @@
         .value {
             font-weight: 700;
             color: $sp-portal-text-primary;
-            font-size: 0.88rem;
+            font-size: 0.74rem;
             font-family: $sp-portal-font-mono;
             letter-spacing: -0.01em;
             line-height: 1.2;
@@ -74,7 +74,7 @@
         display: flex;
         align-items: center;
         background: $sp-portal-bg-card;
-        padding: $sp-portal-1 $sp-portal-3;
+        padding: $sp-portal-1 $sp-portal-2;
         border-radius: $sp-portal-radius-sm;
         border: 1px solid $sp-portal-border-default;
         transition: border-color $sp-portal-duration-fast $sp-portal-ease-out;
@@ -87,11 +87,11 @@
             background: transparent;
             color: $sp-portal-text-primary;
             border: none;
-            font-size: 0.82rem;
+            font-size: 0.72rem;
             font-weight: 500;
             cursor: pointer;
             outline: none;
-            max-width: 100px;
+            max-width: 80px;
             font-family: $sp-portal-font-body;
 
             option {
@@ -102,13 +102,13 @@
     }
 
     @include sp-portal-mobile {
-        padding: $sp-portal-3;
+        padding: $sp-portal-2;
         flex-direction: column;
         align-items: stretch;
 
         .brand {
             justify-content: center;
-            margin-bottom: $sp-portal-2;
+            margin-bottom: $sp-portal-1;
         }
 
         .header-controls {

@@ -1,4 +1,4 @@
-/* _date_input.scss — Modern date wrapper */
+/* _date_input.scss — Modern date wrapper (Compact) */
 
 .modern-date-wrapper {
     position: relative;
@@ -11,9 +11,9 @@
         border: 1px solid $sp-portal-border-default;
         color: $sp-portal-text-primary;
         border-radius: $sp-portal-radius-sm;
-        padding: 0 $sp-portal-3;
-        padding-right: 34px;
-        font-size: 0.85rem;
+        padding: 0 $sp-portal-2;
+        padding-right: 28px;
+        font-size: 0.74rem;
         font-family: $sp-portal-font-body;
         height: $sp-portal-input-h;
         box-sizing: border-box;
@@ -25,7 +25,7 @@
             opacity: 0;
             position: absolute;
             right: 0;
-            width: 34px;
+            width: 28px;
             height: 100%;
             cursor: pointer;
         }
@@ -33,15 +33,15 @@
         &:focus {
             outline: none;
             border-color: $sp-portal-text-secondary;
-            box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.04);
+            box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.04);
         }
     }
 
     .modern-date-icon {
         position: absolute;
-        right: $sp-portal-3;
+        right: $sp-portal-2;
         color: $sp-portal-primary-muted;
-        font-size: 0.85rem;
+        font-size: 0.74rem;
         pointer-events: none;
         line-height: 1;
     }

@@ -1,15 +1,15 @@
-/* _autosave.scss — Autosave bar */
+/* _autosave.scss — Autosave bar (Compact) */
 
 .autosave-bar {
     display: flex;
     align-items: center;
-    gap: $sp-portal-3;
-    margin-bottom: $sp-portal-4;
-    padding: $sp-portal-2 $sp-portal-3;
+    gap: $sp-portal-2;
+    margin-bottom: $sp-portal-3;
+    padding: $sp-portal-1 $sp-portal-2;
     background: $sp-portal-bg-inset;
     border: 1px solid $sp-portal-border-subtle;
     border-radius: $sp-portal-radius-sm;
-    font-size: 0.74rem;
+    font-size: 0.64rem;
     color: $sp-portal-text-tertiary;
 
     .autosave-label {
@@ -23,15 +23,15 @@
     }
 
     .autosave-indicator {
-        font-size: 0.74rem;
+        font-size: 0.64rem;
         font-weight: 600;
-        min-width: 80px;
+        min-width: 60px;
     }
 }
 
 .pk-autosave-indicator {
-    min-width: 60px;
+    min-width: 50px;
     display: inline-flex;
     align-items: center;
-    gap: 3px;
+    gap: 2px;
 }

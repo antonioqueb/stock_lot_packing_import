@@ -1,10 +1,10 @@
-/* _tabs.scss — Shipment tabs */
+/* _tabs.scss — Shipment tabs (Compact) */
 
 .shipment-tabs {
     display: flex;
     gap: 0;
     border-bottom: 1px solid $sp-portal-border-default;
-    margin-bottom: $sp-portal-5;
+    margin-bottom: $sp-portal-4;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
@@ -13,8 +13,8 @@
 }
 
 .shipment-tab {
-    padding: $sp-portal-3 $sp-portal-5;
-    font-size: 0.8rem;
+    padding: $sp-portal-2 $sp-portal-4;
+    font-size: 0.7rem;
     font-weight: 600;
     color: $sp-portal-text-tertiary;
     cursor: pointer;
@@ -23,7 +23,7 @@
     white-space: nowrap;
     display: flex;
     align-items: center;
-    gap: $sp-portal-2;
+    gap: $sp-portal-1;
 
     @include sp-portal-hover {
         color: $sp-portal-text-secondary;
@@ -39,12 +39,12 @@
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        min-width: 18px;
-        height: 18px;
+        min-width: 15px;
+        height: 15px;
         border-radius: $sp-portal-radius-pill;
         background: $sp-portal-border-subtle;
         color: $sp-portal-text-tertiary;
-        font-size: 0.62rem;
+        font-size: 0.54rem;
         font-weight: 700;
         padding: 0 $sp-portal-1;
         font-family: $sp-portal-font-mono;

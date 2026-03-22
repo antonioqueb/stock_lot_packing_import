@@ -1,9 +1,9 @@
-/* _product_sections.scss — Product sticky headers, collapse, data table */
+/* _product_sections.scss — Product sticky headers, collapse, data table (Compact) */
 
 .packing-products-list {
     display: flex;
     flex-direction: column;
-    gap: $sp-portal-4;
+    gap: $sp-portal-3;
 }
 
 .ps-product-wrapper {
@@ -21,7 +21,7 @@
 
 .ps-sticky-block {
     position: sticky;
-    top: 56px;
+    top: 42px;
     z-index: 40;
     background: $sp-portal-bg-card;
     border-radius: $sp-portal-radius-lg $sp-portal-radius-lg 0 0;
@@ -35,12 +35,12 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: $sp-portal-3 $sp-portal-5;
+    padding: $sp-portal-2 $sp-portal-4;
     background: $sp-portal-bg-card;
     border-bottom: 1px solid $sp-portal-border-default;
     cursor: pointer;
     user-select: none;
-    gap: $sp-portal-3;
+    gap: $sp-portal-2;
     flex-wrap: wrap;
     border-radius: $sp-portal-radius-lg $sp-portal-radius-lg 0 0;
     transition: background $sp-portal-duration-fast $sp-portal-ease-out;
@@ -58,15 +58,15 @@
 .ps-header-left {
     display: flex;
     align-items: center;
-    gap: $sp-portal-3;
+    gap: $sp-portal-2;
     min-width: 0;
     flex: 1;
 }
 
 .ps-toggle-btn {
-    width: 32px;
-    height: 32px;
-    min-width: 32px;
+    width: 24px;
+    height: 24px;
+    min-width: 24px;
     border-radius: $sp-portal-radius-sm;
     border: 1px solid $sp-portal-border-default;
     background: $sp-portal-bg-card;
@@ -75,7 +75,7 @@
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    font-size: 0.8rem;
+    font-size: 0.68rem;
     transition: all $sp-portal-duration-fast $sp-portal-ease-out;
 
     @include sp-portal-hover {
@@ -92,25 +92,25 @@
 .ps-header-info {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 2px;
     min-width: 0;
 }
 
 .ps-product-name {
     font-family: $sp-portal-font-display;
-    font-size: 0.95rem;
+    font-size: 0.8rem;
     font-weight: 700;
     color: $sp-portal-text-primary;
     letter-spacing: -0.01em;
     display: flex;
     align-items: center;
-    gap: $sp-portal-2;
+    gap: $sp-portal-1;
     flex-wrap: wrap;
 }
 
 .ps-product-code {
     color: $sp-portal-text-tertiary;
-    font-size: 0.78rem;
+    font-size: 0.66rem;
     font-weight: 500;
     font-family: $sp-portal-font-mono;
 }
@@ -118,11 +118,11 @@
 .ps-type-badge {
     display: inline-flex;
     align-items: center;
-    padding: 2px $sp-portal-2;
+    padding: 1px $sp-portal-1;
     border-radius: $sp-portal-radius-sm;
     background: $sp-portal-text-primary;
     color: $sp-portal-text-inverse;
-    font-size: 0.62rem;
+    font-size: 0.54rem;
     font-weight: 700;
     font-family: $sp-portal-font-mono;
     letter-spacing: 0.02em;
@@ -131,26 +131,26 @@
 
 .ps-product-chips {
     display: flex;
-    gap: $sp-portal-2;
+    gap: $sp-portal-1;
     flex-wrap: wrap;
 }
 
 .ps-header-right {
     display: flex;
     align-items: center;
-    gap: $sp-portal-3;
+    gap: $sp-portal-2;
     flex-wrap: wrap;
 }
 
 .ps-qty-chips {
     display: flex;
-    gap: $sp-portal-3;
+    gap: $sp-portal-2;
     flex-wrap: wrap;
     align-items: center;
 }
 
 .ps-qty-chip {
-    font-size: 0.76rem;
+    font-size: 0.64rem;
     color: $sp-portal-text-secondary;
     font-weight: 600;
     white-space: nowrap;
@@ -192,29 +192,28 @@
     color: $sp-portal-text-primary;
     table-layout: fixed;
 
-
     &.ps-thead-only,
     &.ps-tbody-only {
         thead th, tbody td {
-            &:nth-child(1)  { width: 14%;  }  /* Contenedor */
-            &:nth-child(2)  { width: 14.5%;  }  /* Bloque */
-            &:nth-child(3)  { width: 14.5%;  }  /* Atado */
-            &:nth-child(4)  { width: 14.5%;  }  /* No. Placa */
-            &:nth-child(5)  { width: 10%;   }  /* Grosor */
-            &:nth-child(6)  { width: 10%;   }  /* Alto */
-            &:nth-child(7)  { width: 10%;   }  /* Ancho */
-            &:nth-child(8)  { width: 7%;   }  /* Área */
-            &:nth-child(9)  { width: 2.75%; }  /* Foto */
-            &:nth-child(10) { width: 2.75%; }  /* Delete */
+            &:nth-child(1)  { width: 14%;  }
+            &:nth-child(2)  { width: 14.5%;  }
+            &:nth-child(3)  { width: 14.5%;  }
+            &:nth-child(4)  { width: 14.5%;  }
+            &:nth-child(5)  { width: 10%;   }
+            &:nth-child(6)  { width: 10%;   }
+            &:nth-child(7)  { width: 10%;   }
+            &:nth-child(8)  { width: 7%;   }
+            &:nth-child(9)  { width: 2.75%; }
+            &:nth-child(10) { width: 2.75%; }
         }
     }
 
     thead {
         th {
             text-align: left;
-            padding: $sp-portal-3;
+            padding: $sp-portal-2;
             color: $sp-portal-text-tertiary;
-            font-size: 0.68rem;
+            font-size: 0.58rem;
             font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 0.06em;
@@ -238,17 +237,17 @@
         }
 
         td {
-            padding: $sp-portal-2 $sp-portal-3;
+            padding: $sp-portal-1 $sp-portal-2;
             border-bottom: 1px solid $sp-portal-border-subtle;
             vertical-align: middle;
-            font-size: 0.85rem;
+            font-size: 0.74rem;
             overflow: hidden;
 
             .area-display {
                 color: $sp-portal-primary;
                 font-weight: 700;
                 font-family: $sp-portal-font-mono;
-                font-size: 0.88rem;
+                font-size: 0.76rem;
                 letter-spacing: -0.02em;
             }
         }
@@ -266,10 +265,10 @@
         tr {
             display: block;
             background: $sp-portal-bg-card;
-            margin: $sp-portal-3 0;
+            margin: $sp-portal-2 0;
             border-radius: $sp-portal-radius-md;
             border: 1px solid $sp-portal-border-default;
-            padding: $sp-portal-4;
+            padding: $sp-portal-3;
             position: relative;
             box-shadow: $sp-portal-shadow-xs;
         }
@@ -278,19 +277,19 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: $sp-portal-2 0;
+            padding: $sp-portal-1 0;
             border: none;
             text-align: right;
             width: 100% !important;
 
             &::before {
                 content: attr(data-label);
-                font-size: 0.7rem;
+                font-size: 0.6rem;
                 text-transform: uppercase;
                 letter-spacing: 0.05em;
                 color: $sp-portal-text-tertiary;
                 font-weight: 700;
-                margin-right: $sp-portal-4;
+                margin-right: $sp-portal-3;
                 text-align: left;
                 flex-shrink: 0;
             }
@@ -298,20 +297,20 @@
 
         td:last-child {
             position: absolute;
-            top: $sp-portal-3;
-            right: $sp-portal-3;
+            top: $sp-portal-2;
+            right: $sp-portal-2;
             padding: 0;
             width: auto !important;
 
             &::before { content: none; }
-            .btn-action { width: 30px; height: 30px; }
+            .btn-action { width: 24px; height: 24px; }
         }
 
         .input-group-portal { width: 55%; }
     }
 }
 
-/* Legacy .portal-table for non-packing tables */
+/* Legacy .portal-table */
 .portal-table:not(.ps-data-table) {
     width: 100%;
     border-collapse: collapse;
@@ -323,9 +322,9 @@
 
         th {
             text-align: left;
-            padding: $sp-portal-3;
+            padding: $sp-portal-2;
             color: $sp-portal-text-tertiary;
-            font-size: 0.68rem;
+            font-size: 0.58rem;
             font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 0.06em;
@@ -343,16 +342,16 @@
         }
 
         td {
-            padding: $sp-portal-2 $sp-portal-3;
+            padding: $sp-portal-1 $sp-portal-2;
             border-bottom: 1px solid $sp-portal-border-subtle;
             vertical-align: middle;
-            font-size: 0.85rem;
+            font-size: 0.74rem;
 
             .area-display {
                 color: $sp-portal-primary;
                 font-weight: 700;
                 font-family: $sp-portal-font-mono;
-                font-size: 0.88rem;
+                font-size: 0.76rem;
                 letter-spacing: -0.02em;
             }
         }
@@ -376,8 +375,8 @@
 
     .ps-qty-chips {
         width: 100%;
-        gap: $sp-portal-2;
-        font-size: 0.7rem;
+        gap: $sp-portal-1;
+        font-size: 0.6rem;
     }
 
     .ps-data-table thead th {

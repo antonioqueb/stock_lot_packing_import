@@ -1,27 +1,27 @@
-/* _shipments.scss — Shipments section header, accordion blocks */
+/* _shipments.scss — Shipments section header, accordion blocks (Compact) */
 
-.shipments-section { margin-bottom: $sp-portal-8; }
+.shipments-section { margin-bottom: $sp-portal-6; }
 
 .section-header-bar {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: $sp-portal-5;
+    margin-bottom: $sp-portal-4;
 
     .section-title {
         display: flex;
         align-items: center;
-        gap: $sp-portal-3;
+        gap: $sp-portal-2;
 
         i {
             color: $sp-portal-primary-muted;
-            font-size: 1.15rem;
+            font-size: 0.95rem;
         }
 
         h3 {
             margin: 0;
             font-family: $sp-portal-font-display;
-            font-size: 1.1rem;
+            font-size: 0.9rem;
             color: $sp-portal-text-primary;
             font-weight: 700;
             letter-spacing: -0.01em;
@@ -33,21 +33,21 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 22px;
-    height: 22px;
+    min-width: 18px;
+    height: 18px;
     border-radius: $sp-portal-radius-pill;
     background: $sp-portal-text-primary;
     color: $sp-portal-text-inverse;
-    font-size: 0.7rem;
+    font-size: 0.6rem;
     font-weight: 700;
-    padding: 0 $sp-portal-2;
+    padding: 0 $sp-portal-1;
     font-family: $sp-portal-font-mono;
 }
 
 /* Empty state */
 .empty-state {
     text-align: center;
-    padding: $sp-portal-12 $sp-portal-8;
+    padding: $sp-portal-8 $sp-portal-6;
     color: $sp-portal-text-tertiary;
     background: $sp-portal-bg-card;
     border: 1.5px dashed $sp-portal-border-strong;
@@ -55,13 +55,13 @@
 
     i {
         color: $sp-portal-border-strong;
-        margin-bottom: $sp-portal-4;
+        margin-bottom: $sp-portal-3;
         opacity: 0.5;
     }
 
     p {
         margin: 0;
-        font-size: 0.88rem;
+        font-size: 0.76rem;
         line-height: 1.5;
     }
 }
@@ -71,9 +71,8 @@
     background: $sp-portal-bg-card;
     border: 1px solid $sp-portal-border-default;
     border-radius: $sp-portal-radius-lg;
-    margin-bottom: $sp-portal-3;
+    margin-bottom: $sp-portal-2;
     box-shadow: $sp-portal-shadow-xs;
-    /* CRITICAL: must be visible for sticky descendants (product header + thead) */
     overflow: visible;
     transition: box-shadow $sp-portal-duration-base $sp-portal-ease-out, border-color $sp-portal-duration-base $sp-portal-ease-out;
 
@@ -87,7 +86,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: $sp-portal-3 $sp-portal-5;
+    padding: $sp-portal-2 $sp-portal-4;
     background: $sp-portal-bg-card;
     cursor: pointer;
     user-select: none;
@@ -108,12 +107,12 @@
 .shipment-block-title {
     display: flex;
     align-items: center;
-    gap: $sp-portal-3;
+    gap: $sp-portal-2;
     min-width: 0;
 
     .shipment-name {
         font-weight: 700;
-        font-size: 0.95rem;
+        font-size: 0.8rem;
         color: $sp-portal-text-primary;
         letter-spacing: -0.01em;
     }
@@ -121,9 +120,9 @@
     .shipment-status-pill {
         display: inline-flex;
         align-items: center;
-        padding: 2px $sp-portal-3;
+        padding: 1px $sp-portal-2;
         border-radius: $sp-portal-radius-pill;
-        font-size: 0.65rem;
+        font-size: 0.56rem;
         font-weight: 700;
         text-transform: uppercase;
         letter-spacing: 0.05em;
@@ -141,33 +140,33 @@
 
     .shipment-summary-chips {
         display: flex;
-        gap: $sp-portal-1;
-        margin-left: $sp-portal-2;
+        gap: 2px;
+        margin-left: $sp-portal-1;
 
         .chip {
             display: inline-flex;
             align-items: center;
-            gap: 3px;
-            padding: 2px $sp-portal-2;
+            gap: 2px;
+            padding: 1px $sp-portal-1;
             border-radius: $sp-portal-radius-sm;
-            font-size: 0.67rem;
+            font-size: 0.58rem;
             font-weight: 600;
             background: $sp-portal-bg-subtle;
             color: $sp-portal-text-tertiary;
             font-family: $sp-portal-font-mono;
 
-            i { font-size: 0.6rem; opacity: 0.5; }
+            i { font-size: 0.52rem; opacity: 0.5; }
         }
     }
 }
 
 .shipment-block-actions {
     display: flex;
-    gap: $sp-portal-1;
+    gap: 2px;
 
     button {
-        width: 30px;
-        height: 30px;
+        width: 24px;
+        height: 24px;
         border-radius: $sp-portal-radius-sm;
         border: 1px solid $sp-portal-border-default;
         background: $sp-portal-bg-card;
@@ -177,7 +176,7 @@
         justify-content: center;
         cursor: pointer;
         transition: all $sp-portal-duration-fast $sp-portal-ease-out;
-        font-size: 0.8rem;
+        font-size: 0.68rem;
 
         @include sp-portal-hover {
             background: $sp-portal-bg-subtle;
@@ -203,7 +202,6 @@
 }
 
 .shipment-block-body {
-    padding: $sp-portal-5;
-    /* NO overflow here — must remain visible for sticky */
-    @include sp-portal-mobile { padding: $sp-portal-4; }
+    padding: $sp-portal-4;
+    @include sp-portal-mobile { padding: $sp-portal-3; }
 }

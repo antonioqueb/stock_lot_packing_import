@@ -1,4 +1,4 @@
-/* _tokens.scss — Design Tokens & Mixins */
+/* _tokens.scss — Design Tokens & Mixins (Compact / 75% feel) */
 
 /* ═══════════════════════════════════════════════════
    SURFACES
@@ -32,11 +32,11 @@ $sp-portal-green:            #059669;
 $sp-portal-red:              #DC2626;
 $sp-portal-amber:            #D97706;
 
-/* Radius */
-$sp-portal-radius-sm:        6px;
-$sp-portal-radius-md:        10px;
-$sp-portal-radius-lg:        14px;
-$sp-portal-radius-xl:        20px;
+/* Radius — tighter */
+$sp-portal-radius-sm:        4px;
+$sp-portal-radius-md:        7px;
+$sp-portal-radius-lg:        10px;
+$sp-portal-radius-xl:        14px;
 $sp-portal-radius-pill:      100px;
 
 /* Shadows */
@@ -47,16 +47,16 @@ $sp-portal-shadow-lg:        0 8px 24px rgba(0,0,0,0.06), 0 2px 6px rgba(0,0,0,0
 $sp-portal-shadow-xl:        0 16px 40px rgba(0,0,0,0.08), 0 4px 10px rgba(0,0,0,0.03);
 $sp-portal-shadow-primary:   0 4px 16px rgba(107, 66, 38, 0.14);
 
-/* Spacing (4px base) */
-$sp-portal-1: 4px;
-$sp-portal-2: 8px;
-$sp-portal-3: 12px;
-$sp-portal-4: 16px;
-$sp-portal-5: 20px;
-$sp-portal-6: 24px;
-$sp-portal-8: 32px;
-$sp-portal-10: 40px;
-$sp-portal-12: 48px;
+/* Spacing — reduced ~25% across the board */
+$sp-portal-1: 3px;
+$sp-portal-2: 5px;
+$sp-portal-3: 8px;
+$sp-portal-4: 11px;
+$sp-portal-5: 14px;
+$sp-portal-6: 18px;
+$sp-portal-8: 24px;
+$sp-portal-10: 30px;
+$sp-portal-12: 36px;
 
 /* Typography */
 $sp-portal-font-body:    'DM Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -70,8 +70,8 @@ $sp-portal-duration-fast: 150ms;
 $sp-portal-duration-base: 220ms;
 $sp-portal-duration-slow: 350ms;
 
-/* Input height */
-$sp-portal-input-h: 36px;
+/* Input height — compact */
+$sp-portal-input-h: 28px;
 
 /* ═══════════════════════════════════════════════════
    MIXINS

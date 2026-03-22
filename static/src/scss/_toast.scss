@@ -1,13 +1,13 @@
-/* _toast.scss — Toast notifications */
+/* _toast.scss — Toast notifications (Compact) */
 
 .portal-toast {
     position: fixed;
-    top: 70px;
-    right: $sp-portal-5;
+    top: 52px;
+    right: $sp-portal-4;
     z-index: 2000;
-    padding: $sp-portal-3 $sp-portal-5;
+    padding: $sp-portal-2 $sp-portal-4;
     border-radius: $sp-portal-radius-md;
-    font-size: 0.82rem;
+    font-size: 0.72rem;
     font-weight: 600;
     box-shadow: $sp-portal-shadow-lg;
     transform: translateX(calc(100% + 40px));

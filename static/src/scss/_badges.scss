@@ -1,11 +1,11 @@
-/* _badges.scss — Status badges */
+/* _badges.scss — Status badges (Compact) */
 
 .badge-status {
     display: inline-flex;
     align-items: center;
-    padding: $sp-portal-1 $sp-portal-3;
+    padding: 2px $sp-portal-2;
     border-radius: $sp-portal-radius-pill;
-    font-size: 0.65rem;
+    font-size: 0.56rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.06em;

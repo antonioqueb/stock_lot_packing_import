@@ -1,4 +1,4 @@
-/* _modal.scss — Packing setup modal */
+/* _modal.scss — Packing setup modal (Compact) */
 
 .portal-modal-overlay {
     position: fixed;
@@ -8,7 +8,7 @@
     display: none;
     align-items: center;
     justify-content: center;
-    padding: $sp-portal-6;
+    padding: $sp-portal-5;
     backdrop-filter: blur(4px);
 
     &.show {
@@ -16,14 +16,14 @@
     }
 
     @include sp-portal-mobile {
-        padding: $sp-portal-3;
+        padding: $sp-portal-2;
     }
 }
 
 .portal-modal {
     width: 100%;
-    max-width: 1100px;
-    max-height: calc(100vh - 60px);
+    max-width: 960px;
+    max-height: calc(100vh - 40px);
     background: $sp-portal-bg-card;
     border-radius: $sp-portal-radius-xl;
     box-shadow: $sp-portal-shadow-xl;
@@ -33,7 +33,7 @@
     overflow: hidden;
 
     @include sp-portal-mobile {
-        max-height: calc(100vh - 24px);
+        max-height: calc(100vh - 16px);
         border-radius: $sp-portal-radius-lg;
     }
 }
@@ -42,14 +42,14 @@
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    gap: $sp-portal-4;
-    padding: $sp-portal-5 $sp-portal-6;
+    gap: $sp-portal-3;
+    padding: $sp-portal-4 $sp-portal-5;
     border-bottom: 1px solid $sp-portal-border-default;
     background: $sp-portal-bg-card;
 
     h3 {
         margin: 0 0 $sp-portal-1 0;
-        font-size: 1.1rem;
+        font-size: 0.92rem;
         font-weight: 800;
         color: $sp-portal-text-primary;
     }
@@ -57,18 +57,18 @@
     p {
         margin: 0;
         color: $sp-portal-text-secondary;
-        font-size: 0.88rem;
+        font-size: 0.74rem;
     }
 
     @include sp-portal-mobile {
-        padding-left: $sp-portal-4;
-        padding-right: $sp-portal-4;
+        padding-left: $sp-portal-3;
+        padding-right: $sp-portal-3;
     }
 }
 
 .portal-modal-close {
-    width: 36px;
-    height: 36px;
+    width: 28px;
+    height: 28px;
     border-radius: 50%;
     border: 1px solid $sp-portal-border-default;
     background: $sp-portal-bg-card;
@@ -77,6 +77,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    font-size: 0.76rem;
 
     @include sp-portal-hover {
         background: $sp-portal-bg-subtle;
@@ -85,27 +86,27 @@
 }
 
 .portal-modal-body {
-    padding: $sp-portal-5 $sp-portal-6;
+    padding: $sp-portal-4 $sp-portal-5;
     overflow: auto;
     background: $sp-portal-bg-body;
 
     @include sp-portal-mobile {
-        padding-left: $sp-portal-4;
-        padding-right: $sp-portal-4;
+        padding-left: $sp-portal-3;
+        padding-right: $sp-portal-3;
     }
 }
 
 .portal-modal-footer {
     display: flex;
     justify-content: flex-end;
-    gap: $sp-portal-3;
-    padding: $sp-portal-4 $sp-portal-6;
+    gap: $sp-portal-2;
+    padding: $sp-portal-3 $sp-portal-5;
     border-top: 1px solid $sp-portal-border-default;
     background: $sp-portal-bg-card;
 
     @include sp-portal-mobile {
-        padding-left: $sp-portal-4;
-        padding-right: $sp-portal-4;
+        padding-left: $sp-portal-3;
+        padding-right: $sp-portal-3;
         flex-direction: column;
 
         .btn-add-row,
@@ -121,7 +122,7 @@
     background: $sp-portal-bg-card;
     border: 1px solid $sp-portal-border-default;
     border-radius: $sp-portal-radius-lg;
-    margin-bottom: $sp-portal-4;
+    margin-bottom: $sp-portal-3;
     overflow: hidden;
 
     &.is-enabled {
@@ -134,8 +135,8 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: $sp-portal-3;
-    padding: $sp-portal-4 $sp-portal-5;
+    gap: $sp-portal-2;
+    padding: $sp-portal-3 $sp-portal-4;
     background: $sp-portal-bg-card;
     border-bottom: 1px solid $sp-portal-border-subtle;
 }
@@ -143,14 +144,15 @@
 .setup-product-check {
     display: flex;
     align-items: center;
-    gap: $sp-portal-3;
+    gap: $sp-portal-2;
     font-weight: 700;
+    font-size: 0.78rem;
     color: $sp-portal-text-primary;
     margin: 0;
 
     input[type="checkbox"] {
-        width: 18px;
-        height: 18px;
+        width: 15px;
+        height: 15px;
         accent-color: $sp-portal-primary;
     }
 
@@ -163,36 +165,36 @@
 .setup-product-badge {
     display: inline-flex;
     align-items: center;
-    padding: 5px 10px;
+    padding: 3px 7px;
     border-radius: $sp-portal-radius-pill;
     background: $sp-portal-bg-subtle;
     border: 1px solid $sp-portal-border-default;
     color: $sp-portal-text-secondary;
-    font-size: 0.72rem;
+    font-size: 0.62rem;
     font-weight: 700;
 }
 
 .setup-product-body {
-    padding: $sp-portal-5;
+    padding: $sp-portal-4;
     background: $sp-portal-bg-card;
 }
 
 .setup-product-controls {
     display: flex;
-    gap: $sp-portal-4;
-    margin-bottom: $sp-portal-4;
+    gap: $sp-portal-3;
+    margin-bottom: $sp-portal-3;
     flex-wrap: wrap;
 }
 
 .setup-inline-field {
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    min-width: 180px;
+    gap: 4px;
+    min-width: 150px;
     flex: 1;
 
     label {
-        font-size: 0.72rem;
+        font-size: 0.62rem;
         font-weight: 700;
         color: $sp-portal-text-tertiary;
         text-transform: uppercase;
@@ -205,13 +207,13 @@
         border: 1px solid $sp-portal-border-default;
         background: $sp-portal-bg-input;
         color: $sp-portal-text-primary;
-        padding: 0 $sp-portal-3;
-        font-size: 0.86rem;
+        padding: 0 $sp-portal-2;
+        font-size: 0.74rem;
 
         &:focus {
             outline: none;
             border-color: $sp-portal-text-secondary;
-            box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.04);
+            box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.04);
         }
     }
 }
@@ -219,26 +221,27 @@
 .setup-blocks-list {
     display: flex;
     flex-direction: column;
-    gap: $sp-portal-3;
+    gap: $sp-portal-2;
 }
 
 .setup-block-row {
     border: 1px dashed $sp-portal-border-strong;
     background: $sp-portal-bg-inset;
     border-radius: $sp-portal-radius-md;
-    padding: $sp-portal-4;
+    padding: $sp-portal-3;
 }
 
 .setup-block-title {
     font-weight: 800;
+    font-size: 0.74rem;
     color: $sp-portal-primary;
-    margin-bottom: $sp-portal-3;
+    margin-bottom: $sp-portal-2;
 }
 
 .setup-block-grid {
     display: grid;
     grid-template-columns: 1.2fr 1fr 1.2fr;
-    gap: $sp-portal-3;
+    gap: $sp-portal-2;
 
     @include sp-portal-tablet {
         grid-template-columns: 1fr 1fr;
@@ -250,27 +253,27 @@
 }
 
 .setup-photo-field {
-    min-width: 220px;
+    min-width: 180px;
 }
 
 .setup-photo-upload {
     display: flex;
     align-items: center;
-    gap: $sp-portal-3;
+    gap: $sp-portal-2;
     flex-wrap: wrap;
 }
 
 .setup-photo-button {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    padding: 9px 12px;
+    gap: 6px;
+    padding: 6px 9px;
     border-radius: $sp-portal-radius-sm;
     border: 1.5px dashed $sp-portal-primary-muted;
     background: $sp-portal-bg-card;
     color: $sp-portal-primary;
     cursor: pointer;
-    font-size: 0.82rem;
+    font-size: 0.72rem;
     font-weight: 700;
     margin: 0;
 
@@ -283,8 +286,8 @@
 .setup-photo-status {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    font-size: 0.78rem;
+    gap: 4px;
+    font-size: 0.66rem;
     font-weight: 700;
 
     &.ok { color: $sp-portal-green; }
