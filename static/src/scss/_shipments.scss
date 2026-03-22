@@ -73,7 +73,7 @@
     border-radius: $sp-portal-radius-lg;
     margin-bottom: $sp-portal-3;
     box-shadow: $sp-portal-shadow-xs;
-    /* CHANGED: overflow visible so that sticky positioning works on descendant elements */
+    /* CRITICAL: must be visible for sticky descendants (product header + thead) */
     overflow: visible;
     transition: box-shadow $sp-portal-duration-base $sp-portal-ease-out, border-color $sp-portal-duration-base $sp-portal-ease-out;
 
@@ -204,5 +204,6 @@
 
 .shipment-block-body {
     padding: $sp-portal-5;
+    /* NO overflow here — must remain visible for sticky */
     @include sp-portal-mobile { padding: $sp-portal-4; }
 }

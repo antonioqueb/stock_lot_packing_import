@@ -75,6 +75,7 @@
     @include sp-portal-hover {
         background: $sp-portal-bg-subtle;
         border-color: $sp-portal-border-strong;
+        color: $sp-portal-radius-sm;
         color: $sp-portal-text-primary;
     }
 
@@ -160,20 +161,18 @@
     }
 }
 
-/* Collapsible body — NO overflow hidden/auto, must be visible for sticky */
+/* Collapsible body — NO overflow, must be visible for sticky */
 .ps-product-body {
     padding: 0;
     /* DO NOT set overflow here — it breaks sticky on thead th */
 }
 
-/* Table scroll wrapper — use clip instead of auto on desktop to preserve sticky */
+/* Table scroll wrapper — clip on desktop preserves sticky, auto on mobile for horizontal scroll */
 .ps-table-scroll {
-    /* overflow: clip does NOT create a scroll container, so sticky still works */
     overflow-x: clip;
     overflow-y: visible;
 
     @include sp-portal-mobile {
-        /* On mobile we need horizontal scroll, sticky thead disabled anyway */
         overflow-x: auto;
         overflow-y: visible;
         -webkit-overflow-scrolling: touch;
@@ -203,14 +202,14 @@
             background: $sp-portal-bg-inset;
 
             /*
-             * Sticky thead:
-             * - top = header height (56px) + product sticky header height (~52px) = ~108px
-             * - z-index below product header (40) but above rows
-             * - box-shadow to cover content scrolling underneath
+             * Sticky thead — the JS in packing_rows.js will compute and set
+             * the exact top value via a CSS custom property.
+             * Fallback: 108px = 56px portal header + ~52px product sticky header.
              */
             position: sticky;
-            top: 108px;
+            top: var(--ps-thead-top, 108px);
             z-index: 30;
+            /* bottom border shadow so content doesn't bleed through */
             box-shadow: inset 0 -1px 0 $sp-portal-border-default;
         }
     }

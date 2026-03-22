@@ -113,3 +113,11 @@
 
     .sub-item-field-wide { grid-column: 1 / -1; }
 }
+
+/*
+ * Packing card override — must have overflow visible
+ * so that sticky thead inside .packing-rows-area works.
+ */
+.packing-card {
+    overflow: visible;
+}

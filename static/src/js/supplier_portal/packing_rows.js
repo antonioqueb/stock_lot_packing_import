@@ -141,9 +141,8 @@
 
         _isProductCollapsed(pkId, productId) {
             const key = this._getProductCollapseKey(pkId, productId);
-            // Default: collapsed (true) — user expands what they need
             if (this.productCollapseState[key] === undefined) {
-                return false; // first time: show expanded
+                return false;
             }
             return !!this.productCollapseState[key];
         },
@@ -151,6 +150,31 @@
         _toggleProductCollapsed(pkId, productId) {
             const key = this._getProductCollapseKey(pkId, productId);
             this.productCollapseState[key] = !this.productCollapseState[key];
+        },
+
+        // =================================================================
+        //  STICKY THEAD — dynamic top calculation
+        // =================================================================
+
+        /**
+         * After rendering, measure each product's sticky header height and
+         * set --ps-thead-top on the table so that thead th sticks right below it.
+         */
+        _adjustStickyTheadPositions(area) {
+            requestAnimationFrame(() => {
+                const portalHeader = document.querySelector('.o_portal_header');
+                const portalHeaderH = portalHeader ? portalHeader.offsetHeight : 56;
+
+                area.querySelectorAll('.ps-product-wrapper').forEach(wrapper => {
+                    const stickyHeader = wrapper.querySelector('.ps-product-sticky-header');
+                    const table = wrapper.querySelector('.ps-data-table');
+                    if (!stickyHeader || !table) return;
+
+                    const headerH = stickyHeader.offsetHeight;
+                    const theadTop = portalHeaderH + headerH;
+                    table.style.setProperty('--ps-thead-top', theadTop + 'px');
+                });
+            });
         },
 
         openPackingSetupModal(pk, s) {
@@ -754,6 +778,9 @@
             area.innerHTML = html;
             this.bindPackingRowsEvents(area, pk, s, rowsKey);
             this._renderBlockPhotoSections(area, pk, s, rowsKey);
+
+            // ── ADJUST STICKY THEAD TOP DYNAMICALLY ──
+            this._adjustStickyTheadPositions(area);
         },
 
         bindPackingRowsEvents(area, pk, s, rowsKey) {
@@ -841,7 +868,6 @@
                     return;
                 }
 
-                // Toggle via button OR clicking the sticky header
                 if (toggleProductBtn || (stickyHeader && !e.target.closest('button') && !e.target.closest('a'))) {
                     const header = toggleProductBtn ? toggleProductBtn.closest('.ps-product-sticky-header') : stickyHeader;
                     if (!header) return;
