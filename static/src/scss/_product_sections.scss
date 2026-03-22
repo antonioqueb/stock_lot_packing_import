@@ -19,7 +19,7 @@
     }
 }
 
-/* Sticky product header — fully opaque, no bleed-through */
+/* Sticky product header — fully opaque */
 .ps-product-sticky-header {
     position: sticky;
     top: 56px;
@@ -36,7 +36,6 @@
     flex-wrap: wrap;
     border-radius: $sp-portal-radius-lg $sp-portal-radius-lg 0 0;
     transition: background $sp-portal-duration-fast $sp-portal-ease-out;
-    /* Extend white downward to seal gap with thead */
     box-shadow: 0 1px 0 0 $sp-portal-bg-card;
 
     .ps-collapsed & {
@@ -196,20 +195,12 @@
             letter-spacing: 0.06em;
             white-space: nowrap;
             position: relative;
-
-            /* Solid opaque — nothing visible behind */
             background: $sp-portal-bg-inset;
-
             position: sticky;
             top: var(--ps-thead-top, 108px);
             z-index: 30;
 
-            /*
-             * Pseudo-element that extends upward to cover the gap
-             * between the product sticky header and this thead.
-             * Uses the card background color so scrolling rows
-             * are completely hidden behind it.
-             */
+            /* Seal the gap between product header and thead */
             &::before {
                 content: '';
                 position: absolute;
@@ -221,7 +212,6 @@
                 z-index: 1;
             }
 
-            /* Bottom border via box-shadow for clean rendering */
             border-bottom: none;
             box-shadow: inset 0 -1px 0 0 $sp-portal-border-default;
         }
@@ -229,6 +219,8 @@
 
     tbody {
         tr {
+            /* Solid opaque background — rows won't bleed through sticky headers */
+            background: $sp-portal-bg-card;
             transition: background $sp-portal-duration-fast $sp-portal-ease-out;
 
             @include sp-portal-hover {
@@ -338,6 +330,7 @@
 
     tbody {
         tr {
+            background: $sp-portal-bg-card;
             transition: background $sp-portal-duration-fast $sp-portal-ease-out;
             @include sp-portal-hover { background: $sp-portal-bg-inset; }
         }
