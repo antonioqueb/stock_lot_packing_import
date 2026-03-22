@@ -893,7 +893,7 @@
                         ${this.t('btn_add_5')}
                     </button>
                     <button class="btn-add-row action-add-pk-row" data-product-id="${product.id}" data-pk-key="${rowsKey}" data-count="10" type="button">
-                        ${this.t('btn_add_10') || 'Agregar 10 Filas'}
+                        ${this.t('btn_add_10')}
                     </button>
                 </div>`;
 
