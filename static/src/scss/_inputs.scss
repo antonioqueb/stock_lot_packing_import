@@ -3,7 +3,7 @@
 .input-group-portal {
     display: flex;
     align-items: center;
-    gap: 3px;
+    gap: 2px;
     width: 100%;
 
     input, select {
@@ -29,17 +29,19 @@
         }
     }
 
+    /* Fill-down buttons: compact, minimal footprint */
     .btn-fill-down,
-    .btn-fill-up {
+    .btn-fill-one-down {
         background: $sp-portal-bg-subtle;
         border: 1px solid $sp-portal-border-default;
         color: $sp-portal-text-tertiary;
         padding: 0;
         border-radius: $sp-portal-radius-sm;
-        min-width: 28px;
+        min-width: 22px;
+        max-width: 22px;
         flex-shrink: 0;
         height: $sp-portal-input-h;
-        font-size: 0.75rem;
+        font-size: 0.65rem;
         cursor: pointer;
         display: inline-flex;
         align-items: center;
@@ -57,12 +59,17 @@
         @include sp-portal-mobile { display: none; }
     }
 
-    .btn-fill-up {
-        order: -1; /* Ensure it appears before the input */
+    /* Fill-one-down: slightly different style to distinguish */
+    .btn-fill-one-down {
+        @include sp-portal-hover {
+            background: $sp-portal-primary;
+            border-color: $sp-portal-primary;
+            color: $sp-portal-text-inverse;
+        }
     }
 }
 
-.row-container-select { min-width: 130px; }
+.row-container-select { min-width: 110px; }
 
 .table-actions {
     padding: $sp-portal-4;

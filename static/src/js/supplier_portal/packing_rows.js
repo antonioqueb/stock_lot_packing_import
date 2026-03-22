@@ -620,7 +620,7 @@
         // =================================================================
 
         /**
-         * Fill DOWN from source row, only within the same block & product.
+         * Fill ALL rows DOWN from source row within the same block & product.
          * For numero_placa: sequential increment.
          * For other fields: copy value.
          */
@@ -655,37 +655,33 @@
         },
 
         /**
-         * Fill UP from source row, only within the same block & product.
-         * For numero_placa: sequential decrement.
+         * Fill ONE row down from source row (next row in same block & product).
+         * For numero_placa: increment by 1.
          * For other fields: copy value.
          */
-        _fillUp(rws, srcRow, field) {
+        _fillOneDown(rws, srcRow, field) {
             const srcIdx = rws.indexOf(srcRow);
             if (srcIdx < 0) return;
 
             const srcBlock = String(srcRow.bloque || '').trim();
             const srcProduct = srcRow.product_id;
 
-            if (field === 'numero_placa') {
-                const baseVal = parseInt(srcRow[field], 10);
-                if (isNaN(baseVal)) return;
-                let seq = baseVal;
-                for (let i = srcIdx - 1; i >= 0; i--) {
-                    const r = rws[i];
-                    if (r.product_id !== srcProduct) continue;
-                    const rBlock = String(r.bloque || '').trim();
-                    if (rBlock !== srcBlock) break;
-                    seq--;
-                    r[field] = String(seq);
-                }
-            } else {
-                for (let i = srcIdx - 1; i >= 0; i--) {
-                    const r = rws[i];
-                    if (r.product_id !== srcProduct) continue;
-                    const rBlock = String(r.bloque || '').trim();
-                    if (rBlock !== srcBlock) break;
+            for (let i = srcIdx + 1; i < rws.length; i++) {
+                const r = rws[i];
+                if (r.product_id !== srcProduct) continue;
+                const rBlock = String(r.bloque || '').trim();
+                if (rBlock !== srcBlock) break;
+
+                // Found the next row in the same block
+                if (field === 'numero_placa') {
+                    const baseVal = parseInt(srcRow[field], 10);
+                    if (!isNaN(baseVal)) {
+                        r[field] = String(baseVal + 1);
+                    }
+                } else {
                     r[field] = srcRow[field];
                 }
+                return; // Only one row
             }
         },
 
@@ -809,8 +805,8 @@
                                  <th>${this.t('lbl_desc_goods')}</th>`;
                     }
 
-                    html += `<th style="width:60px">${this.t('col_photo')}</th>
-                             <th style="width:50px"></th>
+                    html += `<th style="width:42px">${this.t('col_photo')}</th>
+                             <th style="width:36px"></th>
                              </tr>
                             </thead>
                         </table>
@@ -834,7 +830,7 @@
                 } else {
                     html += `<th></th><th></th><th></th><th></th>`;
                 }
-                html += `<th style="width:60px"></th><th style="width:50px"></th></tr>
+                html += `<th style="width:42px"></th><th style="width:36px"></th></tr>
                         </thead>
                         <tbody>`;
 
@@ -858,7 +854,7 @@
                                     <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:100px;background:${blockColor};color:#fff;font-size:0.72rem;font-weight:700;letter-spacing:0.03em;text-transform:uppercase;">
                                         <i class="fa fa-cube"></i> ${esc(currentBlock)}
                                     </span>
-                                    <span style="font-size:0.7rem;color:#888;font-weight:600;">${rowsInBlock} ${unitType === 'Placa' ? (this.t('setup_rows_label_short') || 'filas') : (this.t('setup_rows_label_short') || 'filas')}</span>
+                                    <span style="font-size:0.7rem;color:#888;font-weight:600;">${rowsInBlock} ${this.t('setup_rows_label_short') || 'filas'}</span>
                                     <span style="flex:1;height:1px;background:linear-gradient(to right, ${blockColor}33, transparent);"></span>
                                 </div>
                             </td>
@@ -869,23 +865,20 @@
 
                     html += `<tr data-row-id="${rid}" data-pk-key="${rowsKey}">`;
 
-                    // ── inp helper: now renders BOTH fill-up and fill-down buttons ──
+                    // ── inp helper: renders fill-one-down + input + fill-all-down ──
                     const inp = (field, val, ph, type = 'text', step = '') =>
                         `<div class="input-group-portal">
-                            <button type="button" class="btn-fill-up" data-row-id="${rid}" data-field="${field}" data-pk-key="${rowsKey}" tabindex="-1" title="Fill up within block">
-                                <i class="fa fa-arrow-up"></i>
-                            </button>
                             <input type="${type}" step="${step}" class="input-field" data-field="${field}" value="${esc(val || '')}" placeholder="${ph}">
-                            <button type="button" class="btn-fill-down" data-row-id="${rid}" data-field="${field}" data-pk-key="${rowsKey}" tabindex="-1" title="Fill down within block">
-                                <i class="fa fa-arrow-down"></i>
+                            <button type="button" class="btn-fill-one-down" data-row-id="${rid}" data-field="${field}" data-pk-key="${rowsKey}" tabindex="-1" title="Copy to next row">
+                                <i class="fa fa-angle-down"></i>
+                            </button>
+                            <button type="button" class="btn-fill-down" data-row-id="${rid}" data-field="${field}" data-pk-key="${rowsKey}" tabindex="-1" title="Fill all down in block">
+                                <i class="fa fa-angle-double-down"></i>
                             </button>
                         </div>`;
 
                     html += `<td data-label="${this.t('col_container_assign')}">
                         <div class="input-group-portal">
-                            <button type="button" class="btn-fill-up" data-row-id="${rid}" data-field="container_id" data-pk-key="${rowsKey}" tabindex="-1" title="Fill up within block">
-                                <i class="fa fa-arrow-up"></i>
-                            </button>
                             <select class="row-container-select input-field" data-field="container_id" data-row-id="${rid}" data-pk-key="${rowsKey}">
                                 <option value="">${this.t('opt_select')}</option>
                                 ${containers.map(c => `
@@ -894,8 +887,11 @@
                                     </option>
                                 `).join('')}
                             </select>
-                            <button type="button" class="btn-fill-down" data-row-id="${rid}" data-field="container_id" data-pk-key="${rowsKey}" tabindex="-1" title="Fill down within block">
-                                <i class="fa fa-arrow-down"></i>
+                            <button type="button" class="btn-fill-one-down" data-row-id="${rid}" data-field="container_id" data-pk-key="${rowsKey}" tabindex="-1" title="Copy to next row">
+                                <i class="fa fa-angle-down"></i>
+                            </button>
+                            <button type="button" class="btn-fill-down" data-row-id="${rid}" data-field="container_id" data-pk-key="${rowsKey}" tabindex="-1" title="Fill all down in block">
+                                <i class="fa fa-angle-double-down"></i>
                             </button>
                         </div>
                     </td>`;
@@ -1039,7 +1035,7 @@
                 const delBtn = e.target.closest('.btn-delete-row');
                 const addBtn = e.target.closest('.action-add-pk-row');
                 const fillDownBtn = e.target.closest('.btn-fill-down');
-                const fillUpBtn = e.target.closest('.btn-fill-up');
+                const fillOneDownBtn = e.target.closest('.btn-fill-one-down');
                 const photoDoneBtn = e.target.closest('.btn-photo-done');
                 const openSetupBtn = e.target.closest('.btn-open-packing-setup');
                 const toggleProductBtn = e.target.closest('.ps-toggle-btn');
@@ -1100,7 +1096,7 @@
                     return;
                 }
 
-                // ── FILL DOWN (scoped to block) ──
+                // ── FILL ALL DOWN (scoped to block) ──
                 if (fillDownBtn) {
                     const rid = parseInt(fillDownBtn.dataset.rowId, 10);
                     const field = fillDownBtn.dataset.field;
@@ -1114,16 +1110,16 @@
                     return;
                 }
 
-                // ── FILL UP (scoped to block) ──
-                if (fillUpBtn) {
-                    const rid = parseInt(fillUpBtn.dataset.rowId, 10);
-                    const field = fillUpBtn.dataset.field;
-                    const key = fillUpBtn.dataset.pkKey;
+                // ── FILL ONE DOWN (next row in same block) ──
+                if (fillOneDownBtn) {
+                    const rid = parseInt(fillOneDownBtn.dataset.rowId, 10);
+                    const field = fillOneDownBtn.dataset.field;
+                    const key = fillOneDownBtn.dataset.pkKey;
                     const rws = this.packingRows[key] || [];
                     const src = rws.find(r => r._id === rid);
                     if (!src) return;
 
-                    this._fillUp(rws, src, field);
+                    this._fillOneDown(rws, src, field);
                     this.renderPackingRows(area, pk, s);
                     return;
                 }
