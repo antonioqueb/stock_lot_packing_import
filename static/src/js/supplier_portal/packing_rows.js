@@ -152,14 +152,72 @@
             this.productCollapseState[key] = !this.productCollapseState[key];
         },
 
+        _adjustStickyTheadPositions(area) {
+            // NO-OP
+        },
+
         // =================================================================
-        //  STICKY THEAD — NO LONGER NEEDED (unified block handles it)
+        //  AUTO-SAVE PACKING after generating rows
         // =================================================================
 
-        _adjustStickyTheadPositions(area) {
-            // NO-OP: sticky positioning is now handled by .ps-sticky-block
-            // which contains both the product header and thead as one unit.
+        async _autoSavePackingRows(packingId, shipmentId, formEl) {
+            const pkData = { id: packingId };
+
+            // Leer metadatos del packing si hay inputs en el DOM
+            if (formEl) {
+                formEl.querySelectorAll('[data-pk-id="' + packingId + '"][data-pk-f]').forEach(function (input) {
+                    pkData[input.dataset.pkF] = input.value;
+                });
+            }
+
+            const rowsKey = 'pk_' + packingId;
+            const rows = this.packingRows[rowsKey] || [];
+
+            if (!rows.length) {
+                return { success: false, message: 'No hay filas para guardar.' };
+            }
+
+            const usedContainerIds = [...new Set(rows.map(r => asInt(r.container_id)).filter(Boolean))];
+            pkData.scope = usedContainerIds.length > 0 ? 'specific_containers' : 'full_shipment';
+            pkData.container_ids = usedContainerIds;
+
+            const rowsPayload = rows.map(function (r) {
+                return {
+                    id: r.id || 0,
+                    product_id: r.product_id,
+                    container_id: asInt(r.container_id || 0),
+                    tipo: r.tipo,
+                    grosor: r.grosor || '',
+                    alto: r.alto || 0,
+                    ancho: r.ancho || 0,
+                    peso: r.peso || 0,
+                    quantity: r.quantity || 0,
+                    bloque: r.bloque || '',
+                    numero_placa: r.numero_placa || '',
+                    atado: r.atado || '',
+                    color: r.color || '',
+                    grupo_name: r.grupo_name || '',
+                    pedimento: r.pedimento || '',
+                    ref_proveedor: r.ref_proveedor || '',
+                };
+            });
+
+            try {
+                const res = await jsonRpc('/supplier/api/v2/save_packing', {
+                    token: this.token,
+                    shipment_id: shipmentId,
+                    packing_data: pkData,
+                    rows: rowsPayload,
+                });
+                return res;
+            } catch (e) {
+                return { success: false, message: e.message };
+            }
         },
+
+        // =================================================================
+        //  SETUP MODAL
+        // =================================================================
 
         openPackingSetupModal(pk, s) {
             const freshShipment = this._getFreshShipment ? (this._getFreshShipment(s.id) || s) : s;
@@ -418,6 +476,9 @@
                 });
             });
 
+            // ═══════════════════════════════════════════════════════════════
+            //  APPLY SETUP — Generate rows AND auto-save to server
+            // ═══════════════════════════════════════════════════════════════
             const applyBtn = overlay.querySelector('[data-action="apply-setup"]');
             if (applyBtn) {
                 applyBtn.addEventListener('click', async () => {
@@ -458,13 +519,53 @@
                         });
 
                     this.packingRows[rowsKey] = generatedRows;
-                    this.closePackingSetupModal();
 
-                    const area = document.getElementById(`pk-rows-${pk.id}`);
-                    if (area) {
-                        const updatedShipment = (this.proforma.shipments || []).find(x => x.id === freshShipment.id) || freshShipment;
-                        this.renderPackingRows(area, pk, updatedShipment);
-                        area.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    // ── Disable button and show saving state ──
+                    applyBtn.disabled = true;
+                    const originalBtnHtml = applyBtn.innerHTML;
+                    applyBtn.innerHTML = `<i class="fa fa-spinner fa-spin"></i> ${this.t('msg_saving') || 'Guardando...'}`;
+
+                    // ── AUTO-SAVE to server ──
+                    try {
+                        const saveRes = await this._autoSavePackingRows(pk.id, freshShipment.id, null);
+
+                        if (saveRes && saveRes.success) {
+                            // Clear local cache so reload picks up server data
+                            delete this.packingRows[rowsKey];
+                            delete this.packingSetupState[pk.id];
+
+                            this.closePackingSetupModal();
+                            await this.reloadProforma();
+                            this.renderAll();
+                            this.toast(this.t('msg_saved'), 'success');
+                        } else {
+                            // Save failed — keep rows in memory so user doesn't lose work
+                            this.toast(this.t('msg_error') + (saveRes.message || ''), 'error');
+                            applyBtn.disabled = false;
+                            applyBtn.innerHTML = originalBtnHtml;
+
+                            // Still close modal and render local rows
+                            this.closePackingSetupModal();
+                            const area = document.getElementById(`pk-rows-${pk.id}`);
+                            if (area) {
+                                const updatedShipment = (this.proforma.shipments || []).find(x => x.id === freshShipment.id) || freshShipment;
+                                this.renderPackingRows(area, pk, updatedShipment);
+                                area.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            }
+                        }
+                    } catch (e) {
+                        this.toast(this.t('msg_error') + e.message, 'error');
+                        applyBtn.disabled = false;
+                        applyBtn.innerHTML = originalBtnHtml;
+
+                        // Still close and render local
+                        this.closePackingSetupModal();
+                        const area = document.getElementById(`pk-rows-${pk.id}`);
+                        if (area) {
+                            const updatedShipment = (this.proforma.shipments || []).find(x => x.id === freshShipment.id) || freshShipment;
+                            this.renderPackingRows(area, pk, updatedShipment);
+                            area.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }
                     }
                 });
             }
@@ -602,12 +703,8 @@
 
                 html += `<div class="ps-product-wrapper ${isCollapsed ? 'ps-collapsed' : 'ps-expanded'}" data-product-id="${product.id}" data-pk-id="${pk.id}">`;
 
-                // ══════════════════════════════════════════════════════
-                //  UNIFIED STICKY BLOCK: header + thead as ONE element
-                // ══════════════════════════════════════════════════════
                 html += `<div class="ps-sticky-block">`;
 
-                // ── PRODUCT HEADER (inside sticky block) ──
                 html += `<div class="ps-product-sticky-header" data-product-id="${product.id}" data-pk-id="${pk.id}">
                     <div class="ps-header-left">
                         <button type="button" class="ps-toggle-btn" data-product-id="${product.id}" data-pk-id="${pk.id}">
@@ -635,7 +732,6 @@
                     </div>
                 </div>`;
 
-                // ── THEAD (inside sticky block, only visible when expanded) ──
                 if (!isCollapsed) {
                     html += `<div class="ps-sticky-thead">
                         <table class="portal-table ps-data-table ps-thead-only" style="margin:0;">
@@ -670,19 +766,16 @@
                     </div>`;
                 }
 
-                html += `</div>`; // close ps-sticky-block
+                html += `</div>`;
 
-                // ── COLLAPSIBLE BODY (tbody + actions) ──
                 html += `<div class="ps-product-body" style="${isCollapsed ? 'display:none;' : ''}">`;
 
-                // ── TABLE BODY (no thead — thead is in sticky block above) ──
                 html += `<div class="ps-table-scroll">
                     <table class="portal-table ps-data-table ps-tbody-only">
                         <thead style="visibility:collapse;">
                             <tr>
                                 <th></th>`;
 
-                // Mirror columns for width alignment (hidden thead)
                 if (unitType === 'Placa') {
                     html += `<th></th><th></th><th></th><th></th><th></th><th></th><th></th>`;
                 } else if (unitType === 'Formato') {
@@ -776,23 +869,20 @@
 
                 html += `</tbody></table></div>`;
 
-                // ── ADD ROW ACTIONS ──
                 html += `<div class="table-actions">
                     <button class="btn-add-row action-add-pk-row" data-product-id="${product.id}" data-pk-key="${rowsKey}" data-count="1" type="button">
                         ${this.t('btn_add_row')}
                     </button>
                 </div>`;
 
-                html += `</div>`; // close ps-product-body
-                html += `</div>`; // close ps-product-wrapper
+                html += `</div>`;
+                html += `</div>`;
             });
 
-            html += `</div>`; // close packing-products-list
+            html += `</div>`;
             area.innerHTML = html;
             this.bindPackingRowsEvents(area, pk, s, rowsKey);
             this._renderBlockPhotoSections(area, pk, s, rowsKey);
-
-            // _adjustStickyTheadPositions is now a no-op
             this._adjustStickyTheadPositions(area);
         },
 
