@@ -71,16 +71,7 @@
 
         async _refreshBlockPhotosInPlace(area, pk, s, rowsKey) {
             await this.reloadProformaKeepingRows();
-
-            const updatedShipment = (this.proforma.shipments || []).find(x => x.id === s.id);
-            if (!updatedShipment) return;
-
-            const updatedPacking = (updatedShipment.packings || []).find(p => p.id === pk.id) || pk;
-
-            const existing = area.querySelector('.block-photos-section');
-            if (existing) existing.remove();
-
-            this._renderBlockPhotoSections(area, updatedPacking, updatedShipment, rowsKey);
+            // Block photo sections no longer rendered inline — managed in setup modal
         },
 
         _getShipmentProducts(s) {
@@ -882,7 +873,7 @@
             html += `</div>`;
             area.innerHTML = html;
             this.bindPackingRowsEvents(area, pk, s, rowsKey);
-            this._renderBlockPhotoSections(area, pk, s, rowsKey);
+            // Block photo sections removed — photos are now managed in the setup modal
             this._adjustStickyTheadPositions(area);
         },
 
@@ -916,14 +907,7 @@
                     }
                 }
 
-                if (field === 'bloque') {
-                    clearTimeout(this._bloqueRefreshTimer);
-                    this._bloqueRefreshTimer = setTimeout(() => {
-                        const existing = area.querySelector('.block-photos-section');
-                        if (existing) existing.remove();
-                        this._renderBlockPhotoSections(area, pk, s, rowsKey);
-                    }, 600);
-                }
+                // Block photo refresh removed — photos managed in setup modal
             });
 
             area.addEventListener('change', e => {
@@ -1075,173 +1059,6 @@
                     <i class="fa fa-camera" style="color:#8B5A2B;font-size:1rem"></i>
                     <input type="file" accept="image/*" capture="environment" data-server-row-id="${serverRowId}" data-row-id="${localRowId}" class="photo-file-input" style="display:none"/>
                 </label>`;
-            }
-        },
-
-        _renderBlockPhotoSections(area, pk, s, rowsKey) {
-            const rows = this.packingRows[rowsKey] || [];
-            const productPool = this._getShipmentProducts(s);
-
-            const blocksByKey = {};
-            rows.forEach(r => {
-                const bloque = (r.bloque || '').trim();
-                if (!bloque) return;
-                const key = `${r.product_id}__${bloque}`;
-                if (!blocksByKey[key]) {
-                    blocksByKey[key] = { product_id: r.product_id, block_name: bloque };
-                }
-            });
-
-            const uniqueBlocks = Object.values(blocksByKey);
-            if (uniqueBlocks.length === 0) return;
-
-            const existingImages = (s.block_images || []);
-            const imagesByBlock = {};
-            existingImages.forEach(img => {
-                const key = `${img.product_id}__${img.block_name}`;
-                if (!imagesByBlock[key]) imagesByBlock[key] = [];
-                imagesByBlock[key].push(img);
-            });
-
-            const titleText = this.t('block_photos_title') || 'Fotografias por Bloque';
-            const requiredText = this.t('block_photos_required') || 'obligatorio por bloque';
-            const addText = this.t('block_photos_add') || 'Subir foto';
-
-            let blockHtml = `<div class="block-photos-section" style="margin-top:16px;padding:14px 16px;border:1.5px dashed #d4d4d0;border-radius:10px;background:#fafaf9;">
-                <h4 style="margin:0 0 12px;font-size:0.9rem;color:#6B4226;display:flex;align-items:center;gap:8px;">
-                    <i class="fa fa-camera"></i> ${esc(titleText)}
-                    <span style="font-size:0.72rem;color:#888;font-weight:400;">(${esc(requiredText)})</span>
-                </h4>`;
-
-            uniqueBlocks.forEach(({ product_id, block_name }) => {
-                const key = `${product_id}__${block_name}`;
-                const imgs = imagesByBlock[key] || [];
-                const hasPhoto = imgs.length > 0;
-                const product = productPool.find(p => p.id === product_id) || this.products.find(p => p.id === product_id);
-                const productName = product ? product.name : '';
-
-                const borderColor = hasPhoto ? '#bbf7d0' : '#fecaca';
-                const bgColor = hasPhoto ? '#f0fdf4' : '#fef2f2';
-
-                blockHtml += `<div class="block-photo-item" style="display:flex;align-items:center;gap:12px;padding:10px 12px;margin-bottom:6px;background:${bgColor};border:1px solid ${borderColor};border-radius:8px;flex-wrap:wrap;">
-                    <div style="flex:1;min-width:150px;">
-                        <strong style="color:#1f2937;">${esc(block_name)}</strong>
-                        <span style="font-size:0.72rem;color:#888;margin-left:8px;">${esc(productName)}</span>
-                    </div>
-                    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">`;
-
-                if (hasPhoto) {
-                    imgs.forEach(img => {
-                        blockHtml += `<span style="display:inline-flex;align-items:center;gap:4px;font-size:0.75rem;color:#16a34a;background:#dcfce7;padding:3px 8px;border-radius:12px;border:1px solid #bbf7d0;">
-                            <i class="fa fa-check-circle"></i> ${esc(img.image_filename || 'foto')}
-                            <button type="button" class="btn-delete-block-photo" data-block-image-id="${img.id}" data-shipment-id="${s.id}"
-                                style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:0.75rem;padding:0 2px;margin-left:4px;" title="Eliminar">
-                                <i class="fa fa-times"></i>
-                            </button>
-                        </span>`;
-                    });
-                } else {
-                    blockHtml += `<span style="font-size:0.72rem;color:#dc2626;"><i class="fa fa-exclamation-circle"></i> ${this.t('block_photos_missing') || 'Foto requerida'}</span>`;
-                }
-
-                blockHtml += `<label style="cursor:pointer;margin:0;display:inline-flex;align-items:center;gap:4px;padding:5px 12px;border:1.5px dashed ${hasPhoto ? '#d4d4d0' : '#f87171'};border-radius:6px;font-size:0.8rem;color:#6B4226;background:#fff;transition:border-color 0.15s;">
-                    <i class="fa fa-plus-circle"></i> ${esc(addText)}
-                    <input type="file" accept="image/*" capture="environment" class="block-photo-input"
-                        data-block-name="${esc(block_name)}"
-                        data-product-id="${product_id}"
-                        data-shipment-id="${s.id}"
-                        data-packing-id="${pk.id}"
-                        style="display:none"/>
-                </label>`;
-
-                blockHtml += `</div></div>`;
-            });
-
-            blockHtml += `</div>`;
-
-            area.insertAdjacentHTML('beforeend', blockHtml);
-            this._bindBlockPhotoEvents(area, pk, s, rowsKey);
-        },
-
-        _bindBlockPhotoEvents(area, pk, s, rowsKey) {
-            area.querySelectorAll('.block-photo-input').forEach(input => {
-                if (input._blockBound) return;
-                input._blockBound = true;
-
-                input.addEventListener('change', (e) => {
-                    const file = e.target.files[0];
-                    if (!file) return;
-
-                    if (file.size > 5 * 1024 * 1024) {
-                        this.toast(this.t('msg_photo_too_large'), 'error');
-                        e.target.value = '';
-                        return;
-                    }
-                    if (!file.type.startsWith('image/')) {
-                        this.toast(this.t('msg_photo_invalid'), 'error');
-                        e.target.value = '';
-                        return;
-                    }
-
-                    const shipmentId = parseInt(input.dataset.shipmentId, 10);
-                    const blockName = input.dataset.blockName;
-                    const productId = parseInt(input.dataset.productId, 10);
-                    const packingId = parseInt(input.dataset.packingId, 10);
-                    this._uploadBlockImage(shipmentId, blockName, productId, file, pk, s, area, rowsKey, packingId);
-                });
-            });
-
-            area.querySelectorAll('.btn-delete-block-photo').forEach(btn => {
-                if (btn._blockBound) return;
-                btn._blockBound = true;
-
-                btn.addEventListener('click', () => {
-                    if (!confirm(this.t('msg_confirm_delete_photo') || 'Eliminar foto?')) return;
-                    const blockImageId = parseInt(btn.dataset.blockImageId, 10);
-                    const shipmentId = parseInt(btn.dataset.shipmentId, 10);
-                    this._deleteBlockImage(blockImageId, shipmentId, pk, s, area, rowsKey);
-                });
-            });
-        },
-
-        async _uploadBlockImage(shipmentId, blockName, productId, file, pk, s, area, rowsKey, packingId) {
-            try {
-                const fileData = await readFileAsBase64(file);
-                const res = await jsonRpc('/supplier/api/v2/upload_block_image', {
-                    token: this.token,
-                    shipment_id: shipmentId,
-                    block_name: blockName,
-                    product_id: productId,
-                    image_data: fileData.data,
-                    image_name: fileData.name,
-                });
-
-                if (res.success) {
-                    this.toast(this.t('msg_saved'), 'success');
-                    await this._refreshBlockPhotosInPlace(area, pk, s, rowsKey);
-                } else {
-                    this.toast(this.t('msg_error') + (res.message || ''), 'error');
-                }
-            } catch (e) {
-                this.toast(this.t('msg_error') + e.message, 'error');
-            }
-        },
-
-        async _deleteBlockImage(blockImageId, shipmentId, pk, s, area, rowsKey) {
-            try {
-                const res = await jsonRpc('/supplier/api/v2/delete_block_image', {
-                    token: this.token,
-                    block_image_id: blockImageId,
-                });
-
-                if (res.success) {
-                    this.toast(this.t('msg_photo_deleted') || 'Foto eliminada', 'success');
-                    await this._refreshBlockPhotosInPlace(area, pk, s, rowsKey);
-                } else {
-                    this.toast(this.t('msg_error') + (res.message || ''), 'error');
-                }
-            } catch (e) {
-                this.toast(this.t('msg_error') + e.message, 'error');
             }
         },
     };
