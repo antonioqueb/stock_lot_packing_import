@@ -153,28 +153,12 @@
         },
 
         // =================================================================
-        //  STICKY THEAD — dynamic top calculation
+        //  STICKY THEAD — NO LONGER NEEDED (unified block handles it)
         // =================================================================
 
-        /**
-         * After rendering, measure each product's sticky header height and
-         * set --ps-thead-top on the table so that thead th sticks right below it.
-         */
         _adjustStickyTheadPositions(area) {
-            requestAnimationFrame(() => {
-                const portalHeader = document.querySelector('.o_portal_header');
-                const portalHeaderH = portalHeader ? portalHeader.offsetHeight : 56;
-
-                area.querySelectorAll('.ps-product-wrapper').forEach(wrapper => {
-                    const stickyHeader = wrapper.querySelector('.ps-product-sticky-header');
-                    const table = wrapper.querySelector('.ps-data-table');
-                    if (!stickyHeader || !table) return;
-
-                    const headerH = stickyHeader.offsetHeight;
-                    const theadTop = portalHeaderH + headerH;
-                    table.style.setProperty('--ps-thead-top', theadTop + 'px');
-                });
-            });
+            // NO-OP: sticky positioning is now handled by .ps-sticky-block
+            // which contains both the product header and thead as one unit.
         },
 
         openPackingSetupModal(pk, s) {
@@ -554,7 +538,7 @@
         },
 
         // =================================================================
-        //  MAIN RENDER — product sections with sticky headers & collapse
+        //  MAIN RENDER — UNIFIED STICKY BLOCK (header + thead glued)
         // =================================================================
 
         renderPackingRows(area, pk, s) {
@@ -618,7 +602,12 @@
 
                 html += `<div class="ps-product-wrapper ${isCollapsed ? 'ps-collapsed' : 'ps-expanded'}" data-product-id="${product.id}" data-pk-id="${pk.id}">`;
 
-                // ── STICKY PRODUCT HEADER ──
+                // ══════════════════════════════════════════════════════
+                //  UNIFIED STICKY BLOCK: header + thead as ONE element
+                // ══════════════════════════════════════════════════════
+                html += `<div class="ps-sticky-block">`;
+
+                // ── PRODUCT HEADER (inside sticky block) ──
                 html += `<div class="ps-product-sticky-header" data-product-id="${product.id}" data-pk-id="${pk.id}">
                     <div class="ps-header-left">
                         <button type="button" class="ps-toggle-btn" data-product-id="${product.id}" data-pk-id="${pk.id}">
@@ -646,40 +635,64 @@
                     </div>
                 </div>`;
 
-                // ── COLLAPSIBLE BODY ──
-                html += `<div class="ps-product-body" style="${isCollapsed ? 'display:none;' : ''}">`;
+                // ── THEAD (inside sticky block, only visible when expanded) ──
+                if (!isCollapsed) {
+                    html += `<div class="ps-sticky-thead">
+                        <table class="portal-table ps-data-table ps-thead-only" style="margin:0;">
+                            <thead>
+                                <tr>
+                                    <th>${this.t('col_container_assign')}</th>`;
 
-                // ── TABLE ──
-                html += `<div class="ps-table-scroll">
-                    <table class="portal-table ps-data-table">
-                        <thead>
-                            <tr>
-                                <th>${this.t('col_container_assign')}</th>`;
+                    if (unitType === 'Placa') {
+                        html += `<th>${this.t('col_block')}</th>
+                                 <th>${this.t('col_atado')}</th>
+                                 <th>${this.t('col_plate_num')}</th>
+                                 <th>${this.t('col_thickness')}</th>
+                                 <th>${this.t('col_height')}</th>
+                                 <th>${this.t('col_width')}</th>
+                                 <th>${this.t('col_area')}</th>`;
+                    } else if (unitType === 'Formato') {
+                        html += `<th>${this.t('lbl_packages')}</th>
+                                 <th>${this.t('col_qty')}</th>
+                                 <th>${this.t('col_weight')}</th>`;
+                    } else {
+                        html += `<th>${this.t('lbl_packages')}</th>
+                                 <th>${this.t('col_qty')}</th>
+                                 <th>${this.t('col_weight')}</th>
+                                 <th>${this.t('lbl_desc_goods')}</th>`;
+                    }
 
-                if (unitType === 'Placa') {
-                    html += `<th>${this.t('col_block')}</th>
-                             <th>${this.t('col_atado')}</th>
-                             <th>${this.t('col_plate_num')}</th>
-                             <th>${this.t('col_thickness')}</th>
-                             <th>${this.t('col_height')}</th>
-                             <th>${this.t('col_width')}</th>
-                             <th>${this.t('col_area')}</th>`;
-                } else if (unitType === 'Formato') {
-                    html += `<th>${this.t('lbl_packages')}</th>
-                             <th>${this.t('col_qty')}</th>
-                             <th>${this.t('col_weight')}</th>`;
-                } else {
-                    html += `<th>${this.t('lbl_packages')}</th>
-                             <th>${this.t('col_qty')}</th>
-                             <th>${this.t('col_weight')}</th>
-                             <th>${this.t('lbl_desc_goods')}</th>`;
+                    html += `<th style="width:60px">${this.t('col_photo')}</th>
+                             <th style="width:50px"></th>
+                             </tr>
+                            </thead>
+                        </table>
+                    </div>`;
                 }
 
-                html += `<th style="width:60px">${this.t('col_photo')}</th>
-                         <th style="width:50px"></th>
-                         </tr>
-                            </thead>
-                            <tbody>`;
+                html += `</div>`; // close ps-sticky-block
+
+                // ── COLLAPSIBLE BODY (tbody + actions) ──
+                html += `<div class="ps-product-body" style="${isCollapsed ? 'display:none;' : ''}">`;
+
+                // ── TABLE BODY (no thead — thead is in sticky block above) ──
+                html += `<div class="ps-table-scroll">
+                    <table class="portal-table ps-data-table ps-tbody-only">
+                        <thead style="visibility:collapse;">
+                            <tr>
+                                <th></th>`;
+
+                // Mirror columns for width alignment (hidden thead)
+                if (unitType === 'Placa') {
+                    html += `<th></th><th></th><th></th><th></th><th></th><th></th><th></th>`;
+                } else if (unitType === 'Formato') {
+                    html += `<th></th><th></th><th></th>`;
+                } else {
+                    html += `<th></th><th></th><th></th><th></th>`;
+                }
+                html += `<th style="width:60px"></th><th style="width:50px"></th></tr>
+                        </thead>
+                        <tbody>`;
 
                 pRows.forEach(row => {
                     const rid = row._id;
@@ -779,7 +792,7 @@
             this.bindPackingRowsEvents(area, pk, s, rowsKey);
             this._renderBlockPhotoSections(area, pk, s, rowsKey);
 
-            // ── ADJUST STICKY THEAD TOP DYNAMICALLY ──
+            // _adjustStickyTheadPositions is now a no-op
             this._adjustStickyTheadPositions(area);
         },
 

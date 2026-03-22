@@ -19,11 +19,26 @@
     }
 }
 
-/* Sticky product header — fully opaque */
-.ps-product-sticky-header {
+/*
+ * UNIFIED STICKY BLOCK:
+ * Wraps both the product header AND the thead so they scroll as ONE unit.
+ * No gap, no independent positioning — they are glued together.
+ */
+.ps-sticky-block {
     position: sticky;
-    top: 56px;
+    top: 56px; /* height of .o_portal_header */
     z-index: 40;
+    background: $sp-portal-bg-card;
+    border-radius: $sp-portal-radius-lg $sp-portal-radius-lg 0 0;
+
+    .ps-collapsed & {
+        border-radius: $sp-portal-radius-lg;
+    }
+}
+
+/* Product header — NO LONGER sticky by itself */
+.ps-product-sticky-header {
+    /* position: sticky removed — parent .ps-sticky-block handles it */
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -36,12 +51,10 @@
     flex-wrap: wrap;
     border-radius: $sp-portal-radius-lg $sp-portal-radius-lg 0 0;
     transition: background $sp-portal-duration-fast $sp-portal-ease-out;
-    box-shadow: 0 1px 0 0 $sp-portal-bg-card;
 
     .ps-collapsed & {
         border-radius: $sp-portal-radius-lg;
         border-bottom: none;
-        box-shadow: none;
     }
 
     @include sp-portal-hover {
@@ -160,6 +173,15 @@
     }
 }
 
+/*
+ * STICKY THEAD inside the unified block.
+ * Since .ps-sticky-block is already sticky, thead just flows naturally
+ * right below the product header — NO separate sticky needed.
+ */
+.ps-sticky-thead {
+    background: $sp-portal-bg-inset;
+}
+
 /* Collapsible body — NO overflow */
 .ps-product-body {
     padding: 0;
@@ -194,32 +216,16 @@
             text-transform: uppercase;
             letter-spacing: 0.06em;
             white-space: nowrap;
-            position: relative;
             background: $sp-portal-bg-inset;
-            position: sticky;
-            top: var(--ps-thead-top, 108px);
-            z-index: 30;
-
-            /* Seal the gap between product header and thead */
-            &::before {
-                content: '';
-                position: absolute;
-                top: -3px;
-                left: 0;
-                right: 0;
-                height: 3px;
-                background: $sp-portal-bg-card;
-                z-index: 1;
-            }
-
             border-bottom: none;
             box-shadow: inset 0 -1px 0 0 $sp-portal-border-default;
+
+            /* thead is NOT independently sticky anymore */
         }
     }
 
     tbody {
         tr {
-            /* Solid opaque background — rows won't bleed through sticky headers */
             background: $sp-portal-bg-card;
             transition: background $sp-portal-duration-fast $sp-portal-ease-out;
 
@@ -296,11 +302,6 @@
         }
 
         .input-group-portal { width: 55%; }
-
-        thead th {
-            position: static !important;
-            &::before { display: none; }
-        }
     }
 }
 
@@ -354,11 +355,13 @@
 
 /* Mobile overrides */
 @include sp-portal-mobile {
-    .ps-product-sticky-header {
+    .ps-sticky-block {
         position: static !important;
+    }
+
+    .ps-product-sticky-header {
         flex-direction: column;
         align-items: flex-start;
-        box-shadow: none;
     }
 
     .ps-header-right {
@@ -373,6 +376,5 @@
 
     .ps-data-table thead th {
         position: static !important;
-        &::before { display: none; }
     }
 }
