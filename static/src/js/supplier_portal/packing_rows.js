@@ -71,7 +71,6 @@
 
         async _refreshBlockPhotosInPlace(area, pk, s, rowsKey) {
             await this.reloadProformaKeepingRows();
-            // Block photo sections no longer rendered inline — managed in setup modal
         },
 
         _getShipmentProducts(s) {
@@ -154,7 +153,6 @@
         async _autoSavePackingRows(packingId, shipmentId, formEl) {
             const pkData = { id: packingId };
 
-            // Leer metadatos del packing si hay inputs en el DOM
             if (formEl) {
                 formEl.querySelectorAll('[data-pk-id="' + packingId + '"][data-pk-f]').forEach(function (input) {
                     pkData[input.dataset.pkF] = input.value;
@@ -371,9 +369,6 @@
                     const productState = setupState.products.find(p => p.product_id === productId);
                     if (!productState) return;
                     productState.enabled = !!input.checked;
-                    if (productState.enabled && !productState.blocks.length) {
-                        // No auto-create blocks — let user type the count
-                    }
                     this.openPackingSetupModal(pk, freshShipment);
                 });
             });
@@ -467,9 +462,6 @@
                 });
             });
 
-            // ═══════════════════════════════════════════════════════════════
-            //  APPLY SETUP — Generate rows AND auto-save to server
-            // ═══════════════════════════════════════════════════════════════
             const applyBtn = overlay.querySelector('[data-action="apply-setup"]');
             if (applyBtn) {
                 applyBtn.addEventListener('click', async () => {
@@ -511,17 +503,14 @@
 
                     this.packingRows[rowsKey] = generatedRows;
 
-                    // ── Disable button and show saving state ──
                     applyBtn.disabled = true;
                     const originalBtnHtml = applyBtn.innerHTML;
                     applyBtn.innerHTML = `<i class="fa fa-spinner fa-spin"></i> ${this.t('msg_saving') || 'Guardando...'}`;
 
-                    // ── AUTO-SAVE to server ──
                     try {
                         const saveRes = await this._autoSavePackingRows(pk.id, freshShipment.id, null);
 
                         if (saveRes && saveRes.success) {
-                            // Clear local cache so reload picks up server data
                             delete this.packingRows[rowsKey];
                             delete this.packingSetupState[pk.id];
 
@@ -530,12 +519,10 @@
                             this.renderAll();
                             this.toast(this.t('msg_saved'), 'success');
                         } else {
-                            // Save failed — keep rows in memory so user doesn't lose work
                             this.toast(this.t('msg_error') + (saveRes.message || ''), 'error');
                             applyBtn.disabled = false;
                             applyBtn.innerHTML = originalBtnHtml;
 
-                            // Still close modal and render local rows
                             this.closePackingSetupModal();
                             const area = document.getElementById(`pk-rows-${pk.id}`);
                             if (area) {
@@ -549,7 +536,6 @@
                         applyBtn.disabled = false;
                         applyBtn.innerHTML = originalBtnHtml;
 
-                        // Still close and render local
                         this.closePackingSetupModal();
                         const area = document.getElementById(`pk-rows-${pk.id}`);
                         if (area) {
@@ -627,6 +613,80 @@
             }
 
             return { valid: true };
+        },
+
+        // =================================================================
+        //  FILL HELPERS — scoped to block boundaries
+        // =================================================================
+
+        /**
+         * Fill DOWN from source row, only within the same block & product.
+         * For numero_placa: sequential increment.
+         * For other fields: copy value.
+         */
+        _fillDown(rws, srcRow, field) {
+            const srcIdx = rws.indexOf(srcRow);
+            if (srcIdx < 0) return;
+
+            const srcBlock = String(srcRow.bloque || '').trim();
+            const srcProduct = srcRow.product_id;
+
+            if (field === 'numero_placa') {
+                const baseVal = parseInt(srcRow[field], 10);
+                if (isNaN(baseVal)) return;
+                let seq = baseVal;
+                for (let i = srcIdx + 1; i < rws.length; i++) {
+                    const r = rws[i];
+                    if (r.product_id !== srcProduct) continue;
+                    const rBlock = String(r.bloque || '').trim();
+                    if (rBlock !== srcBlock) break;
+                    seq++;
+                    r[field] = String(seq);
+                }
+            } else {
+                for (let i = srcIdx + 1; i < rws.length; i++) {
+                    const r = rws[i];
+                    if (r.product_id !== srcProduct) continue;
+                    const rBlock = String(r.bloque || '').trim();
+                    if (rBlock !== srcBlock) break;
+                    r[field] = srcRow[field];
+                }
+            }
+        },
+
+        /**
+         * Fill UP from source row, only within the same block & product.
+         * For numero_placa: sequential decrement.
+         * For other fields: copy value.
+         */
+        _fillUp(rws, srcRow, field) {
+            const srcIdx = rws.indexOf(srcRow);
+            if (srcIdx < 0) return;
+
+            const srcBlock = String(srcRow.bloque || '').trim();
+            const srcProduct = srcRow.product_id;
+
+            if (field === 'numero_placa') {
+                const baseVal = parseInt(srcRow[field], 10);
+                if (isNaN(baseVal)) return;
+                let seq = baseVal;
+                for (let i = srcIdx - 1; i >= 0; i--) {
+                    const r = rws[i];
+                    if (r.product_id !== srcProduct) continue;
+                    const rBlock = String(r.bloque || '').trim();
+                    if (rBlock !== srcBlock) break;
+                    seq--;
+                    r[field] = String(seq);
+                }
+            } else {
+                for (let i = srcIdx - 1; i >= 0; i--) {
+                    const r = rws[i];
+                    if (r.product_id !== srcProduct) continue;
+                    const rBlock = String(r.bloque || '').trim();
+                    if (rBlock !== srcBlock) break;
+                    r[field] = srcRow[field];
+                }
+            }
         },
 
         // =================================================================
@@ -788,7 +848,6 @@
                     const hasImage = row.has_image || false;
                     const currentBlock = String(row.bloque || '').trim();
 
-                    // ── Block separator when block name changes ──
                     if (currentBlock && currentBlock !== lastBlockName) {
                         const colCount = unitType === 'Placa' ? 10 : unitType === 'Formato' ? 6 : 7;
                         const blockColor = blockColors[blockIndex % blockColors.length];
@@ -810,16 +869,23 @@
 
                     html += `<tr data-row-id="${rid}" data-pk-key="${rowsKey}">`;
 
+                    // ── inp helper: now renders BOTH fill-up and fill-down buttons ──
                     const inp = (field, val, ph, type = 'text', step = '') =>
                         `<div class="input-group-portal">
+                            <button type="button" class="btn-fill-up" data-row-id="${rid}" data-field="${field}" data-pk-key="${rowsKey}" tabindex="-1" title="Fill up within block">
+                                <i class="fa fa-arrow-up"></i>
+                            </button>
                             <input type="${type}" step="${step}" class="input-field" data-field="${field}" value="${esc(val || '')}" placeholder="${ph}">
-                            <button type="button" class="btn-fill-down" data-row-id="${rid}" data-field="${field}" data-pk-key="${rowsKey}" tabindex="-1">
+                            <button type="button" class="btn-fill-down" data-row-id="${rid}" data-field="${field}" data-pk-key="${rowsKey}" tabindex="-1" title="Fill down within block">
                                 <i class="fa fa-arrow-down"></i>
                             </button>
                         </div>`;
 
                     html += `<td data-label="${this.t('col_container_assign')}">
                         <div class="input-group-portal">
+                            <button type="button" class="btn-fill-up" data-row-id="${rid}" data-field="container_id" data-pk-key="${rowsKey}" tabindex="-1" title="Fill up within block">
+                                <i class="fa fa-arrow-up"></i>
+                            </button>
                             <select class="row-container-select input-field" data-field="container_id" data-row-id="${rid}" data-pk-key="${rowsKey}">
                                 <option value="">${this.t('opt_select')}</option>
                                 ${containers.map(c => `
@@ -828,7 +894,7 @@
                                     </option>
                                 `).join('')}
                             </select>
-                            <button type="button" class="btn-fill-down" data-row-id="${rid}" data-field="container_id" data-pk-key="${rowsKey}" tabindex="-1">
+                            <button type="button" class="btn-fill-down" data-row-id="${rid}" data-field="container_id" data-pk-key="${rowsKey}" tabindex="-1" title="Fill down within block">
                                 <i class="fa fa-arrow-down"></i>
                             </button>
                         </div>
@@ -904,7 +970,6 @@
             html += `</div>`;
             area.innerHTML = html;
             this.bindPackingRowsEvents(area, pk, s, rowsKey);
-            // Block photo sections removed — photos are now managed in the setup modal
             this._adjustStickyTheadPositions(area);
         },
 
@@ -937,8 +1002,6 @@
                         span.textContent = ((row.alto || 0) * (row.ancho || 0)).toFixed(2);
                     }
                 }
-
-                // Block photo refresh removed — photos managed in setup modal
             });
 
             area.addEventListener('change', e => {
@@ -975,7 +1038,8 @@
             area.addEventListener('click', e => {
                 const delBtn = e.target.closest('.btn-delete-row');
                 const addBtn = e.target.closest('.action-add-pk-row');
-                const fillBtn = e.target.closest('.btn-fill-down');
+                const fillDownBtn = e.target.closest('.btn-fill-down');
+                const fillUpBtn = e.target.closest('.btn-fill-up');
                 const photoDoneBtn = e.target.closest('.btn-photo-done');
                 const openSetupBtn = e.target.closest('.btn-open-packing-setup');
                 const toggleProductBtn = e.target.closest('.ps-toggle-btn');
@@ -1036,38 +1100,32 @@
                     return;
                 }
 
-                if (fillBtn) {
-                    const rid = parseInt(fillBtn.dataset.rowId, 10);
-                    const field = fillBtn.dataset.field;
-                    const key = fillBtn.dataset.pkKey;
+                // ── FILL DOWN (scoped to block) ──
+                if (fillDownBtn) {
+                    const rid = parseInt(fillDownBtn.dataset.rowId, 10);
+                    const field = fillDownBtn.dataset.field;
+                    const key = fillDownBtn.dataset.pkKey;
                     const rws = this.packingRows[key] || [];
                     const src = rws.find(r => r._id === rid);
                     if (!src) return;
 
-                    let started = false;
-
-                    if (field === 'numero_placa') {
-                        const baseVal = parseInt(src[field], 10);
-                        if (!isNaN(baseVal)) {
-                            let seq = baseVal;
-                            rws.forEach(r => {
-                                if (r._id === rid) { started = true; return; }
-                                if (started && r.product_id === src.product_id) {
-                                    seq++;
-                                    r[field] = String(seq);
-                                }
-                            });
-                        }
-                    } else {
-                        rws.forEach(r => {
-                            if (r._id === rid) { started = true; return; }
-                            if (started && r.product_id === src.product_id) {
-                                r[field] = src[field];
-                            }
-                        });
-                    }
-
+                    this._fillDown(rws, src, field);
                     this.renderPackingRows(area, pk, s);
+                    return;
+                }
+
+                // ── FILL UP (scoped to block) ──
+                if (fillUpBtn) {
+                    const rid = parseInt(fillUpBtn.dataset.rowId, 10);
+                    const field = fillUpBtn.dataset.field;
+                    const key = fillUpBtn.dataset.pkKey;
+                    const rws = this.packingRows[key] || [];
+                    const src = rws.find(r => r._id === rid);
+                    if (!src) return;
+
+                    this._fillUp(rws, src, field);
+                    this.renderPackingRows(area, pk, s);
+                    return;
                 }
             });
         },
@@ -1223,7 +1281,6 @@
                 overlay.innerHTML = html;
                 overlay.classList.add('show');
 
-                // Close buttons
                 overlay.querySelectorAll('[data-action="close-missing-modal"]').forEach(btn => {
                     btn.addEventListener('click', () => {
                         overlay.classList.remove('show');
@@ -1238,7 +1295,6 @@
                     }
                 }, { once: true });
 
-                // Photo inputs
                 overlay.querySelectorAll('.missing-block-photo-input').forEach(input => {
                     input.addEventListener('change', async (e) => {
                         const file = e.target.files && e.target.files[0];
@@ -1273,7 +1329,7 @@
                                 uploadedSet.add(`${productId}__${blockName}`);
                                 self.toast(self.t('msg_saved'), 'success');
                                 await self.reloadProformaKeepingRows();
-                                render(); // re-render modal with updated state
+                                render();
                             } else {
                                 self.toast(self.t('msg_error') + (res.message || ''), 'error');
                             }
@@ -1285,7 +1341,6 @@
                     });
                 });
 
-                // Continue save button
                 const continueBtn = overlay.querySelector('[data-action="continue-save"]');
                 if (continueBtn && allDone) {
                     continueBtn.addEventListener('click', () => {
@@ -1301,16 +1356,10 @@
             render();
         },
 
-        /**
-         * Wraps _autoSavePackingRows with block photo validation.
-         * If missing photos are detected, shows the modal first.
-         * Returns a promise that resolves with the save result.
-         */
         async savePackingWithPhotoCheck(packingId, shipmentId, formEl) {
             const rowsKey = 'pk_' + packingId;
             const rows = this.packingRows[rowsKey] || [];
 
-            // Get fresh shipment data
             const freshShipment = this._getFreshShipment ? this._getFreshShipment(shipmentId) : null;
             const shipment = freshShipment || (this.proforma.shipments || []).find(s => s.id === shipmentId);
 
@@ -1321,14 +1370,11 @@
             const missingBlocks = this._detectBlocksWithoutPhoto(rows, shipment);
 
             if (missingBlocks.length === 0) {
-                // All blocks have photos — save directly
                 return this._autoSavePackingRows(packingId, shipmentId, formEl);
             }
 
-            // Show modal and wait for resolution
             return new Promise((resolve) => {
                 this._openMissingBlockPhotosModal(missingBlocks, shipment, async () => {
-                    // User uploaded all missing photos — now save
                     const result = await this._autoSavePackingRows(packingId, shipmentId, formEl);
                     resolve(result);
                 });

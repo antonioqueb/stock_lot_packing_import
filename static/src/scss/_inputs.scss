@@ -29,7 +29,8 @@
         }
     }
 
-    .btn-fill-down {
+    .btn-fill-down,
+    .btn-fill-up {
         background: $sp-portal-bg-subtle;
         border: 1px solid $sp-portal-border-default;
         color: $sp-portal-text-tertiary;
@@ -54,6 +55,10 @@
         &:active { transform: translateY(1px); }
 
         @include sp-portal-mobile { display: none; }
+    }
+
+    .btn-fill-up {
+        order: -1; /* Ensure it appears before the input */
     }
 }
 
