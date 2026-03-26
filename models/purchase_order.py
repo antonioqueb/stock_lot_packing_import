@@ -43,6 +43,7 @@ class PurchaseOrder(models.Model):
         'supplier.shipment.document',
         'purchase_id',
         string='Documentos de Pago',
+        domain=[('document_type', 'in', ['advance_payment', 'invoice_payment', 'other_payment'])],
     )
 
     payment_document_count = fields.Integer(
@@ -55,11 +56,6 @@ class PurchaseOrder(models.Model):
         string='Tiene Docs de Pago',
     )
 
-    vucem_document_ids = fields.Many2many(
-        'supplier.shipment.document',
-        compute='_compute_vucem_documents',
-        string='Documentos VUCEM',
-    )
     vucem_document_count = fields.Integer(
         compute='_compute_vucem_documents',
         string='Docs VUCEM',
@@ -78,7 +74,6 @@ class PurchaseOrder(models.Model):
                 ('purchase_id', '=', po.id),
                 ('document_type', 'in', payment_types),
             ])
-            po.payment_document_ids = docs
             po.payment_document_count = len(docs)
             po.has_payment_documents = bool(docs)
 
@@ -87,31 +82,46 @@ class PurchaseOrder(models.Model):
         doc_model = self.env['supplier.shipment.document'].sudo()
 
         for po in self:
-            proforma = proforma_model.search([('purchase_id', '=', po.id)], limit=1)
-            docs = self.env['supplier.shipment.document']
+            count = 0
 
-            # Documentos del portal (por shipment y proforma)
+            proforma = proforma_model.search([('purchase_id', '=', po.id)], limit=1)
             if proforma:
                 shipment_ids = proforma.shipment_ids.ids
                 if shipment_ids:
-                    docs |= doc_model.search([('shipment_id', 'in', shipment_ids)])
-                docs |= doc_model.search([('proforma_id', '=', proforma.id)])
+                    count += doc_model.search_count([('shipment_id', 'in', shipment_ids)])
+                count += doc_model.search_count([
+                    ('proforma_id', '=', proforma.id),
+                    ('shipment_id', '=', 0),
+                ])
 
-            # Documentos de pago cargados internamente desde la OC
-            payment_docs = doc_model.search([('purchase_id', '=', po.id)])
-            if payment_docs:
-                docs |= payment_docs
-                _logger.info(
-                    "[VUCEM] OC %s: %d docs portal + %d docs pago internos = %d total",
-                    po.name,
-                    len(docs) - len(payment_docs),
-                    len(payment_docs),
-                    len(docs),
-                )
+            # Documentos de pago internos
+            count += doc_model.search_count([('purchase_id', '=', po.id)])
 
-            po.vucem_document_ids = docs
-            po.vucem_document_count = len(docs)
-            po.has_vucem_documents = bool(docs)
+            po.vucem_document_count = count
+            po.has_vucem_documents = count > 0
+
+    def _get_all_vucem_documents(self):
+        """Retorna todos los documentos VUCEM como recordset real."""
+        self.ensure_one()
+        proforma_model = self.env['supplier.proforma.header'].sudo()
+        doc_model = self.env['supplier.shipment.document'].sudo()
+
+        docs = doc_model
+        proforma = proforma_model.search([('purchase_id', '=', self.id)], limit=1)
+
+        if proforma:
+            shipment_ids = proforma.shipment_ids.ids
+            if shipment_ids:
+                docs |= doc_model.search([('shipment_id', 'in', shipment_ids)])
+            docs |= doc_model.search([
+                ('proforma_id', '=', proforma.id),
+                ('shipment_id', '=', 0),
+            ])
+
+        # Documentos de pago internos
+        docs |= doc_model.search([('purchase_id', '=', self.id)])
+
+        return docs
 
     def _get_or_create_supplier_access(self):
         self.ensure_one()
@@ -162,7 +172,9 @@ class PurchaseOrder(models.Model):
     def action_download_vucem(self):
         self.ensure_one()
 
-        if not self.has_vucem_documents:
+        all_docs = self._get_all_vucem_documents()
+
+        if not all_docs:
             raise UserError(_("No hay documentos subidos para generar la carpeta VUCEM."))
 
         try:
@@ -181,13 +193,13 @@ class PurchaseOrder(models.Model):
 
         _logger.info(
             "[VUCEM] Iniciando descarga para OC %s. Total documentos: %d",
-            self.name, len(self.vucem_document_ids)
+            self.name, len(all_docs)
         )
 
         with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
             file_names_used = set()
 
-            for doc in self.vucem_document_ids:
+            for doc in all_docs:
                 if not doc.file_data:
                     _logger.warning(
                         "[VUCEM] Documento '%s' (ID %d, tipo %s) sin file_data, omitido.",
@@ -195,7 +207,15 @@ class PurchaseOrder(models.Model):
                     )
                     continue
 
-                file_bytes = base64.b64decode(doc.file_data)
+                try:
+                    file_bytes = base64.b64decode(doc.file_data)
+                except Exception as e:
+                    _logger.warning(
+                        "[VUCEM] Error decodificando file_data de doc '%s' (ID %d): %s",
+                        doc.name, doc.id, e
+                    )
+                    continue
+
                 file_name = doc.name or 'documento'
                 mime_type = (doc.mime_type or '').lower()
                 is_pdf = (
@@ -203,7 +223,7 @@ class PurchaseOrder(models.Model):
                     or file_name.lower().endswith('.pdf')
                 )
 
-                # Subcarpeta según tipo de documento
+                # Subcarpeta según tipo
                 if doc.document_type in payment_types:
                     sub_folder = "Pagos"
                 else:
@@ -221,13 +241,12 @@ class PurchaseOrder(models.Model):
                             file_name, e
                         )
                 else:
-                    # Archivo no-PDF: incluir tal cual sin procesar
                     _logger.info(
                         "[VUCEM] Documento '%s' no es PDF (mime: %s). Se incluye sin procesar.",
                         file_name, mime_type
                     )
 
-                # Evitar nombres duplicados en el ZIP
+                # Evitar nombres duplicados
                 final_name = file_name
                 counter = 1
                 while final_name in file_names_used:

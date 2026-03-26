@@ -57,8 +57,9 @@
 
                     <div class="alert alert-info" role="alert">
                         <strong><i class="fa fa-file-pdf-o"/> Documentos VUCEM</strong>
-                        <p>Se encontraron <field name="vucem_document_count" readonly="1"/> documentos subidos por el proveedor.</p>
+                        <p>Se encontraron <field name="vucem_document_count" readonly="1"/> documentos (portal + pagos internos).</p>
                         <p>Al descargar, los PDFs serán convertidos a escala de grises y procesados automáticamente.</p>
+                        <p>Los archivos no-PDF se incluyen tal cual. Todo se organiza en subcarpetas Documentos/ y Pagos/.</p>
                     </div>
 
                     <button name="action_download_vucem"
@@ -66,17 +67,6 @@
                             type="object"
                             class="btn-primary btn-lg"
                             icon="fa-download"/>
-
-                    <field name="vucem_document_ids" readonly="1">
-                        <list create="0" delete="0" edit="0">
-                            <field name="document_type"/>
-                            <field name="name"/>
-                            <field name="file_size"/>
-                            <field name="dpi_value"/>
-                            <field name="mime_type"/>
-                            <field name="create_date" string="Subido"/>
-                        </list>
-                    </field>
                 </page>
 
                 <page string="Pagos Proveedor">
@@ -89,8 +79,8 @@
 
                     <div class="alert alert-info" role="alert">
                         <strong><i class="fa fa-money"/> Documentos de Pago</strong>
-                        <p>Los anticipos, pagos por invoice y otros comprobantes ya no se capturan desde el portal del proveedor.</p>
-                        <p>Ahora estos documentos se gestionan directamente desde la Orden de Compra para mayor control interno.</p>
+                        <p>Los anticipos, pagos por invoice y otros comprobantes se gestionan desde aquí.</p>
+                        <p>Estos documentos se incluirán automáticamente en la descarga VUCEM.</p>
                     </div>
 
                     <field name="payment_document_ids" context="{'default_purchase_id': id}">
@@ -98,11 +88,14 @@
                             <field name="purchase_id" invisible="1"/>
                             <field name="shipment_id" invisible="1"/>
                             <field name="proforma_id" invisible="1"/>
-                            <field name="document_type"/>
+                            <field name="document_type"
+                                   domain="[('id', 'in', ['advance_payment', 'invoice_payment', 'other_payment'])]"
+                                   options="{'no_create': True}"
+                                   required="1"/>
                             <field name="name"/>
                             <field name="file_data" filename="name"/>
                             <field name="file_size" readonly="1"/>
-                            <field name="mime_type"/>
+                            <field name="mime_type" invisible="1"/>
                             <field name="notes"/>
                             <field name="create_date" string="Subido" readonly="1"/>
                         </list>
