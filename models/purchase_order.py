@@ -90,14 +90,24 @@ class PurchaseOrder(models.Model):
             proforma = proforma_model.search([('purchase_id', '=', po.id)], limit=1)
             docs = self.env['supplier.shipment.document']
 
+            # Documentos del portal (por shipment y proforma)
             if proforma:
                 shipment_ids = proforma.shipment_ids.ids
                 if shipment_ids:
                     docs |= doc_model.search([('shipment_id', 'in', shipment_ids)])
                 docs |= doc_model.search([('proforma_id', '=', proforma.id)])
 
-            # Incluir documentos de pago ligados directamente a la OC
-            docs |= doc_model.search([('purchase_id', '=', po.id)])
+            # Documentos de pago cargados internamente desde la OC
+            payment_docs = doc_model.search([('purchase_id', '=', po.id)])
+            if payment_docs:
+                docs |= payment_docs
+                _logger.info(
+                    "[VUCEM] OC %s: %d docs portal + %d docs pago internos = %d total",
+                    po.name,
+                    len(docs) - len(payment_docs),
+                    len(payment_docs),
+                    len(docs),
+                )
 
             po.vucem_document_ids = docs
             po.vucem_document_count = len(docs)
@@ -167,27 +177,75 @@ class PurchaseOrder(models.Model):
 
         folder_name = (self.name or 'VUCEM').replace('/', '_').replace('\\', '_')
         zip_buffer = io.BytesIO()
+        payment_types = {'advance_payment', 'invoice_payment', 'other_payment'}
+
+        _logger.info(
+            "[VUCEM] Iniciando descarga para OC %s. Total documentos: %d",
+            self.name, len(self.vucem_document_ids)
+        )
 
         with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+            file_names_used = set()
+
             for doc in self.vucem_document_ids:
                 if not doc.file_data:
+                    _logger.warning(
+                        "[VUCEM] Documento '%s' (ID %d, tipo %s) sin file_data, omitido.",
+                        doc.name, doc.id, doc.document_type
+                    )
                     continue
 
                 file_bytes = base64.b64decode(doc.file_data)
-                file_name = doc.name or 'documento.pdf'
+                file_name = doc.name or 'documento'
+                mime_type = (doc.mime_type or '').lower()
+                is_pdf = (
+                    mime_type == 'application/pdf'
+                    or file_name.lower().endswith('.pdf')
+                )
 
-                if not file_name.lower().endswith('.pdf'):
-                    file_name += '.pdf'
+                # Subcarpeta según tipo de documento
+                if doc.document_type in payment_types:
+                    sub_folder = "Pagos"
+                else:
+                    sub_folder = "Documentos"
 
-                try:
-                    processed = self._vucem_process_pdf(file_bytes, fitz, Image)
-                    zf.writestr(f"{folder_name}/{file_name}", processed)
-                except Exception as e:
-                    _logger.warning(
-                        "[VUCEM] Error procesando documento '%s': %s. Se incluye original.",
-                        file_name, e
+                if is_pdf:
+                    if not file_name.lower().endswith('.pdf'):
+                        file_name += '.pdf'
+                    try:
+                        processed = self._vucem_process_pdf(file_bytes, fitz, Image)
+                        file_bytes = processed
+                    except Exception as e:
+                        _logger.warning(
+                            "[VUCEM] Error procesando PDF '%s': %s. Se incluye original.",
+                            file_name, e
+                        )
+                else:
+                    # Archivo no-PDF: incluir tal cual sin procesar
+                    _logger.info(
+                        "[VUCEM] Documento '%s' no es PDF (mime: %s). Se incluye sin procesar.",
+                        file_name, mime_type
                     )
-                    zf.writestr(f"{folder_name}/{file_name}", file_bytes)
+
+                # Evitar nombres duplicados en el ZIP
+                final_name = file_name
+                counter = 1
+                while final_name in file_names_used:
+                    if '.' in file_name:
+                        name_base, name_ext = file_name.rsplit('.', 1)
+                        final_name = f"{name_base}_{counter}.{name_ext}"
+                    else:
+                        final_name = f"{file_name}_{counter}"
+                    counter += 1
+                file_names_used.add(final_name)
+
+                zip_path = f"{folder_name}/{sub_folder}/{final_name}"
+                zf.writestr(zip_path, file_bytes)
+
+                _logger.info(
+                    "[VUCEM] Incluido: %s (%d bytes, tipo: %s, doc_id: %d)",
+                    zip_path, len(file_bytes), doc.document_type, doc.id
+                )
 
         zip_buffer.seek(0)
         zip_data = base64.b64encode(zip_buffer.read())
