@@ -96,6 +96,9 @@ class PurchaseOrder(models.Model):
                     docs |= doc_model.search([('shipment_id', 'in', shipment_ids)])
                 docs |= doc_model.search([('proforma_id', '=', proforma.id)])
 
+            # Incluir documentos de pago ligados directamente a la OC
+            docs |= doc_model.search([('purchase_id', '=', po.id)])
+
             po.vucem_document_ids = docs
             po.vucem_document_count = len(docs)
             po.has_vucem_documents = bool(docs)
