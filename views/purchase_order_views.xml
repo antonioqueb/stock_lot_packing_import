@@ -67,6 +67,17 @@
                             type="object"
                             class="btn-primary btn-lg"
                             icon="fa-download"/>
+
+                    <field name="vucem_document_ids" readonly="1">
+                        <list create="0" delete="0" edit="0">
+                            <field name="document_type"/>
+                            <field name="name"/>
+                            <field name="file_size"/>
+                            <field name="dpi_value"/>
+                            <field name="mime_type"/>
+                            <field name="create_date" string="Subido"/>
+                        </list>
+                    </field>
                 </page>
 
                 <page string="Pagos Proveedor">
@@ -83,15 +94,12 @@
                         <p>Estos documentos se incluirán automáticamente en la descarga VUCEM.</p>
                     </div>
 
-                    <field name="payment_document_ids" context="{'default_purchase_id': id}">
+                    <field name="payment_document_ids" context="{'default_purchase_id': id, 'default_document_type': 'advance_payment'}">
                         <list editable="bottom">
                             <field name="purchase_id" invisible="1"/>
                             <field name="shipment_id" invisible="1"/>
                             <field name="proforma_id" invisible="1"/>
-                            <field name="document_type"
-                                   domain="[('id', 'in', ['advance_payment', 'invoice_payment', 'other_payment'])]"
-                                   options="{'no_create': True}"
-                                   required="1"/>
+                            <field name="document_type"/>
                             <field name="name"/>
                             <field name="file_data" filename="name"/>
                             <field name="file_size" readonly="1"/>
