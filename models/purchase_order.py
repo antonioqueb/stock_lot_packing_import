@@ -56,10 +56,17 @@ class PurchaseOrder(models.Model):
         string='Tiene Docs de Pago',
     )
 
+    vucem_document_ids = fields.One2many(
+        'supplier.shipment.document',
+        compute='_compute_vucem_document_ids',
+        string='Documentos VUCEM',
+    )
+
     vucem_document_count = fields.Integer(
         compute='_compute_vucem_documents',
         string='Docs VUCEM',
     )
+
     has_vucem_documents = fields.Boolean(
         compute='_compute_vucem_documents',
         string='Tiene Docs VUCEM',
@@ -78,27 +85,14 @@ class PurchaseOrder(models.Model):
             po.has_payment_documents = bool(docs)
 
     def _compute_vucem_documents(self):
-        proforma_model = self.env['supplier.proforma.header'].sudo()
-        doc_model = self.env['supplier.shipment.document'].sudo()
-
         for po in self:
-            count = 0
+            docs = po._get_all_vucem_documents()
+            po.vucem_document_count = len(docs)
+            po.has_vucem_documents = bool(docs)
 
-            proforma = proforma_model.search([('purchase_id', '=', po.id)], limit=1)
-            if proforma:
-                shipment_ids = proforma.shipment_ids.ids
-                if shipment_ids:
-                    count += doc_model.search_count([('shipment_id', 'in', shipment_ids)])
-                count += doc_model.search_count([
-                    ('proforma_id', '=', proforma.id),
-                    ('shipment_id', '=', 0),
-                ])
-
-            # Documentos de pago internos
-            count += doc_model.search_count([('purchase_id', '=', po.id)])
-
-            po.vucem_document_count = count
-            po.has_vucem_documents = count > 0
+    def _compute_vucem_document_ids(self):
+        for po in self:
+            po.vucem_document_ids = po._get_all_vucem_documents()
 
     def _get_all_vucem_documents(self):
         """Retorna todos los documentos VUCEM como recordset real."""
