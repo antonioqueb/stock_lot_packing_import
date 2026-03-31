@@ -48,6 +48,13 @@
                         icon="fa-refresh"
                         invisible="state in ('done', 'cancel', 'draft') or not packing_list_imported or worksheet_imported"/>
 
+                <button name="action_print_worksheet_pdf"
+                        string="Imprimir Worksheet"
+                        type="object"
+                        class="btn-info"
+                        icon="fa-print"
+                        invisible="state in ('done', 'cancel', 'draft') or not packing_list_imported"/>
+
                 <button name="action_open_worksheet_spreadsheet"
                         string="Abrir WS"
                         type="object"
@@ -72,14 +79,14 @@
                             <field name="supplier_shipment_date"/>
                             <field name="supplier_proforma_number"/>
                             <field name="supplier_bl_number"/>
-                            <field name="supplier_payment_terms"/> <!-- Nuevo Campo -->
+                            <field name="supplier_payment_terms"/>
                         </group>
                         <group string="Logística">
                             <field name="supplier_origin"/>
                             <field name="supplier_destination"/>
                             <field name="supplier_country_origin"/>
                             <field name="supplier_vessel"/>
-                            <field name="supplier_incoterm_payment" string="Incoterm"/> <!-- Renombrado String -->
+                            <field name="supplier_incoterm_payment" string="Incoterm"/>
                             <field name="supplier_status"/>
                         </group>
                     </group>
