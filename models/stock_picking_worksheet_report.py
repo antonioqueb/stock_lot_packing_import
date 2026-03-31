@@ -2,6 +2,7 @@
 import base64
 import io
 import logging
+from datetime import date
 
 from odoo import models, _
 from odoo.exceptions import UserError
@@ -13,7 +14,6 @@ class StockPicking(models.Model):
     _inherit = 'stock.picking'
 
     def action_print_worksheet_pdf(self):
-        """Genera un PDF imprimible del Worksheet para captura de medidas reales."""
         self.ensure_one()
 
         if not self.packing_list_imported:
@@ -33,25 +33,25 @@ class StockPicking(models.Model):
                 SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer,
             )
         except ImportError:
-            raise UserError(_('Se requiere la librería reportlab. Instale: pip install reportlab'))
+            raise UserError(_('Se requiere reportlab. Instale: pip install reportlab'))
 
         buffer = io.BytesIO()
         page_width, page_height = A4
 
-        # ── Colores ──
         BRAND_DARK = HexColor('#6B4226')
         HEADER_BG = HexColor('#6B4226')
         HEADER_TEXT = white
         ROW_ALT = HexColor('#F9F6F3')
         BORDER_COLOR = HexColor('#D4D4D0')
+        BORDER_STRONG = HexColor('#999999')
         LIGHT_GRAY = HexColor('#F5F4F2')
         TEXT_PRIMARY = HexColor('#111111')
         TEXT_SECONDARY = HexColor('#4A4A4A')
         TEXT_MUTED = HexColor('#888888')
         YELLOW_BG = HexColor('#FFFBEB')
-        YELLOW_BORDER = HexColor('#FDE68A')
+        YELLOW_BORDER = HexColor('#D4A017')
+        DIVIDER_COLOR = HexColor('#6B4226')
 
-        # ── Estilos ──
         styles = getSampleStyleSheet()
 
         style_title = ParagraphStyle(
@@ -72,55 +72,45 @@ class StockPicking(models.Model):
         )
         style_label = ParagraphStyle(
             'WSLabel', parent=styles['Normal'],
-            fontName='Helvetica-Bold', fontSize=6,
+            fontName='Helvetica-Bold', fontSize=6.5,
             textColor=TEXT_SECONDARY, alignment=TA_LEFT,
         )
         style_value = ParagraphStyle(
             'WSValue', parent=styles['Normal'],
-            fontName='Helvetica', fontSize=7,
+            fontName='Helvetica', fontSize=7.5,
             textColor=TEXT_PRIMARY, alignment=TA_LEFT,
         )
         style_th = ParagraphStyle(
             'WSTH', parent=styles['Normal'],
-            fontName='Helvetica-Bold', fontSize=5.5,
+            fontName='Helvetica-Bold', fontSize=6,
             textColor=HEADER_TEXT, alignment=TA_CENTER,
-            leading=7,
+            leading=8,
         )
         style_td = ParagraphStyle(
             'WSTD', parent=styles['Normal'],
-            fontName='Helvetica', fontSize=6.5,
+            fontName='Helvetica', fontSize=7,
             textColor=TEXT_PRIMARY, alignment=TA_CENTER,
-            leading=8,
+            leading=9,
         )
         style_td_bold = ParagraphStyle(
             'WSTDBold', parent=style_td, fontName='Helvetica-Bold',
         )
         style_editable = ParagraphStyle(
             'WSEditable', parent=styles['Normal'],
-            fontName='Helvetica', fontSize=6.5,
-            textColor=TEXT_MUTED, alignment=TA_CENTER, leading=8,
+            fontName='Helvetica', fontSize=7,
+            textColor=TEXT_MUTED, alignment=TA_CENTER, leading=9,
         )
 
-        # ── Datos ──
         picking = self
         po = self.env['purchase.order'].search([('picking_ids', 'in', picking.id)], limit=1)
         company = picking.company_id or self.env.company
         partner = picking.partner_id
         po_name = po.name if po else (picking.origin or '-')
         partner_name = partner.name if partner else '-'
+        container_no = picking.supplier_container_no or '-'
+        fecha_recepcion = picking.scheduled_date.strftime('%d/%m/%Y') if picking.scheduled_date else '-'
+        fecha_impresion = date.today().strftime('%d/%m/%Y')
 
-        proforma_number = picking.supplier_proforma_number or ''
-        invoice_number = picking.supplier_invoice_number or ''
-        bl_number = picking.supplier_bl_number or ''
-        vessel = picking.supplier_vessel or ''
-        origin_port = picking.supplier_origin or ''
-        dest_port = picking.supplier_destination or ''
-        country_origin = picking.supplier_country_origin or ''
-        container_no = picking.supplier_container_no or ''
-        shipment_date = picking.supplier_shipment_date or ''
-        incoterm = picking.supplier_incoterm_payment or ''
-
-        # Agrupar por producto
         products_data = {}
         for ml in move_lines:
             pid = ml.product_id.id
@@ -130,43 +120,44 @@ class StockPicking(models.Model):
         for pid in products_data:
             products_data[pid]['lines'].sort(key=lambda ml: ml.lot_id.name or '')
 
-        # ── Story ──
         story = []
-        margin_lr = 10 * mm
+        margin_lr = 8 * mm
         avail_w = page_width - 2 * margin_lr
 
         # === ENCABEZADO ===
         story.append(Paragraph('WORKSHEET — MEDIDAS REALES', style_title))
-        story.append(Paragraph(
-            f'{picking.name}  |  {company.name}  |  {picking.create_date.strftime("%d/%m/%Y") if picking.create_date else ""}',
-            style_subtitle,
-        ))
+        story.append(Paragraph(f'{picking.name}  |  {company.name}', style_subtitle))
 
-        # === INFO COMPACTA ===
-        def _r(l1, v1, l2, v2, l3, v3):
-            return [
-                Paragraph(l1, style_label), Paragraph(str(v1) if v1 else '-', style_value),
-                Paragraph(l2, style_label), Paragraph(str(v2) if v2 else '-', style_value),
-                Paragraph(l3, style_label), Paragraph(str(v3) if v3 else '-', style_value),
-            ]
-
+        # === CABECERA COMPACTA: solo 5 datos ===
         info_data = [
-            _r('OC', po_name, 'PROVEEDOR', partner_name, 'PROFORMA', proforma_number),
-            _r('B/L', bl_number, 'BUQUE', vessel, 'CONTENEDOR', container_no),
-            _r('ORIGEN', origin_port, 'DESTINO', dest_port, 'PAIS', country_origin),
-            _r('INVOICE', invoice_number, 'INCOTERM', incoterm, 'EMBARQUE', shipment_date),
+            [
+                Paragraph('PROVEEDOR', style_label),
+                Paragraph(str(partner_name), style_value),
+                Paragraph('ORDEN DE COMPRA', style_label),
+                Paragraph(str(po_name), style_value),
+                Paragraph('CONTENEDOR', style_label),
+                Paragraph(str(container_no), style_value),
+            ],
+            [
+                Paragraph('FECHA RECEPCION', style_label),
+                Paragraph(str(fecha_recepcion), style_value),
+                Paragraph('FECHA IMPRESION', style_label),
+                Paragraph(str(fecha_impresion), style_value),
+                Paragraph('', style_label),
+                Paragraph('', style_value),
+            ],
         ]
-        info_cw = [avail_w * 0.09, avail_w * 0.24, avail_w * 0.09, avail_w * 0.24, avail_w * 0.10, avail_w * 0.24]
+        info_cw = [avail_w * 0.12, avail_w * 0.22, avail_w * 0.12, avail_w * 0.22, avail_w * 0.12, avail_w * 0.20]
         info_table = Table(info_data, colWidths=info_cw)
         info_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, -1), LIGHT_GRAY),
             ('BOX', (0, 0), (-1, -1), 0.5, BORDER_COLOR),
             ('INNERGRID', (0, 0), (-1, -1), 0.25, BORDER_COLOR),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('TOPPADDING', (0, 0), (-1, -1), 1.5),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 1.5),
-            ('LEFTPADDING', (0, 0), (-1, -1), 3),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 3),
+            ('TOPPADDING', (0, 0), (-1, -1), 2),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+            ('LEFTPADDING', (0, 0), (-1, -1), 4),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 4),
             ('BACKGROUND', (0, 0), (0, -1), HexColor('#EDEBE8')),
             ('BACKGROUND', (2, 0), (2, -1), HexColor('#EDEBE8')),
             ('BACKGROUND', (4, 0), (4, -1), HexColor('#EDEBE8')),
@@ -183,7 +174,7 @@ class StockPicking(models.Model):
         )]], colWidths=[avail_w])
         instr.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, -1), YELLOW_BG),
-            ('BOX', (0, 0), (-1, -1), 0.5, YELLOW_BORDER),
+            ('BOX', (0, 0), (-1, -1), 0.5, HexColor('#FDE68A')),
             ('TOPPADDING', (0, 0), (-1, -1), 2),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
             ('LEFTPADDING', (0, 0), (-1, -1), 5),
@@ -193,33 +184,28 @@ class StockPicking(models.Model):
         story.append(Spacer(1, 4))
 
         # === TABLA POR PRODUCTO ===
-        # Columnas: # | Lote | Bloque | Placa | Atado | Alto Teo | Ancho Teo | M2 Teo | Alto Real | Ancho Real | M2 Real
         headers = [
             Paragraph('#', style_th),
             Paragraph('LOTE', style_th),
             Paragraph('BLOQUE', style_th),
             Paragraph('PLACA', style_th),
             Paragraph('ATADO', style_th),
-            Paragraph('ALTO<br/>TEO.', style_th),
-            Paragraph('ANCHO<br/>TEO.', style_th),
-            Paragraph('M<super>2</super><br/>TEO.', style_th),
-            Paragraph('ALTO<br/>REAL', style_th),
-            Paragraph('ANCHO<br/>REAL', style_th),
-            Paragraph('M<super>2</super><br/>REAL', style_th),
+            Paragraph('ALTO TEO.', style_th),
+            Paragraph('ANCHO TEO.', style_th),
+            Paragraph('ALTO REAL', style_th),
+            Paragraph('ANCHO REAL', style_th),
         ]
 
         col_widths = [
-            avail_w * 0.035,   # #
-            avail_w * 0.085,   # Lote
-            avail_w * 0.085,   # Bloque
-            avail_w * 0.060,   # Placa
-            avail_w * 0.060,   # Atado
-            avail_w * 0.078,   # Alto Teo
-            avail_w * 0.078,   # Ancho Teo
-            avail_w * 0.078,   # M2 Teo
-            avail_w * 0.120,   # Alto Real
-            avail_w * 0.120,   # Ancho Real
-            avail_w * 0.100,   # M2 Real
+            avail_w * 0.04,
+            avail_w * 0.10,
+            avail_w * 0.15,
+            avail_w * 0.10,
+            avail_w * 0.13,
+            avail_w * 0.12,
+            avail_w * 0.12,
+            avail_w * 0.12,
+            avail_w * 0.12,
         ]
 
         for pid, pdata in products_data.items():
@@ -237,15 +223,12 @@ class StockPicking(models.Model):
 
             table_data = [headers]
             row_num = 0
-            total_m2_teo = 0.0
 
             for ml in lines:
                 lot = ml.lot_id
                 row_num += 1
                 alto = lot.x_alto or 0.0
                 ancho = lot.x_ancho or 0.0
-                m2_teo = round(alto * ancho, 3) if unit_type == 'Placa' else ml.qty_done
-                total_m2_teo += m2_teo
 
                 table_data.append([
                     Paragraph(str(row_num), style_td),
@@ -255,47 +238,49 @@ class StockPicking(models.Model):
                     Paragraph(str(lot.x_atado or ''), style_td),
                     Paragraph(f'{alto:.3f}' if alto else '', style_td),
                     Paragraph(f'{ancho:.3f}' if ancho else '', style_td),
-                    Paragraph(f'{m2_teo:.3f}' if m2_teo else '', style_td),
-                    Paragraph('', style_editable),
                     Paragraph('', style_editable),
                     Paragraph('', style_editable),
                 ])
 
-            # Totales
-            total_row = [Paragraph('', style_td)] * 11
+            total_row = [Paragraph('', style_td)] * 9
             total_row[0] = Paragraph(
                 f'<b>TOTAL: {row_num} lotes</b>',
-                ParagraphStyle('t', parent=style_td, fontName='Helvetica-Bold', alignment=TA_LEFT, fontSize=6),
+                ParagraphStyle('t', parent=style_td, fontName='Helvetica-Bold', alignment=TA_LEFT, fontSize=6.5),
             )
-            total_row[7] = Paragraph(f'<b>{total_m2_teo:.3f}</b>', style_td_bold)
             table_data.append(total_row)
 
             data_table = Table(table_data, colWidths=col_widths, repeatRows=1)
+
             tbl_styles = [
                 ('BACKGROUND', (0, 0), (-1, 0), HEADER_BG),
                 ('TEXTCOLOR', (0, 0), (-1, 0), HEADER_TEXT),
                 ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
                 ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                ('TOPPADDING', (0, 0), (-1, 0), 3),
-                ('BOTTOMPADDING', (0, 0), (-1, 0), 3),
-                ('TOPPADDING', (0, 1), (-1, -1), 1),
-                ('BOTTOMPADDING', (0, 1), (-1, -1), 1),
-                ('LEFTPADDING', (0, 0), (-1, -1), 2),
-                ('RIGHTPADDING', (0, 0), (-1, -1), 2),
-                ('BOX', (0, 0), (-1, -1), 0.5, BORDER_COLOR),
+                ('TOPPADDING', (0, 0), (-1, 0), 4),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 4),
+                ('TOPPADDING', (0, 1), (-1, -1), 2),
+                ('BOTTOMPADDING', (0, 1), (-1, -1), 2),
+                ('LEFTPADDING', (0, 0), (-1, -1), 3),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 3),
+                ('BOX', (0, 0), (-1, -1), 0.75, BORDER_STRONG),
                 ('INNERGRID', (0, 0), (-1, -1), 0.25, BORDER_COLOR),
-                # Editable cols (8,9,10)
-                ('BACKGROUND', (8, 1), (10, -2), YELLOW_BG),
-                ('BOX', (8, 0), (10, -1), 0.75, YELLOW_BORDER),
-                ('BACKGROUND', (8, 0), (10, 0), HexColor('#92400E')),
-                # Total
+                ('LINEBELOW', (0, 0), (-1, 0), 1.5, DIVIDER_COLOR),
+                ('LINEAFTER', (4, 0), (4, -1), 1.5, DIVIDER_COLOR),
+                ('LINEAFTER', (6, 0), (6, -1), 1.5, DIVIDER_COLOR),
+                ('BACKGROUND', (7, 1), (8, -2), YELLOW_BG),
+                ('BOX', (7, 0), (8, -1), 1.0, YELLOW_BORDER),
+                ('BACKGROUND', (7, 0), (8, 0), HexColor('#92400E')),
                 ('BACKGROUND', (0, -1), (-1, -1), LIGHT_GRAY),
-                ('LINEABOVE', (0, -1), (-1, -1), 0.75, BRAND_DARK),
+                ('LINEABOVE', (0, -1), (-1, -1), 1.0, BRAND_DARK),
                 ('SPAN', (0, -1), (6, -1)),
             ]
+
+            for i in range(1, len(table_data)):
+                tbl_styles.append(('LINEBELOW', (0, i), (-1, i), 0.5, BORDER_STRONG))
+
             for i in range(1, len(table_data) - 1):
                 if i % 2 == 0:
-                    tbl_styles.append(('BACKGROUND', (0, i), (7, i), ROW_ALT))
+                    tbl_styles.append(('BACKGROUND', (0, i), (6, i), ROW_ALT))
 
             data_table.setStyle(TableStyle(tbl_styles))
             story.append(data_table)
@@ -327,21 +312,20 @@ class StockPicking(models.Model):
         ]))
         story.append(sign_table)
 
-        # ── Footer ──
         def add_page_number(canvas_obj, doc):
             canvas_obj.saveState()
             canvas_obj.setFont('Helvetica', 5)
             canvas_obj.setFillColor(HexColor('#888888'))
-            canvas_obj.drawCentredString(page_width / 2, 7 * mm,
+            canvas_obj.drawCentredString(page_width / 2, 6 * mm,
                                          f'Worksheet — {picking.name} — Pag. {doc.page}')
-            canvas_obj.drawRightString(page_width - margin_lr, 7 * mm,
+            canvas_obj.drawRightString(page_width - margin_lr, 6 * mm,
                                         f'OC: {po_name} | {partner_name}')
             canvas_obj.restoreState()
 
         doc = SimpleDocTemplate(
             buffer, pagesize=A4,
             leftMargin=margin_lr, rightMargin=margin_lr,
-            topMargin=8 * mm, bottomMargin=12 * mm,
+            topMargin=8 * mm, bottomMargin=10 * mm,
             title=f'Worksheet - {picking.name}',
             author=company.name or 'Odoo',
         )
