@@ -58,13 +58,19 @@ class SupplierPortalBaseService:
 
         proforma_model = request.env["supplier.proforma.header"].sudo()
         header = proforma_model.search([("purchase_id", "=", po.id)], limit=1)
+        
         if not header:
+            # PRIMERA VEZ: Se precarga la info base de la OC en el Portal
             header = proforma_model.create({
                 "purchase_id": po.id,
                 "access_id": access.id,
+                "proforma_number": po.partner_ref or "",
+                "payment_terms": po.payment_term_id.name if po.payment_term_id else "",
+                "incoterm": po.incoterm_id.code if po.incoterm_id else "",
             })
         elif not header.access_id:
             header.write({"access_id": access.id})
+            
         return header
 
     def safe_int(self, value, default=0):

@@ -5,7 +5,7 @@ import logging
 import zipfile
 
 from datetime import timedelta
-from odoo import models, fields, _
+from odoo import models, fields, api, _
 from odoo.exceptions import UserError
 
 _logger = logging.getLogger(__name__)
@@ -71,6 +71,48 @@ class PurchaseOrder(models.Model):
         compute='_compute_vucem_documents',
         string='Tiene Docs VUCEM',
     )
+
+    def write(self, vals):
+        res = super(PurchaseOrder, self).write(vals)
+        
+        # SINCRONIZAR DATOS HACIA EL PORTAL (PROFORMA GLOBAL)
+        if not self.env.context.get('skip_global_sync'):
+            sync_fields = {'partner_ref', 'payment_term_id', 'incoterm_id'}
+            if sync_fields.intersection(vals.keys()):
+                for po in self:
+                    po._sync_globals_to_portal(vals)
+                    
+        return res
+
+    def _sync_globals_to_portal(self, vals):
+        """Envía los datos de cabecera de la OC hacia los Datos Globales del Portal."""
+        if 'supplier.proforma.header' not in self.env.registry:
+            return
+            
+        proformas = self.env['supplier.proforma.header'].sudo().search([('purchase_id', '=', self.id)])
+        if not proformas:
+            return
+            
+        p_vals = {}
+        if 'partner_ref' in vals:
+            p_vals['proforma_number'] = vals['partner_ref'] or ''
+            
+        if 'payment_term_id' in vals:
+            if vals['payment_term_id']:
+                term = self.env['account.payment.term'].browse(vals['payment_term_id'])
+                p_vals['payment_terms'] = term.name if term.exists() else ''
+            else:
+                p_vals['payment_terms'] = ''
+                
+        if 'incoterm_id' in vals:
+            if vals['incoterm_id']:
+                incoterm = self.env['account.incoterms'].browse(vals['incoterm_id'])
+                p_vals['incoterm'] = incoterm.code if incoterm.exists() else ''
+            else:
+                p_vals['incoterm'] = ''
+        
+        if p_vals:
+            proformas.with_context(skip_global_sync=True).write(p_vals)
 
     def _compute_payment_documents(self):
         payment_types = ['advance_payment', 'invoice_payment', 'other_payment']
@@ -349,7 +391,7 @@ class PurchaseOrder(models.Model):
                                 dpi_h = img_h / page_height_in
                                 avg_dpi = (dpi_w + dpi_h) / 2
                                 if avg_dpi > max_dpi:
-                                    max_dpi = avg_dpi
+                                max_dpi = avg_dpi
                     except Exception:
                         continue
         except Exception as e:

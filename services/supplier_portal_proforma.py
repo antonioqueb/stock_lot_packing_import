@@ -560,6 +560,26 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
         if vals:
             proforma.write(vals)
 
+        # SINCRONIZAR HACIA ORDEN DE COMPRA
+        po = proforma.purchase_id
+        if po and globals_data:
+            po_vals = {}
+            if 'proforma_number' in globals_data:
+                po_vals['partner_ref'] = globals_data['proforma_number']
+                
+            if 'payment_terms' in globals_data and globals_data['payment_terms']:
+                term = request.env['account.payment.term'].sudo().search([('name', 'ilike', globals_data['payment_terms'])], limit=1)
+                if term:
+                    po_vals['payment_term_id'] = term.id
+                    
+            if 'incoterm' in globals_data and globals_data['incoterm']:
+                incoterm = request.env['account.incoterms'].sudo().search([('code', 'ilike', globals_data['incoterm'])], limit=1)
+                if incoterm:
+                    po_vals['incoterm_id'] = incoterm.id
+                    
+            if po_vals:
+                po.with_context(skip_global_sync=True).write(po_vals)
+
         self.sync_service.sync_all_shipments(proforma)
         return {"success": True, "proforma_id": proforma.id}
 
