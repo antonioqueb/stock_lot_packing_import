@@ -147,22 +147,24 @@
         },
 
         // =================================================================
-        //  AUTO-SAVE PACKING after generating rows
+        //  AUTO-SAVE PACKING ROWS
         // =================================================================
 
-        async _autoSavePackingRows(packingId, shipmentId, formEl) {
+        async _autoSavePackingRows(packingId, shipmentId, formEl, options = {}) {
             const pkData = { id: packingId };
 
-            if (formEl) {
-                formEl.querySelectorAll('[data-pk-id="' + packingId + '"][data-pk-f]').forEach(function (input) {
+            const sourceEl = formEl || this._getPackingFormElement(packingId, shipmentId, null);
+            if (sourceEl) {
+                sourceEl.querySelectorAll('[data-pk-id="' + packingId + '"][data-pk-f]').forEach(function (input) {
                     pkData[input.dataset.pkF] = input.value;
                 });
             }
 
             const rowsKey = 'pk_' + packingId;
             const rows = this.packingRows[rowsKey] || [];
+            const allowEmptyRows = !!options.allowEmptyRows;
 
-            if (!rows.length) {
+            if (!rows.length && !allowEmptyRows) {
                 return { success: false, message: 'No hay filas para guardar.' };
             }
 
@@ -172,6 +174,10 @@
 
             const rowsPayload = rows.map(function (r) {
                 return {
+                    // AUTO-PL-001:
+                    // ID local para que el backend devuelva el ID real de filas nuevas
+                    // sin obligar al usuario a presionar Guardar manualmente.
+                    _client_id: r._id || 0,
                     id: r.id || 0,
                     product_id: r.product_id,
                     container_id: asInt(r.container_id || 0),
@@ -198,9 +204,206 @@
                     packing_data: pkData,
                     rows: rowsPayload,
                 });
+
+                if (res && res.success) {
+                    this._applySavedPackingRowIds(packingId, res.rows || []);
+                }
+
                 return res;
             } catch (e) {
                 return { success: false, message: e.message };
+            }
+        },
+
+        _ensurePackingAutosaveState(packingId) {
+            this._packingAutoSaveState = this._packingAutoSaveState || {};
+            const key = String(packingId);
+
+            if (!this._packingAutoSaveState[key]) {
+                this._packingAutoSaveState[key] = {
+                    timer: null,
+                    busy: false,
+                    dirty: false,
+                    shipmentId: null,
+                    formEl: null,
+                };
+            }
+
+            return this._packingAutoSaveState[key];
+        },
+
+        _getPackingFormElement(packingId, shipmentId, fallbackEl) {
+            if (fallbackEl) {
+                const card = fallbackEl.closest ? fallbackEl.closest('.packing-card') : null;
+                if (card) return card;
+
+                const tab = fallbackEl.closest ? fallbackEl.closest('.shipment-tab-content') : null;
+                if (tab) return tab;
+            }
+
+            return document.querySelector('.packing-card[data-packing-id="' + packingId + '"]')
+                || document.getElementById('stab-packings-' + shipmentId)
+                || null;
+        },
+
+        _packingAutosaveText(type, message) {
+            const lang = this.currentLang || 'es';
+
+            if (type === 'pending') {
+                return lang === 'zh' ? '等待保存' : lang === 'en' ? 'Pending save' : 'Pendiente';
+            }
+            if (type === 'saving') {
+                return this.t('msg_saving') || (lang === 'en' ? 'Saving...' : 'Guardando...');
+            }
+            if (type === 'saved') {
+                return lang === 'zh' ? '已自动保存' : lang === 'en' ? 'Autosaved' : 'Autoguardado';
+            }
+            if (type === 'idle') {
+                return lang === 'zh' ? '自动保存' : lang === 'en' ? 'Autosave' : 'Autoguardado';
+            }
+            if (type === 'error') {
+                return message || (lang === 'en' ? 'Autosave error' : 'Error al autoguardar');
+            }
+
+            return message || '';
+        },
+
+        _setPackingAutosaveIndicator(packingId, type, message) {
+            const indicator = document.querySelector(
+                '.packing-card[data-packing-id="' + packingId + '"] .pk-autosave-indicator'
+            );
+            if (!indicator) return;
+
+            indicator.className = 'pk-autosave-indicator pk-autosave-' + type;
+
+            if (type === 'pending') {
+                indicator.innerHTML = '<i class="fa fa-clock-o"></i> ' + this._packingAutosaveText('pending');
+            } else if (type === 'saving') {
+                indicator.innerHTML = '<i class="fa fa-spinner fa-spin"></i> ' + this._packingAutosaveText('saving');
+            } else if (type === 'saved') {
+                indicator.innerHTML = '<i class="fa fa-check"></i> ' + this._packingAutosaveText('saved');
+            } else if (type === 'error') {
+                const cleanMessage = String(this._packingAutosaveText('error', message) || '').slice(0, 90);
+                indicator.innerHTML = '<i class="fa fa-exclamation-triangle"></i> ' + esc(cleanMessage);
+            } else {
+                indicator.innerHTML = '<i class="fa fa-magic"></i> ' + this._packingAutosaveText('idle');
+            }
+        },
+
+        _applySavedPackingRowIds(packingId, savedRows) {
+            if (!Array.isArray(savedRows) || !savedRows.length) return;
+
+            const rowsKey = 'pk_' + packingId;
+            const localRows = this.packingRows[rowsKey] || [];
+
+            savedRows.forEach(item => {
+                const clientId = String(item.client_id || '');
+                if (!clientId) return;
+
+                const localRow = localRows.find(r => String(r._id) === clientId);
+                if (!localRow) return;
+
+                if (item.id) {
+                    localRow.id = item.id;
+                }
+                localRow.has_image = !!item.has_image;
+            });
+        },
+
+        _schedulePackingRowsAutosave(packingId, shipmentId, sourceEl, options = {}) {
+            // AUTO-PL-002:
+            // Cualquier cambio de filas agenda guardado automático con debounce,
+            // evitando un RPC por cada tecla.
+            const state = this._ensurePackingAutosaveState(packingId);
+            const delay = options.delay !== undefined ? options.delay : 900;
+
+            state.shipmentId = shipmentId;
+            state.formEl = this._getPackingFormElement(packingId, shipmentId, sourceEl);
+
+            if (state.timer) {
+                clearTimeout(state.timer);
+                state.timer = null;
+            }
+
+            if (state.busy) {
+                state.dirty = true;
+                this._setPackingAutosaveIndicator(packingId, 'pending');
+                return;
+            }
+
+            this._setPackingAutosaveIndicator(packingId, 'pending');
+            state.timer = setTimeout(() => {
+                this._flushPackingRowsAutosave(packingId, { allowEmptyRows: true });
+            }, delay);
+        },
+
+        async _flushPackingRowsAutosave(packingId, options = {}) {
+            const state = this._ensurePackingAutosaveState(packingId);
+
+            if (state.timer) {
+                clearTimeout(state.timer);
+                state.timer = null;
+            }
+
+            if (state.busy) {
+                state.dirty = true;
+                return;
+            }
+
+            const shipmentId = state.shipmentId;
+            if (!shipmentId) return;
+
+            state.busy = true;
+            state.dirty = false;
+            this._setPackingAutosaveIndicator(packingId, 'saving');
+
+            try {
+                const res = await this._autoSavePackingRows(
+                    packingId,
+                    shipmentId,
+                    state.formEl,
+                    { allowEmptyRows: options.allowEmptyRows !== false }
+                );
+
+                if (!res || res.success === false) {
+                    throw new Error((res && res.message) || 'No se pudo guardar el Packing List.');
+                }
+
+                try {
+                    await this.reloadProformaKeepingRows();
+
+                    const freshS = this._getFreshShipment ? this._getFreshShipment(shipmentId) : null;
+                    if (freshS) {
+                        this._updateShipmentBodyRef(shipmentId, freshS);
+
+                        const block = document.querySelector('.shipment-block[data-shipment-id="' + shipmentId + '"]');
+                        if (block) {
+                            this.updateShipmentBlockHeader(block, freshS);
+                        }
+                    }
+                } catch (_reloadError) {
+                    // El PL ya fue guardado. La recarga silenciosa solo actualiza contadores/cabeceras.
+                }
+
+                this._setPackingAutosaveIndicator(packingId, 'saved');
+
+                setTimeout(() => {
+                    const latestState = this._ensurePackingAutosaveState(packingId);
+                    if (!latestState.busy && !latestState.timer && !latestState.dirty) {
+                        this._setPackingAutosaveIndicator(packingId, 'idle');
+                    }
+                }, 2200);
+            } catch (err) {
+                this._setPackingAutosaveIndicator(packingId, 'error', err.message || 'Error al autoguardar');
+            } finally {
+                state.busy = false;
+
+                if (state.dirty) {
+                    state.dirty = false;
+                    this._schedulePackingRowsAutosave(packingId, state.shipmentId, state.formEl, {
+                        delay: 350,
+                    });
+                }
             }
         },
 
@@ -619,11 +822,6 @@
         //  FILL HELPERS — scoped to block boundaries
         // =================================================================
 
-        /**
-         * Fill ALL rows DOWN from source row within the same block & product.
-         * For numero_placa: sequential increment.
-         * For other fields: copy value.
-         */
         _fillDown(rws, srcRow, field) {
             const srcIdx = rws.indexOf(srcRow);
             if (srcIdx < 0) return;
@@ -654,11 +852,6 @@
             }
         },
 
-        /**
-         * Fill ONE row down from source row (next row in same block & product).
-         * For numero_placa: increment by 1.
-         * For other fields: copy value.
-         */
         _fillOneDown(rws, srcRow, field) {
             const srcIdx = rws.indexOf(srcRow);
             if (srcIdx < 0) return;
@@ -672,7 +865,6 @@
                 const rBlock = String(r.bloque || '').trim();
                 if (rBlock !== srcBlock) break;
 
-                // Found the next row in the same block
                 if (field === 'numero_placa') {
                     const baseVal = parseInt(srcRow[field], 10);
                     if (!isNaN(baseVal)) {
@@ -681,12 +873,12 @@
                 } else {
                     r[field] = srcRow[field];
                 }
-                return; // Only one row
+                return;
             }
         },
 
         // =================================================================
-        //  MAIN RENDER — UNIFIED STICKY BLOCK (header + thead glued)
+        //  MAIN RENDER — UNIFIED STICKY BLOCK
         // =================================================================
 
         renderPackingRows(area, pk, s) {
@@ -865,7 +1057,6 @@
 
                     html += `<tr data-row-id="${rid}" data-pk-key="${rowsKey}">`;
 
-                    // ── inp helper: renders fill-one-down + input + fill-all-down ──
                     const inp = (field, val, ph, type = 'text', step = '') =>
                         `<div class="input-group-portal">
                             <input type="${type}" step="${step}" class="input-field" data-field="${field}" value="${esc(val || '')}" placeholder="${ph}">
@@ -998,6 +1189,8 @@
                         span.textContent = ((row.alto || 0) * (row.ancho || 0)).toFixed(2);
                     }
                 }
+
+                this._schedulePackingRowsAutosave(pk.id, s.id, area);
             });
 
             area.addEventListener('change', e => {
@@ -1006,6 +1199,7 @@
                     const key = e.target.dataset.pkKey;
                     const row = (this.packingRows[key] || []).find(r => r._id === rid);
                     if (row) row.container_id = asInt(e.target.value);
+                    this._schedulePackingRowsAutosave(pk.id, s.id, area);
                     return;
                 }
 
@@ -1072,6 +1266,7 @@
                     const key = tr.dataset.pkKey;
                     this.packingRows[key] = (this.packingRows[key] || []).filter(r => r._id !== rid);
                     this.renderPackingRows(area, pk, s);
+                    this._schedulePackingRowsAutosave(pk.id, s.id, area);
                     return;
                 }
 
@@ -1092,11 +1287,11 @@
                             } : {}));
                         }
                         this.renderPackingRows(area, pk, s);
+                        this._schedulePackingRowsAutosave(pk.id, s.id, area);
                     }
                     return;
                 }
 
-                // ── FILL ALL DOWN (scoped to block) ──
                 if (fillDownBtn) {
                     const rid = parseInt(fillDownBtn.dataset.rowId, 10);
                     const field = fillDownBtn.dataset.field;
@@ -1107,10 +1302,10 @@
 
                     this._fillDown(rws, src, field);
                     this.renderPackingRows(area, pk, s);
+                    this._schedulePackingRowsAutosave(pk.id, s.id, area);
                     return;
                 }
 
-                // ── FILL ONE DOWN (next row in same block) ──
                 if (fillOneDownBtn) {
                     const rid = parseInt(fillOneDownBtn.dataset.rowId, 10);
                     const field = fillOneDownBtn.dataset.field;
@@ -1121,6 +1316,7 @@
 
                     this._fillOneDown(rws, src, field);
                     this.renderPackingRows(area, pk, s);
+                    this._schedulePackingRowsAutosave(pk.id, s.id, area);
                     return;
                 }
             });

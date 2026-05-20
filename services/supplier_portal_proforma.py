@@ -43,7 +43,6 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
         if currency_value in (None, False, ""):
             return False
 
-        # Caso 1: viene como ID
         try:
             if isinstance(currency_value, int) or str(currency_value).isdigit():
                 currency_id = int(currency_value)
@@ -52,7 +51,6 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
         except Exception:
             pass
 
-        # Caso 2: viene como texto/código ISO
         code = str(currency_value).strip().upper()
         if not code:
             return False
@@ -61,12 +59,10 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
         if currency:
             return currency.id
 
-        # Fallback por símbolo
         currency = Currency.search([("symbol", "=", code)], limit=1)
         if currency:
             return currency.id
 
-        # Fallback por display_name
         currency = Currency.search([("display_name", "ilike", code)], limit=1)
         if currency:
             return currency.id
@@ -769,21 +765,17 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
 
             currency_id = False
 
-            # 1) Si viene currency_id explícito, usarlo
             if invoice.get("currency_id"):
                 currency_id = self._resolve_currency_id(invoice.get("currency_id"))
 
-            # 2) Si no, intentar resolver por currency_name / código ISO
             if not currency_id and invoice.get("currency_name"):
                 currency_id = self._resolve_currency_id(invoice.get("currency_name"))
 
             existing_record = invoice_model.browse(invoice_id) if invoice_id else invoice_model
 
-            # 3) Si es update y no vino moneda, conservar la actual
             if not currency_id and invoice_id and existing_record.exists() and existing_record.currency_id:
                 currency_id = existing_record.currency_id.id
 
-            # 4) Fallback final
             if not currency_id:
                 currency_id = po_currency_id or company_currency_id
 
@@ -834,12 +826,41 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
         row_model = request.env["supplier.shipment.packing.row"].sudo()
 
         packing_id = self.safe_int(packing_data.get("id"), 0)
-        scope = packing_data.get("scope", "full_shipment")
-        raw_container_ids = packing_data.get("container_ids", [])
+        packing = False
+
+        if packing_id:
+            packing = packing_model.browse(packing_id)
+            if not packing.exists() or not self.belongs_to_proforma(proforma, packing=packing):
+                return {"success": False, "message": "Packing no encontrado o no autorizado."}
+
+        # AUTO-PL-001:
+        # El autosave puede enviar solo filas. Si no vienen metadatos explícitos,
+        # se conserva el valor existente para no borrar número, fecha, alcance
+        # ni contenedores por accidente.
+        scope = (
+            packing_data.get("scope")
+            or (packing.scope if packing else "full_shipment")
+            or "full_shipment"
+        )
+        raw_container_ids = (
+            packing_data.get("container_ids")
+            if "container_ids" in packing_data
+            else (packing.container_ids.ids if packing else [])
+        )
+        packing_number = (
+            packing_data.get("packing_number")
+            if "packing_number" in packing_data
+            else (packing.packing_number if packing else "")
+        )
+        packing_date = (
+            packing_data.get("packing_date")
+            if "packing_date" in packing_data
+            else (packing.packing_date if packing else False)
+        )
 
         packing_vals = {
-            "packing_number": packing_data.get("packing_number", ""),
-            "packing_date": packing_data.get("packing_date") or False,
+            "packing_number": packing_number or "",
+            "packing_date": packing_date or False,
             "scope": scope,
             "container_ids": raw_container_ids,
         }
@@ -853,20 +874,19 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
             return {"success": False, "message": msg}
 
         vals = {
-            "packing_number": packing_data.get("packing_number", ""),
-            "packing_date": packing_data.get("packing_date") or False,
+            "packing_number": packing_number or "",
+            "packing_date": packing_date or False,
             "scope": scope,
             "container_ids": [(6, 0, normalized_container_ids)],
         }
 
-        if packing_id:
-            packing = packing_model.browse(packing_id)
-            if not packing.exists() or not self.belongs_to_proforma(proforma, packing=packing):
-                return {"success": False, "message": "Packing no encontrado o no autorizado."}
+        if packing:
             packing.write(vals)
         else:
             vals["shipment_id"] = shipment.id
             packing = packing_model.create(vals)
+
+        saved_rows_response = []
 
         if rows is not None:
             existing_rows = {row.id: row for row in packing.row_ids}
@@ -879,6 +899,7 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
             for idx, row in enumerate(rows, start=1):
                 row_id = self.safe_int(row.get("id"), 0)
                 row_container_id = self.safe_int(row.get("container_id"), 0)
+                client_id = row.get("_client_id") or row.get("client_id") or row.get("_id") or ""
 
                 if row_container_id and row_container_id not in shipment_container_ids:
                     return {
@@ -920,10 +941,15 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                     if not row_record:
                         return {"success": False, "message": "Una de las filas no pertenece al packing actual."}
                     row_record.write(row_vals)
-                    incoming_ids.add(row_record.id)
                 else:
-                    new_row = row_model.create(row_vals)
-                    incoming_ids.add(new_row.id)
+                    row_record = row_model.create(row_vals)
+
+                incoming_ids.add(row_record.id)
+                saved_rows_response.append({
+                    "client_id": str(client_id or ""),
+                    "id": row_record.id,
+                    "has_image": bool(row_record.image),
+                })
 
                 sequence += 10
 
@@ -931,31 +957,17 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
             if rows_to_delete:
                 rows_to_delete.unlink()
 
-        if rows is not None:
-            valid_rows = [row for row in (rows or []) if row]
-            if valid_rows:
-                blocks_in_rows = set()
-                for row in valid_rows:
-                    block_name = (row.get("bloque") or "").strip()
-                    if block_name:
-                        blocks_in_rows.add((block_name, self.safe_int(row.get("product_id", 0))))
-
-                if blocks_in_rows:
-                    block_image_model = request.env["supplier.shipment.block.image"].sudo()
-                    for block_name, product_id in blocks_in_rows:
-                        existing = block_image_model.search([
-                            ("shipment_id", "=", shipment.id),
-                            ("block_name", "=", block_name),
-                            ("product_id", "=", product_id),
-                        ], limit=1)
-                        if not existing:
-                            return {
-                                "success": False,
-                                "message": 'El bloque "%s" no tiene fotografía. Suba al menos una foto por bloque antes de guardar.' % block_name,
-                            }
-
+        # AUTO-PL-002:
+        # El PL se guarda automáticamente aunque falten fotos por bloque.
+        # La exigencia final de fotos se mantiene en complete_proforma().
         self.sync_service.sync_shipment(shipment)
-        return {"success": True, "packing_id": packing.id}
+
+        return {
+            "success": True,
+            "packing_id": packing.id,
+            "row_ids": packing.row_ids.ids,
+            "rows": saved_rows_response,
+        }
 
     def delete_packing(self, token, packing_id):
         access = self.validate_token(token)

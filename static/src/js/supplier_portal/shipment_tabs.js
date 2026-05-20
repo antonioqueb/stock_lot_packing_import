@@ -563,7 +563,8 @@
                     if (!confirm(self.t('msg_confirm_delete'))) return;
                     try {
                         await jsonRpc('/supplier/api/v2/delete_packing', {
-                            token: self.token, packing_id: parseInt(btn.dataset.pkId, 10),
+                            token: self.token,
+                            packing_id: parseInt(btn.dataset.pkId, 10),
                         });
                         await self.reloadProforma();
                         self.renderAll();
@@ -578,8 +579,18 @@
                 var pkCard = el.querySelector('.packing-card[data-packing-id="' + pk.id + '"]');
                 if (!pkCard) return;
 
-                var indicator = pkCard.querySelector('.pk-autosave-indicator');
                 var timer = null;
+
+                var setPkIndicator = function (type, message) {
+                    if (typeof self._setPackingAutosaveIndicator === 'function') {
+                        self._setPackingAutosaveIndicator(pk.id, type, message);
+                        return;
+                    }
+
+                    var indicator = pkCard.querySelector('.pk-autosave-indicator');
+                    if (!indicator) return;
+                    indicator.textContent = message || '';
+                };
 
                 var doSaveMeta = function () {
                     var pkData = { id: pk.id };
@@ -587,8 +598,10 @@
                         pkData[input.dataset.pkF] = input.value;
                     });
                     return jsonRpc('/supplier/api/v2/save_packing', {
-                        token: self.token, shipment_id: s.id,
-                        packing_data: pkData, rows: null,
+                        token: self.token,
+                        shipment_id: s.id,
+                        packing_data: pkData,
+                        rows: null,
                     });
                 };
 
@@ -596,11 +609,11 @@
                     var evt = input.type === 'date' ? 'change' : 'input';
                     input.addEventListener(evt, function () {
                         if (timer) clearTimeout(timer);
+                        setPkIndicator('pending');
+
                         timer = setTimeout(async function () {
-                            if (indicator) {
-                                indicator.innerHTML = '<i class="fa fa-spinner fa-spin"></i>';
-                                indicator.style.color = '#888';
-                            }
+                            setPkIndicator('saving');
+
                             try {
                                 var res = await doSaveMeta();
                                 if (res && res.success === false) throw new Error(res.message);
@@ -624,31 +637,15 @@
                                         }
                                     }
                                 } catch (_e) {}
-                                if (indicator) {
-                                    indicator.innerHTML = '<i class="fa fa-check"></i>';
-                                    indicator.style.color = '#16a34a';
-                                    setTimeout(function () { if (indicator) indicator.innerHTML = ''; }, 2000);
-                                }
+
+                                setPkIndicator('saved');
+                                setTimeout(function () { setPkIndicator('idle'); }, 2000);
                             } catch (err) {
-                                if (indicator) {
-                                    indicator.innerHTML = '<i class="fa fa-exclamation-triangle"></i>';
-                                    indicator.style.color = '#dc2626';
-                                }
+                                setPkIndicator('error', err.message || 'Error al autoguardar');
                             }
                         }, 900);
                     });
                 });
-
-                var btnSavePk = pkCard.querySelector('.btn-save-pk');
-                if (btnSavePk) {
-                    btnSavePk.addEventListener('click', function () {
-                        self.savePacking(
-                            parseInt(btnSavePk.dataset.pkId, 10),
-                            parseInt(btnSavePk.dataset.sid, 10),
-                            el
-                        );
-                    });
-                }
             });
 
             packings.forEach(function (pk) {
@@ -676,7 +673,9 @@
                             ${esc(pk.packing_number) || 'Packing #' + (idx + 1)}
                             <small class="text-muted">(${rowCount} rows)</small>
                         </span>
-                        <span class="pk-autosave-indicator" style="font-size:0.74rem;"></span>
+                        <span class="pk-autosave-indicator pk-autosave-idle" style="font-size:0.74rem;">
+                            <i class="fa fa-magic"></i> ${this._packingAutosaveText ? this._packingAutosaveText('idle') : 'Autoguardado'}
+                        </span>
                     </div>
                     <div class="sub-item-actions">
                         <button type="button" class="btn-delete-pk" data-pk-id="${pk.id}">
@@ -695,11 +694,6 @@
                     </div>
                 </div>
                 <div class="packing-rows-area" id="pk-rows-${pk.id}"></div>
-                <div class="text-end mt-2">
-                    <button type="button" class="btn-save-section btn-save-pk" data-pk-id="${pk.id}" data-sid="${s.id}" style="font-size:0.8rem;padding:6px 16px;">
-                        <i class="fa fa-save me-1"></i> ${this.t('btn_save_packing')}
-                    </button>
-                </div>
             </div>`;
         },
 
@@ -756,8 +750,10 @@
             try {
                 var fileData = await readFileAsBase64(file);
                 var res = await jsonRpc('/supplier/api/v2/upload_row_image', {
-                    token: this.token, row_id: serverRowId,
-                    image_data: fileData.data, image_name: fileData.name,
+                    token: this.token,
+                    row_id: serverRowId,
+                    image_data: fileData.data,
+                    image_name: fileData.name,
                 });
                 if (res.success) {
                     var rows = this.packingRows[pkKey] || [];
@@ -777,7 +773,8 @@
             if (!confirm(this.t('msg_confirm_delete_photo'))) return;
             try {
                 var res = await jsonRpc('/supplier/api/v2/delete_row_image', {
-                    token: this.token, row_id: serverRowId,
+                    token: this.token,
+                    row_id: serverRowId,
                 });
                 if (res.success) {
                     var rows = this.packingRows[pkKey] || [];

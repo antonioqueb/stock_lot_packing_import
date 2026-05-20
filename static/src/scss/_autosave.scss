@@ -30,8 +30,41 @@
 }
 
 .pk-autosave-indicator {
-    min-width: 50px;
+    min-width: 92px;
+    max-width: 260px;
     display: inline-flex;
     align-items: center;
-    gap: 2px;
+    gap: 4px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: $sp-portal-text-tertiary;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: color $sp-portal-duration-fast $sp-portal-ease-out;
+
+    i {
+        font-size: 0.66rem;
+        flex-shrink: 0;
+    }
+
+    &.pk-autosave-idle {
+        color: $sp-portal-text-tertiary;
+    }
+
+    &.pk-autosave-pending {
+        color: $sp-portal-amber;
+    }
+
+    &.pk-autosave-saving {
+        color: $sp-portal-text-secondary;
+    }
+
+    &.pk-autosave-saved {
+        color: $sp-portal-green;
+    }
+
+    &.pk-autosave-error {
+        color: $sp-portal-red;
+    }
 }
