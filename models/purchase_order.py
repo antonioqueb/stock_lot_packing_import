@@ -391,7 +391,7 @@ class PurchaseOrder(models.Model):
                                 dpi_h = img_h / page_height_in
                                 avg_dpi = (dpi_w + dpi_h) / 2
                                 if avg_dpi > max_dpi:
-                                max_dpi = avg_dpi
+                                    max_dpi = avg_dpi
                     except Exception:
                         continue
         except Exception as e:
