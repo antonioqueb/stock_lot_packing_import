@@ -312,6 +312,57 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
     #  SERIALIZACION
     # =====================================================================
 
+    def serialize_packing_for_response(self, packing):
+        """
+        LIVE-PORTAL-005:
+        Payload completo para reconciliar un Packing List recién creado o guardado
+        sin depender únicamente de un reload posterior del portal.
+        """
+        derived = self.compute_packing_derived_flags(packing)
+
+        rows_payload = []
+        for row in packing.row_ids.sorted("sequence"):
+            rows_payload.append({
+                "id": row.id,
+                "product_id": row.product_id.id,
+                "product_name": row.product_id.display_name,
+                "container_id": row.container_id.id if row.container_id else False,
+                "container_number": row.container_id.container_number if row.container_id else "",
+                "tipo": row.tipo or "Placa",
+                "grosor": row.grosor or "",
+                "alto": row.alto,
+                "ancho": row.ancho,
+                "peso": row.peso,
+                "quantity": row.quantity,
+                "bloque": row.bloque or "",
+                "numero_placa": row.numero_placa or "",
+                "atado": row.atado or "",
+                "color": row.color or "",
+                "grupo_name": row.grupo_name or "",
+                "pedimento": row.pedimento or "",
+                "ref_proveedor": row.ref_proveedor or "",
+                "area_m2": row.area_m2,
+                "has_image": bool(row.image),
+            })
+
+        return {
+            "id": packing.id,
+            "packing_number": packing.packing_number or "",
+            "packing_date": str(packing.packing_date) if packing.packing_date else "",
+            "scope": packing.scope or "full_shipment",
+            "container_ids": packing.container_ids.ids,
+            "row_count": packing.row_count,
+            "rows": rows_payload,
+            "container_count_derived": derived["container_count_derived"],
+            "row_container_ids": derived["row_container_ids"],
+            "all_related_container_ids": derived["all_related_container_ids"],
+            "has_rows_without_container": derived["has_rows_without_container"],
+            "rows_without_container_count": derived["rows_without_container_count"],
+            "is_single_container": derived["is_single_container"],
+            "is_multi_container": derived["is_multi_container"],
+            "suggested_mode": derived["suggested_mode"],
+        }
+
     def _get_shipment_picking(self, shipment):
         return request.env["stock.picking"].sudo().search(
             [("supplier_shipment_id", "=", shipment.id)],
@@ -350,52 +401,10 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                 "is_multi_container": len(invoice.container_ids.ids) > 1,
             } for invoice in shipment.invoice_ids]
 
-            packings = []
-            for packing in self.sorted_packings(shipment.packing_ids):
-                derived = self.compute_packing_derived_flags(packing)
-
-                rows_payload = []
-                for row in packing.row_ids.sorted("sequence"):
-                    rows_payload.append({
-                        "id": row.id,
-                        "product_id": row.product_id.id,
-                        "product_name": row.product_id.display_name,
-                        "container_id": row.container_id.id if row.container_id else False,
-                        "container_number": row.container_id.container_number if row.container_id else "",
-                        "tipo": row.tipo or "Placa",
-                        "grosor": row.grosor or "",
-                        "alto": row.alto,
-                        "ancho": row.ancho,
-                        "peso": row.peso,
-                        "quantity": row.quantity,
-                        "bloque": row.bloque or "",
-                        "numero_placa": row.numero_placa or "",
-                        "atado": row.atado or "",
-                        "color": row.color or "",
-                        "grupo_name": row.grupo_name or "",
-                        "pedimento": row.pedimento or "",
-                        "ref_proveedor": row.ref_proveedor or "",
-                        "area_m2": row.area_m2,
-                        "has_image": bool(row.image),
-                    })
-
-                packings.append({
-                    "id": packing.id,
-                    "packing_number": packing.packing_number or "",
-                    "packing_date": str(packing.packing_date) if packing.packing_date else "",
-                    "scope": packing.scope or "full_shipment",
-                    "container_ids": packing.container_ids.ids,
-                    "row_count": packing.row_count,
-                    "rows": rows_payload,
-                    "container_count_derived": derived["container_count_derived"],
-                    "row_container_ids": derived["row_container_ids"],
-                    "all_related_container_ids": derived["all_related_container_ids"],
-                    "has_rows_without_container": derived["has_rows_without_container"],
-                    "rows_without_container_count": derived["rows_without_container_count"],
-                    "is_single_container": derived["is_single_container"],
-                    "is_multi_container": derived["is_multi_container"],
-                    "suggested_mode": derived["suggested_mode"],
-                })
+            packings = [
+                self.serialize_packing_for_response(packing)
+                for packing in self.sorted_packings(shipment.packing_ids)
+            ]
 
             shipment_container_ids = set(shipment.container_ids.ids)
             packing_related_container_ids = set()
@@ -967,6 +976,11 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
             "packing_id": packing.id,
             "row_ids": packing.row_ids.ids,
             "rows": saved_rows_response,
+            # LIVE-PORTAL-005:
+            # Se devuelve el objeto serializado para que el frontend pueda
+            # reconciliar la UI optimista aun si el reload posterior tarda.
+            "packing": self.serialize_packing_for_response(packing),
+            "progress": self.compute_progress(proforma),
         }
 
     def delete_packing(self, token, packing_id):

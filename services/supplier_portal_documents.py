@@ -35,6 +35,18 @@ class SupplierPortalDocumentsService(SupplierPortalBaseService):
 
     ALL_VALID_DOC_TYPES = SHIPMENT_DOC_TYPES
 
+    def serialize_document(self, doc):
+        return {
+            "id": doc.id,
+            "document_type": doc.document_type,
+            "name": doc.name or "",
+            "file_size": doc.file_size or 0,
+            "mime_type": doc.mime_type or "",
+            "dpi_value": doc.dpi_value or 0,
+            "upload_token": doc.upload_token or "",
+            "notes": doc.notes or "",
+        }
+
     def serialize_documents_for_scope(self, shipment_id=None, proforma_id=None):
         doc_model = request.env["supplier.shipment.document"].sudo()
         domain = []
@@ -47,16 +59,7 @@ class SupplierPortalDocumentsService(SupplierPortalBaseService):
             return []
 
         docs = doc_model.search(domain, order="document_type, create_date desc")
-        return [{
-            "id": doc.id,
-            "document_type": doc.document_type,
-            "name": doc.name or "",
-            "file_size": doc.file_size or 0,
-            "mime_type": doc.mime_type or "",
-            "dpi_value": doc.dpi_value or 0,
-            "upload_token": doc.upload_token or "",
-            "notes": doc.notes or "",
-        } for doc in docs]
+        return [self.serialize_document(doc) for doc in docs]
 
     # =====================================================================
     #  PDF HELPERS
@@ -284,7 +287,12 @@ class SupplierPortalDocumentsService(SupplierPortalBaseService):
         }
 
         record = doc_model.create(vals)
-        return {"success": True, "document_id": record.id}
+        return {
+            "success": True,
+            "document_id": record.id,
+            "document": self.serialize_document(record),
+            "documents": self.serialize_documents_for_scope(shipment_id=shipment.id),
+        }
 
     def delete_document(self, token, document_id):
         access = self.validate_token(token)
@@ -303,8 +311,12 @@ class SupplierPortalDocumentsService(SupplierPortalBaseService):
         if not shipment.exists() or not self.belongs_to_proforma(proforma, shipment=shipment):
             return {"success": False, "message": "No autorizado."}
 
+        shipment_id = record.shipment_id
         record.unlink()
-        return {"success": True}
+        return {
+            "success": True,
+            "documents": self.serialize_documents_for_scope(shipment_id=shipment_id),
+        }
 
     def list_documents(self, token, shipment_id=None):
         access = self.validate_token(token)

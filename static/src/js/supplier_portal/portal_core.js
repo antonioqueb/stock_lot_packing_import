@@ -19,10 +19,21 @@
             this.nextRowId = 1;
             this._eventsBound = false;
 
-            // NUEVO
+            // Estado local de captura.
             this.packingSetupState = {};
             this.productCollapseState = {};
             this.autoOpenPackingSetupId = null;
+
+            // LIVE-PORTAL-001:
+            // Capa de UI optimista para que el proveedor vea de inmediato lo que acaba
+            // de crear/subir, aun cuando el backend siga procesando o el reload tarde.
+            this.pendingUi = {
+                packingsByShipment: {},
+                documentsByShipment: {},
+            };
+            this._clientSeq = 1;
+            this._reloadSeq = 0;
+            this._lastAppliedReloadSeq = 0;
 
             if (document.readyState === 'loading') {
                 document.addEventListener('DOMContentLoaded', () => this.init());
@@ -33,6 +44,118 @@
 
         t(key) {
             return (T[this.currentLang] || T.en)[key] || key;
+        }
+
+        makeClientId(prefix) {
+            const cleanPrefix = prefix || 'tmp';
+            const seq = this._clientSeq++;
+            return `${cleanPrefix}_${Date.now()}_${seq}_${Math.random().toString(36).slice(2, 8)}`;
+        }
+
+        _pendingList(kind, shipmentId) {
+            const sid = String(shipmentId || 0);
+            const bucketName = kind === 'document' ? 'documentsByShipment' : 'packingsByShipment';
+            this.pendingUi = this.pendingUi || { packingsByShipment: {}, documentsByShipment: {} };
+            this.pendingUi[bucketName] = this.pendingUi[bucketName] || {};
+            if (!this.pendingUi[bucketName][sid]) {
+                this.pendingUi[bucketName][sid] = [];
+            }
+            return this.pendingUi[bucketName][sid];
+        }
+
+        _getPendingPackings(shipmentId) {
+            return this._pendingList('packing', shipmentId).filter(item => !item._hidden);
+        }
+
+        _addPendingPacking(shipmentId, packing) {
+            const list = this._pendingList('packing', shipmentId);
+            list.push(packing);
+            return packing;
+        }
+
+        _updatePendingPacking(shipmentId, clientId, patch) {
+            const item = this._pendingList('packing', shipmentId)
+                .find(pk => String(pk._client_id || pk.id) === String(clientId));
+            if (item) Object.assign(item, patch || {});
+            return item || null;
+        }
+
+        _removePendingPacking(shipmentId, clientId) {
+            const list = this._pendingList('packing', shipmentId);
+            const idx = list.findIndex(pk => String(pk._client_id || pk.id) === String(clientId));
+            if (idx >= 0) {
+                return list.splice(idx, 1)[0];
+            }
+            return null;
+        }
+
+        _getPendingDocuments(shipmentId) {
+            return this._pendingList('document', shipmentId).filter(item => !item._hidden);
+        }
+
+        _addPendingDocument(shipmentId, documentData) {
+            const list = this._pendingList('document', shipmentId);
+            list.push(documentData);
+            return documentData;
+        }
+
+        _updatePendingDocument(shipmentId, clientId, patch) {
+            const item = this._pendingList('document', shipmentId)
+                .find(doc => String(doc._client_id || doc.id) === String(clientId));
+            if (item) Object.assign(item, patch || {});
+            return item || null;
+        }
+
+        _removePendingDocument(shipmentId, clientId) {
+            const list = this._pendingList('document', shipmentId);
+            const idx = list.findIndex(doc => String(doc._client_id || doc.id) === String(clientId));
+            if (idx >= 0) {
+                return list.splice(idx, 1)[0];
+            }
+            return null;
+        }
+
+        _getDisplayPackings(shipment) {
+            if (!shipment) return [];
+            const serverPackings = shipment.packings || [];
+            const pending = this._getPendingPackings(shipment.id);
+            return serverPackings.concat(pending);
+        }
+
+        _getDisplayDocuments(shipment) {
+            if (!shipment) return [];
+            const serverDocs = shipment.documents || [];
+            const pending = this._getPendingDocuments(shipment.id);
+            return serverDocs.concat(pending);
+        }
+
+        _applyServerProforma(proforma, options = {}) {
+            if (!proforma) return;
+
+            const preservePackingRows = options.preservePackingRows !== false;
+            const savedRows = preservePackingRows ? { ...this.packingRows } : {};
+            const savedSetup = { ...this.packingSetupState };
+            const savedCollapse = { ...this.productCollapseState };
+
+            this.proforma = proforma;
+
+            if (preservePackingRows) {
+                this.packingRows = savedRows;
+                this.packingSetupState = savedSetup;
+                this.productCollapseState = savedCollapse;
+            } else {
+                this.packingRows = {};
+            }
+        }
+
+        _refreshShipmentHeaderOnly(shipmentId) {
+            const s = this._getFreshShipment ? this._getFreshShipment(shipmentId) : null;
+            const block = document.querySelector(`.shipment-block[data-shipment-id="${shipmentId}"]`);
+            if (s && block) {
+                this.updateShipmentBlockHeader(block, s);
+            }
+            this.updateFooterTotals();
+            this.renderProgressBar();
         }
 
         init() {
@@ -156,7 +279,7 @@
                 if (res.success) {
                     this.toast(this.t('msg_saved'), 'success');
                     Object.assign(this.proforma, payload);
-                    await this.reloadProforma();
+                    await this.reloadProforma({ preservePackingRows: true });
                     this.renderAll();
                 } else {
                     this.toast(this.t('msg_error') + (res.message || ''), 'error');
@@ -234,12 +357,15 @@
             block.className = 'shipment-block';
             block.dataset.shipmentId = s.id;
 
-            const shipDocs = s.documents || [];
+            const shipDocs = this._getDisplayDocuments(s);
             const requiredTypes = ['bl', 'invoice', 'packing_list'];
-            const hasMissing = requiredTypes.some(rt => !shipDocs.find(d => d.document_type === rt));
-            const docIndicator = hasMissing
-                ? '<span class="chip" style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;"><i class="fa fa-exclamation-triangle"></i> docs</span>'
-                : '<span class="chip" style="background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;"><i class="fa fa-check"></i> docs</span>';
+            const hasPendingDocs = requiredTypes.some(rt => shipDocs.find(d => d.document_type === rt && (d._pending || d._deleting)));
+            const hasMissing = requiredTypes.some(rt => !shipDocs.find(d => d.document_type === rt && !d._error && !d._deleting));
+            const docIndicator = hasPendingDocs
+                ? '<span class="chip" style="background:#fffbeb;color:#d97706;border:1px solid #fde68a;"><i class="fa fa-spinner fa-spin"></i> docs</span>'
+                : hasMissing
+                    ? '<span class="chip" style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;"><i class="fa fa-exclamation-triangle"></i> docs</span>'
+                    : '<span class="chip" style="background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;"><i class="fa fa-check"></i> docs</span>';
 
             block.innerHTML = `
                 <div class="shipment-block-header">
@@ -249,7 +375,7 @@
                         <span class="shipment-summary-chips">
                             <span class="chip"><i class="fa fa-cube"></i> ${(s.containers || []).length}</span>
                             <span class="chip"><i class="fa fa-file-text-o"></i> ${(s.invoices || []).length}</span>
-                            <span class="chip"><i class="fa fa-list"></i> ${(s.packings || []).length}</span>
+                            <span class="chip"><i class="fa fa-list"></i> ${this._getDisplayPackings(s).length}</span>
                             ${docIndicator}
                         </span>
                     </div>
@@ -289,18 +415,21 @@
             pill.className = `shipment-status-pill st-${s.status || 'draft'}`;
             pill.textContent = this.t('st_' + (s.status || 'draft'));
 
-            const shipDocs = s.documents || [];
+            const shipDocs = this._getDisplayDocuments(s);
             const requiredTypes = ['bl', 'invoice', 'packing_list'];
-            const hasMissing = requiredTypes.some(rt => !shipDocs.find(d => d.document_type === rt));
-            const docIndicator = hasMissing
-                ? '<span class="chip" style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;"><i class="fa fa-exclamation-triangle"></i> docs</span>'
-                : '<span class="chip" style="background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;"><i class="fa fa-check"></i> docs</span>';
+            const hasPendingDocs = requiredTypes.some(rt => shipDocs.find(d => d.document_type === rt && (d._pending || d._deleting)));
+            const hasMissing = requiredTypes.some(rt => !shipDocs.find(d => d.document_type === rt && !d._error && !d._deleting));
+            const docIndicator = hasPendingDocs
+                ? '<span class="chip" style="background:#fffbeb;color:#d97706;border:1px solid #fde68a;"><i class="fa fa-spinner fa-spin"></i> docs</span>'
+                : hasMissing
+                    ? '<span class="chip" style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;"><i class="fa fa-exclamation-triangle"></i> docs</span>'
+                    : '<span class="chip" style="background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;"><i class="fa fa-check"></i> docs</span>';
 
             const chips = block.querySelector('.shipment-summary-chips');
             chips.innerHTML = `
                 <span class="chip"><i class="fa fa-cube"></i> ${(s.containers || []).length}</span>
                 <span class="chip"><i class="fa fa-file-text-o"></i> ${(s.invoices || []).length}</span>
-                <span class="chip"><i class="fa fa-list"></i> ${(s.packings || []).length}</span>
+                <span class="chip"><i class="fa fa-list"></i> ${this._getDisplayPackings(s).length}</span>
                 ${docIndicator}`;
         }
 
@@ -338,7 +467,7 @@
             try {
                 const res = await jsonRpc('/supplier/api/v2/create_shipment', { token: this.token });
                 if (res.success) {
-                    await this.reloadProforma();
+                    await this.reloadProforma({ preservePackingRows: true });
                     this.expandedShipmentId = res.shipment_id;
                     this.renderAll();
                     this.toast(this.t('msg_saved'), 'success');
@@ -368,7 +497,7 @@
                     this.expandedShipmentId = null;
                 }
 
-                await this.reloadProforma();
+                await this.reloadProforma({ preservePackingRows: true });
                 this.renderAll();
                 this.toast(this.t('msg_saved'), 'success');
             } catch (e) {
@@ -376,15 +505,31 @@
             }
         }
 
-        async reloadProforma() {
+        async reloadProforma(options = {}) {
+            const seq = ++this._reloadSeq;
+            const preservePackingRows = options.preservePackingRows !== false;
+            const silent = options.silent !== false;
+
             try {
                 const res = await jsonRpc('/supplier/api/v2/reload', { token: this.token });
-                if (res.success && res.proforma) {
-                    this.proforma = res.proforma;
-                    this.packingRows = {};
+
+                if (seq < this._lastAppliedReloadSeq) {
+                    return res;
                 }
+
+                this._lastAppliedReloadSeq = seq;
+
+                if (res.success && res.proforma) {
+                    this._applyServerProforma(res.proforma, { preservePackingRows });
+                }
+
+                return res;
             } catch (e) {
+                if (!silent) {
+                    this.toast(this.t('msg_error') + e.message, 'error');
+                }
                 console.error('[Portal] reloadProforma ERROR:', e.message);
+                return { success: false, message: e.message };
             }
         }
 
@@ -417,7 +562,7 @@
             try {
                 const res = await jsonRpc('/supplier/api/v2/complete', { token: this.token });
                 if (res.success) {
-                    await this.reloadProforma();
+                    await this.reloadProforma({ preservePackingRows: true });
                     this.renderAll();
                     this.toast(this.t('msg_saved'), 'success');
                 } else {

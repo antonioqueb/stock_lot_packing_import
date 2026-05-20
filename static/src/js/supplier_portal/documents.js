@@ -17,9 +17,7 @@
         { key: 'fumigation', label_en: 'Fumigation Certificate', label_es: 'Comprobante de Fumigacion', label_zh: '熏蒸证书', required: false, accept: '.pdf', icon: 'fa-leaf' },
     ];
 
-    
-
-    M.constants.DOC_TYPES = { SHIPMENT_DOC_TYPES, SHIPMENT_EXTRA_DOC_TYPES};
+    M.constants.DOC_TYPES = { SHIPMENT_DOC_TYPES, SHIPMENT_EXTRA_DOC_TYPES };
 
     /**
      * Extracts DPI from a PDF file using image metadata heuristics.
@@ -83,37 +81,37 @@
         //  PROGRESS BAR
         // =================================================================
 
-            renderProgressBar() {
-                const bar = document.getElementById('progress-bar-container');
-                if (!bar) return;
+        renderProgressBar() {
+            const bar = document.getElementById('progress-bar-container');
+            if (!bar) return;
 
-                const progress = this.proforma.progress || { percent: 0 };
-                const pct = Math.max(0, Math.min(100, progress.percent || 0));
+            const progress = this.proforma.progress || { percent: 0 };
+            const pct = Math.max(0, Math.min(100, progress.percent || 0));
 
-                let color = '#dc2626';
-                if (pct >= 100) {
-                    color = '#16a34a';
-                } else if (pct >= 75) {
-                    color = '#65a30d';
-                } else if (pct >= 50) {
-                    color = '#d97706';
-                } else if (pct >= 25) {
-                    color = '#2563eb';
-                }
+            let color = '#dc2626';
+            if (pct >= 100) {
+                color = '#16a34a';
+            } else if (pct >= 75) {
+                color = '#65a30d';
+            } else if (pct >= 50) {
+                color = '#d97706';
+            } else if (pct >= 25) {
+                color = '#2563eb';
+            }
 
-                const fill = bar.querySelector('.portal-progress-fill');
-                if (!fill) return;
+            const fill = bar.querySelector('.portal-progress-fill');
+            if (!fill) return;
 
-                fill.style.width = `${pct}%`;
-                fill.style.background = color;
-            },
+            fill.style.width = `${pct}%`;
+            fill.style.background = color;
+        },
 
         // =================================================================
         //  DOCUMENTS TAB (per shipment)
         // =================================================================
 
         renderDocumentsTab(el, s) {
-            const docs = s.documents || [];
+            const docs = this._getDisplayDocuments ? this._getDisplayDocuments(s) : (s.documents || []);
             const lang = this.currentLang;
 
             let html = '';
@@ -157,28 +155,64 @@
 
         _renderDocSlot(dt, uploadedDocs, shipmentId, proformaId, lang) {
             const label = getDocLabel(dt.key, lang);
-            const hasDoc = uploadedDocs.length > 0;
+            const hasServerDoc = uploadedDocs.some(d => !d._pending && !d._error && !d._deleting);
+            const hasPendingDoc = uploadedDocs.some(d => d._pending || d._deleting);
+            const hasErrorDoc = uploadedDocs.some(d => d._error);
+            const hasDoc = hasServerDoc || hasPendingDoc;
             const isRequired = dt.required !== false;
 
-            const borderColor = hasDoc ? '#bbf7d0' : (isRequired ? '#fecaca' : '#e5e5e5');
-            const bgColor = hasDoc ? '#f0fdf4' : (isRequired ? '#fef2f2' : '#fafafa');
+            const borderColor = hasServerDoc
+                ? '#bbf7d0'
+                : hasPendingDoc
+                    ? '#fde68a'
+                    : hasErrorDoc
+                        ? '#fecaca'
+                        : (isRequired ? '#fecaca' : '#e5e5e5');
+            const bgColor = hasServerDoc
+                ? '#f0fdf4'
+                : hasPendingDoc
+                    ? '#fffbeb'
+                    : hasErrorDoc
+                        ? '#fef2f2'
+                        : (isRequired ? '#fef2f2' : '#fafafa');
 
-            const statusIcon = hasDoc
+            const statusIcon = hasServerDoc
                 ? '<i class="fa fa-check-circle" style="color:#16a34a;font-size:1rem;"></i>'
-                : (isRequired
-                    ? '<i class="fa fa-exclamation-circle" style="color:#dc2626;font-size:1rem;"></i>'
-                    : '<i class="fa fa-circle-o" style="color:#999;font-size:1rem;"></i>');
+                : hasPendingDoc
+                    ? '<i class="fa fa-spinner fa-spin" style="color:#d97706;font-size:1rem;"></i>'
+                    : (isRequired
+                        ? '<i class="fa fa-exclamation-circle" style="color:#dc2626;font-size:1rem;"></i>'
+                        : '<i class="fa fa-circle-o" style="color:#999;font-size:1rem;"></i>');
 
             let docsHtml = '';
             uploadedDocs.forEach(doc => {
-                docsHtml += `<div style="display:inline-flex;align-items:center;gap:4px;font-size:0.75rem;color:#16a34a;background:#dcfce7;padding:3px 8px;border-radius:12px;border:1px solid #bbf7d0;margin:2px;">
-                    <i class="fa fa-file-pdf-o"></i>
-                    <span>${esc(doc.name)}</span>
+                const pending = !!doc._pending;
+                const deleting = !!doc._deleting;
+                const failed = !!doc._error;
+                const chipColor = failed ? '#dc2626' : pending || deleting ? '#d97706' : '#16a34a';
+                const chipBg = failed ? '#fef2f2' : pending || deleting ? '#fffbeb' : '#dcfce7';
+                const chipBorder = failed ? '#fecaca' : pending || deleting ? '#fde68a' : '#bbf7d0';
+                const icon = failed
+                    ? 'fa-exclamation-triangle'
+                    : pending || deleting
+                        ? 'fa-spinner fa-spin'
+                        : 'fa-file-pdf-o';
+                const status = failed
+                    ? (doc._error_message ? ` — ${esc(doc._error_message)}` : '')
+                    : pending
+                        ? (lang === 'es' ? ' — subiendo' : lang === 'zh' ? ' — 上传中' : ' — uploading')
+                        : deleting
+                            ? (lang === 'es' ? ' — eliminando' : lang === 'zh' ? ' — 删除中' : ' — deleting')
+                            : '';
+
+                docsHtml += `<div style="display:inline-flex;align-items:center;gap:4px;font-size:0.75rem;color:${chipColor};background:${chipBg};padding:3px 8px;border-radius:12px;border:1px solid ${chipBorder};margin:2px;max-width:100%;">
+                    <i class="fa ${icon}"></i>
+                    <span style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(doc.name)}${status}</span>
                     ${doc.dpi_value ? '<span style="color:#888;">[' + doc.dpi_value + ' DPI]</span>' : ''}
-                    <button type="button" class="btn-delete-doc" data-doc-id="${doc.id}"
+                    ${(!pending && !failed && !deleting && doc.id) ? `<button type="button" class="btn-delete-doc" data-doc-id="${doc.id}"
                         style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:0.75rem;padding:0 2px;" title="Eliminar">
                         <i class="fa fa-times"></i>
-                    </button>
+                    </button>` : ''}
                 </div>`;
             });
 
@@ -208,6 +242,25 @@
                         ${dt.multiple ? 'multiple' : ''}/>
                 </label>
             </div>`;
+        },
+
+        _refreshDocumentsUI(shipmentId) {
+            const freshS = this._getFreshShipment ? this._getFreshShipment(shipmentId) : null;
+            const shipment = freshS || (this.proforma.shipments || []).find(s => s.id === shipmentId);
+            if (!shipment) return;
+
+            const block = document.querySelector(`.shipment-block[data-shipment-id="${shipmentId}"]`);
+            if (block) {
+                this.updateShipmentBlockHeader(block, shipment);
+                this._updateShipmentBodyRef?.(shipmentId, shipment);
+            }
+
+            const el = document.getElementById(`stab-documents-${shipmentId}`);
+            if (el && el.classList.contains('active')) {
+                this.renderDocumentsTab(el, shipment);
+            }
+
+            this.renderProgressBar();
         },
 
         // =================================================================
@@ -245,19 +298,52 @@
                     if (!confirm(msg)) return;
 
                     const docId = parseInt(btn.dataset.docId, 10);
+                    const shipmentId = parseInt(btn.closest('.doc-slot')?.querySelector('.doc-file-input')?.dataset.shipmentId, 10) || defaultShipmentId;
+
+                    const shipment = this._getFreshShipment ? this._getFreshShipment(shipmentId) : (this.proforma.shipments || []).find(s => s.id === shipmentId);
+                    let removedDoc = null;
+                    let removedIdx = -1;
+
+                    // LIVE-PORTAL-003:
+                    // Eliminación optimista: se marca inmediatamente para que el usuario
+                    // no tenga que esperar el roundtrip del backend.
+                    if (shipment && Array.isArray(shipment.documents)) {
+                        removedIdx = shipment.documents.findIndex(d => parseInt(d.id, 10) === docId);
+                        if (removedIdx >= 0) {
+                            removedDoc = { ...shipment.documents[removedIdx] };
+                            shipment.documents[removedIdx] = {
+                                ...shipment.documents[removedIdx],
+                                _deleting: true,
+                            };
+                            this._refreshDocumentsUI(shipmentId);
+                        }
+                    }
+
                     try {
                         const res = await jsonRpc('/supplier/api/v2/delete_document', {
                             token: this.token,
                             document_id: docId,
                         });
+
                         if (res.success) {
-                            this.toast(this.t('msg_saved'), 'success');
-                            await this.reloadProforma();
+                            if (shipment && Array.isArray(res.documents)) {
+                                shipment.documents = res.documents;
+                            }
+                            await this.reloadProforma({ preservePackingRows: true });
                             this.renderAll();
+                            this.toast(this.t('msg_saved'), 'success');
                         } else {
+                            if (shipment && removedDoc && removedIdx >= 0) {
+                                shipment.documents[removedIdx] = removedDoc;
+                                this._refreshDocumentsUI(shipmentId);
+                            }
                             this.toast(this.t('msg_error') + (res.message || ''), 'error');
                         }
                     } catch (e) {
+                        if (shipment && removedDoc && removedIdx >= 0) {
+                            shipment.documents[removedIdx] = removedDoc;
+                            this._refreshDocumentsUI(shipmentId);
+                        }
                         this.toast(this.t('msg_error') + e.message, 'error');
                     }
                 });
@@ -300,12 +386,32 @@
                 dpiValue = await estimatePdfDpi(file);
             }
 
+            const pendingId = this.makeClientId ? this.makeClientId('doc') : `doc_${Date.now()}`;
+            const pendingDoc = {
+                id: pendingId,
+                _client_id: pendingId,
+                _pending: true,
+                document_type: docType,
+                name: file.name,
+                file_size: file.size || 0,
+                mime_type: file.type || '',
+                dpi_value: dpiValue || 0,
+                upload_token: '',
+                notes: '',
+            };
+
+            // LIVE-PORTAL-002:
+            // UI optimista: el documento aparece en la pestaña en cuanto el usuario lo
+            // selecciona. Si el backend falla, el chip cambia a error en lugar de
+            // desaparecer silenciosamente.
+            if (shipmentId) {
+                this._addPendingDocument?.(shipmentId, pendingDoc);
+                this._refreshDocumentsUI(shipmentId);
+            }
+
             try {
                 const fileData = await readFileAsBase64(file);
 
-                // IMPORTANT: parameter names must match controller's _get_params() expectations:
-                //   file_name, file_data, file_size, mime_type, dpi_value
-                // readFileAsBase64 returns {name, data} — we extract .data for the base64 string
                 const res = await jsonRpc('/supplier/api/v2/upload_document', {
                     token: this.token,
                     shipment_id: shipmentId || false,
@@ -317,14 +423,34 @@
                     dpi_value: dpiValue || 0,
                     notes: '',
                 });
+
                 if (res.success) {
-                    this.toast(this.t('msg_saved'), 'success');
-                    await this.reloadProforma();
+                    this._removePendingDocument?.(shipmentId, pendingId);
+
+                    const shipment = this._getFreshShipment ? this._getFreshShipment(shipmentId) : (this.proforma.shipments || []).find(s => s.id === shipmentId);
+                    if (shipment && Array.isArray(res.documents)) {
+                        shipment.documents = res.documents;
+                    }
+
+                    await this.reloadProforma({ preservePackingRows: true });
                     this.renderAll();
+                    this.toast(this.t('msg_saved'), 'success');
                 } else {
+                    this._updatePendingDocument?.(shipmentId, pendingId, {
+                        _pending: false,
+                        _error: true,
+                        _error_message: res.message || '',
+                    });
+                    this._refreshDocumentsUI(shipmentId);
                     this.toast(this.t('msg_error') + (res.message || ''), 'error');
                 }
             } catch (e) {
+                this._updatePendingDocument?.(shipmentId, pendingId, {
+                    _pending: false,
+                    _error: true,
+                    _error_message: e.message || '',
+                });
+                this._refreshDocumentsUI(shipmentId);
                 this.toast(this.t('msg_error') + e.message, 'error');
             }
         },

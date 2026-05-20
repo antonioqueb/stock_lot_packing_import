@@ -183,8 +183,8 @@
             var tabCounts = {
                 containers: (s.containers || []).length,
                 invoices: (s.invoices || []).length,
-                packings: (s.packings || []).length,
-                documents: shipDocs.length,
+                packings: (this._getDisplayPackings ? this._getDisplayPackings(s) : (s.packings || [])).length,
+                documents: (this._getDisplayDocuments ? this._getDisplayDocuments(s) : shipDocs).length,
             };
 
             var tabsHtml = '<div class="shipment-tabs">';
@@ -198,8 +198,9 @@
                 var extraClass = '';
                 if (name === 'documents') {
                     var req = ['bl', 'invoice', 'packing_list'];
+                    var displayDocs = this._getDisplayDocuments ? this._getDisplayDocuments(s) : shipDocs;
                     for (var ri = 0; ri < req.length; ri++) {
-                        if (!shipDocs.find(function (d) { return d.document_type === req[ri]; })) {
+                        if (!displayDocs.find(function (d) { return d.document_type === req[ri] && !d._error && !d._deleting; })) {
                             extraClass = ' tab-warning'; break;
                         }
                     }
@@ -436,7 +437,7 @@
                         await jsonRpc('/supplier/api/v2/save_invoices', {
                             token: self.token, shipment_id: s.id, invoices: buildPayload(),
                         });
-                        await self.reloadProforma();
+                        await self.reloadProforma({ preservePackingRows: true });
                         self.renderAll();
                         self.toast(self.t('msg_saved'), 'success');
                     } catch (e) {
@@ -531,7 +532,7 @@
                         await jsonRpc('/supplier/api/v2/save_containers', {
                             token: self.token, shipment_id: s.id, containers: buildPayload(),
                         });
-                        await self.reloadProforma();
+                        await self.reloadProforma({ preservePackingRows: true });
                         self.renderAll();
                         self.toast(self.t('msg_saved'), 'success');
                     } catch (e) {
@@ -541,8 +542,30 @@
             });
         },
 
+        _refreshPackingsUI(shipmentId) {
+            const freshS = this._getFreshShipment ? this._getFreshShipment(shipmentId) : null;
+            const shipment = freshS || (this.proforma.shipments || []).find(s => s.id === shipmentId);
+            if (!shipment) return;
+
+            const block = document.querySelector(`.shipment-block[data-shipment-id="${shipmentId}"]`);
+            if (block) {
+                this.updateShipmentBlockHeader(block, shipment);
+                this._updateShipmentBodyRef(shipmentId, shipment);
+            }
+
+            const el = document.getElementById(`stab-packings-${shipmentId}`);
+            if (el && el.classList.contains('active')) {
+                this.renderPackingsTab(el, shipment);
+            }
+
+            this.updateFooterTotals();
+            this.renderProgressBar();
+        },
+
         renderPackingsTab(el, s) {
-            var packings = s.packings || [];
+            var serverPackings = s.packings || [];
+            var pendingPackings = this._getPendingPackings ? this._getPendingPackings(s.id) : [];
+            var packings = serverPackings.concat(pendingPackings);
             var self = this;
             var html = '';
 
@@ -560,13 +583,15 @@
 
             el.querySelectorAll('.btn-delete-pk').forEach(function (btn) {
                 btn.addEventListener('click', async function () {
+                    const pkId = btn.dataset.pkId;
+                    if (String(pkId || '').indexOf('pk_') === 0 || String(pkId || '').indexOf('tmp') === 0) return;
                     if (!confirm(self.t('msg_confirm_delete'))) return;
                     try {
                         await jsonRpc('/supplier/api/v2/delete_packing', {
                             token: self.token,
-                            packing_id: parseInt(btn.dataset.pkId, 10),
+                            packing_id: parseInt(pkId, 10),
                         });
-                        await self.reloadProforma();
+                        await self.reloadProforma({ preservePackingRows: true });
                         self.renderAll();
                         self.toast(self.t('msg_saved'), 'success');
                     } catch (e) {
@@ -576,6 +601,7 @@
             });
 
             packings.forEach(function (pk) {
+                if (pk._pending || pk._error) return;
                 var pkCard = el.querySelector('.packing-card[data-packing-id="' + pk.id + '"]');
                 if (!pkCard) return;
 
@@ -620,9 +646,13 @@
                                 try {
                                     var reload = await jsonRpc('/supplier/api/v2/reload', { token: self.token });
                                     if (reload.success && reload.proforma) {
-                                        var savedRows = Object.assign({}, self.packingRows);
-                                        self.proforma = reload.proforma;
-                                        self.packingRows = savedRows;
+                                        if (typeof self._applyServerProforma === 'function') {
+                                            self._applyServerProforma(reload.proforma, { preservePackingRows: true });
+                                        } else {
+                                            var savedRows = Object.assign({}, self.packingRows);
+                                            self.proforma = reload.proforma;
+                                            self.packingRows = savedRows;
+                                        }
                                         var freshS = self._getFreshShipment(s.id);
                                         if (freshS) {
                                             Object.assign(s, freshS);
@@ -649,6 +679,7 @@
             });
 
             packings.forEach(function (pk) {
+                if (pk._pending || pk._error) return;
                 var area = document.getElementById('pk-rows-' + pk.id);
                 if (area) self.renderPackingRows(area, pk, s);
             });
@@ -666,11 +697,46 @@
 
         _packingCard(pk, idx, s) {
             var rowCount = (pk.rows || []).length;
+            var isPending = !!pk._pending;
+            var isError = !!pk._error;
+            var title = esc(pk.packing_number) || 'Packing #' + (idx + 1);
+
+            if (isPending || isError) {
+                var statusColor = isError ? '#dc2626' : '#d97706';
+                var statusBg = isError ? '#fef2f2' : '#fffbeb';
+                var statusBorder = isError ? '#fecaca' : '#fde68a';
+                var icon = isError ? 'fa-exclamation-triangle' : 'fa-spinner fa-spin';
+                var message = isError
+                    ? (pk._error_message || (this.currentLang === 'es' ? 'No se pudo crear el Packing List.' : 'Could not create the Packing List.'))
+                    : (this.currentLang === 'es'
+                        ? 'Creando Packing List en el backend. Ya se muestra para evitar que el usuario piense que no respondió.'
+                        : this.currentLang === 'zh'
+                            ? '正在后端创建装箱单。界面已立即显示。'
+                            : 'Creating Packing List in backend. It is already visible in the interface.');
+
+                return `<div class="sub-item-card packing-card packing-card-pending" data-packing-id="${pk.id}" style="border-color:${statusBorder};background:${statusBg};">
+                    <div class="sub-item-header">
+                        <div style="display:flex;align-items:center;gap:10px;">
+                            <span class="sub-item-title">
+                                ${title}
+                                <small class="text-muted">(0 rows)</small>
+                            </span>
+                            <span class="pk-autosave-indicator pk-autosave-${isError ? 'error' : 'saving'}" style="font-size:0.74rem;color:${statusColor};">
+                                <i class="fa ${icon}"></i> ${isError ? 'Error' : (this.currentLang === 'es' ? 'Creando' : 'Creating')}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="info-hint" style="margin-top:0;background:#fff;border-color:${statusBorder};color:${statusColor};">
+                        <i class="fa ${icon}"></i> ${esc(message)}
+                    </div>
+                </div>`;
+            }
+
             return `<div class="sub-item-card packing-card" data-packing-id="${pk.id}">
                 <div class="sub-item-header">
                     <div style="display:flex;align-items:center;gap:10px;">
                         <span class="sub-item-title">
-                            ${esc(pk.packing_number) || 'Packing #' + (idx + 1)}
+                            ${title}
                             <small class="text-muted">(${rowCount} rows)</small>
                         </span>
                         <span class="pk-autosave-indicator pk-autosave-idle" style="font-size:0.74rem;">
@@ -698,6 +764,26 @@
         },
 
         async createPacking(s) {
+            const tempId = this.makeClientId ? this.makeClientId('pk') : `pk_${Date.now()}`;
+
+            // LIVE-PORTAL-004:
+            // Alta optimista de Packing List. El usuario ve el nuevo PL de inmediato;
+            // al confirmar backend se reemplaza por el registro real y se abre el setup.
+            this._addPendingPacking?.(s.id, {
+                id: tempId,
+                _client_id: tempId,
+                _pending: true,
+                packing_number: '',
+                packing_date: '',
+                scope: 'full_shipment',
+                container_ids: [],
+                row_count: 0,
+                rows: [],
+            });
+
+            this.activeTabByShipment[s.id] = 'packings';
+            this._refreshPackingsUI(s.id);
+
             try {
                 var res = await jsonRpc('/supplier/api/v2/save_packing', {
                     token: this.token,
@@ -705,14 +791,38 @@
                     packing_data: { packing_number: '', scope: 'full_shipment' },
                     rows: [],
                 });
+
                 if (res.success) {
+                    this._removePendingPacking?.(s.id, tempId);
                     this.autoOpenPackingSetupId = res.packing_id;
-                    await this.reloadProforma();
+
+                    const reloadRes = await this.reloadProforma({ preservePackingRows: true });
+                    if ((!reloadRes || reloadRes.success === false) && res.packing) {
+                        const targetShipment = this._getFreshShipment?.(s.id) || s;
+                        targetShipment.packings = targetShipment.packings || [];
+                        if (!targetShipment.packings.find(pk => pk.id === res.packing.id)) {
+                            targetShipment.packings.push(res.packing);
+                        }
+                    }
+
                     this.renderAll();
                     this.toast(this.t('msg_saved'), 'success');
+                } else {
+                    throw new Error(res.message || 'No se pudo crear el Packing List.');
                 }
             } catch (e) {
+                this._updatePendingPacking?.(s.id, tempId, {
+                    _pending: false,
+                    _error: true,
+                    _error_message: e.message || '',
+                });
+                this._refreshPackingsUI(s.id);
                 this.toast(this.t('msg_error') + e.message, 'error');
+
+                setTimeout(() => {
+                    this._removePendingPacking?.(s.id, tempId);
+                    this._refreshPackingsUI(s.id);
+                }, 4500);
             }
         },
 
@@ -735,7 +845,7 @@
                 if (res && res.success) {
                     delete this.packingRows[rowsKey];
                     delete this.packingSetupState[packingId];
-                    await this.reloadProforma();
+                    await this.reloadProforma({ preservePackingRows: true });
                     this.renderAll();
                     this.toast(this.t('msg_saved'), 'success');
                 } else if (res) {
