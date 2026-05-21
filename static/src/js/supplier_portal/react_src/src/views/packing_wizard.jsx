@@ -1,0 +1,528 @@
+/* global React, Icon, Field, Input, Select, Textarea, Btn, Badge, Callout, Empty, Imgph */
+
+/* =================================================================
+   Packing Wizard — 4 steps
+   1) Select product(s)
+   2) Configure blocks (name, count, photo)
+   3) Review structure (visual preview)
+   4) Fill spreadsheet
+   ================================================================= */
+
+const WIZARD_STEPS = [
+  { id: 1, label: 'Productos' },
+  { id: 2, label: 'Bloques + fotos' },
+  { id: 3, label: 'Revisión' },
+  { id: 4, label: 'Llenar placas' },
+];
+
+const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampleRows }) => {
+  const ship = proforma.shipments.find(s => s.id === shipmentId);
+  const existing = packingId ? ship.packings.find(p => p.id === packingId) : null;
+
+  // determine starting step: if editing and already has rows, jump to step 4
+  const initialStep = existing ? (existing.rows_filled > 0 ? 4 : 3) : 1;
+  const [step, setStep] = React.useState(initialStep);
+
+  const [draft, setDraft] = React.useState(() => existing ? {
+    number: existing.number,
+    date:   existing.date,
+    products: existing.products,
+    blocks: existing.blocks.map(b => ({ ...b })),
+  } : {
+    number: 'PK-' + new Date().getFullYear() + '-' + Math.floor(Math.random() * 900 + 100),
+    date: new Date().toISOString().slice(0, 10),
+    products: [],
+    blocks: [],
+  });
+
+  // rows for spreadsheet (only used in step 4)
+  const [rows, setRows] = React.useState(() => existing && existing.id === 'pk1' ? [...sampleRows] : []);
+  // generate empty rows from blocks if rows is empty when entering step 4
+  React.useEffect(() => {
+    if (step === 4 && rows.length === 0 && draft.blocks.length > 0) {
+      const generated = [];
+      draft.blocks.forEach((b, bi) => {
+        for (let i = 0; i < b.count; i++) {
+          generated.push({
+            id: `r-${b.id}-${i}`,
+            block: b.name, atado: `A-${String(bi+1).padStart(2,'0')}`,
+            plate: `P-${String(generated.length + 1).padStart(3, '0')}`,
+            ref: '', thickness: 2, h: 0, w: 0, notes: '', container: '', photo: false, errors: [],
+            blockStart: i === 0,
+          });
+        }
+      });
+      setRows(generated);
+    }
+  }, [step]);
+
+  const canNext = () => {
+    if (step === 1) return draft.products.length > 0;
+    if (step === 2) return draft.blocks.length > 0 && draft.blocks.every(b => b.name && b.count > 0);
+    return true;
+  };
+
+  return (
+    <div className="modal-scrim" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="modal" style={{maxWidth: step === 4 ? 1280 : 880}}>
+        <div className="modal-head">
+          <div>
+            <div style={{fontSize: 11, fontWeight: 600, color: 'var(--ink-4)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6}}>
+              Embarque #{ship.number} · {existing ? 'Editar' : 'Nuevo'} packing list
+            </div>
+            <h2>{step === 1 ? 'Para empezar, ¿qué producto vas a empacar?' :
+                 step === 2 ? 'Configura los bloques' :
+                 step === 3 ? 'Revisa la estructura antes de capturar' :
+                 'Captura placa por placa'}</h2>
+            <p className="sub">
+              {step === 1 && 'Selecciona uno o más productos de la PO. Cada packing list puede incluir varios productos.'}
+              {step === 2 && 'Un bloque agrupa placas que vienen del mismo bloque de cantera. Define cuántas placas hay en cada uno.'}
+              {step === 3 && 'Confirmamos cuántas filas vamos a generar. Si algo no cuadra, regresa al paso anterior.'}
+              {step === 4 && 'Las filas ya están creadas. Solo llena las dimensiones de cada placa y asigna su contenedor.'}
+            </p>
+          </div>
+          <button className="icon-btn" onClick={onClose} aria-label="Cerrar"><Icon name="x" size={16}/></button>
+        </div>
+
+        <div className="modal-body" style={{background: step === 4 ? 'var(--bg)' : 'var(--surface)'}}>
+          <div className="stepper">
+            {WIZARD_STEPS.map((s, i) => (
+              <React.Fragment key={s.id}>
+                <div className={`step ${step === s.id ? 'active' : step > s.id ? 'done' : ''}`}>
+                  <span className="n">{step > s.id ? <Icon name="check" size={12}/> : s.id}</span>
+                  <span>{s.label}</span>
+                </div>
+                {i < WIZARD_STEPS.length - 1 && <span className="step-sep"/>}
+              </React.Fragment>
+            ))}
+          </div>
+
+          {step === 1 && <Step1Products proforma={proforma} draft={draft} setDraft={setDraft}/>}
+          {step === 2 && <Step2Blocks proforma={proforma} draft={draft} setDraft={setDraft}/>}
+          {step === 3 && <Step3Review proforma={proforma} draft={draft}/>}
+          {step === 4 && <Step4Sheet proforma={proforma} draft={draft} rows={rows} setRows={setRows} ship={ship}/>}
+        </div>
+
+        <div className="modal-foot">
+          <div>
+            {step > 1 && step < 4 && <Btn variant="ghost" icon="arrow_left" onClick={() => setStep(step - 1)}>Anterior</Btn>}
+          </div>
+          <div style={{display: 'flex', gap: 8, alignItems: 'center'}}>
+            <span className="text-muted text-small">
+              {step === 4 && (
+                <span><Icon name="check" size={11}/> Autoguardado · hace un momento</span>
+              )}
+            </span>
+            {step < 3 && (
+              <Btn variant="primary" iconRight="arrow_right" disabled={!canNext()} onClick={() => setStep(step + 1)}>
+                Siguiente: {WIZARD_STEPS[step].label}
+              </Btn>
+            )}
+            {step === 3 && (
+              <React.Fragment>
+                <Btn variant="ghost" onClick={() => setStep(2)}>Ajustar bloques</Btn>
+                <Btn variant="accent" icon="sparkles" onClick={() => setStep(4)}>
+                  Generar {draft.blocks.reduce((a,b) => a + b.count, 0)} filas
+                </Btn>
+              </React.Fragment>
+            )}
+            {step === 4 && (
+              <Btn variant="primary" icon="check" onClick={onClose}>Listo, volver al embarque</Btn>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ====================== Step 1 ====================== */
+const Step1Products = ({ proforma, draft, setDraft }) => {
+  const toggle = (id) => {
+    const has = draft.products.includes(id);
+    setDraft({ ...draft, products: has ? draft.products.filter(p => p !== id) : [...draft.products, id] });
+  };
+  return (
+    <div>
+      <div className="fld-row" style={{marginBottom: 18}}>
+        <Field label="No. del Packing" required help="Identifica este documento. Suele ser una variante de la invoice." helpExample="PK-2026-088-A">
+          <Input mono value={draft.number} onChange={(e) => setDraft({...draft, number: e.target.value})}/>
+        </Field>
+        <Field label="Fecha del Packing" required>
+          <Input type="date" value={draft.date} onChange={(e) => setDraft({...draft, date: e.target.value})}/>
+        </Field>
+      </div>
+
+      <div style={{fontSize: 12.5, fontWeight: 600, color: 'var(--ink-3)', letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 10}}>
+        Productos solicitados en esta PO
+      </div>
+
+      <div style={{display: 'flex', flexDirection: 'column', gap: 10}}>
+        {proforma.products.map(p => {
+          const selected = draft.products.includes(p.id);
+          return (
+            <label key={p.id} style={{
+              display: 'flex', alignItems: 'center', gap: 14, padding: 14,
+              border: `1.5px solid ${selected ? 'var(--accent)' : 'var(--border)'}`,
+              background: selected ? 'var(--accent-soft)' : 'var(--surface)',
+              borderRadius: 12, cursor: 'pointer'
+            }}>
+              <input type="checkbox" checked={selected} onChange={() => toggle(p.id)}
+                     style={{width: 18, height: 18, accentColor: 'var(--accent)'}}/>
+              <div style={{width: 56, height: 56, borderRadius: 10, overflow: 'hidden', flexShrink: 0}}>
+                <Imgph style={{width: '100%', height: '100%'}}>{p.kind}</Imgph>
+              </div>
+              <div style={{flex: 1}}>
+                <div style={{display: 'flex', alignItems: 'center', gap: 8}}>
+                  <strong>{p.name}</strong>
+                  <Badge tone="draft" className="mono">{p.ref}</Badge>
+                </div>
+                <div className="text-muted" style={{fontSize: 12.5, marginTop: 2}}>
+                  {p.kind === 'placa' ? 'Placa / Slab' : 'Formato / Tile'} · {p.dim_text}
+                </div>
+              </div>
+              <div style={{textAlign: 'right'}}>
+                <div className="mono" style={{fontWeight: 700, fontSize: 17}}>{p.requested_qty}</div>
+                <div className="text-muted" style={{fontSize: 11}}>{p.unit} solicitados</div>
+              </div>
+            </label>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+/* ====================== Step 2 ====================== */
+const Step2Blocks = ({ proforma, draft, setDraft }) => {
+  const products = proforma.products.filter(p => draft.products.includes(p.id));
+
+  const addBlock = (productId) => {
+    const newBlock = {
+      id: 'b' + Date.now() + Math.random().toString(36).slice(2,6),
+      name: '', count: 0, photo: false, product: productId,
+    };
+    setDraft({ ...draft, blocks: [...draft.blocks, newBlock] });
+  };
+  const updBlock = (id, patch) => setDraft({ ...draft, blocks: draft.blocks.map(b => b.id === id ? { ...b, ...patch } : b) });
+  const delBlock = (id) => setDraft({ ...draft, blocks: draft.blocks.filter(b => b.id !== id) });
+
+  return (
+    <div>
+      <Callout tone="info" icon="info" title="¿Qué es un bloque?">
+        Un bloque es la piedra original de cantera, antes de cortarse. De cada bloque salen varias placas. Si tienes 3 bloques con 18, 16 y 14 placas, este paso generará automáticamente 48 filas para llenar.
+      </Callout>
+
+      <div style={{marginTop: 20, display: 'flex', flexDirection: 'column', gap: 24}}>
+        {products.map(p => {
+          const productBlocks = draft.blocks.filter(b => b.product === p.id);
+          return (
+            <div key={p.id}>
+              <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10}}>
+                <div>
+                  <strong style={{fontSize: 14}}>{p.name}</strong>
+                  <span className="text-muted text-small" style={{marginLeft: 8}}>· {productBlocks.reduce((a,b) => a + (+b.count || 0), 0)} de {p.requested_qty} {p.unit} configurados</span>
+                </div>
+                <Btn variant="secondary" size="sm" icon="plus" onClick={() => addBlock(p.id)}>Agregar bloque</Btn>
+              </div>
+
+              {productBlocks.length === 0 ? (
+                <Empty icon="cube" title="Sin bloques aún" action={
+                  <Btn variant="accent" size="sm" icon="plus" onClick={() => addBlock(p.id)}>Crear primer bloque</Btn>
+                }>
+                  Empieza con uno. Puedes agregar tantos como necesites.
+                </Empty>
+              ) : (
+                <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 12}}>
+                  {productBlocks.map((b, bi) => (
+                    <div key={b.id} className="block-card">
+                      <div className={`block-photo ${b.photo ? 'has-photo' : ''}`}
+                           onClick={() => updBlock(b.id, { photo: !b.photo })}>
+                        {b.photo ? (
+                          <Imgph style={{width: '100%', height: '100%', borderRadius: 8}}>foto bloque</Imgph>
+                        ) : (
+                          <div style={{textAlign: 'center'}}>
+                            <Icon name="camera" size={20}/>
+                            <div style={{fontSize: 10, marginTop: 4, fontWeight: 600}}>Subir foto</div>
+                          </div>
+                        )}
+                      </div>
+                      <div className="block-fields">
+                        <Field label={`Nombre del bloque #${bi + 1}`} required>
+                          <Input mono placeholder="Ej. B-2024-117" value={b.name}
+                                 onChange={(e) => updBlock(b.id, { name: e.target.value })}/>
+                        </Field>
+                        <div className="block-fields-row">
+                          <Field label="Placas / piezas" required>
+                            <Input mono type="number" min={1} value={b.count || ''} placeholder="18"
+                                   onChange={(e) => updBlock(b.id, { count: +e.target.value })}/>
+                          </Field>
+                          <Field label="Estado">
+                            <div style={{display: 'flex', gap: 6, alignItems: 'center', padding: '8px 0'}}>
+                              {b.photo
+                                ? <Badge tone="done"><Icon name="check" size={10}/> Foto OK</Badge>
+                                : <Badge tone="partial"><Icon name="camera" size={10}/> Falta foto</Badge>}
+                              <Btn variant="ghost" size="sm" icon="trash" className="btn-danger-ghost" onClick={() => delBlock(b.id)}/>
+                            </div>
+                          </Field>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+/* ====================== Step 3 ====================== */
+const Step3Review = ({ proforma, draft }) => {
+  const totalPlates = draft.blocks.reduce((a, b) => a + (+b.count || 0), 0);
+  const photosMissing = draft.blocks.filter(b => !b.photo).length;
+  const products = proforma.products.filter(p => draft.products.includes(p.id));
+
+  return (
+    <div>
+      <div style={{display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 24}}>
+        <div style={{padding: 18, border: '1px solid var(--border)', borderRadius: 12, background: 'var(--surface)'}}>
+          <div className="text-muted" style={{fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase', fontWeight: 600, marginBottom: 6}}>Productos</div>
+          <div className="mono" style={{fontSize: 28, fontWeight: 700, letterSpacing: '-0.02em'}}>{products.length}</div>
+        </div>
+        <div style={{padding: 18, border: '1px solid var(--border)', borderRadius: 12, background: 'var(--surface)'}}>
+          <div className="text-muted" style={{fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase', fontWeight: 600, marginBottom: 6}}>Bloques configurados</div>
+          <div className="mono" style={{fontSize: 28, fontWeight: 700, letterSpacing: '-0.02em'}}>{draft.blocks.length}</div>
+        </div>
+        <div style={{padding: 18, border: '1.5px solid var(--accent)', borderRadius: 12, background: 'var(--accent-soft)'}}>
+          <div style={{fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase', fontWeight: 600, marginBottom: 6, color: 'var(--accent)'}}>Filas a generar</div>
+          <div className="mono" style={{fontSize: 28, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--accent)'}}>{totalPlates}</div>
+        </div>
+      </div>
+
+      {photosMissing > 0 && (
+        <Callout tone="warn" icon="alert" title={`${photosMissing} ${photosMissing === 1 ? 'bloque' : 'bloques'} sin foto`}>
+          Puedes continuar y subirlas después, pero el packing list no se considerará completo hasta que cada bloque tenga al menos una foto.
+        </Callout>
+      )}
+
+      <div style={{marginTop: 18}}>
+        <div style={{fontSize: 12.5, fontWeight: 600, color: 'var(--ink-3)', letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 10}}>
+          Estructura del packing
+        </div>
+        <div style={{display: 'flex', flexDirection: 'column', gap: 12}}>
+          {products.map(p => {
+            const pblocks = draft.blocks.filter(b => b.product === p.id);
+            return (
+              <div key={p.id} style={{border: '1px solid var(--border)', borderRadius: 12, padding: 16, background: 'var(--surface)'}}>
+                <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12}}>
+                  <strong>{p.name}</strong>
+                  <span className="mono text-small text-muted">
+                    {pblocks.reduce((a,b) => a + (+b.count || 0), 0)} placas
+                  </span>
+                </div>
+                <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
+                  {pblocks.map(b => (
+                    <div key={b.id} style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      padding: '6px 10px', borderRadius: 8,
+                      background: b.photo ? 'var(--ok-soft)' : 'var(--warn-soft)',
+                      border: `1px solid ${b.photo ? 'var(--ok-border)' : 'var(--warn-border)'}`,
+                      fontSize: 12.5,
+                    }}>
+                      <Icon name={b.photo ? 'check' : 'camera'} size={11}/>
+                      <span className="mono" style={{fontWeight: 600}}>{b.name}</span>
+                      <span className="text-muted" style={{fontSize: 11}}>× {b.count}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ====================== Step 4: Spreadsheet ====================== */
+const Step4Sheet = ({ proforma, draft, rows, setRows, ship }) => {
+  const [filter, setFilter] = React.useState('all');
+  const [activeRow, setActiveRow] = React.useState(null);
+
+  const errors = rows.filter(r => r.errors && r.errors.length > 0);
+  const completeRows = rows.filter(r => r.h > 0 && r.w > 0 && r.container);
+
+  const filtered = filter === 'all' ? rows : filter === 'errors' ? errors : filter === 'empty' ? rows.filter(r => !r.h || !r.w) : rows;
+
+  const updRow = (id, patch) => setRows(rows.map(r => r.id === id ? { ...r, ...patch } : r));
+
+  // PROPAGATION — copy the value of `field` from `sourceId` either to the next row
+  // in the same block, or to every row below it inside the same block.
+  const propagate = (sourceId, field, mode) => {
+    const idx = rows.findIndex(r => r.id === sourceId);
+    if (idx < 0) return;
+    const src = rows[idx];
+    const block = src.block;
+    if (mode === 'next') {
+      for (let i = idx + 1; i < rows.length; i++) {
+        if (rows[i].block === block) {
+          const targetId = rows[i].id;
+          setRows(prev => prev.map(r => r.id === targetId ? { ...r, [field]: src[field] } : r));
+          return;
+        }
+      }
+    } else {
+      const targetIds = new Set();
+      for (let i = idx + 1; i < rows.length; i++) {
+        if (rows[i].block === block) targetIds.add(rows[i].id);
+      }
+      setRows(prev => prev.map(r => targetIds.has(r.id) ? { ...r, [field]: src[field] } : r));
+    }
+  };
+
+  // Helper that decides if propagation is available — needs a value and at least one row below in the same block
+  const canPropagate = (rowId) => {
+    const idx = rows.findIndex(r => r.id === rowId);
+    if (idx < 0) return false;
+    const block = rows[idx].block;
+    for (let i = idx + 1; i < rows.length; i++) if (rows[i].block === block) return true;
+    return false;
+  };
+
+  // Cell wrapper that injects the two propagation buttons
+  const PropCell = ({ rowId, field, children, extra, errClass }) => {
+    const propable = canPropagate(rowId);
+    return (
+      <td className={`${propable ? 'propable' : ''} ${errClass || ''} ${extra || ''}`}>
+        {children}
+        {propable && (
+          <div className="prop-actions" onClick={(e) => e.stopPropagation()}>
+            <button onClick={() => propagate(rowId, field, 'next')} title="Copiar a la siguiente fila del mismo bloque">
+              <Icon name="prop_one" size={13}/>
+            </button>
+            <button onClick={() => propagate(rowId, field, 'all')} title="Copiar a TODAS las filas del mismo bloque (abajo)">
+              <Icon name="prop_all" size={13}/>
+            </button>
+          </div>
+        )}
+      </td>
+    );
+  };
+
+  const containers = ship.containers.map(c => c.number).filter(Boolean);
+
+  return (
+    <div>
+      {/* Summary bar */}
+      <div style={{display: 'flex', alignItems: 'center', gap: 18, marginBottom: 14, flexWrap: 'wrap'}}>
+        <div style={{display: 'flex', alignItems: 'center', gap: 14, padding: '10px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10}}>
+          <div style={{display: 'flex', alignItems: 'center', gap: 6, fontSize: 13}}>
+            <span className="mono" style={{fontWeight: 700, fontSize: 18}}>{completeRows.length}</span>
+            <span className="text-muted">/ {rows.length} completas</span>
+          </div>
+          <div style={{width: 1, height: 16, background: 'var(--border)'}}/>
+          <div style={{display: 'flex', alignItems: 'center', gap: 6, color: errors.length > 0 ? 'var(--danger)' : 'var(--ink-3)', fontSize: 13}}>
+            <Icon name="alert" size={12}/>
+            <span className="mono" style={{fontWeight: 700}}>{errors.length}</span>
+            <span>con errores</span>
+          </div>
+        </div>
+
+        <div className="seg">
+          <button className={filter === 'all' ? 'active' : ''} onClick={() => setFilter('all')}>Todas ({rows.length})</button>
+          <button className={filter === 'errors' ? 'active' : ''} onClick={() => setFilter('errors')}>Errores ({errors.length})</button>
+          <button className={filter === 'empty' ? 'active' : ''} onClick={() => setFilter('empty')}>Sin dimensiones</button>
+        </div>
+
+        <div style={{marginLeft: 'auto', display: 'flex', gap: 8}}>
+          <Btn variant="secondary" icon="download" size="sm">Exportar CSV</Btn>
+          <Btn variant="secondary" icon="upload" size="sm">Pegar de Excel</Btn>
+        </div>
+      </div>
+
+      <div className="sheet">
+        <div className="sheet-scroll">
+          <table className="sheet-table">
+            <thead>
+              <tr>
+                <th style={{width: 30}}>#</th>
+                <th style={{minWidth: 130}}>Bloque</th>
+                <th style={{minWidth: 110}}>Atado</th>
+                <th style={{minWidth: 110}}>No. Placa</th>
+                <th style={{width: 110}}>Grosor cm</th>
+                <th style={{width: 110}}>Alto m</th>
+                <th style={{width: 110}}>Ancho m</th>
+                <th style={{width: 80}}>Área m²</th>
+                <th style={{minWidth: 180}}>Contenedor</th>
+                <th style={{width: 60}}>Foto</th>
+                <th style={{minWidth: 170}}>Notas</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((r, i) => {
+                const area = (r.h && r.w) ? (r.h * r.w).toFixed(2) : '';
+                const noH = !r.h;
+                const noW = !r.w;
+                const noC = !r.container;
+                const isBlockStart = i === 0 || filtered[i-1].block !== r.block;
+                return (
+                  <tr key={r.id} className={`${isBlockStart ? 'block-start' : ''} ${activeRow === r.id ? 'is-active' : ''}`}
+                      onClick={() => setActiveRow(r.id)}>
+                    <td style={{textAlign: 'center', color: 'var(--ink-4)', fontSize: 11}}>{rows.indexOf(r) + 1}</td>
+                    <td className="cell-block"><input value={r.block} onChange={(e) => updRow(r.id, { block: e.target.value })}/></td>
+                    <PropCell rowId={r.id} field="atado">
+                      <input value={r.atado} onChange={(e) => updRow(r.id, { atado: e.target.value })}/>
+                    </PropCell>
+                    <PropCell rowId={r.id} field="plate">
+                      <input value={r.plate} onChange={(e) => updRow(r.id, { plate: e.target.value })}/>
+                    </PropCell>
+                    <PropCell rowId={r.id} field="thickness">
+                      <input type="number" step="0.1" value={r.thickness} onChange={(e) => updRow(r.id, { thickness: +e.target.value })}/>
+                    </PropCell>
+                    <PropCell rowId={r.id} field="h" errClass={noH ? 'is-error' : ''}>
+                      <input type="number" step="0.01" value={r.h || ''} placeholder="0.00"
+                             onChange={(e) => updRow(r.id, { h: +e.target.value })}/>
+                    </PropCell>
+                    <PropCell rowId={r.id} field="w" errClass={noW ? 'is-error' : ''}>
+                      <input type="number" step="0.01" value={r.w || ''} placeholder="0.00"
+                             onChange={(e) => updRow(r.id, { w: +e.target.value })}/>
+                    </PropCell>
+                    <td className="cell-computed"><input readOnly value={area}/></td>
+                    <PropCell rowId={r.id} field="container" errClass={noC ? 'is-error' : ''}>
+                      <select value={r.container} onChange={(e) => updRow(r.id, { container: e.target.value })}>
+                        <option value="">— sin asignar —</option>
+                        {containers.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </PropCell>
+                    <td style={{textAlign: 'center'}}>
+                      <div className={`row-mini-photo ${r.photo ? 'has' : ''}`}
+                           onClick={(e) => { e.stopPropagation(); updRow(r.id, { photo: !r.photo }); }}>
+                        <Icon name={r.photo ? 'check' : 'camera'} size={12}/>
+                      </div>
+                    </td>
+                    <PropCell rowId={r.id} field="notes">
+                      <input placeholder="—" value={r.notes} onChange={(e) => updRow(r.id, { notes: e.target.value })}/>
+                    </PropCell>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <Callout tone="info" icon="sparkles" title="Llena más rápido con propagación">
+        Pasa el cursor sobre cualquier celda y verás <strong>dos íconos a la derecha</strong>:
+        <span style={{display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 6px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 5, fontFamily: 'var(--font-mono)', fontSize: 11, margin: '0 4px'}}><Icon name="prop_one" size={11}/> uno</span>
+        copia el valor a la siguiente fila del mismo bloque ·
+        <span style={{display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 6px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 5, fontFamily: 'var(--font-mono)', fontSize: 11, margin: '0 4px'}}><Icon name="prop_all" size={11}/> todos</span>
+        copia a todas las filas debajo en el mismo bloque. También puedes copiar/pegar desde Excel y usar <kbd style={{padding: '2px 5px', background: 'var(--surface-alt)', border: '1px solid var(--border)', borderRadius: 4, fontFamily: 'var(--font-mono)', fontSize: 11}}>Tab</kbd> entre celdas.
+      </Callout>
+    </div>
+  );
+};
+
+window.PackingWizard = PackingWizard;

@@ -1,29 +1,42 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- PORTAL-REDESIGN-004:
-         Template mínimo para que la nueva app controle toda la estructura visual.
-         El payload sigue llegando desde SupplierPortalProformaService.build_portal_view(). -->
-    <template id="supplier_portal_view" name="Supplier Portal Modern">
+    <!--
+        Portal proveedor — React exacto.
+        Reemplaza el root vanilla/legacy por el root #root que usa el prototipo JSX.
+        El payload de Odoo se mantiene en portal_json y el bundle lo normaliza al formato del prototipo.
+    -->
+    <template id="supplier_portal_view" name="Supplier Portal React Exact">
         <t t-call="web.frontend_layout">
             <t t-set="no_header" t-value="True"/>
             <t t-set="no_footer" t-value="True"/>
 
-            <div id="portal-data-store"
-                 t-att-data-payload="portal_json"
-                 style="display:none;"
-                 data-noncommentable="1"/>
+            <t t-set="head">
+                <link rel="preconnect" href="https://fonts.googleapis.com"/>
+                <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous"/>
+                <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+            </t>
 
-            <div id="supplier-modern-root" class="spm-boot">
-                <div class="spm-loading">
-                    <div class="spm-loading-logo">SG</div>
-                    <div class="spm-loading-text">Cargando portal del proveedor…</div>
+            <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+            <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+
+            <script id="portal-data-store" type="application/json" data-noncommentable="1"><t t-out="portal_json"/></script>
+
+            <div id="root" data-noncommentable="1">
+                <div style="display:grid;place-items:center;min-height:100vh;font-family:'Geist',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#69645f;">
+                    <div style="text-align:center;">
+                        <div style="width:48px;height:48px;border-radius:14px;background:#222;color:white;display:grid;place-items:center;font-weight:700;margin:0 auto 14px;">SG</div>
+                        <div style="font-size:14px;font-weight:500;letter-spacing:0.02em;">Cargando portal del proveedor…</div>
+                    </div>
                 </div>
             </div>
+            <script src="/stock_lot_packing_import/static/src/js/supplier_portal/react_exact.bundle.js"></script>
         </t>
     </template>
 
     <template id="portal_not_found" name="Supplier Portal Not Found">
         <t t-call="web.frontend_layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
             <div class="spm-public-message">
                 <div class="spm-public-card">
                     <h1>Portal no disponible</h1>
@@ -35,6 +48,8 @@
 
     <template id="portal_expired" name="Supplier Portal Expired">
         <t t-call="web.frontend_layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
             <div class="spm-public-message">
                 <div class="spm-public-card">
                     <h1>Enlace expirado</h1>
