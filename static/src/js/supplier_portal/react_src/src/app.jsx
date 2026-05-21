@@ -57,6 +57,12 @@ function App() {
   }, [t.density]);
 
   const lang = t.lang || 'es';
+  // Sync the module-level language used by the React.createElement monkey-patch
+  // (defined in i18n.jsx) so every literal Spanish child string and props
+  // (title/placeholder/alt/aria-label) gets auto-translated on each render.
+  if (typeof window !== 'undefined' && typeof window.__setLang === 'function') {
+    window.__setLang(lang);
+  }
   const tFn = (k) => (I18N[lang] && I18N[lang][k]) || (I18N.es[k]) || k;
 
   const openPackingWizard = (shipmentId, packingId) => setPackingWiz({ shipmentId, packingId });
@@ -90,7 +96,7 @@ function App() {
             </span>
 
             <div className="lang-pill" role="tablist" aria-label="Idioma">
-              {['es','en','zh'].map(l => (
+              {['es','en','zh','it','pt'].map(l => (
                 <button key={l} className={lang === l ? 'active' : ''} onClick={() => setTweak({ lang: l })}>
                   {l === 'zh' ? '中' : l.toUpperCase()}
                 </button>
@@ -141,7 +147,7 @@ function App() {
         <TweaksPanel title="Tweaks">
           <TweakSection label="Idioma & branding">
             <TweakRadio label="Idioma" value={t.lang} onChange={(v) => setTweak({ lang: v })}
-                        options={[{value:'es',label:'ES'},{value:'en',label:'EN'},{value:'zh',label:'中'}]}/>
+                        options={[{value:'es',label:'ES'},{value:'en',label:'EN'},{value:'zh',label:'中'},{value:'it',label:'IT'},{value:'pt',label:'PT'}]}/>
             <TweakColor label="Acento" value={t.accent} options={ACCENT_OPTIONS} onChange={(v) => setTweak({ accent: v })}/>
             <TweakRadio label="Densidad" value={t.density} onChange={(v) => setTweak({ density: v })}
                         options={[{value:'comfortable',label:'Cómoda'},{value:'compact',label:'Compacta'}]}/>

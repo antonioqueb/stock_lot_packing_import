@@ -414,6 +414,100 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship }) => {
 
   const containers = ship.containers.map(c => c.number).filter(Boolean);
 
+  // ---- Excel-compatible CSV export & paste ----
+  const COL_DEFS = [
+    { header: '#',          field: null,        type: 'index'  },
+    { header: 'Bloque',     field: 'block',     type: 'string' },
+    { header: 'Atado',      field: 'atado',     type: 'string' },
+    { header: 'No. Placa',  field: 'plate',     type: 'string' },
+    { header: 'Grosor cm',  field: 'thickness', type: 'number' },
+    { header: 'Alto m',     field: 'h',         type: 'number' },
+    { header: 'Ancho m',    field: 'w',         type: 'number' },
+    { header: 'Contenedor', field: 'container', type: 'string' },
+    { header: 'Notas',      field: 'notes',     type: 'string' },
+  ];
+
+  const exportCSV = () => {
+    if (rows.length === 0) return;
+    const escape = (v) => {
+      const s = v === null || v === undefined ? '' : String(v);
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const lines = [COL_DEFS.map(c => escape(c.header)).join(',')];
+    rows.forEach((r, i) => {
+      lines.push(COL_DEFS.map(c => escape(c.type === 'index' ? i + 1 : r[c.field])).join(','));
+    });
+    const csv = '﻿' + lines.join('\n'); // BOM para que Excel abra UTF-8
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `packing_${draft.number || 'list'}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const [pasteOpen, setPasteOpen] = React.useState(false);
+  const [pasteText, setPasteText] = React.useState('');
+
+  const parsePaste = (text) => {
+    const clean = (text || '').replace(/\r\n?/g, '\n').replace(/^\n+|\n+$/g, '');
+    if (!clean) return { hasHeaders: false, dataRows: [], mapping: [], indexCol: -1 };
+    const grid = clean.split('\n').map(l => l.split('\t'));
+    const known = COL_DEFS.reduce((acc, c) => { acc[c.header.toLowerCase()] = c; return acc; }, {});
+    const firstLower = grid[0].map(c => c.trim().toLowerCase());
+    const matches = firstLower.filter(c => known[c]).length;
+    let mapping, dataRows, hasHeaders;
+    if (matches >= 2) {
+      hasHeaders = true;
+      mapping = firstLower.map(c => known[c] || null);
+      dataRows = grid.slice(1);
+    } else {
+      hasHeaders = false;
+      mapping = COL_DEFS.slice(0, grid[0].length);
+      dataRows = grid;
+    }
+    const indexCol = mapping.findIndex(m => m && m.type === 'index');
+    return { hasHeaders, dataRows, mapping, indexCol };
+  };
+
+  const pastePreview = pasteText ? parsePaste(pasteText) : null;
+
+  const applyPaste = () => {
+    const p = parsePaste(pasteText);
+    if (p.dataRows.length === 0) return;
+    const updates = new Map();
+    p.dataRows.forEach((cells, ri) => {
+      let targetIdx;
+      if (p.indexCol >= 0 && cells[p.indexCol] != null && cells[p.indexCol].trim() !== '') {
+        const n = parseInt(cells[p.indexCol], 10);
+        if (!isNaN(n)) targetIdx = n - 1;
+      }
+      if (targetIdx === undefined) targetIdx = ri;
+      if (targetIdx < 0 || targetIdx >= rows.length) return;
+
+      const patch = {};
+      p.mapping.forEach((def, ci) => {
+        if (!def || def.type === 'index') return;
+        const raw = (cells[ci] || '').trim();
+        if (raw === '') return;
+        if (def.type === 'number') {
+          const n = parseFloat(raw.replace(/\s/g, '').replace(',', '.'));
+          if (!isNaN(n)) patch[def.field] = n;
+        } else {
+          patch[def.field] = raw;
+        }
+      });
+      if (Object.keys(patch).length > 0) updates.set(targetIdx, patch);
+    });
+    if (updates.size === 0) return;
+    setRows(rows.map((r, i) => updates.has(i) ? { ...r, ...updates.get(i) } : r));
+    setPasteOpen(false);
+    setPasteText('');
+  };
+
   return (
     <div>
       {/* Summary bar */}
@@ -438,8 +532,8 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship }) => {
         </div>
 
         <div style={{marginLeft: 'auto', display: 'flex', gap: 8}}>
-          <Btn variant="secondary" icon="download" size="sm">Exportar CSV</Btn>
-          <Btn variant="secondary" icon="upload" size="sm">Pegar de Excel</Btn>
+          <Btn variant="secondary" icon="download" size="sm" onClick={exportCSV} disabled={rows.length === 0}>Exportar CSV</Btn>
+          <Btn variant="secondary" icon="upload" size="sm" onClick={() => { setPasteText(''); setPasteOpen(true); }}>Pegar de Excel</Btn>
         </div>
       </div>
 
@@ -521,6 +615,48 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship }) => {
         <span style={{display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 6px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 5, fontFamily: 'var(--font-mono)', fontSize: 11, margin: '0 4px'}}><Icon name="prop_all" size={11}/> todos</span>
         copia a todas las filas debajo en el mismo bloque. También puedes copiar/pegar desde Excel y usar <kbd style={{padding: '2px 5px', background: 'var(--surface-alt)', border: '1px solid var(--border)', borderRadius: 4, fontFamily: 'var(--font-mono)', fontSize: 11}}>Tab</kbd> entre celdas.
       </Callout>
+
+      {pasteOpen && (
+        <div style={{position: 'fixed', inset: 0, zIndex: 2147483001, background: 'oklch(0.2 0.01 60 / 0.5)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24}}
+             onClick={(e) => e.target === e.currentTarget && setPasteOpen(false)}>
+          <div style={{background: 'var(--surface)', borderRadius: 14, border: '1px solid var(--border)', boxShadow: 'var(--shadow-lg)', width: 'min(680px, calc(100vw - 48px))', maxHeight: 'calc(100dvh - 48px)', display: 'flex', flexDirection: 'column'}}>
+            <div style={{padding: '18px 22px 14px', borderBottom: '1px solid var(--border-soft)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flex: '0 0 auto'}}>
+              <div>
+                <h2 style={{margin: 0, fontSize: 17, fontWeight: 650, letterSpacing: '-0.01em'}}>Pegar desde Excel</h2>
+                <p style={{margin: '4px 0 0', fontSize: 13, color: 'var(--ink-3)', maxWidth: '55ch'}}>
+                  Copia el rango en Excel (con o sin la fila de headers) y pégalo aquí con <kbd style={{padding: '1px 5px', background: 'var(--surface-alt)', border: '1px solid var(--border)', borderRadius: 4, fontFamily: 'var(--font-mono)', fontSize: 11}}>Ctrl/Cmd + V</kbd>. Las filas se actualizan por la columna <strong>#</strong>; si no la incluyes, se aplica por orden.
+                </p>
+              </div>
+              <button className="icon-btn" onClick={() => setPasteOpen(false)} aria-label="Cerrar"><Icon name="x" size={16}/></button>
+            </div>
+            <div style={{padding: '16px 22px', display: 'flex', flexDirection: 'column', gap: 10, flex: '1 1 auto', minHeight: 0, overflow: 'auto'}}>
+              <textarea
+                value={pasteText}
+                onChange={(e) => setPasteText(e.target.value)}
+                placeholder={'Pega aquí los datos copiados de Excel...\n\nColumnas esperadas (en este orden si no incluyes headers):\n#  Bloque  Atado  No. Placa  Grosor cm  Alto m  Ancho m  Contenedor  Notas'}
+                autoFocus
+                spellCheck={false}
+                style={{width: '100%', minHeight: 180, fontFamily: 'var(--font-mono)', fontSize: 12, padding: 12, border: '1px solid var(--border)', borderRadius: 8, resize: 'vertical', background: 'var(--surface-alt)', color: 'var(--ink)', lineHeight: 1.5}}
+              />
+              {pastePreview && pastePreview.dataRows.length > 0 && (
+                <div style={{fontSize: 12, color: 'var(--ink-2)', padding: '10px 12px', background: 'var(--ok-soft)', border: '1px solid var(--ok)', borderRadius: 8, display: 'flex', flexDirection: 'column', gap: 4}}>
+                  <div><strong>{pastePreview.dataRows.length}</strong> fila(s) detectada(s) · {pastePreview.hasHeaders ? 'headers reconocidos ✓' : 'sin headers (mapeo por posición)'}</div>
+                  <div style={{color: 'var(--ink-3)'}}>Columnas que se aplicarán: {pastePreview.mapping.filter(m => m && m.field).map(m => m.header).join(', ') || '—'}</div>
+                </div>
+              )}
+              {pasteText && pastePreview && pastePreview.dataRows.length === 0 && (
+                <div style={{fontSize: 12, color: 'var(--danger)', padding: '10px 12px', background: 'var(--danger-soft, #fff0f0)', border: '1px solid var(--danger)', borderRadius: 8}}>
+                  No se detectaron filas válidas. Verifica que pegaste el contenido de Excel (celdas separadas por tab).
+                </div>
+              )}
+            </div>
+            <div style={{padding: '14px 22px', borderTop: '1px solid var(--border-soft)', display: 'flex', justifyContent: 'flex-end', gap: 8, flex: '0 0 auto'}}>
+              <Btn variant="ghost" onClick={() => setPasteOpen(false)}>Cancelar</Btn>
+              <Btn variant="primary" icon="check" disabled={!pastePreview || pastePreview.dataRows.length === 0} onClick={applyPaste}>Aplicar a {pastePreview ? pastePreview.dataRows.length : 0} fila(s)</Btn>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
