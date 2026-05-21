@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Importación Masiva de Lotes via Packing List & Portal Proveedor',
-    'version': '19.0.6.0.0',
+    'version': '19.0.6.1.0',
     'depends': ['stock', 'purchase', 'stock_lot_dimensions', 'documents', 'documents_spreadsheet', 'web'],
     'author': 'Alphaqueb Consulting',
     'category': 'Inventory/Inventory',
@@ -17,10 +17,10 @@
     ],
     'assets': {
         'web.assets_frontend': [
-            # ── SCSS: Variables PRIMERO (los demás las heredan por concatenación) ──
+            # ── SCSS: Variables PRIMERO ───────────────────────────────────────
             'stock_lot_packing_import/static/src/scss/_tokens.scss',
 
-            # ── SCSS: Componentes (orden no importa, pero lógico) ──
+            # ── SCSS: Componentes legacy existentes ───────────────────────────
             'stock_lot_packing_import/static/src/scss/_base.scss',
             'stock_lot_packing_import/static/src/scss/_header.scss',
             'stock_lot_packing_import/static/src/scss/_container.scss',
@@ -43,7 +43,12 @@
             'stock_lot_packing_import/static/src/scss/_modal.scss',
             'stock_lot_packing_import/static/src/scss/_info_hint.scss',
 
-            # ── JS Portal ──
+            # PORTAL-REDESIGN-001:
+            # Capa visual final para replicar la nueva estructura tipo app:
+            # header fijo, sidebar, guía contextual, cards, wizard y tabla de packing.
+            'stock_lot_packing_import/static/src/scss/_portal_modern.scss',
+
+            # ── JS Portal legacy existente ────────────────────────────────────
             'stock_lot_packing_import/static/src/js/supplier_portal/namespace.js',
             'stock_lot_packing_import/static/src/js/supplier_portal/translations.js',
             'stock_lot_packing_import/static/src/js/supplier_portal/utils.js',
@@ -51,6 +56,10 @@
             'stock_lot_packing_import/static/src/js/supplier_portal/documents.js',
             'stock_lot_packing_import/static/src/js/supplier_portal/shipment_tabs.js',
             'stock_lot_packing_import/static/src/js/supplier_portal/portal_core.js',
+
+            # PORTAL-REDESIGN-002:
+            # Nueva aplicación frontend. Mantiene los mismos endpoints JSON-RPC.
+            'stock_lot_packing_import/static/src/js/supplier_portal/modern_portal.js',
             'stock_lot_packing_import/static/src/js/supplier_portal/main.js',
         ],
     },
