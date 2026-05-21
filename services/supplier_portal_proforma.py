@@ -475,6 +475,8 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
             "invoice_global_number": header.invoice_global_number or "",
             "payment_terms": header.payment_terms or "",
             "country_origin": header.country_origin or "",
+            "port_origin": header.port_origin or "" if "port_origin" in header._fields else "",
+            "port_destination": header.port_destination or "" if "port_destination" in header._fields else "",
             "incoterm": header.incoterm or "",
             "general_notes": header.general_notes or "",
             "status": header.status or "draft",
@@ -512,6 +514,8 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                 "invoice_number": proforma.invoice_global_number or "" if proforma else "",
                 "payment_terms": proforma.payment_terms or "" if proforma else "",
                 "country_origin": proforma.country_origin or "" if proforma else "",
+                "port_origin": proforma.port_origin or "" if proforma and "port_origin" in proforma._fields else "",
+                "port_destination": proforma.port_destination or "" if proforma and "port_destination" in proforma._fields else "",
                 "incoterm": proforma.incoterm or "" if proforma else "",
                 "general_notes": proforma.general_notes or "" if proforma else "",
             },
@@ -548,17 +552,32 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
             "invoice_global_number": "invoice_global_number",
             "payment_terms": "payment_terms",
             "country_origin": "country_origin",
+            "port_origin": "port_origin",
+            "port_destination": "port_destination",
             "incoterm": "incoterm",
             "general_notes": "general_notes",
         }
 
         if globals_data:
             for js_key, py_field in field_map.items():
-                if js_key in globals_data:
+                if js_key in globals_data and py_field in proforma._fields:
                     vals[py_field] = globals_data[js_key] or ""
 
         if vals:
             proforma.write(vals)
+
+        # Mantener ruta global alineada con cada embarque existente.
+        # El frontend captura origen/destino en Datos Globales; el modelo operativo
+        # del embarque también los necesita para serializar, sincronizar recepción
+        # y persistir al refrescar.
+        if globals_data and proforma.shipment_ids:
+            shipment_vals = {}
+            if "port_origin" in globals_data and "port_origin" in proforma.shipment_ids._fields:
+                shipment_vals["port_origin"] = globals_data.get("port_origin") or ""
+            if "port_destination" in globals_data and "port_destination" in proforma.shipment_ids._fields:
+                shipment_vals["port_destination"] = globals_data.get("port_destination") or ""
+            if shipment_vals:
+                proforma.shipment_ids.write(shipment_vals)
 
         # SINCRONIZAR HACIA ORDEN DE COMPRA
         po = proforma.purchase_id
@@ -752,7 +771,23 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
 
         self.sync_service.sync_shipment_header_to_picking(shipment)
         self.sync_service.sync_shipment(shipment)
-        return {"success": True, "container_ids": list(existing_ids)}
+
+        containers_payload = [{
+            "id": container.id,
+            "container_number": container.container_number or "",
+            "seal_number": container.seal_number or "",
+            "container_type": container.container_type or "",
+            "weight": container.weight or 0.0,
+            "volume": container.volume or 0.0,
+            "packages": container.packages or 0,
+            "notes": container.notes or "",
+        } for container in shipment.container_ids.sorted("id")]
+
+        return {
+            "success": True,
+            "container_ids": [item["id"] for item in containers_payload],
+            "containers": containers_payload,
+        }
 
     # =====================================================================
     #  INVOICES
@@ -832,7 +867,22 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
         if to_delete:
             to_delete.unlink()
 
-        return {"success": True, "invoice_ids": list(existing_ids)}
+        invoices_payload = [{
+            "id": invoice.id,
+            "invoice_number": invoice.invoice_number or "",
+            "invoice_date": str(invoice.invoice_date) if invoice.invoice_date else "",
+            "amount": invoice.amount or 0.0,
+            "currency_id": invoice.currency_id.id if invoice.currency_id else False,
+            "currency_name": invoice.currency_id.name if invoice.currency_id else "",
+            "scope": invoice.scope or "full_shipment",
+            "container_ids": invoice.container_ids.ids,
+        } for invoice in shipment.invoice_ids.sorted("id")]
+
+        return {
+            "success": True,
+            "invoice_ids": [item["id"] for item in invoices_payload],
+            "invoices": invoices_payload,
+        }
 
     # =====================================================================
     #  PACKINGS

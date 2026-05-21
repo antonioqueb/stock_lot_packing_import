@@ -57,27 +57,54 @@
                 return String(img.product_id) === String(productId) && s(img.block_name).trim().toLowerCase() === blockName && (img.has_image !== false);
             });
         }
+        function rowToUi(r, idx) {
+            var product = fallbackProducts.find(function (p) { return String(p.id) === String(r.product_id); }) || fallbackProducts[0] || {};
+            var tipo = s(r.tipo || product.kind || 'Placa');
+            return {
+                id: r.id || r._client_id || ('row-' + idx),
+                _odoo_id: r.id || false,
+                product_id: r.product_id || product.id || false,
+                tipo: tipo,
+                block: s(r.bloque || r.block || 'SIN BLOQUE').trim() || 'SIN BLOQUE',
+                atado: s(r.atado || '', ''),
+                plate: s(r.numero_placa || r.plate || '', ''),
+                ref: s(r.ref_proveedor || r.ref || '', ''),
+                thickness: n(r.grosor || r.thickness, 0),
+                h: n(r.alto || r.h, 0),
+                w: n(r.ancho || r.w, 0),
+                quantity: n(r.quantity || r.qty, 0),
+                weight: n(r.peso || r.weight, 0),
+                notes: s(r.color || r.notes || '', ''),
+                grupo: s(r.grupo_name || r.grupo || '', ''),
+                pedimento: s(r.pedimento || '', ''),
+                container: s(r.container_number || r.container || '', ''),
+                container_id: r.container_id || false,
+                photo: !!r.has_image,
+                errors: []
+            };
+        }
+        var uiRows = rows.map(rowToUi);
         var byKey = {};
-        rows.forEach(function (r) {
-            var block = s(r.bloque || r.block || 'SIN BLOQUE').trim() || 'SIN BLOQUE';
+        uiRows.forEach(function (r) {
+            var block = s(r.block || 'SIN BLOQUE').trim() || 'SIN BLOQUE';
             var pid = r.product_id || (fallbackProducts[0] && fallbackProducts[0].id);
             var key = String(pid) + '::' + block.toLowerCase();
             if (!byKey[key])
-                byKey[key] = { id: key, name: block, count: 0, photo: hasBlockImage(pid, block) || !!r.has_image, product: pid };
+                byKey[key] = { id: key, name: block, count: 0, photo: hasBlockImage(pid, block) || !!r.photo, product: pid };
             byKey[key].count += 1;
-            if (r.has_image)
+            if (r.photo)
                 byKey[key].photo = true;
         });
         var blocks = Object.keys(byKey).map(function (k) { return byKey[k]; });
-        var productIds = uniq(rows.map(function (r) { return r.product_id; })).filter(Boolean);
+        var productIds = uniq(uiRows.map(function (r) { return r.product_id; })).filter(Boolean);
         if (!productIds.length && arr(pk.products).length)
             productIds = pk.products;
         if (!productIds.length && fallbackProducts.length)
             productIds = [fallbackProducts[0].id];
-        var total = n(pk.row_count || pk.rows_total || rows.length || blocks.reduce(function (a, b) { return a + n(b.count); }, 0), 0);
-        var filled = rows.filter(function (r) {
+        var total = n(pk.row_count || pk.rows_total || uiRows.length || blocks.reduce(function (a, b) { return a + n(b.count); }, 0), 0);
+        var filled = uiRows.filter(function (r) {
             var tipo = s(r.tipo || 'Placa').toLowerCase();
-            var hasMeasure = tipo.indexOf('placa') >= 0 ? (n(r.alto) > 0 && n(r.ancho) > 0) : (n(r.quantity) > 0);
+            var hasMeasure = tipo.indexOf('placa') >= 0 ? (n(r.h) > 0 && n(r.w) > 0) : (n(r.quantity) > 0);
             return hasMeasure;
         }).length;
         return {
@@ -86,6 +113,7 @@
             date: s(pk.packing_date || pk.date, ''),
             products: productIds,
             blocks: blocks,
+            rows: uiRows,
             rows_filled: n(pk.rows_filled, filled),
             rows_total: total || filled,
             _odoo_rows: rows
@@ -133,8 +161,8 @@
                 invoice_global: s(p.invoice_global_number || (payload.header && payload.header.invoice_number), ''),
                 payment_terms: s(p.payment_terms || (payload.header && payload.header.payment_terms), ''),
                 country_origin: s(p.country_origin || (payload.header && payload.header.country_origin), ''),
-                port_origin: s(firstShipment.port_origin || '', ''),
-                port_destination: s(firstShipment.port_destination || '', ''),
+                port_origin: s(p.port_origin || firstShipment.port_origin || (payload.header && payload.header.port_origin) || '', ''),
+                port_destination: s(p.port_destination || firstShipment.port_destination || (payload.header && payload.header.port_destination) || '', ''),
                 incoterm: s(p.incoterm || (payload.header && payload.header.incoterm), ''),
                 general_notes: s(p.general_notes || (payload.header && payload.header.general_notes), '')
             },
@@ -143,6 +171,7 @@
         };
     }
     var rawPayload = parsePayload();
+    window.SupplierReactExactNormalize = normalize;
     window.SupplierReactExactData = { raw: rawPayload, proforma: normalize(rawPayload) };
 })();
 // ===== tweaks-panel.jsx =====
@@ -1927,12 +1956,16 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
         if (step === 4 && rows.length === 0 && draft.blocks.length > 0) {
             const generated = [];
             draft.blocks.forEach((b, bi) => {
+                const product = proforma.products.find(p => String(p.id) === String(b.product)) || proforma.products[0] || {};
+                const tipo = product.kind === 'placa' ? 'Placa' : (product.kind === 'formato' ? 'Formato' : 'Pieza');
                 for (let i = 0; i < b.count; i++) {
                     generated.push({
                         id: `r-${b.id}-${i}`,
+                        product_id: b.product || product.id,
+                        tipo,
                         block: b.name, atado: `A-${String(bi + 1).padStart(2, '0')}`,
                         plate: `P-${String(generated.length + 1).padStart(3, '0')}`,
-                        ref: '', thickness: 2, h: 0, w: 0, notes: '', container: '', photo: false, errors: [],
+                        ref: product.ref || '', thickness: 2, h: 0, w: 0, quantity: tipo === 'Placa' ? 0 : 1, weight: 0, notes: '', grupo: '', pedimento: '', container: '', container_id: false, photo: false, errors: [],
                         blockStart: i === 0,
                     });
                 }
@@ -2448,7 +2481,7 @@ const Documents = ({ proforma, setProforma, setRoute }) => {
 window.Documents = Documents;
 // ===== src/views/confirm.jsx =====
 /* global React, Icon, Btn, Badge, Callout, ProgressRing */
-const Confirm = ({ proforma, status, setRoute }) => {
+const Confirm = ({ proforma, status, setRoute, onComplete }) => {
     const allDone = status.overall >= 100;
     const checks = [
         { ok: status.globals_pct === 100, label: 'Datos generales de la Proforma', detail: status.globals_pct === 100 ? 'Completos' : `${status.globals_pct}% — faltan campos requeridos` },
@@ -2521,7 +2554,7 @@ const Confirm = ({ proforma, status, setRoute }) => {
             React.createElement("span", { className: "text-muted text-small" }, "Al marcar como completa, SOM GROUP recibir\u00E1 un correo autom\u00E1tico."),
             React.createElement("div", { style: { display: 'flex', gap: 8 } },
                 React.createElement(Btn, { variant: "ghost", onClick: () => setRoute({ section: 'overview' }) }, "Volver"),
-                React.createElement(Btn, { variant: "accent", size: "lg", icon: "flag", disabled: !allDone }, allDone ? 'Marcar como completa' : 'Faltan datos requeridos')))));
+                React.createElement(Btn, { variant: "accent", size: "lg", icon: "flag", disabled: !allDone, onClick: onComplete }, allDone ? 'Marcar como completa' : 'Faltan datos requeridos')))));
 };
 const StatCard = ({ label, value, mono }) => (React.createElement("div", { style: { padding: 14, border: '1px solid var(--border)', borderRadius: 10, background: 'var(--surface-alt)' } },
     React.createElement("div", { className: "text-muted", style: { fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase', fontWeight: 600, marginBottom: 4 } }, label),
@@ -2696,18 +2729,311 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/ {
     "show_completed_route": false
 } /*EDITMODE-END*/;
 const ACCENT_OPTIONS = ['#59473d', '#3F7CD8', '#4F8B6E', '#C56A2F'];
+const PORTAL_RAW_PAYLOAD = (window.SupplierReactExactData && window.SupplierReactExactData.raw) || {};
+const PORTAL_TOKEN = PORTAL_RAW_PAYLOAD.token || '';
+function portalIsRealId(value) {
+    return value !== null && value !== undefined && /^\d+$/.test(String(value));
+}
+function portalToInt(value) {
+    return portalIsRealId(value) ? parseInt(value, 10) : 0;
+}
+async function portalRpc(route, params) {
+    const response = await fetch(route, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ jsonrpc: '2.0', method: 'call', params: params || {}, id: Date.now() }),
+    });
+    if (!response.ok) {
+        throw new Error('HTTP ' + response.status + ' en ' + route);
+    }
+    const payload = await response.json();
+    if (payload.error) {
+        throw new Error((payload.error.data && payload.error.data.message) || payload.error.message || 'Error JSON-RPC');
+    }
+    return payload.result !== undefined ? payload.result : payload;
+}
+function normalizePortalProforma(proforma) {
+    const normalizer = window.SupplierReactExactNormalize;
+    if (typeof normalizer === 'function') {
+        return normalizer(Object.assign({}, PORTAL_RAW_PAYLOAD, { proforma }));
+    }
+    return (window.SupplierReactExactData && window.SupplierReactExactData.proforma) || MOCK_PROFORMA;
+}
+
 function App() {
     const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
     const t = tweaks;
-    // simulate a completed proforma if requested
-    const [proforma, setProforma] = React.useState(() => {
+    // Estado del portal conectado a Odoo. Todo cambio local se sincroniza con
+    // /supplier/api/v2/* y queda persistido en supplier.proforma/supplier.shipment.
+    const [proforma, setProformaRaw] = React.useState(() => {
         if (t.show_completed_route)
             return completedProforma();
         return (window.SupplierReactExactData && window.SupplierReactExactData.proforma) || MOCK_PROFORMA;
     });
-    React.useEffect(() => {
-        setProforma(t.show_completed_route ? completedProforma() : ((window.SupplierReactExactData && window.SupplierReactExactData.proforma) || MOCK_PROFORMA));
+    const [saveState, setSaveState] = React.useState(PORTAL_TOKEN ? 'saved' : 'offline');
+    const saveTimerRef = React.useRef(null);
+    const savingRef = React.useRef(false);
+    const pendingRef = React.useRef(null);
+    const proformaRef = React.useRef(proforma);
+    const lastHashRef = React.useRef(JSON.stringify(proforma));
+    const idMapRef = React.useRef({ shipments: {}, containers: {}, invoices: {}, packings: {}, rows: {} });
+    React.useEffect(() => { proformaRef.current = proforma; }, [proforma]);
+    const realMappedId = React.useCallback((kind, key, value) => {
+        if (portalIsRealId(value))
+            return parseInt(value, 10);
+        return idMapRef.current[kind][String(key)] || 0;
+    }, []);
+    const findProduct = React.useCallback((snapshot, productId) => {
+        return (snapshot.products || []).find(p => String(p.id) === String(productId)) || (snapshot.products || [])[0] || {};
+    }, []);
+    const shipmentPayload = React.useCallback((snapshot, ship) => ({
+        shipment_type: ship.type || 'maritime',
+        shipping_line: ship.shipping_line || '',
+        vessel_name: ship.vessel || '',
+        port_origin: (snapshot.globals && snapshot.globals.port_origin) || ship.port_origin || '',
+        port_destination: (snapshot.globals && snapshot.globals.port_destination) || ship.port_destination || '',
+        bl_number: ship.bl_number || '',
+        bl_date: ship.bl_date || false,
+        etd: ship.etd || false,
+        eta: ship.eta || false,
+        status: ship.status || 'draft',
+        notes: ship.notes || '',
+    }), []);
+    const buildContainerPayload = React.useCallback((shipmentId, containers) => {
+        return (containers || []).map(c => ({
+            id: realMappedId('containers', shipmentId + ':' + c.id, c.id),
+            container_number: c.number || '',
+            seal_number: c.seal || '',
+            container_type: c.type || '',
+            weight: Number(c.weight || 0),
+            volume: Number(c.volume || 0),
+            packages: Number(c.packages || 0),
+            notes: c.notes || '',
+        }));
+    }, [realMappedId]);
+    const buildInvoicePayload = React.useCallback((shipmentId, invoices) => {
+        return (invoices || []).map(inv => ({
+            id: realMappedId('invoices', shipmentId + ':' + inv.id, inv.id),
+            invoice_number: inv.number || '',
+            invoice_date: inv.date || false,
+            amount: Number(inv.amount || 0),
+            currency_name: inv.currency || inv.currency_name || 'USD',
+            scope: inv.scope === 'specific' ? 'specific_containers' : (inv.scope || 'full_shipment'),
+            container_ids: (inv.containers || []).map(cid => portalToInt(cid)).filter(Boolean),
+        }));
+    }, [realMappedId]);
+    const containerIdForRow = React.useCallback((shipmentId, ship, row) => {
+        if (portalIsRealId(row.container_id))
+            return parseInt(row.container_id, 10);
+        if (row.container_id && idMapRef.current.containers[shipmentId + ':' + row.container_id])
+            return idMapRef.current.containers[shipmentId + ':' + row.container_id];
+        const container = (ship.containers || []).find(c => (c.number && c.number === row.container) || String(c.id) === String(row.container_id));
+        if (!container)
+            return false;
+        if (portalIsRealId(container.id))
+            return parseInt(container.id, 10);
+        return idMapRef.current.containers[shipmentId + ':' + container.id] || false;
+    }, []);
+    const buildPackingRows = React.useCallback((snapshot, shipmentId, ship, packing, rows) => {
+        const packKey = shipmentId + ':' + packing.id;
+        const realPackingId = realMappedId('packings', packKey, packing.id);
+        return (rows || []).map((row, idx) => {
+            const block = (packing.blocks || []).find(b => b.name === row.block) || (packing.blocks || [])[0] || {};
+            const productId = row.product_id || block.product || (packing.products || [])[0];
+            const product = findProduct(snapshot, productId);
+            const kind = (product.kind || row.tipo || 'placa').toLowerCase();
+            const tipo = kind.indexOf('placa') >= 0 ? 'Placa' : (kind.indexOf('formato') >= 0 ? 'Formato' : 'Pieza');
+            const clientId = row._client_id || row.id || ('row-' + idx);
+            const rowMapKey = (realPackingId || packing.id) + ':' + clientId;
+            const rowId = portalIsRealId(row._odoo_id || row.id) ? parseInt(row._odoo_id || row.id, 10) : (idMapRef.current.rows[rowMapKey] || 0);
+            return {
+                id: rowId,
+                _client_id: String(clientId),
+                product_id: portalToInt(productId),
+                container_id: containerIdForRow(shipmentId, ship, row) || false,
+                tipo,
+                grosor: row.thickness !== undefined ? String(row.thickness || '') : String(row.grosor || ''),
+                alto: Number(row.h || row.alto || 0),
+                ancho: Number(row.w || row.ancho || 0),
+                peso: Number(row.weight || row.peso || 0),
+                quantity: tipo === 'Placa' ? 0 : Number(row.quantity || row.qty || 1),
+                bloque: row.block || row.bloque || '',
+                numero_placa: row.plate || row.numero_placa || '',
+                atado: row.atado || '',
+                color: row.notes || row.color || '',
+                grupo_name: row.grupo || row.grupo_name || '',
+                pedimento: row.pedimento || '',
+                ref_proveedor: row.ref || row.ref_proveedor || product.ref || '',
+            };
+        });
+    }, [containerIdForRow, findProduct, realMappedId]);
+    const persistSnapshot = React.useCallback(async (snapshot) => {
+        if (!PORTAL_TOKEN || t.show_completed_route)
+            return;
+        const currentHash = JSON.stringify(snapshot);
+        if (currentHash === lastHashRef.current)
+            return;
+        setSaveState('saving');
+        await portalRpc('/supplier/api/v2/save_globals', {
+            token: PORTAL_TOKEN,
+            globals_data: {
+                proforma_number: snapshot.globals.proforma_number || '',
+                invoice_global_number: snapshot.globals.invoice_global || '',
+                payment_terms: snapshot.globals.payment_terms || '',
+                country_origin: snapshot.globals.country_origin || '',
+                port_origin: snapshot.globals.port_origin || '',
+                port_destination: snapshot.globals.port_destination || '',
+                incoterm: snapshot.globals.incoterm || '',
+                general_notes: snapshot.globals.general_notes || '',
+            },
+        });
+        for (const ship of (snapshot.shipments || [])) {
+            let shipmentId = realMappedId('shipments', ship.id, ship.id);
+            if (shipmentId) {
+                await portalRpc('/supplier/api/v2/update_shipment', { token: PORTAL_TOKEN, shipment_id: shipmentId, shipment_data: shipmentPayload(snapshot, ship) });
+            } else {
+                const created = await portalRpc('/supplier/api/v2/create_shipment', { token: PORTAL_TOKEN, shipment_data: shipmentPayload(snapshot, ship) });
+                if (!created || !created.success || !created.shipment_id)
+                    throw new Error((created && created.message) || 'No se pudo crear el embarque.');
+                shipmentId = created.shipment_id;
+                idMapRef.current.shipments[String(ship.id)] = shipmentId;
+            }
+            const containerResult = await portalRpc('/supplier/api/v2/save_containers', { token: PORTAL_TOKEN, shipment_id: shipmentId, containers: buildContainerPayload(shipmentId, ship.containers) });
+            if (containerResult && containerResult.success && Array.isArray(containerResult.containers)) {
+                (ship.containers || []).forEach((local, idx) => {
+                    if (portalIsRealId(local.id)) return;
+                    const match = containerResult.containers.find(c => (c.container_number || '') === (local.number || '')) || containerResult.containers[idx];
+                    if (match && match.id)
+                        idMapRef.current.containers[shipmentId + ':' + local.id] = match.id;
+                });
+            }
+            const invoiceResult = await portalRpc('/supplier/api/v2/save_invoices', { token: PORTAL_TOKEN, shipment_id: shipmentId, invoices: buildInvoicePayload(shipmentId, ship.invoices) });
+            if (invoiceResult && invoiceResult.success && Array.isArray(invoiceResult.invoices)) {
+                (ship.invoices || []).forEach((local, idx) => {
+                    if (portalIsRealId(local.id)) return;
+                    const match = invoiceResult.invoices.find(inv => (inv.invoice_number || '') === (local.number || '')) || invoiceResult.invoices[idx];
+                    if (match && match.id)
+                        idMapRef.current.invoices[shipmentId + ':' + local.id] = match.id;
+                });
+            }
+            for (const packing of (ship.packings || [])) {
+                const packKey = shipmentId + ':' + packing.id;
+                const packingId = realMappedId('packings', packKey, packing.id);
+                const packingResult = await portalRpc('/supplier/api/v2/save_packing', {
+                    token: PORTAL_TOKEN,
+                    shipment_id: shipmentId,
+                    packing_data: { id: packingId || false, packing_number: packing.number || '', packing_date: packing.date || false, scope: 'full_shipment', container_ids: [] },
+                    rows: buildPackingRows(snapshot, shipmentId, ship, packing, packing.rows || []),
+                });
+                if (!packingResult || !packingResult.success)
+                    throw new Error((packingResult && packingResult.message) || 'No se pudo guardar el packing list.');
+                const realPackingId = packingResult.packing_id;
+                if (realPackingId && !portalIsRealId(packing.id))
+                    idMapRef.current.packings[packKey] = realPackingId;
+                if (Array.isArray(packingResult.rows)) {
+                    packingResult.rows.forEach(r => {
+                        if (r.client_id && r.id) {
+                            idMapRef.current.rows[(realPackingId || packing.id) + ':' + r.client_id] = r.id;
+                            idMapRef.current.rows[packing.id + ':' + r.client_id] = r.id;
+                        }
+                    });
+                }
+            }
+        }
+        lastHashRef.current = currentHash;
+        setSaveState('saved');
+    }, [buildContainerPayload, buildInvoicePayload, buildPackingRows, shipmentPayload, realMappedId, t.show_completed_route]);
+    const runPersist = React.useCallback(async (snapshot) => {
+        if (savingRef.current) {
+            pendingRef.current = snapshot;
+            return;
+        }
+        savingRef.current = true;
+        try {
+            await persistSnapshot(snapshot);
+            savingRef.current = false;
+            if (pendingRef.current) {
+                const next = pendingRef.current;
+                pendingRef.current = null;
+                runPersist(next);
+            }
+        } catch (err) {
+            savingRef.current = false;
+            console.error('[SupplierPortal] Error guardando portal:', err);
+            setSaveState('error');
+        }
+    }, [persistSnapshot]);
+    const schedulePersist = React.useCallback((snapshot) => {
+        if (!PORTAL_TOKEN || t.show_completed_route)
+            return;
+        setSaveState('dirty');
+        if (saveTimerRef.current)
+            clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = setTimeout(() => runPersist(snapshot), 500);
+    }, [runPersist, t.show_completed_route]);
+    const setProforma = React.useCallback((nextOrUpdater) => {
+        setProformaRaw(prev => {
+            const next = typeof nextOrUpdater === 'function' ? nextOrUpdater(prev) : nextOrUpdater;
+            proformaRef.current = next;
+            schedulePersist(next);
+            return next;
+        });
+    }, [schedulePersist]);
+    const reloadPortal = React.useCallback(async () => {
+        if (!PORTAL_TOKEN || t.show_completed_route)
+            return;
+        try {
+            const result = await portalRpc('/supplier/api/v2/reload', { token: PORTAL_TOKEN });
+            if (result && result.success && result.proforma) {
+                const normalized = normalizePortalProforma(result.proforma);
+                proformaRef.current = normalized;
+                lastHashRef.current = JSON.stringify(normalized);
+                setProformaRaw(normalized);
+                setSaveState('saved');
+            }
+        } catch (err) {
+            console.error('[SupplierPortal] Error recargando portal:', err);
+            setSaveState('error');
+        }
     }, [t.show_completed_route]);
+    const flushPersist = React.useCallback(async () => {
+        if (saveTimerRef.current) {
+            clearTimeout(saveTimerRef.current);
+            saveTimerRef.current = null;
+        }
+        await persistSnapshot(proformaRef.current);
+    }, [persistSnapshot]);
+    const completePortal = React.useCallback(async () => {
+        try {
+            await flushPersist();
+            const result = await portalRpc('/supplier/api/v2/complete', { token: PORTAL_TOKEN });
+            if (!result || !result.success)
+                throw new Error((result && result.message) || 'No se pudo completar la proforma.');
+            await reloadPortal();
+            alert('Proforma marcada como completa.');
+        } catch (err) {
+            console.error('[SupplierPortal] Error completando portal:', err);
+            alert(err.message || 'No se pudo completar la proforma.');
+        }
+    }, [flushPersist, reloadPortal]);
+    React.useEffect(() => {
+        if (t.show_completed_route) {
+            const next = completedProforma();
+            proformaRef.current = next;
+            setProformaRaw(next);
+        } else {
+            const next = (window.SupplierReactExactData && window.SupplierReactExactData.proforma) || MOCK_PROFORMA;
+            proformaRef.current = next;
+            lastHashRef.current = JSON.stringify(next);
+            setProformaRaw(next);
+            reloadPortal();
+        }
+    }, [t.show_completed_route]);
+    React.useEffect(() => () => {
+        if (saveTimerRef.current)
+            clearTimeout(saveTimerRef.current);
+    }, []);
     const status = React.useMemo(() => computeStatus(proforma), [proforma]);
     // routing: { section, shipmentId?, tab? }
     const [route, setRoute] = React.useState({ section: 'overview' });
@@ -2799,7 +3125,7 @@ function App() {
                     route.section === 'shipments' && React.createElement(ShipmentsList, { proforma: proforma, setProforma: setProforma, status: status, setRoute: setRoute }),
                     route.section === 'shipment' && React.createElement(ShipmentDetail, { proforma: proforma, setProforma: setProforma, status: status, setRoute: setRoute, route: route, openPackingWizard: openPackingWizard }),
                     route.section === 'documents' && React.createElement(Documents, { proforma: proforma, setProforma: setProforma, setRoute: setRoute }),
-                    route.section === 'review' && React.createElement(Confirm, { proforma: proforma, status: status, setRoute: setRoute })),
+                    route.section === 'review' && React.createElement(Confirm, { proforma: proforma, status: status, setRoute: setRoute, onComplete: completePortal })),
                 guideOpen && React.createElement(GuidePanel, { route: route, onClose: () => setGuideOpen(false) })),
             packingWiz && (React.createElement(PackingWizard, { proforma: proforma, shipmentId: packingWiz.shipmentId, packingId: packingWiz.packingId, sampleRows: SAMPLE_ROWS, onClose: closePackingWizard, onSave: savePacking })),
             showOnboard && React.createElement(Onboarding, { onClose: () => setShowOnboard(false) }),
