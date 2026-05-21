@@ -2737,6 +2737,13 @@ function portalIsRealId(value) {
 function portalToInt(value) {
     return portalIsRealId(value) ? parseInt(value, 10) : 0;
 }
+function portalScope(value) {
+    var scope = (value === null || value === undefined) ? '' : String(value).trim().toLowerCase();
+    if (scope === 'specific' || scope === 'specific_container' || scope === 'specific_containers' || scope === 'containers' || scope === 'container') {
+        return 'specific_containers';
+    }
+    return 'full_shipment';
+}
 async function portalRpc(route, params) {
     const response = await fetch(route, {
         method: 'POST',
@@ -2819,7 +2826,7 @@ function App() {
             invoice_date: inv.date || false,
             amount: Number(inv.amount || 0),
             currency_name: inv.currency || inv.currency_name || 'USD',
-            scope: inv.scope === 'specific' ? 'specific_containers' : (inv.scope || 'full_shipment'),
+            scope: portalScope(inv.scope),
             container_ids: (inv.containers || []).map(cid => portalToInt(cid)).filter(Boolean),
         }));
     }, [realMappedId]);
@@ -3064,28 +3071,50 @@ function App() {
     const openPackingWizard = (shipmentId, packingId) => setPackingWiz({ shipmentId, packingId });
     const closePackingWizard = () => setPackingWiz(null);
     const savePacking = (shipmentId, packingId, draftSnap, rowsSnap) => {
-        if (!shipmentId) return;
-        setProforma(prev => ({
-            ...prev,
-            shipments: prev.shipments.map(s => {
-                if (s.id !== shipmentId) return s;
-                const filled = rowsSnap.filter(r => r.h > 0 && r.w > 0 && r.container).length;
-                const updated = {
-                    number: draftSnap.number,
-                    date: draftSnap.date,
-                    products: draftSnap.products,
-                    blocks: draftSnap.blocks,
-                    rows: rowsSnap,
-                    rows_filled: filled,
-                    rows_total: rowsSnap.length,
-                };
-                const existing = packingId ? s.packings.find(p => p.id === packingId) : null;
-                const newPackings = existing
-                    ? s.packings.map(p => p.id === packingId ? { ...p, ...updated } : p)
-                    : [...s.packings, { id: 'pk-' + Date.now(), ...updated }];
-                return { ...s, packings: newPackings };
-            }),
-        }));
+        if (!shipmentId)
+            return;
+        setProformaRaw(prev => {
+            const next = {
+                ...prev,
+                shipments: prev.shipments.map(s => {
+                    if (s.id !== shipmentId)
+                        return s;
+                    const filled = rowsSnap.filter(r => r.h > 0 && r.w > 0 && r.container).length;
+                    const updated = {
+                        number: draftSnap.number,
+                        date: draftSnap.date,
+                        products: draftSnap.products,
+                        blocks: draftSnap.blocks,
+                        rows: rowsSnap,
+                        rows_filled: filled,
+                        rows_total: rowsSnap.length,
+                    };
+                    const existing = packingId ? s.packings.find(p => p.id === packingId) : null;
+                    const newPackings = existing
+                        ? s.packings.map(p => p.id === packingId ? { ...p, ...updated } : p)
+                        : [...s.packings, { id: 'pk-' + Date.now(), ...updated }];
+                    return { ...s, packings: newPackings };
+                }),
+            };
+
+            proformaRef.current = next;
+
+            // PL-PERSIST-001:
+            // El Packing List no debe esperar al debounce global. Al cerrar el
+            // asistente, se dispara persistencia inmediata para evitar que un
+            // refresh rápido pierda filas recién capturadas.
+            if (!t.show_completed_route && PORTAL_TOKEN) {
+                if (saveTimerRef.current) {
+                    clearTimeout(saveTimerRef.current);
+                    saveTimerRef.current = null;
+                }
+                runPersist(next);
+            } else {
+                schedulePersist(next);
+            }
+
+            return next;
+        });
     };
     return (React.createElement(LangCtx.Provider, { value: { lang, t: tFn } },
         React.createElement("div", { className: "app" },

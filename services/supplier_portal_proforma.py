@@ -69,6 +69,29 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
 
         return False
 
+    def _normalize_scope(self, scope):
+        """
+        Normaliza el alcance recibido desde el portal.
+
+        Motivo:
+        El prototipo React usa valores cortos como "full" y "specific",
+        mientras que los modelos persistentes de Odoo guardan únicamente
+        "full_shipment" y "specific_containers". Sin esta normalización,
+        Odoo rechaza el create/write del invoice o packing y se corta toda
+        la cadena de autoguardado antes de llegar a guardar el Packing List.
+        """
+        value = (str(scope or "").strip().lower())
+
+        if value in ("specific", "specific_container", "specific_containers", "containers", "container"):
+            return "specific_containers"
+
+        if value in ("full", "full_shipment", "shipment", "all", "all_shipment", ""):
+            return "full_shipment"
+
+        _logger.warning("[Portal] Alcance no reconocido '%s'. Se usará full_shipment.", scope)
+        return "full_shipment"
+
+
     def validate_container_ids_for_shipment(self, shipment, container_ids):
         normalized = self.normalize_id_list(container_ids)
         shipment_container_ids = set(shipment.container_ids.ids)
@@ -78,7 +101,7 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
         return True, normalized
 
     def validate_packing_scope_and_containers(self, shipment, packing_vals, rows=None):
-        scope = packing_vals.get("scope") or "full_shipment"
+        scope = self._normalize_scope(packing_vals.get("scope"))
         container_ids = self.normalize_id_list(packing_vals.get("container_ids", []))
 
         ok, result = self.validate_container_ids_for_shipment(shipment, container_ids)
@@ -814,7 +837,7 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
 
         for invoice in (invoices or []):
             invoice_id = self.safe_int(invoice.get("id"), 0)
-            scope = invoice.get("scope", "full_shipment")
+            scope = self._normalize_scope(invoice.get("scope"))
             container_ids = self.normalize_id_list(invoice.get("container_ids", []))
 
             ok, result = self.validate_container_ids_for_shipment(shipment, container_ids)
@@ -916,11 +939,12 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
         # El autosave puede enviar solo filas. Si no vienen metadatos explícitos,
         # se conserva el valor existente para no borrar número, fecha, alcance
         # ni contenedores por accidente.
-        scope = (
+        raw_scope = (
             packing_data.get("scope")
             or (packing.scope if packing else "full_shipment")
             or "full_shipment"
         )
+        scope = self._normalize_scope(raw_scope)
         raw_container_ids = (
             packing_data.get("container_ids")
             if "container_ids" in packing_data
