@@ -1059,8 +1059,9 @@ html body:has(.spm-app) {
 .spm-modal,
 .portal-modal,
 .spm-onboard-card {
-    width: min(980px, 96vw);
-    max-height: min(86vh, 920px);
+    width: 96vw;
+    max-width: 980px;
+    max-height: 86vh;
     background: var(--spm-surface);
     border: 1px solid var(--spm-border);
     border-radius: var(--spm-radius-lg);
@@ -1070,7 +1071,8 @@ html body:has(.spm-app) {
     flex-direction: column;
 }
 .spm-modal.wide {
-    width: min(1280px, 98vw);
+    width: 98vw;
+    max-width: 1280px;
 }
 .spm-modal-head,
 .portal-modal-header {
@@ -1431,7 +1433,8 @@ html body:has(.spm-app) {
     pointer-events: none;
     transition: opacity .2s, transform .2s;
     font-weight: 800;
-    max-width: min(420px, calc(100vw - 32px));
+    width: calc(100vw - 32px);
+    max-width: 420px;
 }
 .portal-toast.show,
 .spm-toast.show {
@@ -1495,7 +1498,8 @@ html body:has(.spm-app) {
     .spm-sidebar {
         position: fixed;
         inset: var(--spm-header-h) auto 0 0;
-        width: min(86vw, 320px);
+        width: 86vw;
+        max-width: 320px;
         transform: translateX(-105%);
         transition: transform .2s;
         z-index: 1090;
