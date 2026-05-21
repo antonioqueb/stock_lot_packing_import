@@ -29,7 +29,7 @@
                     </div>
                 </div>
             </div>
-            <script src="/stock_lot_packing_import/static/src/js/supplier_portal/react_exact.bundle.js"></script>
+            <script t-att-src="'/stock_lot_packing_import/static/src/js/supplier_portal/react_exact.bundle.js?v=' + (request.env['ir.module.module'].sudo().search([('name','=','stock_lot_packing_import')], limit=1).installed_version or '0')"></script>
         </t>
     </template>
 
