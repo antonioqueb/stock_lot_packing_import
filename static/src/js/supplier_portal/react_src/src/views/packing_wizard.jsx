@@ -35,8 +35,26 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
     blocks: [],
   });
 
-  // rows for spreadsheet (only used in step 4)
-  const [rows, setRows] = React.useState(() => existing && existing.id === 'pk1' ? [...sampleRows] : []);
+  // rows for spreadsheet (only used in step 4).
+  // Priority: 1) rows previously saved on this packing, 2) hard-coded sample
+  // rows for the demo packing pk1, 3) empty (will be auto-generated on entering step 4).
+  const [rows, setRows] = React.useState(() => {
+    if (existing && Array.isArray(existing.rows) && existing.rows.length > 0) {
+      return existing.rows.map(r => ({ ...r }));
+    }
+    if (existing && existing.id === 'pk1') return [...sampleRows];
+    return [];
+  });
+
+  // Persist current draft+rows to the parent state, then close. Used by every
+  // close path (the Listo button, the X button, and the scrim click) so the
+  // user never loses what they entered.
+  const commitAndClose = () => {
+    if (typeof onSave === 'function') {
+      onSave(shipmentId, packingId, draft, rows);
+    }
+    onClose();
+  };
   // generate empty rows from blocks if rows is empty when entering step 4
   React.useEffect(() => {
     if (step === 4 && rows.length === 0 && draft.blocks.length > 0) {
@@ -63,7 +81,7 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
   };
 
   return (
-    <div className="modal-scrim" onClick={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="modal-scrim" onClick={(e) => e.target === e.currentTarget && commitAndClose()}>
       <div className={`modal ${step === 4 ? 'modal-wide' : ''}`} style={{maxWidth: step === 4 ? 1280 : 880}}>
         <div className="modal-head">
           <div>
@@ -81,7 +99,7 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
               {step === 4 && 'Las filas ya están creadas. Solo llena las dimensiones de cada placa y asigna su contenedor.'}
             </p>
           </div>
-          <button className="icon-btn" onClick={onClose} aria-label="Cerrar"><Icon name="x" size={16}/></button>
+          <button className="icon-btn" onClick={commitAndClose} aria-label="Cerrar"><Icon name="x" size={16}/></button>
         </div>
 
         <div className="modal-body" style={{background: step === 4 ? 'var(--bg)' : 'var(--surface)'}}>
@@ -127,7 +145,7 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
               </React.Fragment>
             )}
             {step === 4 && (
-              <Btn variant="primary" icon="check" onClick={onClose}>Listo, volver al embarque</Btn>
+              <Btn variant="primary" icon="check" onClick={commitAndClose}>Listo, volver al embarque</Btn>
             )}
           </div>
         </div>

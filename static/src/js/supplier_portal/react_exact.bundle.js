@@ -1909,7 +1909,19 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
         blocks: [],
     });
     // rows for spreadsheet (only used in step 4)
-    const [rows, setRows] = React.useState(() => existing && existing.id === 'pk1' ? [...sampleRows] : []);
+    const [rows, setRows] = React.useState(() => {
+        if (existing && Array.isArray(existing.rows) && existing.rows.length > 0) {
+            return existing.rows.map(r => ({ ...r }));
+        }
+        if (existing && existing.id === 'pk1') return [...sampleRows];
+        return [];
+    });
+    const commitAndClose = () => {
+        if (typeof onSave === 'function') {
+            onSave(shipmentId, packingId, draft, rows);
+        }
+        onClose();
+    };
     // generate empty rows from blocks if rows is empty when entering step 4
     React.useEffect(() => {
         if (step === 4 && rows.length === 0 && draft.blocks.length > 0) {
@@ -1935,7 +1947,7 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
             return draft.blocks.length > 0 && draft.blocks.every(b => b.name && b.count > 0);
         return true;
     };
-    return (React.createElement("div", { className: "modal-scrim", onClick: (e) => e.target === e.currentTarget && onClose() },
+    return (React.createElement("div", { className: "modal-scrim", onClick: (e) => e.target === e.currentTarget && commitAndClose() },
         React.createElement("div", { className: `modal ${step === 4 ? 'modal-wide' : ''}`, style: { maxWidth: step === 4 ? 1280 : 880 } },
             React.createElement("div", { className: "modal-head" },
                 React.createElement("div", null,
@@ -1954,7 +1966,7 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
                         step === 2 && 'Un bloque agrupa placas que vienen del mismo bloque de cantera. Define cuántas placas hay en cada uno.',
                         step === 3 && 'Confirmamos cuántas filas vamos a generar. Si algo no cuadra, regresa al paso anterior.',
                         step === 4 && 'Las filas ya están creadas. Solo llena las dimensiones de cada placa y asigna su contenedor.')),
-                React.createElement("button", { className: "icon-btn", onClick: onClose, "aria-label": "Cerrar" },
+                React.createElement("button", { className: "icon-btn", onClick: commitAndClose, "aria-label": "Cerrar" },
                     React.createElement(Icon, { name: "x", size: 16 }))),
             React.createElement("div", { className: "modal-body", style: { background: step === 4 ? 'var(--bg)' : 'var(--surface)' } },
                 React.createElement("div", { className: "stepper" }, WIZARD_STEPS.map((s, i) => (React.createElement(React.Fragment, { key: s.id },
@@ -1981,7 +1993,7 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
                             "Generar ",
                             draft.blocks.reduce((a, b) => a + b.count, 0),
                             " filas"))),
-                    step === 4 && (React.createElement(Btn, { variant: "primary", icon: "check", onClick: onClose }, "Listo, volver al embarque")))))));
+                    step === 4 && (React.createElement(Btn, { variant: "primary", icon: "check", onClick: commitAndClose }, "Listo, volver al embarque")))))));
 };
 /* ====================== Step 1 ====================== */
 const Step1Products = ({ proforma, draft, setDraft }) => {
@@ -2725,6 +2737,30 @@ function App() {
     const tFn = (k) => (I18N[lang] && I18N[lang][k]) || (I18N.es[k]) || k;
     const openPackingWizard = (shipmentId, packingId) => setPackingWiz({ shipmentId, packingId });
     const closePackingWizard = () => setPackingWiz(null);
+    const savePacking = (shipmentId, packingId, draftSnap, rowsSnap) => {
+        if (!shipmentId) return;
+        setProforma(prev => ({
+            ...prev,
+            shipments: prev.shipments.map(s => {
+                if (s.id !== shipmentId) return s;
+                const filled = rowsSnap.filter(r => r.h > 0 && r.w > 0 && r.container).length;
+                const updated = {
+                    number: draftSnap.number,
+                    date: draftSnap.date,
+                    products: draftSnap.products,
+                    blocks: draftSnap.blocks,
+                    rows: rowsSnap,
+                    rows_filled: filled,
+                    rows_total: rowsSnap.length,
+                };
+                const existing = packingId ? s.packings.find(p => p.id === packingId) : null;
+                const newPackings = existing
+                    ? s.packings.map(p => p.id === packingId ? { ...p, ...updated } : p)
+                    : [...s.packings, { id: 'pk-' + Date.now(), ...updated }];
+                return { ...s, packings: newPackings };
+            }),
+        }));
+    };
     return (React.createElement(LangCtx.Provider, { value: { lang, t: tFn } },
         React.createElement("div", { className: "app" },
             React.createElement("header", { className: "app-header" },
@@ -2765,7 +2801,7 @@ function App() {
                     route.section === 'documents' && React.createElement(Documents, { proforma: proforma, setProforma: setProforma, setRoute: setRoute }),
                     route.section === 'review' && React.createElement(Confirm, { proforma: proforma, status: status, setRoute: setRoute })),
                 guideOpen && React.createElement(GuidePanel, { route: route, onClose: () => setGuideOpen(false) })),
-            packingWiz && (React.createElement(PackingWizard, { proforma: proforma, shipmentId: packingWiz.shipmentId, packingId: packingWiz.packingId, sampleRows: SAMPLE_ROWS, onClose: closePackingWizard, onSave: () => { } })),
+            packingWiz && (React.createElement(PackingWizard, { proforma: proforma, shipmentId: packingWiz.shipmentId, packingId: packingWiz.packingId, sampleRows: SAMPLE_ROWS, onClose: closePackingWizard, onSave: savePacking })),
             showOnboard && React.createElement(Onboarding, { onClose: () => setShowOnboard(false) }),
             React.createElement(TweaksPanel, { title: "Tweaks" },
                 React.createElement(TweakSection, { label: "Idioma & branding" },

@@ -68,6 +68,33 @@ function App() {
   const openPackingWizard = (shipmentId, packingId) => setPackingWiz({ shipmentId, packingId });
   const closePackingWizard = () => setPackingWiz(null);
 
+  // Persist a packing (draft + rows) into the proforma state. Called by the
+  // PackingWizard before closing. Creates the packing if it does not exist yet.
+  const savePacking = (shipmentId, packingId, draftSnap, rowsSnap) => {
+    if (!shipmentId) return;
+    setProforma(prev => ({
+      ...prev,
+      shipments: prev.shipments.map(s => {
+        if (s.id !== shipmentId) return s;
+        const filled = rowsSnap.filter(r => r.h > 0 && r.w > 0 && r.container).length;
+        const updated = {
+          number: draftSnap.number,
+          date: draftSnap.date,
+          products: draftSnap.products,
+          blocks: draftSnap.blocks,
+          rows: rowsSnap,
+          rows_filled: filled,
+          rows_total: rowsSnap.length,
+        };
+        const existing = packingId ? s.packings.find(p => p.id === packingId) : null;
+        const newPackings = existing
+          ? s.packings.map(p => p.id === packingId ? { ...p, ...updated } : p)
+          : [...s.packings, { id: 'pk-' + Date.now(), ...updated }];
+        return { ...s, packings: newPackings };
+      }),
+    }));
+  };
+
   return (
     <LangCtx.Provider value={{ lang, t: tFn }}>
       <div className="app">
@@ -139,7 +166,7 @@ function App() {
                          packingId={packingWiz.packingId}
                          sampleRows={SAMPLE_ROWS}
                          onClose={closePackingWizard}
-                         onSave={() => {}}/>
+                         onSave={savePacking}/>
         )}
 
         {showOnboard && <Onboarding onClose={() => setShowOnboard(false)}/>}
