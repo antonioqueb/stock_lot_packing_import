@@ -88,7 +88,11 @@ const GuidePanel = ({ route, onClose }) => {
       </div>
 
       <div className="guide-illustration">
-        <Imgph style={{width: '100%', height: '100%', border: 0}}>{content.illustration || 'ilustración guía'}</Imgph>
+        <img
+          src="/stock_lot_packing_import/static/src/img/ilusttraci%C3%B3n.png"
+          alt={content.illustration || 'ilustración guía'}
+          style={{width: '100%', height: '100%', objectFit: 'contain'}}
+        />
       </div>
 
       <div className="guide-steps">

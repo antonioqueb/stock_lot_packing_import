@@ -4,15 +4,11 @@ const ONBOARD_STEPS = [
   {
     title: '¡Bienvenido al portal!',
     text: 'Aquí vas a registrar los datos del embarque para SOM GROUP. Te guiaremos paso a paso. No tienes que terminar de una sola vez.',
-    art: <div style={{display: 'flex', gap: 18, alignItems: 'center'}}>
-      <div style={{width: 60, height: 60, borderRadius: 14, background: 'var(--accent-soft)', color: 'var(--accent)', display: 'grid', placeItems: 'center'}}>
-        <Icon name="cube" size={28}/>
-      </div>
-      <Icon name="arrow_right" size={20} style={{color: 'var(--ink-4)'}}/>
-      <div style={{width: 60, height: 60, borderRadius: 14, background: 'var(--ok-soft)', color: 'var(--ok)', display: 'grid', placeItems: 'center'}}>
-        <Icon name="check" size={28}/>
-      </div>
-    </div>,
+    art: <img
+      src="/stock_lot_packing_import/static/src/img/ilusttraci%C3%B3n.png"
+      alt="Bienvenido al portal SOM GROUP"
+      style={{maxWidth: 320, maxHeight: 220, width: '100%', height: 'auto', objectFit: 'contain'}}
+    />,
   },
   {
     title: 'Tu progreso siempre visible',

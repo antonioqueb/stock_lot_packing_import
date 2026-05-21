@@ -64,7 +64,7 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
 
   return (
     <div className="modal-scrim" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal" style={{maxWidth: step === 4 ? 1280 : 880}}>
+      <div className={`modal ${step === 4 ? 'modal-wide' : ''}`} style={{maxWidth: step === 4 ? 1280 : 880}}>
         <div className="modal-head">
           <div>
             <div style={{fontSize: 11, fontWeight: 600, color: 'var(--ink-4)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6}}>

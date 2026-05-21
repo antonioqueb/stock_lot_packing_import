@@ -1833,7 +1833,7 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
         return true;
     };
     return (React.createElement("div", { className: "modal-scrim", onClick: (e) => e.target === e.currentTarget && onClose() },
-        React.createElement("div", { className: "modal", style: { maxWidth: step === 4 ? 1280 : 880 } },
+        React.createElement("div", { className: `modal ${step === 4 ? 'modal-wide' : ''}`, style: { maxWidth: step === 4 ? 1280 : 880 } },
             React.createElement("div", { className: "modal-head" },
                 React.createElement("div", null,
                     React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: 'var(--ink-4)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 } },
@@ -2306,12 +2306,7 @@ const ONBOARD_STEPS = [
     {
         title: '¡Bienvenido al portal!',
         text: 'Aquí vas a registrar los datos del embarque para SOM GROUP. Te guiaremos paso a paso. No tienes que terminar de una sola vez.',
-        art: React.createElement("div", { style: { display: 'flex', gap: 18, alignItems: 'center' } },
-            React.createElement("div", { style: { width: 60, height: 60, borderRadius: 14, background: 'var(--accent-soft)', color: 'var(--accent)', display: 'grid', placeItems: 'center' } },
-                React.createElement(Icon, { name: "cube", size: 28 })),
-            React.createElement(Icon, { name: "arrow_right", size: 20, style: { color: 'var(--ink-4)' } }),
-            React.createElement("div", { style: { width: 60, height: 60, borderRadius: 14, background: 'var(--ok-soft)', color: 'var(--ok)', display: 'grid', placeItems: 'center' } },
-                React.createElement(Icon, { name: "check", size: 28 }))),
+        art: React.createElement("img", { src: "/stock_lot_packing_import/static/src/img/ilusttraci%C3%B3n.png", alt: "Bienvenido al portal SOM GROUP", style: { maxWidth: 320, maxHeight: 220, width: '100%', height: 'auto', objectFit: 'contain' } }),
     },
     {
         title: 'Tu progreso siempre visible',
@@ -2449,7 +2444,7 @@ const GuidePanel = ({ route, onClose }) => {
             React.createElement("h3", null, content.title),
             React.createElement("p", { className: "sub" }, content.sub)),
         React.createElement("div", { className: "guide-illustration" },
-            React.createElement(Imgph, { style: { width: '100%', height: '100%', border: 0 } }, content.illustration || 'ilustración guía')),
+            React.createElement("img", { src: "/stock_lot_packing_import/static/src/img/ilusttraci%C3%B3n.png", alt: content.illustration || 'ilustración guía', style: { width: '100%', height: '100%', objectFit: 'contain' } })),
         React.createElement("div", { className: "guide-steps" }, content.steps.map((s, i) => (React.createElement("div", { key: s.num, className: `guide-step ${i === 0 ? 'active' : ''}` },
             React.createElement("span", { className: "num" }, s.num),
             React.createElement("div", { className: "body" },
@@ -2518,7 +2513,7 @@ function App() {
                 React.createElement("button", { className: "icon-btn", style: { display: 'none' }, onClick: () => setMobileNav(!mobileNav), "aria-label": "Men\u00FA" },
                     React.createElement(Icon, { name: "menu", size: 16 })),
                 React.createElement("div", { className: "brand" },
-                    React.createElement("img", { src: "/stock_lot_packing_import/static/src/img/som-icon-dark.svg", alt: "SOM", className: "brand-logo" }),
+                    React.createElement("img", { src: "/stock_lot_packing_import/static/src/img/icon.png", alt: "SOM", className: "brand-logo" }),
                     React.createElement("div", { className: "brand-name" },
                         React.createElement("span", null, "SOM"),
                         React.createElement("small", null, "Portal proveedor"))),

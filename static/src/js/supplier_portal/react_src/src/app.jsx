@@ -71,7 +71,7 @@ function App() {
           </button>
 
           <div className="brand">
-            <img src="/stock_lot_packing_import/static/src/img/som-icon-dark.svg" alt="SOM" className="brand-logo"/>
+            <img src="/stock_lot_packing_import/static/src/img/icon.png" alt="SOM" className="brand-logo"/>
             <div className="brand-name">
               <span>SOM</span>
               <small>Portal proveedor</small>

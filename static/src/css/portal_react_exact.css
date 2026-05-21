@@ -930,38 +930,172 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
 .stepper .step.active .n { background: var(--surface); color: var(--ink); border-color: var(--surface); }
 .stepper .step-sep { flex: 1; height: 1px; background: var(--border); min-width: 12px; }
 
-/* Modal */
+/* =================================================================
+   Modal — Packing Wizard dentro de Odoo
+   Corregido para evitar conflicto con .modal de Bootstrap/Odoo
+   ================================================================= */
+
 .modal-scrim {
-  position: fixed; inset: 0;
-  background: oklch(0.2 0.01 60 / 0.35);
-  backdrop-filter: blur(2px);
-  display: grid; place-items: center;
-  padding: 24px;
-  z-index: 200;
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 2147483000 !important;
+
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  width: 100vw !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+
+  padding: 24px !important;
+  background: oklch(0.2 0.01 60 / 0.42) !important;
+  backdrop-filter: blur(4px) !important;
+  -webkit-backdrop-filter: blur(4px) !important;
+
+  overflow: hidden !important;
 }
-.modal {
-  background: var(--surface);
-  border-radius: var(--r-lg);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-lg);
-  max-width: 880px;
-  width: 100%;
-  max-height: 90vh;
-  display: flex; flex-direction: column;
-  overflow: hidden;
+
+/*
+   Importante:
+   Se usa .modal-scrim > .modal para neutralizar solo el modal React,
+   sin afectar los modales nativos de Odoo.
+*/
+.modal-scrim > .modal {
+  position: relative !important;
+  inset: auto !important;
+  top: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: auto !important;
+
+  display: flex !important;
+  flex-direction: column !important;
+
+  width: min(880px, calc(100vw - 48px)) !important;
+  max-width: min(880px, calc(100vw - 48px)) !important;
+  height: auto !important;
+  max-height: calc(100vh - 48px) !important;
+  max-height: calc(100dvh - 48px) !important;
+  min-height: 0 !important;
+
+  margin: 0 !important;
+  transform: none !important;
+
+  background: var(--surface) !important;
+  border-radius: var(--r-lg) !important;
+  border: 1px solid var(--border) !important;
+  box-shadow: var(--shadow-lg) !important;
+
+  overflow: hidden !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  outline: none !important;
 }
-.modal-head {
-  padding: 22px 24px 18px;
-  border-bottom: 1px solid var(--border-soft);
-  display: flex; justify-content: space-between; align-items: flex-start; gap: 16px;
+
+/* Paso 4: tabla placa por placa, ancho amplio */
+.modal-scrim > .modal.modal-wide,
+.modal-scrim > .modal[style*="1280"] {
+  width: min(1280px, calc(100vw - 48px)) !important;
+  max-width: min(1280px, calc(100vw - 48px)) !important;
 }
-.modal-head h2 { margin: 0; font-size: 19px; font-weight: 650; letter-spacing: -0.01em; }
-.modal-head .sub { margin: 4px 0 0; color: var(--ink-3); font-size: 13.5px; max-width: 60ch; }
-.modal-body { padding: 22px 24px; overflow-y: auto; flex: 1; }
-.modal-foot {
-  padding: 16px 24px;
-  border-top: 1px solid var(--border-soft);
-  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+
+.modal-scrim > .modal > .modal-head {
+  padding: 22px 24px 18px !important;
+  border-bottom: 1px solid var(--border-soft) !important;
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: flex-start !important;
+  gap: 16px !important;
+  flex: 0 0 auto !important;
+  background: var(--surface) !important;
+}
+
+.modal-scrim > .modal > .modal-head h2 {
+  margin: 0 !important;
+  font-size: 19px !important;
+  font-weight: 650 !important;
+  letter-spacing: -0.01em !important;
+}
+
+.modal-scrim > .modal > .modal-head .sub {
+  margin: 4px 0 0 !important;
+  color: var(--ink-3) !important;
+  font-size: 13.5px !important;
+  max-width: 60ch !important;
+}
+
+.modal-scrim > .modal > .modal-body {
+  padding: 22px 24px !important;
+  overflow: auto !important;
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+}
+
+.modal-scrim > .modal > .modal-foot {
+  padding: 16px 24px !important;
+  border-top: 1px solid var(--border-soft) !important;
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  gap: 12px !important;
+  flex: 0 0 auto !important;
+  background: var(--surface) !important;
+}
+
+/* La tabla no debe empujar el modal fuera del viewport */
+.modal-scrim .sheet-scroll {
+  max-width: 100% !important;
+  overflow-x: auto !important;
+  overflow-y: visible !important;
+}
+
+/* Evita que la tabla de placas rompa el layout horizontal del popup */
+.modal-scrim .sheet-table {
+  min-width: 1120px;
+}
+
+/* Botón cerrar dentro del modal */
+.modal-scrim > .modal .icon-btn {
+  flex: 0 0 auto !important;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .modal-scrim {
+    padding: 12px !important;
+  }
+
+  .modal-scrim > .modal,
+  .modal-scrim > .modal.modal-wide,
+  .modal-scrim > .modal[style*="1280"] {
+    width: calc(100vw - 24px) !important;
+    max-width: calc(100vw - 24px) !important;
+    max-height: calc(100vh - 24px) !important;
+    max-height: calc(100dvh - 24px) !important;
+    border-radius: 14px !important;
+  }
+
+  .modal-scrim > .modal > .modal-head,
+  .modal-scrim > .modal > .modal-body,
+  .modal-scrim > .modal > .modal-foot {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+
+  .modal-scrim > .modal > .modal-foot {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  .modal-scrim > .modal > .modal-foot > div {
+    width: 100% !important;
+  }
+
+  .modal-scrim > .modal > .modal-foot .btn {
+    width: 100% !important;
+    justify-content: center !important;
+  }
 }
 
 /* Block card (packing wizard) */
