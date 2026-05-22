@@ -412,15 +412,15 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
   color: var(--surface);
   border-color: var(--ink);
 }
-.btn-primary:hover { background: oklch(0.32 0.01 60); border-color: oklch(0.32 0.01 60); }
-.btn-secondary { border-color: var(--border-strong); background: var(--surface); }
-.btn-secondary:hover { background: var(--surface-alt); }
+.btn-primary:hover { background: oklch(0.32 0.01 60); border-color: oklch(0.32 0.01 60); color: var(--surface); }
+.btn-secondary { border-color: var(--border-strong); background: var(--surface); color: var(--ink); }
+.btn-secondary:hover { background: var(--surface-alt); color: var(--ink); }
 .btn-ghost { background: transparent; border-color: transparent; color: var(--ink-2); }
 .btn-ghost:hover { background: var(--surface-alt); color: var(--ink); }
-.btn-accent { background: var(--accent); color: white; border-color: var(--accent); }
-.btn-accent:hover { background: var(--accent-2); border-color: var(--accent-2); }
+.btn-accent { background: var(--accent); color: #fff; border-color: var(--accent); }
+.btn-accent:hover { background: var(--accent-2); border-color: var(--accent-2); color: #fff; }
 .btn-danger-ghost { color: var(--danger); background: transparent; }
-.btn-danger-ghost:hover { background: var(--danger-soft); }
+.btn-danger-ghost:hover { background: var(--danger-soft); color: var(--danger); }
 .btn.sm { padding: 6px 12px; font-size: 12.5px; }
 .btn.lg { padding: 12px 22px; font-size: 14.5px; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
