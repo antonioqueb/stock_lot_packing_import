@@ -1,0 +1,10 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_stock_picking_supplier_access_user,stock.picking.supplier.access.user,model_stock_picking_supplier_access,base.group_user,1,1,1,1
+access_supplier_proforma_header_user,supplier.proforma.header.user,model_supplier_proforma_header,base.group_user,1,1,1,1
+access_supplier_shipment_user,supplier.shipment.user,model_supplier_shipment,base.group_user,1,1,1,1
+access_supplier_shipment_container_user,supplier.shipment.container.user,model_supplier_shipment_container,base.group_user,1,1,1,1
+access_supplier_shipment_invoice_user,supplier.shipment.invoice.user,model_supplier_shipment_invoice,base.group_user,1,1,1,1
+access_supplier_shipment_packing_user,supplier.shipment.packing.user,model_supplier_shipment_packing,base.group_user,1,1,1,1
+access_supplier_shipment_packing_row_user,supplier.shipment.packing.row.user,model_supplier_shipment_packing_row,base.group_user,1,1,1,1
+access_supplier_shipment_block_image_user,supplier.shipment.block.image.user,model_supplier_shipment_block_image,base.group_user,1,1,1,1
+access_supplier_shipment_document_user,supplier.shipment.document.user,model_supplier_shipment_document,base.group_user,1,1,1,1
