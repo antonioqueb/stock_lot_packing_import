@@ -8,7 +8,6 @@
     'data': [
         'security/stock_lot_hold_security.xml',
         'security/ir.model.access.csv',
-        'security/supplier_portal_model_access.csv',
         'wizard/packing_list_import_wizard_views.xml',
         'wizard/worksheet_import_wizard_views.xml',
         'wizard/supplier_link_wizard_views.xml',
