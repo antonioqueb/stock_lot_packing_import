@@ -1246,13 +1246,29 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
         if not image_data:
             return {"success": False, "message": "No se recibió imagen."}
 
-        record = request.env["supplier.shipment.block.image"].sudo().create({
-            "shipment_id": shipment.id,
-            "block_name": str(block_name).strip(),
-            "product_id": self.safe_int(product_id),
+        block_image_model = request.env["supplier.shipment.block.image"].sudo()
+        clean_block = str(block_name).strip()
+        clean_product = self.safe_int(product_id)
+
+        # Upsert: respeta la restricción única (shipment_id, block_name, product_id).
+        # Si ya hay foto para ese bloque/producto se reemplaza en lugar de duplicar.
+        record = block_image_model.search([
+            ("shipment_id", "=", shipment.id),
+            ("block_name", "=", clean_block),
+            ("product_id", "=", clean_product),
+        ], limit=1)
+        values = {
             "image": image_data,
             "image_filename": image_name or "block_photo",
-        })
+        }
+        if record:
+            record.write(values)
+        else:
+            record = block_image_model.create(dict(values, **{
+                "shipment_id": shipment.id,
+                "block_name": clean_block,
+                "product_id": clean_product,
+            }))
         return {"success": True, "block_image_id": record.id}
 
     def delete_block_image(self, token, block_image_id):

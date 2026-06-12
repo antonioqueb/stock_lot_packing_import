@@ -334,7 +334,7 @@ class SupplierShipmentPackingRow(models.Model):
     )
     grosor = fields.Char(string='Grosor')
     alto = fields.Float(string='Alto')
-    ancho = fields.Float(string='Ancho')
+    ancho = fields.Float(string='Largo')
     peso = fields.Float(string='Peso')
     quantity = fields.Float(string='Cantidad')
     bloque = fields.Char(string='Bloque')

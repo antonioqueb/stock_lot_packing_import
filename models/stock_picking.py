@@ -472,7 +472,7 @@ class StockPicking(models.Model):
                 
                 if unit_type == 'Placa':
                     # Placa: [Grosor, Alto, Ancho] + Comunes
-                    headers = ['Grosor (cm)', 'Alto (m)', 'Ancho (m)'] + common_headers_suffix
+                    headers = ['Grosor (cm)', 'Alto (m)', 'Largo (m)'] + common_headers_suffix
                 else:
                     # Pieza: [Grosor, Cantidad] + Comunes
                     # Aquí se elimina la columna vacía. "Peso" pasa a ser la columna C.
@@ -527,7 +527,7 @@ class StockPicking(models.Model):
             products = self.move_line_ids.mapped('product_id')
             folder = self.env['documents.document'].search([('type', '=', 'folder')], limit=1)
             
-            headers = ['Nº Lote', 'Grosor', 'Alto Teo.', 'Ancho Teo.', 'Color', 'Bloque', 'No. Placa', 'Atado', 'Tipo', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Prov.', 'ALTO REAL (m)', 'ANCHO REAL (m)']
+            headers = ['Nº Lote', 'Grosor', 'Alto Teo.', 'Largo Teo.', 'Color', 'Bloque', 'No. Placa', 'Atado', 'Tipo', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Prov.', 'ALTO REAL (m)', 'LARGO REAL (m)']
             sheets = []
             for product in products:
                 cells = {}
@@ -609,7 +609,7 @@ class StockPicking(models.Model):
             # --- HEADERS DINÁMICOS EXCEL SIN HUECOS ---
             headers = []
             if unit_type == 'Placa':
-                headers = ['Grosor (cm)', 'Alto (m)', 'Ancho (m)'] + common_headers_suffix
+                headers = ['Grosor (cm)', 'Alto (m)', 'Largo (m)'] + common_headers_suffix
             else:
                 # Pieza: [Grosor, Cantidad] + Comunes (sin huecos)
                 headers = ['Grosor (cm)', 'Cantidad'] + common_headers_suffix
@@ -644,7 +644,7 @@ class StockPicking(models.Model):
         for product in self.move_line_ids.mapped('product_id'):
             ws = wb.create_sheet(title=(product.default_code or product.name)[:31])
             ws['A1'] = 'PRODUCTO:'; ws['B1'] = f'{product.name} ({product.default_code or ""})'
-            headers = ['Lote', 'Grosor', 'Alto Teo.', 'Ancho Teo.', 'Color', 'Bloque', 'No. Placa', 'Atado', 'Tipo', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Prov', 'Cantidad', 'Alto Real', 'Ancho Real']
+            headers = ['Lote', 'Grosor', 'Alto Teo.', 'Largo Teo.', 'Color', 'Bloque', 'No. Placa', 'Atado', 'Tipo', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Prov', 'Cantidad', 'Alto Real', 'Largo Real']
             for col_num, header in enumerate(headers, 1):
                 cell = ws.cell(row=3, column=col_num); cell.value = header; cell.fill = header_fill; cell.font = header_font; cell.border = border
             curr = 4

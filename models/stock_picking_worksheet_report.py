@@ -331,7 +331,7 @@ class StockPicking(models.Model):
 
         # === INSTRUCCIONES ===
         instr = Table([[Paragraph(
-            '<b>INSTRUCCIONES:</b> Registre <b>ALTO REAL</b> y <b>ANCHO REAL</b> (metros). '
+            '<b>INSTRUCCIONES:</b> Registre <b>ALTO REAL</b> y <b>LARGO REAL</b> (metros). '
             'Use la columna <b>DUEÑO</b> para identificar material preasignado/asignado desde embarque. '
             'Deje en blanco las piezas faltantes.',
             ParagraphStyle(
@@ -363,9 +363,9 @@ class StockPicking(models.Model):
             Paragraph('ATADO', style_th),
             Paragraph('DUEÑO', style_th),
             Paragraph('ALTO TEO.', style_th),
-            Paragraph('ANCHO TEO.', style_th),
+            Paragraph('LARGO TEO.', style_th),
             Paragraph('ALTO REAL', style_th),
-            Paragraph('ANCHO REAL', style_th),
+            Paragraph('LARGO REAL', style_th),
         ]
 
         col_widths = [

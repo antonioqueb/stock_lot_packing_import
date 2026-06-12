@@ -33,7 +33,7 @@ class WorksheetImportWizard(models.TransientModel):
             rows_data = self._get_data_from_spreadsheet()
 
         if not rows_data:
-            raise UserError('No se encontraron datos de medidas reales (Alto/Ancho Real) para procesar.')
+            raise UserError('No se encontraron datos de medidas reales (Alto/Largo Real) para procesar.')
 
         lines_updated = 0
         total_missing_pieces = 0
