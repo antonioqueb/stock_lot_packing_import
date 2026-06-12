@@ -452,7 +452,7 @@ class StockPicking(models.Model):
                         Paragraph('', style_editable),
                     ])
                 else:
-                    qty_teo = ml.qty_done or 0.0
+                    qty_teo = self._ws_move_line_qty(ml)
                     table_data.append([
                         Paragraph(str(row_num), style_td),
                         Paragraph(self._ws_safe_text(lot.name), style_td_bold),

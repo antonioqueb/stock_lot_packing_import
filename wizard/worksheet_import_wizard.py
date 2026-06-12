@@ -70,7 +70,7 @@ class WorksheetImportWizard(models.TransientModel):
                 qty_real = data.get('qty_real') or 0.0
                 if qty_real == 0.0:
                     total_missing_pieces += 1
-                    total_missing_m2 += move_line.qty_done or 0.0
+                    total_missing_m2 += self.picking_id._ws_move_line_qty(move_line)
                     move_lines_to_delete.append(move_line)
                     lots_to_delete.append(lot)
                 else:

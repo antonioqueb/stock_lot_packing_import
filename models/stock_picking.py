@@ -520,6 +520,17 @@ class StockPicking(models.Model):
 
         return self._action_launch_spreadsheet(self.spreadsheet_id)
 
+    def _ws_move_line_qty(self, ml):
+        """Cantidad teórica de una línea de recepción, robusta entre
+        versiones: en Odoo 19 el campo real del core es quantity; qty_done
+        puede existir como compatibilidad pero leerse en 0."""
+        qty = 0.0
+        if 'qty_done' in ml._fields:
+            qty = ml.qty_done or 0.0
+        if not qty and 'quantity' in ml._fields:
+            qty = ml.quantity or 0.0
+        return qty
+
     def _ws_product_is_placa(self, product):
         """True si el producto se captura por dimensiones (placas).
         Para formatos/piezas el worksheet solo corrobora la cantidad real
@@ -570,7 +581,7 @@ class StockPicking(models.Model):
                     cells[f"L{row_idx}"] = self._make_cell(lot.x_contenedor)
                     cells[f"M{row_idx}"] = self._make_cell(lot.x_referencia_proveedor)
                     if not is_placa:
-                        cells[f"N{row_idx}"] = self._make_cell(ml.qty_done)
+                        cells[f"N{row_idx}"] = self._make_cell(self._ws_move_line_qty(ml))
                     row_idx += 1
                 sheet_name = (product.default_code or product.name)[:31]
                 sheets.append({
@@ -672,7 +683,7 @@ class StockPicking(models.Model):
                 ws.cell(row=curr, column=2, value=ml.lot_id.x_grosor).fill = data_fill
                 ws.cell(row=curr, column=3, value=ml.lot_id.x_alto).fill = data_fill
                 ws.cell(row=curr, column=4, value=ml.lot_id.x_ancho).fill = data_fill
-                ws.cell(row=curr, column=14, value=ml.qty_done).fill = data_fill
+                ws.cell(row=curr, column=14, value=self._ws_move_line_qty(ml)).fill = data_fill
                 for col in range(1, 15): ws.cell(row=curr, column=col).border = border
                 ws.cell(row=curr, column=15).fill = editable_fill; ws.cell(row=curr, column=15).border = border
                 if is_placa:
