@@ -35,6 +35,28 @@ class WorksheetImportWizard(models.TransientModel):
         if not rows_data:
             raise UserError('No se encontraron datos de medidas reales (Alto/Largo Real) para procesar.')
 
+        # RED DE SEGURIDAD: si ninguna fila trae captura (todo vacío o en 0),
+        # abortar sin tocar nada. Antes esto borraba TODOS los lotes de la
+        # recepción al interpretarlos como faltantes.
+        def _row_has_capture(d):
+            if d.get('is_placa', True):
+                return bool(d.get('alto_real') or d.get('ancho_real'))
+            return bool(d.get('qty_real'))
+
+        captured = [d for d in rows_data if _row_has_capture(d)]
+        _logger.info(
+            "[WS_IMPORT] Filas leídas: %s | con captura: %s",
+            len(rows_data), len(captured),
+        )
+        if not captured:
+            raise UserError(
+                'No se encontró ninguna captura en el Worksheet: todas las '
+                'filas tienen la cantidad o medida real vacía o en 0.\n\n'
+                'No se modificó nada. Captura los valores reales en el WS, '
+                'espera unos segundos a que la hoja guarde los cambios (o '
+                'ciérrala) y vuelve a dar Procesar WS.'
+            )
+
         lines_updated = 0
         total_missing_pieces = 0
         total_missing_m2 = 0
@@ -195,20 +217,31 @@ class WorksheetImportWizard(models.TransientModel):
                 if not lot_name or lot_name == 'Nº Lote': continue
 
                 if is_placa:
+                    alto_r = self._to_float(idx.value(13, r))
+                    ancho_r = self._to_float(idx.value(14, r))
+                    _logger.info(
+                        "[WS_IMPORT] placa | fila %s | lote %s | N(raw)=%r O(raw)=%r -> alto=%s ancho=%s",
+                        r, lot_name, idx.value(13, r), idx.value(14, r), alto_r, ancho_r,
+                    )
                     all_rows.append({
                         'product': product,
                         'lot_name': lot_name,
                         'is_placa': True,
-                        'alto_real': self._to_float(idx.value(13, r)),
-                        'ancho_real': self._to_float(idx.value(14, r)),
+                        'alto_real': alto_r,
+                        'ancho_real': ancho_r,
                     })
                 else:
                     # Formatos: col O (14) = CANT. REAL.
+                    qty_r = self._to_float(idx.value(14, r))
+                    _logger.info(
+                        "[WS_IMPORT] formato | fila %s | lote %s | O(raw)=%r -> qty_real=%s",
+                        r, lot_name, idx.value(14, r), qty_r,
+                    )
                     all_rows.append({
                         'product': product,
                         'lot_name': lot_name,
                         'is_placa': False,
-                        'qty_real': self._to_float(idx.value(14, r)),
+                        'qty_real': qty_r,
                     })
                     
         return all_rows
