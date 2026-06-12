@@ -63,6 +63,21 @@ class WorksheetImportWizard(models.TransientModel):
                 continue
 
             lot = move_line.lot_id
+
+            # Formatos: el WS solo corrobora cantidad real contra teórica.
+            # No hay alto/largo real y no se renumeran lotes por contenedor.
+            if not data.get('is_placa', True):
+                qty_real = data.get('qty_real') or 0.0
+                if qty_real == 0.0:
+                    total_missing_pieces += 1
+                    total_missing_m2 += move_line.qty_done or 0.0
+                    move_lines_to_delete.append(move_line)
+                    lots_to_delete.append(lot)
+                else:
+                    move_line.write({'qty_done': qty_real})
+                    lines_updated += 1
+                continue
+
             alto_real = data['alto_real']
             ancho_real = data['ancho_real']
 
@@ -173,20 +188,28 @@ class WorksheetImportWizard(models.TransientModel):
             
             product = pl_wizard._identify_product_from_sheet(idx)
             if not product: continue
+            is_placa = self.picking_id._ws_product_is_placa(product)
 
             for r in range(3, 250):
                 lot_name = str(idx.value(0, r) or '').strip()
                 if not lot_name or lot_name == 'Nº Lote': continue
 
-                alto_r = self._to_float(idx.value(13, r))
-                ancho_r = self._to_float(idx.value(14, r))
-                
-                all_rows.append({
-                    'product': product,
-                    'lot_name': lot_name,
-                    'alto_real': alto_r,
-                    'ancho_real': ancho_r,
-                })
+                if is_placa:
+                    all_rows.append({
+                        'product': product,
+                        'lot_name': lot_name,
+                        'is_placa': True,
+                        'alto_real': self._to_float(idx.value(13, r)),
+                        'ancho_real': self._to_float(idx.value(14, r)),
+                    })
+                else:
+                    # Formatos: col O (14) = CANT. REAL.
+                    all_rows.append({
+                        'product': product,
+                        'lot_name': lot_name,
+                        'is_placa': False,
+                        'qty_real': self._to_float(idx.value(14, r)),
+                    })
                     
         return all_rows
 
@@ -209,17 +232,31 @@ class WorksheetImportWizard(models.TransientModel):
             ], limit=1)
             
             if not product: continue
+            is_placa = self.picking_id._ws_product_is_placa(product)
 
             for r in range(4, sheet.max_row + 1):
                 lot_name = str(sheet.cell(r, 1).value or '').strip()
                 if not lot_name: continue
-                
-                all_rows.append({
-                    'product': product,
-                    'lot_name': lot_name,
-                    'alto_real': self._to_float(sheet.cell(r, 14).value),
-                    'ancho_real': self._to_float(sheet.cell(r, 15).value),
-                })
+
+                if is_placa:
+                    # Plantilla WS: col 15 = Alto Real, col 16 = Largo Real
+                    # (antes se leían 14/15, desfasadas una columna contra
+                    # la plantilla generada por action_download_worksheet).
+                    all_rows.append({
+                        'product': product,
+                        'lot_name': lot_name,
+                        'is_placa': True,
+                        'alto_real': self._to_float(sheet.cell(r, 15).value),
+                        'ancho_real': self._to_float(sheet.cell(r, 16).value),
+                    })
+                else:
+                    # Formatos: col 15 = CANT. REAL.
+                    all_rows.append({
+                        'product': product,
+                        'lot_name': lot_name,
+                        'is_placa': False,
+                        'qty_real': self._to_float(sheet.cell(r, 15).value),
+                    })
         return all_rows
 
     def _to_float(self, val):

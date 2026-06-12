@@ -520,6 +520,13 @@ class StockPicking(models.Model):
 
         return self._action_launch_spreadsheet(self.spreadsheet_id)
 
+    def _ws_product_is_placa(self, product):
+        """True si el producto se captura por dimensiones (placas).
+        Para formatos/piezas el worksheet solo corrobora la cantidad real
+        contra la teórica, igual que el PL de formatos."""
+        unit = product.product_tmpl_id.x_unidad_del_producto or 'Placa'
+        return str(unit).strip().lower() == 'placa'
+
     def action_open_worksheet_spreadsheet(self):
         self.ensure_one()
         if not self.packing_list_imported: raise UserError('Primero debe importar (o heredar) el Packing List.')
@@ -527,9 +534,15 @@ class StockPicking(models.Model):
             products = self.move_line_ids.mapped('product_id')
             folder = self.env['documents.document'].search([('type', '=', 'folder')], limit=1)
             
-            headers = ['Nº Lote', 'Grosor', 'Alto Teo.', 'Largo Teo.', 'Color', 'Bloque', 'No. Placa', 'Atado', 'Tipo', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Prov.', 'ALTO REAL (m)', 'LARGO REAL (m)']
+            base_headers = ['Nº Lote', 'Grosor', 'Alto Teo.', 'Largo Teo.', 'Color', 'Bloque', 'No. Placa', 'Atado', 'Tipo', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Prov.']
             sheets = []
             for product in products:
+                is_placa = self._ws_product_is_placa(product)
+                if is_placa:
+                    headers = base_headers + ['ALTO REAL (m)', 'LARGO REAL (m)']
+                else:
+                    # Formatos: solo cantidad real contra teórica.
+                    headers = base_headers + ['CANT. TEÓRICA', 'CANT. REAL']
                 cells = {}
                 cells["A1"] = self._make_cell("PRODUCTO:")
                 p_str = f"{product.name} ({product.default_code or ''})"
@@ -556,12 +569,14 @@ class StockPicking(models.Model):
                     cells[f"K{row_idx}"] = self._make_cell(lot.x_pedimento)
                     cells[f"L{row_idx}"] = self._make_cell(lot.x_contenedor)
                     cells[f"M{row_idx}"] = self._make_cell(lot.x_referencia_proveedor)
+                    if not is_placa:
+                        cells[f"N{row_idx}"] = self._make_cell(ml.qty_done)
                     row_idx += 1
                 sheet_name = (product.default_code or product.name)[:31]
                 sheets.append({
                     "id": f"ws_sheet_{product.id}", "name": sheet_name, "cells": cells,
                     "colNumber": 15, "rowNumber": max(row_idx+20, 100), "isProtected": True,
-                    "protectedRanges": [{"range": f"N4:O{row_idx+100}", "isProtected": False}]
+                    "protectedRanges": [{"range": (f"N4:O{row_idx+100}" if is_placa else f"O4:O{row_idx+100}"), "isProtected": False}]
                 })
             vals = {
                 'name': f'WS: {self.name}.osheet', 'type': 'binary', 'handler': 'spreadsheet',
@@ -644,7 +659,11 @@ class StockPicking(models.Model):
         for product in self.move_line_ids.mapped('product_id'):
             ws = wb.create_sheet(title=(product.default_code or product.name)[:31])
             ws['A1'] = 'PRODUCTO:'; ws['B1'] = f'{product.name} ({product.default_code or ""})'
-            headers = ['Lote', 'Grosor', 'Alto Teo.', 'Largo Teo.', 'Color', 'Bloque', 'No. Placa', 'Atado', 'Tipo', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Prov', 'Cantidad', 'Alto Real', 'Largo Real']
+            is_placa = self._ws_product_is_placa(product)
+            if is_placa:
+                headers = ['Lote', 'Grosor', 'Alto Teo.', 'Largo Teo.', 'Color', 'Bloque', 'No. Placa', 'Atado', 'Tipo', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Prov', 'Cantidad', 'Alto Real', 'Largo Real']
+            else:
+                headers = ['Lote', 'Grosor', 'Alto Teo.', 'Largo Teo.', 'Color', 'Bloque', 'No. Placa', 'Atado', 'Tipo', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Prov', 'Cant. Teórica', 'CANT. REAL']
             for col_num, header in enumerate(headers, 1):
                 cell = ws.cell(row=3, column=col_num); cell.value = header; cell.fill = header_fill; cell.font = header_font; cell.border = border
             curr = 4
@@ -656,7 +675,8 @@ class StockPicking(models.Model):
                 ws.cell(row=curr, column=14, value=ml.qty_done).fill = data_fill
                 for col in range(1, 15): ws.cell(row=curr, column=col).border = border
                 ws.cell(row=curr, column=15).fill = editable_fill; ws.cell(row=curr, column=15).border = border
-                ws.cell(row=curr, column=16).fill = editable_fill; ws.cell(row=curr, column=16).border = border
+                if is_placa:
+                    ws.cell(row=curr, column=16).fill = editable_fill; ws.cell(row=curr, column=16).border = border
                 curr += 1
         output = io.BytesIO(); wb.save(output)
         filename = f'Worksheet_{self.name}.xlsx'
