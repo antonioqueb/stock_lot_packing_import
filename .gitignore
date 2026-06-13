@@ -11,3 +11,6 @@ dist
 build
 coverage
 .vscode
+__pycache__/
+*.pyc
+settings.json
