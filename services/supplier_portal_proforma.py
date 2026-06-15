@@ -1137,6 +1137,10 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
             for packing in self.sorted_packings(shipment.packing_ids):
                 blocks_in_packing = set()
                 for row in packing.row_ids:
+                    # La foto por bloque solo aplica a Placas. Formato/Pieza no
+                    # tienen bloque de cantera, así que no se exige fotografía.
+                    if (row.tipo or "").strip().lower() != "placa":
+                        continue
                     block_name = (row.bloque or "").strip()
                     if block_name:
                         blocks_in_packing.add((block_name, row.product_id.id))

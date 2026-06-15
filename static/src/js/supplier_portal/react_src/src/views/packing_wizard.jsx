@@ -234,6 +234,7 @@ const Step2Blocks = ({ proforma, draft, setDraft }) => {
       <div style={{marginTop: 20, display: 'flex', flexDirection: 'column', gap: 24}}>
         {products.map(p => {
           const productBlocks = draft.blocks.filter(b => b.product === p.id);
+          const needsPhoto = (p.kind || 'placa') === 'placa';
           return (
             <div key={p.id}>
               <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10}}>
@@ -254,17 +255,19 @@ const Step2Blocks = ({ proforma, draft, setDraft }) => {
                 <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 12}}>
                   {productBlocks.map((b, bi) => (
                     <div key={b.id} className="block-card">
-                      <div className={`block-photo ${b.photo ? 'has-photo' : ''}`}
-                           onClick={() => updBlock(b.id, { photo: !b.photo })}>
-                        {b.photo ? (
-                          <Imgph style={{width: '100%', height: '100%', borderRadius: 8}}>foto bloque</Imgph>
-                        ) : (
-                          <div style={{textAlign: 'center'}}>
-                            <Icon name="camera" size={20}/>
-                            <div style={{fontSize: 10, marginTop: 4, fontWeight: 600}}>Subir foto</div>
-                          </div>
-                        )}
-                      </div>
+                      {needsPhoto && (
+                        <div className={`block-photo ${b.photo ? 'has-photo' : ''}`}
+                             onClick={() => updBlock(b.id, { photo: !b.photo })}>
+                          {b.photo ? (
+                            <Imgph style={{width: '100%', height: '100%', borderRadius: 8}}>foto bloque</Imgph>
+                          ) : (
+                            <div style={{textAlign: 'center'}}>
+                              <Icon name="camera" size={20}/>
+                              <div style={{fontSize: 10, marginTop: 4, fontWeight: 600}}>Subir foto</div>
+                            </div>
+                          )}
+                        </div>
+                      )}
                       <div className="block-fields">
                         <Field label={`Nombre del bloque #${bi + 1}`} required>
                           <Input mono placeholder="Ej. B-2024-117" value={b.name}
@@ -277,9 +280,11 @@ const Step2Blocks = ({ proforma, draft, setDraft }) => {
                           </Field>
                           <Field label="Estado">
                             <div style={{display: 'flex', gap: 6, alignItems: 'center', padding: '8px 0'}}>
-                              {b.photo
-                                ? <Badge tone="done"><Icon name="check" size={10}/> Foto OK</Badge>
-                                : <Badge tone="partial"><Icon name="camera" size={10}/> Falta foto</Badge>}
+                              {!needsPhoto
+                                ? <span className="text-muted text-small">No requiere foto</span>
+                                : b.photo
+                                  ? <Badge tone="done"><Icon name="check" size={10}/> Foto OK</Badge>
+                                  : <Badge tone="partial"><Icon name="camera" size={10}/> Falta foto</Badge>}
                               <Btn variant="ghost" size="sm" icon="trash" className="btn-danger-ghost" onClick={() => delBlock(b.id)}/>
                             </div>
                           </Field>
@@ -300,8 +305,13 @@ const Step2Blocks = ({ proforma, draft, setDraft }) => {
 /* ====================== Step 3 ====================== */
 const Step3Review = ({ proforma, draft }) => {
   const totalPlates = draft.blocks.reduce((a, b) => a + (+b.count || 0), 0);
-  const photosMissing = draft.blocks.filter(b => !b.photo).length;
   const products = proforma.products.filter(p => draft.products.includes(p.id));
+  const needsBlockPhoto = (b) => {
+    const pr = proforma.products.find(p => p.id === b.product);
+    return ((pr && pr.kind) || 'placa') === 'placa';
+  };
+  const blockOk = (b) => !needsBlockPhoto(b) || b.photo;
+  const photosMissing = draft.blocks.filter(b => needsBlockPhoto(b) && !b.photo).length;
 
   return (
     <div>
@@ -346,11 +356,11 @@ const Step3Review = ({ proforma, draft }) => {
                     <div key={b.id} style={{
                       display: 'flex', alignItems: 'center', gap: 8,
                       padding: '6px 10px', borderRadius: 8,
-                      background: b.photo ? 'var(--ok-soft)' : 'var(--warn-soft)',
-                      border: `1px solid ${b.photo ? 'var(--ok-border)' : 'var(--warn-border)'}`,
+                      background: blockOk(b) ? 'var(--ok-soft)' : 'var(--warn-soft)',
+                      border: `1px solid ${blockOk(b) ? 'var(--ok-border)' : 'var(--warn-border)'}`,
                       fontSize: 12.5,
                     }}>
-                      <Icon name={b.photo ? 'check' : 'camera'} size={11}/>
+                      <Icon name={blockOk(b) ? 'check' : 'camera'} size={11}/>
                       <span className="mono" style={{fontWeight: 600}}>{b.name}</span>
                       <span className="text-muted" style={{fontSize: 11}}>× {b.count}</span>
                     </div>
@@ -440,7 +450,7 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship }) => {
     { header: 'No. Placa',  field: 'plate',     type: 'string' },
     { header: 'Grosor cm',  field: 'thickness', type: 'number' },
     { header: 'Alto m',     field: 'h',         type: 'number' },
-    { header: 'Ancho m',    field: 'w',         type: 'number' },
+    { header: 'Largo m',    field: 'w',         type: 'number' },
     { header: 'Contenedor', field: 'container', type: 'string' },
     { header: 'Notas',      field: 'notes',     type: 'string' },
   ];
@@ -566,7 +576,7 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship }) => {
                 <th style={{minWidth: 110}}>No. Placa</th>
                 <th style={{width: 110}}>Grosor cm</th>
                 <th style={{width: 110}}>Alto m</th>
-                <th style={{width: 110}}>Ancho m</th>
+                <th style={{width: 110}}>Largo m</th>
                 <th style={{width: 80}}>Área m²</th>
                 <th style={{minWidth: 180}}>Contenedor</th>
                 <th style={{width: 60}}>Foto</th>
@@ -651,7 +661,7 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship }) => {
               <textarea
                 value={pasteText}
                 onChange={(e) => setPasteText(e.target.value)}
-                placeholder={'Pega aquí los datos copiados de Excel...\n\nColumnas esperadas (en este orden si no incluyes headers):\n#  Bloque  Atado  No. Placa  Grosor cm  Alto m  Ancho m  Contenedor  Notas'}
+                placeholder={'Pega aquí los datos copiados de Excel...\n\nColumnas esperadas (en este orden si no incluyes headers):\n#  Bloque  Atado  No. Placa  Grosor cm  Alto m  Largo m  Contenedor  Notas'}
                 autoFocus
                 spellCheck={false}
                 style={{width: '100%', minHeight: 180, fontFamily: 'var(--font-mono)', fontSize: 12, padding: 12, border: '1px solid var(--border)', borderRadius: 8, resize: 'vertical', background: 'var(--surface-alt)', color: 'var(--ink)', lineHeight: 1.5}}

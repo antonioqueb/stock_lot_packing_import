@@ -120,8 +120,8 @@ const SAMPLE_ROWS = [
   { id: 'r9', block: 'B-2024-118', atado: 'A-02', plate: 'P-009', ref: 'CG-POL-20', thickness: 2, h: 3.18, w: 1.60, notes: '', container: 'COSU6817042', photo: true,  errors: [] },
   { id: 'r10', block: 'B-2024-118', atado: 'A-02', plate: 'P-010', ref: 'CG-POL-20', thickness: 2, h: 3.18, w: 1.60, notes: '', container: 'COSU6817043', photo: false, errors: [] },
   // Block 3 (empty)
-  { id: 'r11', block: 'B-2024-119', atado: 'A-03', plate: 'P-011', ref: 'CG-POL-20', thickness: 2, h: 0, w: 0, notes: '', container: '', photo: false, errors: ['Falta alto','Falta ancho','Asignar contenedor'] },
-  { id: 'r12', block: 'B-2024-119', atado: 'A-03', plate: 'P-012', ref: 'CG-POL-20', thickness: 2, h: 0, w: 0, notes: '', container: '', photo: false, errors: ['Falta alto','Falta ancho','Asignar contenedor'] },
+  { id: 'r11', block: 'B-2024-119', atado: 'A-03', plate: 'P-011', ref: 'CG-POL-20', thickness: 2, h: 0, w: 0, notes: '', container: '', photo: false, errors: ['Falta alto','Falta largo','Asignar contenedor'] },
+  { id: 'r12', block: 'B-2024-119', atado: 'A-03', plate: 'P-012', ref: 'CG-POL-20', thickness: 2, h: 0, w: 0, notes: '', container: '', photo: false, errors: ['Falta alto','Falta largo','Asignar contenedor'] },
 ];
 
 // Sections used in sidebar / overview
@@ -136,13 +136,13 @@ const SECTIONS = [
 // Compute per-section completion
 function computeStatus(proforma) {
   const g = proforma.globals;
-  const required = ['proforma_number','payment_terms','country_origin','port_origin','port_destination','incoterm'];
+  const required = ['proforma_number','port_destination'];
   const filled = required.filter(k => (g[k] || '').toString().trim().length > 0).length;
   const globals_pct = Math.round(filled / required.length * 100);
   const globals_status = globals_pct === 100 ? 'done' : globals_pct > 0 ? 'partial' : 'todo';
 
   const shipments_status = proforma.shipments.map(s => {
-    const hasLog = s.type && s.shipping_line && s.vessel && s.etd && s.eta;
+    const hasLog = s.type && s.shipping_line && s.etd;
     const hasBL  = !!s.bl_number;
     const hasInv = s.invoices.length > 0 && s.invoices.every(i => i.number && i.amount);
     const hasContainers = s.containers.length > 0 && s.containers.every(c => c.number);

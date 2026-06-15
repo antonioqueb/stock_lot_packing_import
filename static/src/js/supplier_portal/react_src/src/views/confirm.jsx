@@ -52,8 +52,7 @@ const Confirm = ({ proforma, status, setRoute }) => {
         <div style={{display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 16}}>
           <StatCard label="Proforma" value={proforma.globals.proforma_number || '—'} mono/>
           <StatCard label="Orden de compra" value={proforma.po_name} mono/>
-          <StatCard label="Incoterm" value={proforma.globals.incoterm || '—'}/>
-          <StatCard label="Origen → Destino" value={`${proforma.globals.port_origin || '?'} → ${proforma.globals.port_destination || '?'}`}/>
+          <StatCard label="Destino" value={proforma.globals.port_destination || '—'}/>
           <StatCard label="Embarques" value={proforma.shipments.length}/>
           <StatCard label="Total invoices" value={`${proforma.shipments.reduce((a,s) => a + s.invoices.reduce((b,i) => b + (i.amount || 0), 0), 0).toLocaleString()} USD`} mono/>
         </div>

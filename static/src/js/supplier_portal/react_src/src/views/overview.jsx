@@ -6,7 +6,7 @@ const Overview = ({ proforma, status, setRoute }) => {
   if (status.globals_pct < 100) pending.push({
     id: 'globals', icon: 'globe', tone: 'partial',
     title: 'Completar datos generales de la Proforma',
-    desc: `Te faltan ${Math.ceil((100-status.globals_pct)/14)} campos: incoterm, puerto destino y otros.`,
+    desc: `Completa el número de Proforma y el puerto destino.`,
     action: () => setRoute({ section: 'globals' }),
   });
   proforma.shipments.forEach((s, idx) => {

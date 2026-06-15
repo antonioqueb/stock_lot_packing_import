@@ -88,9 +88,12 @@
         uiRows.forEach(function (r) {
             var block = s(r.block || 'SIN BLOQUE').trim() || 'SIN BLOQUE';
             var pid = r.product_id || (fallbackProducts[0] && fallbackProducts[0].id);
+            // Solo las Placas usan foto por bloque. Formato/Pieza no tienen
+            // bloque de cantera, así que se marcan como que no requieren foto.
+            var isPlaca = s(r.tipo || 'Placa').toLowerCase().indexOf('placa') >= 0;
             var key = String(pid) + '::' + block.toLowerCase();
             if (!byKey[key])
-                byKey[key] = { id: key, name: block, count: 0, photo: hasBlockImage(pid, block) || !!r.photo, product: pid };
+                byKey[key] = { id: key, name: block, count: 0, photo: !isPlaca || hasBlockImage(pid, block) || !!r.photo, product: pid, needs_photo: isPlaca };
             byKey[key].count += 1;
             if (r.photo)
                 byKey[key].photo = true;
@@ -905,8 +908,8 @@ const SAMPLE_ROWS = [
     { id: 'r9', block: 'B-2024-118', atado: 'A-02', plate: 'P-009', ref: 'CG-POL-20', thickness: 2, h: 3.18, w: 1.60, notes: '', container: 'COSU6817042', photo: true, errors: [] },
     { id: 'r10', block: 'B-2024-118', atado: 'A-02', plate: 'P-010', ref: 'CG-POL-20', thickness: 2, h: 3.18, w: 1.60, notes: '', container: 'COSU6817043', photo: false, errors: [] },
     // Block 3 (empty)
-    { id: 'r11', block: 'B-2024-119', atado: 'A-03', plate: 'P-011', ref: 'CG-POL-20', thickness: 2, h: 0, w: 0, notes: '', container: '', photo: false, errors: ['Falta alto', 'Falta ancho', 'Asignar contenedor'] },
-    { id: 'r12', block: 'B-2024-119', atado: 'A-03', plate: 'P-012', ref: 'CG-POL-20', thickness: 2, h: 0, w: 0, notes: '', container: '', photo: false, errors: ['Falta alto', 'Falta ancho', 'Asignar contenedor'] },
+    { id: 'r11', block: 'B-2024-119', atado: 'A-03', plate: 'P-011', ref: 'CG-POL-20', thickness: 2, h: 0, w: 0, notes: '', container: '', photo: false, errors: ['Falta alto', 'Falta largo', 'Asignar contenedor'] },
+    { id: 'r12', block: 'B-2024-119', atado: 'A-03', plate: 'P-012', ref: 'CG-POL-20', thickness: 2, h: 0, w: 0, notes: '', container: '', photo: false, errors: ['Falta alto', 'Falta largo', 'Asignar contenedor'] },
 ];
 // Sections used in sidebar / overview
 const SECTIONS = [
@@ -919,12 +922,12 @@ const SECTIONS = [
 // Compute per-section completion
 function computeStatus(proforma) {
     const g = proforma.globals;
-    const required = ['proforma_number', 'payment_terms', 'country_origin', 'port_origin', 'port_destination', 'incoterm'];
+    const required = ['proforma_number', 'port_destination'];
     const filled = required.filter(k => (g[k] || '').toString().trim().length > 0).length;
     const globals_pct = Math.round(filled / required.length * 100);
     const globals_status = globals_pct === 100 ? 'done' : globals_pct > 0 ? 'partial' : 'todo';
     const shipments_status = proforma.shipments.map(s => {
-        const hasLog = s.type && s.shipping_line && s.vessel && s.etd && s.eta;
+        const hasLog = s.type && s.shipping_line && s.etd;
         const hasBL = !!s.bl_number;
         const hasInv = s.invoices.length > 0 && s.invoices.every(i => i.number && i.amount);
         const hasContainers = s.containers.length > 0 && s.containers.every(c => c.number);
@@ -987,7 +990,7 @@ const TR = {
     'Contenedores': 'Containers', 'Contenedor': 'Container', 'Cada caja física que viaja en el embarque. Los números son los que están pintados en el contenedor (4 letras + 7 dígitos).': 'Each physical box traveling in the shipment. Numbers are those painted on the container (4 letters + 7 digits).', 'Captura los números de contenedor en cuanto te los entregue tu agente. Los necesitas antes del packing list.': 'Enter the container numbers as soon as your agent gives them to you. You need them before the packing list.', 'Agregar primer contenedor': 'Add first container', 'Agregar contenedor': 'Add container', 'No. Contenedor': 'Container No.', 'No. de Sello': 'Seal No.', 'Sello de seguridad que se rompe al abrir el contenedor.': 'Security seal that breaks when opening the container.', 'Peso bruto (kg)': 'Gross weight (kg)', 'Volumen (m³)': 'Volume (m³)', 'No. de paquetes / bultos': 'Packages / bundles', 'Dimensión': 'Dimensions', 'Contenedor sin número': 'Container without number',
     'Packing Lists': 'Packing Lists', 'Nuevo packing': 'New packing', 'Sin packing lists todavía': 'No packing lists yet', 'Aquí registras placa por placa (o pieza por pieza) lo que va en cada contenedor. ': 'Here you register slab by slab (or piece by piece) what goes in each container. ', 'Es la parte más detallada.': 'It is the most detailed part.', 'Empezar con el asistente': 'Start with the wizard', 'Cómo funciona el asistente': 'How the wizard works', 'El asistente te llevará paso a paso: ': 'The wizard guides you step by step: ', 'En lugar de que escribas mil líneas a mano, el asistente ': 'Instead of writing a thousand lines by hand, the wizard ', 'genera las filas automáticamente': 'auto-generates the rows', 'Tip: el packing list es lo más detallado.': 'Tip: the packing list is the most detailed.', 'Fecha del Packing': 'Packing date', 'No. del Packing': 'Packing No.',
     // Wizard steps
-    'Bloque': 'Block', 'Bloques configurados': 'Configured blocks', 'Atado': 'Bundle', 'No. Placa': 'Slab No.', 'Grosor cm': 'Thickness cm', 'Alto m': 'Height m', 'Ancho m': 'Width m', 'Foto': 'Photo', 'Notas': 'Notes', 'Referencia': 'Reference', 'Placas / piezas': 'Slabs / pieces', 'Crear primer bloque': 'Create first block', 'Sin bloques aún': 'No blocks yet', 'Empieza con uno. Puedes agregar tantos como necesites.': 'Start with one. You can add as many as needed.', 'Agregar bloque': 'Add block', 'Un bloque es la piedra original de cantera, antes de cortarse. De cada bloque salen varias placas. Si tienes 3 bloques con 18, 16 y 14 placas, este paso generará automáticamente 48 filas para llenar.': 'A block is the original quarry stone, before being cut. Multiple slabs come from each block. If you have 3 blocks with 18, 16 and 14 slabs, this step will auto-generate 48 rows to fill.', 'Antes de capturar placa por placa, vas a configurar los ': 'Before entering slab by slab, you will configure the ', 'Puedes continuar y subirlas después, pero el packing list no se considerará completo hasta que cada bloque tenga al menos una foto.': 'You can continue and upload them later, but the packing list will not be considered complete until each block has at least one photo.', 'Estructura del packing': 'Packing structure', 'Filas a generar': 'Rows to generate', 'Ajustar bloques': 'Adjust blocks', 'Listo, volver al embarque': 'Done, back to shipment', 'Iniciar llenado': 'Start filling', 'Paso ': 'Step ', 'Ordenados de lo más fácil a lo más detallado. Comienza por el primero.': 'Sorted from easiest to most detailed. Start with the first.',
+    'Bloque': 'Block', 'Bloques configurados': 'Configured blocks', 'Atado': 'Bundle', 'No. Placa': 'Slab No.', 'Grosor cm': 'Thickness cm', 'Alto m': 'Height m', 'Largo m': 'Length m', 'Foto': 'Photo', 'Notas': 'Notes', 'Referencia': 'Reference', 'Placas / piezas': 'Slabs / pieces', 'Crear primer bloque': 'Create first block', 'Sin bloques aún': 'No blocks yet', 'Empieza con uno. Puedes agregar tantos como necesites.': 'Start with one. You can add as many as needed.', 'Agregar bloque': 'Add block', 'Un bloque es la piedra original de cantera, antes de cortarse. De cada bloque salen varias placas. Si tienes 3 bloques con 18, 16 y 14 placas, este paso generará automáticamente 48 filas para llenar.': 'A block is the original quarry stone, before being cut. Multiple slabs come from each block. If you have 3 blocks with 18, 16 and 14 slabs, this step will auto-generate 48 rows to fill.', 'Antes de capturar placa por placa, vas a configurar los ': 'Before entering slab by slab, you will configure the ', 'Puedes continuar y subirlas después, pero el packing list no se considerará completo hasta que cada bloque tenga al menos una foto.': 'You can continue and upload them later, but the packing list will not be considered complete until each block has at least one photo.', 'Estructura del packing': 'Packing structure', 'Filas a generar': 'Rows to generate', 'Ajustar bloques': 'Adjust blocks', 'Listo, volver al embarque': 'Done, back to shipment', 'Iniciar llenado': 'Start filling', 'Paso ': 'Step ', 'Ordenados de lo más fácil a lo más detallado. Comienza por el primero.': 'Sorted from easiest to most detailed. Start with the first.',
     // Packing sheet
     'Llena más rápido con propagación': 'Fill faster with propagation', 'Pasa el cursor sobre cualquier celda y verás ': 'Hover over any cell and you will see ', 'dos íconos a la derecha': 'two icons to the right', 'copia el valor a la siguiente fila del mismo bloque ·': 'copies the value to the next row in the same block ·', 'copia a todas las filas debajo en el mismo bloque. También puedes copiar/pegar desde Excel y usar ': 'copies to all rows below in the same block. You can also copy/paste from Excel and use ', ' entre celdas.': ' between cells.', 'Copiar a la siguiente fila del mismo bloque': 'Copy to next row in same block', 'Copiar a TODAS las filas del mismo bloque (abajo)': 'Copy to ALL rows in same block (below)', 'Todas (': 'All (', 'Errores (': 'Errors (', 'Sin dimensiones': 'No dimensions', 'con errores': 'with errors', 'Exportar CSV': 'Export CSV', 'Pegar de Excel': 'Paste from Excel', 'Pegar desde Excel': 'Paste from Excel',
     'Copia el rango en Excel (con o sin la fila de headers) y pégalo aquí con ': 'Copy the range in Excel (with or without header row) and paste it here with ', 'Aplicar a ': 'Apply to ', 'Columnas que se aplicarán: ': 'Columns to apply: ', 'No se detectaron filas válidas. Verifica que pegaste el contenido de Excel (celdas separadas por tab).': 'No valid rows detected. Make sure you pasted from Excel (tab-separated cells).',
@@ -1021,7 +1024,7 @@ const TR = {
     'Invoices (Facturas comerciales)': '发票(商业发票)', 'Crea al menos una factura comercial por cada embarque. Puedes asignarla a todo el embarque o solo a contenedores específicos.': '每次货运至少创建一张商业发票。可分配给整个货运或特定集装箱。', 'Aún no hay invoices': '尚无发票', 'La factura comercial que emites para el embarque. Puede ser una global o varias parciales.': '为货运开具的商业发票。可以是总发票或多张部分发票。', 'Agregar primer invoice': '添加首张发票', 'Agregar invoice': '添加发票', 'No. Invoice': '发票编号', 'Identifica este documento. Suele ser una variante de la invoice.': '识别此文件。通常是发票的变体。', 'Fecha': '日期', 'Monto + moneda': '金额 + 币种', 'Total facturado en este embarque': '本货运开票总额', 'Total invoices': '发票总额',
     'Contenedores': '集装箱', 'Contenedor': '集装箱', 'Cada caja física que viaja en el embarque. Los números son los que están pintados en el contenedor (4 letras + 7 dígitos).': '运输中的每个物理箱体。编号为集装箱上喷涂的(4 字母 + 7 数字)。', 'Captura los números de contenedor en cuanto te los entregue tu agente. Los necesitas antes del packing list.': '代理交付后请立即录入集装箱号。装箱单之前需要。', 'Agregar primer contenedor': '添加首个集装箱', 'Agregar contenedor': '添加集装箱', 'No. Contenedor': '集装箱号', 'No. de Sello': '封条号', 'Sello de seguridad que se rompe al abrir el contenedor.': '打开集装箱时会破坏的安全封条。', 'Peso bruto (kg)': '毛重 (kg)', 'Volumen (m³)': '体积 (m³)', 'No. de paquetes / bultos': '包装件数', 'Dimensión': '尺寸', 'Contenedor sin número': '无编号集装箱',
     'Packing Lists': '装箱单', 'Nuevo packing': '新建装箱单', 'Sin packing lists todavía': '尚无装箱单', 'Aquí registras placa por placa (o pieza por pieza) lo que va en cada contenedor. ': '在此逐板(或逐件)登记每个集装箱的内容。 ', 'Es la parte más detallada.': '是最详细的部分。', 'Empezar con el asistente': '使用向导开始', 'Cómo funciona el asistente': '向导工作原理', 'El asistente te llevará paso a paso: ': '向导将逐步引导您: ', 'En lugar de que escribas mil líneas a mano, el asistente ': '无需手动编写上千行,向导 ', 'genera las filas automáticamente': '自动生成行', 'Tip: el packing list es lo más detallado.': '提示: 装箱单是最详细的部分。', 'Fecha del Packing': '装箱日期', 'No. del Packing': '装箱单号',
-    'Bloque': '区块', 'Bloques configurados': '已配置区块', 'Atado': '捆', 'No. Placa': '板号', 'Grosor cm': '厚度 cm', 'Alto m': '高 m', 'Ancho m': '宽 m', 'Foto': '照片', 'Notas': '备注', 'Referencia': '参考', 'Placas / piezas': '板 / 件', 'Crear primer bloque': '创建首个区块', 'Sin bloques aún': '尚无区块', 'Empieza con uno. Puedes agregar tantos como necesites.': '从一个开始。可按需添加。', 'Agregar bloque': '添加区块', 'Un bloque es la piedra original de cantera, antes de cortarse. De cada bloque salen varias placas. Si tienes 3 bloques con 18, 16 y 14 placas, este paso generará automáticamente 48 filas para llenar.': '区块是切割前的原石。每个区块产生多块板。如有 3 个区块分别 18、16、14 块板,此步骤将自动生成 48 行供填写。', 'Antes de capturar placa por placa, vas a configurar los ': '逐板录入前,您将配置 ', 'Puedes continuar y subirlas después, pero el packing list no se considerará completo hasta que cada bloque tenga al menos una foto.': '可继续并稍后上传,但装箱单只有在每个区块至少有一张照片时才算完成。', 'Estructura del packing': '装箱结构', 'Filas a generar': '生成行数', 'Ajustar bloques': '调整区块', 'Listo, volver al embarque': '完成,返回货运', 'Iniciar llenado': '开始填写', 'Paso ': '步骤 ', 'Ordenados de lo más fácil a lo más detallado. Comienza por el primero.': '从易到详排序。从第一个开始。',
+    'Bloque': '区块', 'Bloques configurados': '已配置区块', 'Atado': '捆', 'No. Placa': '板号', 'Grosor cm': '厚度 cm', 'Alto m': '高 m', 'Largo m': '长 m', 'Foto': '照片', 'Notas': '备注', 'Referencia': '参考', 'Placas / piezas': '板 / 件', 'Crear primer bloque': '创建首个区块', 'Sin bloques aún': '尚无区块', 'Empieza con uno. Puedes agregar tantos como necesites.': '从一个开始。可按需添加。', 'Agregar bloque': '添加区块', 'Un bloque es la piedra original de cantera, antes de cortarse. De cada bloque salen varias placas. Si tienes 3 bloques con 18, 16 y 14 placas, este paso generará automáticamente 48 filas para llenar.': '区块是切割前的原石。每个区块产生多块板。如有 3 个区块分别 18、16、14 块板,此步骤将自动生成 48 行供填写。', 'Antes de capturar placa por placa, vas a configurar los ': '逐板录入前,您将配置 ', 'Puedes continuar y subirlas después, pero el packing list no se considerará completo hasta que cada bloque tenga al menos una foto.': '可继续并稍后上传,但装箱单只有在每个区块至少有一张照片时才算完成。', 'Estructura del packing': '装箱结构', 'Filas a generar': '生成行数', 'Ajustar bloques': '调整区块', 'Listo, volver al embarque': '完成,返回货运', 'Iniciar llenado': '开始填写', 'Paso ': '步骤 ', 'Ordenados de lo más fácil a lo más detallado. Comienza por el primero.': '从易到详排序。从第一个开始。',
     'Llena más rápido con propagación': '使用传播更快填写', 'Pasa el cursor sobre cualquier celda y verás ': '将光标悬停在任何单元格上,您将看到 ', 'dos íconos a la derecha': '右侧两个图标', 'copia el valor a la siguiente fila del mismo bloque ·': '将值复制到同一区块的下一行 ·', 'copia a todas las filas debajo en el mismo bloque. También puedes copiar/pegar desde Excel y usar ': '复制到同一区块下方所有行。也可从 Excel 复制粘贴并使用 ', ' entre celdas.': ' 在单元格之间。', 'Copiar a la siguiente fila del mismo bloque': '复制到同一区块的下一行', 'Copiar a TODAS las filas del mismo bloque (abajo)': '复制到同一区块的所有下方行', 'Todas (': '全部 (', 'Errores (': '错误 (', 'Sin dimensiones': '无尺寸', 'con errores': '有错误', 'Exportar CSV': '导出 CSV', 'Pegar de Excel': '从 Excel 粘贴', 'Pegar desde Excel': '从 Excel 粘贴',
     'Copia el rango en Excel (con o sin la fila de headers) y pégalo aquí con ': '在 Excel 中复制范围(含或不含标题行)并使用 ', 'Aplicar a ': '应用到 ', 'Columnas que se aplicarán: ': '将应用的列: ', 'No se detectaron filas válidas. Verifica que pegaste el contenido de Excel (celdas separadas por tab).': '未检测到有效行。请确认从 Excel 粘贴(制表符分隔)。',
     'Documentos del embarque': '货运文档', 'Sube los documentos legales y de calidad que acompañan este embarque.': '上传随此货运的法律和质量文件。', 'Documentos que aplican a toda la Proforma (no a un embarque específico). Los documentos por embarque están dentro de cada embarque.': '适用于整个形式发票的文档(非特定货运)。按货运的文档在各货运内部。', 'Arrastra tus archivos aquí': '将文件拖到此处', 'PDF, JPG, PNG · máximo 10 MB por archivo · o ': 'PDF、JPG、PNG · 每个文件最大 10 MB · 或 ', 'elige desde tu computadora': '从您的电脑选择', 'Subir foto': '上传照片',
@@ -1050,7 +1053,7 @@ const TR = {
     'Invoices (Facturas comerciales)': 'Fatture (commerciali)', 'Crea al menos una factura comercial por cada embarque. Puedes asignarla a todo el embarque o solo a contenedores específicos.': 'Crea almeno una fattura commerciale per spedizione. Puoi assegnarla all’intera spedizione o solo a container specifici.', 'Aún no hay invoices': 'Nessuna fattura ancora', 'La factura comercial que emites para el embarque. Puede ser una global o varias parciales.': 'La fattura commerciale emessa per la spedizione. Può essere globale o parziali.', 'Agregar primer invoice': 'Aggiungi prima fattura', 'Agregar invoice': 'Aggiungi fattura', 'No. Invoice': 'N. Fattura', 'Identifica este documento. Suele ser una variante de la invoice.': 'Identifica questo documento. Di solito una variante della fattura.', 'Fecha': 'Data', 'Monto + moneda': 'Importo + valuta', 'Total facturado en este embarque': 'Totale fatturato in questa spedizione', 'Total invoices': 'Totale fatture',
     'Contenedores': 'Container', 'Contenedor': 'Container', 'Cada caja física que viaja en el embarque. Los números son los que están pintados en el contenedor (4 letras + 7 dígitos).': 'Ogni cassa fisica nella spedizione. I numeri sono quelli dipinti sul container (4 lettere + 7 cifre).', 'Captura los números de contenedor en cuanto te los entregue tu agente. Los necesitas antes del packing list.': 'Inserisci i numeri dei container appena il tuo agente te li dà. Servono prima del packing list.', 'Agregar primer contenedor': 'Aggiungi primo container', 'Agregar contenedor': 'Aggiungi container', 'No. Contenedor': 'N. Container', 'No. de Sello': 'N. Sigillo', 'Sello de seguridad que se rompe al abrir el contenedor.': 'Sigillo di sicurezza che si rompe aprendo il container.', 'Peso bruto (kg)': 'Peso lordo (kg)', 'Volumen (m³)': 'Volume (m³)', 'No. de paquetes / bultos': 'N. colli / pacchi', 'Dimensión': 'Dimensione', 'Contenedor sin número': 'Container senza numero',
     'Packing Lists': 'Packing Lists', 'Nuevo packing': 'Nuovo packing', 'Sin packing lists todavía': 'Nessun packing list ancora', 'Aquí registras placa por placa (o pieza por pieza) lo que va en cada contenedor. ': 'Qui registri lastra per lastra (o pezzo per pezzo) cosa va in ogni container. ', 'Es la parte más detallada.': 'È la parte più dettagliata.', 'Empezar con el asistente': 'Inizia con l’assistente', 'Cómo funciona el asistente': 'Come funziona l’assistente', 'El asistente te llevará paso a paso: ': 'L’assistente ti guiderà passo a passo: ', 'En lugar de que escribas mil líneas a mano, el asistente ': 'Invece di scrivere mille righe a mano, l’assistente ', 'genera las filas automáticamente': 'genera le righe automaticamente', 'Tip: el packing list es lo más detallado.': 'Suggerimento: il packing list è la parte più dettagliata.', 'Fecha del Packing': 'Data Packing', 'No. del Packing': 'N. Packing',
-    'Bloque': 'Blocco', 'Bloques configurados': 'Blocchi configurati', 'Atado': 'Pacco', 'No. Placa': 'N. Lastra', 'Grosor cm': 'Spessore cm', 'Alto m': 'Altezza m', 'Ancho m': 'Larghezza m', 'Foto': 'Foto', 'Notas': 'Note', 'Referencia': 'Riferimento', 'Placas / piezas': 'Lastre / pezzi', 'Crear primer bloque': 'Crea primo blocco', 'Sin bloques aún': 'Nessun blocco ancora', 'Empieza con uno. Puedes agregar tantos como necesites.': 'Inizia con uno. Puoi aggiungerne quanti ne servono.', 'Agregar bloque': 'Aggiungi blocco', 'Un bloque es la piedra original de cantera, antes de cortarse. De cada bloque salen varias placas. Si tienes 3 bloques con 18, 16 y 14 placas, este paso generará automáticamente 48 filas para llenar.': 'Un blocco è la pietra originale di cava, prima del taglio. Da ogni blocco escono più lastre. Se hai 3 blocchi con 18, 16 e 14 lastre, questo passo genererà automaticamente 48 righe da compilare.', 'Antes de capturar placa por placa, vas a configurar los ': 'Prima di registrare lastra per lastra, configurerai i ', 'Puedes continuar y subirlas después, pero el packing list no se considerará completo hasta que cada bloque tenga al menos una foto.': 'Puoi continuare e caricarle dopo, ma il packing list non sarà completo finché ogni blocco non avrà almeno una foto.', 'Estructura del packing': 'Struttura del packing', 'Filas a generar': 'Righe da generare', 'Ajustar bloques': 'Regola blocchi', 'Listo, volver al embarque': 'Fatto, torna alla spedizione', 'Iniciar llenado': 'Inizia compilazione', 'Paso ': 'Passo ', 'Ordenados de lo más fácil a lo más detallado. Comienza por el primero.': 'Ordinati dal più facile al più dettagliato. Inizia dal primo.',
+    'Bloque': 'Blocco', 'Bloques configurados': 'Blocchi configurati', 'Atado': 'Pacco', 'No. Placa': 'N. Lastra', 'Grosor cm': 'Spessore cm', 'Alto m': 'Altezza m', 'Largo m': 'Lunghezza m', 'Foto': 'Foto', 'Notas': 'Note', 'Referencia': 'Riferimento', 'Placas / piezas': 'Lastre / pezzi', 'Crear primer bloque': 'Crea primo blocco', 'Sin bloques aún': 'Nessun blocco ancora', 'Empieza con uno. Puedes agregar tantos como necesites.': 'Inizia con uno. Puoi aggiungerne quanti ne servono.', 'Agregar bloque': 'Aggiungi blocco', 'Un bloque es la piedra original de cantera, antes de cortarse. De cada bloque salen varias placas. Si tienes 3 bloques con 18, 16 y 14 placas, este paso generará automáticamente 48 filas para llenar.': 'Un blocco è la pietra originale di cava, prima del taglio. Da ogni blocco escono più lastre. Se hai 3 blocchi con 18, 16 e 14 lastre, questo passo genererà automaticamente 48 righe da compilare.', 'Antes de capturar placa por placa, vas a configurar los ': 'Prima di registrare lastra per lastra, configurerai i ', 'Puedes continuar y subirlas después, pero el packing list no se considerará completo hasta que cada bloque tenga al menos una foto.': 'Puoi continuare e caricarle dopo, ma il packing list non sarà completo finché ogni blocco non avrà almeno una foto.', 'Estructura del packing': 'Struttura del packing', 'Filas a generar': 'Righe da generare', 'Ajustar bloques': 'Regola blocchi', 'Listo, volver al embarque': 'Fatto, torna alla spedizione', 'Iniciar llenado': 'Inizia compilazione', 'Paso ': 'Passo ', 'Ordenados de lo más fácil a lo más detallado. Comienza por el primero.': 'Ordinati dal più facile al più dettagliato. Inizia dal primo.',
     'Llena más rápido con propagación': 'Compila più velocemente con la propagazione', 'Pasa el cursor sobre cualquier celda y verás ': 'Passa il cursore su qualsiasi cella e vedrai ', 'dos íconos a la derecha': 'due icone a destra', 'copia el valor a la siguiente fila del mismo bloque ·': 'copia il valore alla riga successiva dello stesso blocco ·', 'copia a todas las filas debajo en el mismo bloque. También puedes copiar/pegar desde Excel y usar ': 'copia in tutte le righe sottostanti dello stesso blocco. Puoi anche copiare/incollare da Excel e usare ', ' entre celdas.': ' tra le celle.', 'Copiar a la siguiente fila del mismo bloque': 'Copia nella riga successiva dello stesso blocco', 'Copiar a TODAS las filas del mismo bloque (abajo)': 'Copia in TUTTE le righe dello stesso blocco (sotto)', 'Todas (': 'Tutte (', 'Errores (': 'Errori (', 'Sin dimensiones': 'Senza dimensioni', 'con errores': 'con errori', 'Exportar CSV': 'Esporta CSV', 'Pegar de Excel': 'Incolla da Excel', 'Pegar desde Excel': 'Incolla da Excel',
     'Copia el rango en Excel (con o sin la fila de headers) y pégalo aquí con ': 'Copia il range in Excel (con o senza riga di intestazione) e incollalo qui con ', 'Aplicar a ': 'Applica a ', 'Columnas que se aplicarán: ': 'Colonne da applicare: ', 'No se detectaron filas válidas. Verifica que pegaste el contenido de Excel (celdas separadas por tab).': 'Nessuna riga valida rilevata. Verifica di aver incollato il contenuto di Excel (celle separate da tab).',
     'Documentos del embarque': 'Documenti della spedizione', 'Sube los documentos legales y de calidad que acompañan este embarque.': 'Carica i documenti legali e di qualità che accompagnano questa spedizione.', 'Documentos que aplican a toda la Proforma (no a un embarque específico). Los documentos por embarque están dentro de cada embarque.': 'Documenti che si applicano all’intera Proforma (non a una spedizione specifica). I documenti per spedizione sono dentro ogni spedizione.', 'Arrastra tus archivos aquí': 'Trascina i tuoi file qui', 'PDF, JPG, PNG · máximo 10 MB por archivo · o ': 'PDF, JPG, PNG · max 10 MB per file · oppure ', 'elige desde tu computadora': 'scegli dal tuo computer', 'Subir foto': 'Carica foto',
@@ -1079,7 +1082,7 @@ const TR = {
     'Invoices (Facturas comerciales)': 'Faturas (comerciais)', 'Crea al menos una factura comercial por cada embarque. Puedes asignarla a todo el embarque o solo a contenedores específicos.': 'Crie pelo menos uma fatura comercial por embarque. Pode atribuí-la a todo o embarque ou apenas a contêineres específicos.', 'Aún no hay invoices': 'Ainda não há faturas', 'La factura comercial que emites para el embarque. Puede ser una global o varias parciales.': 'A fatura comercial emitida para o embarque. Pode ser global ou parciais.', 'Agregar primer invoice': 'Adicionar primeira fatura', 'Agregar invoice': 'Adicionar fatura', 'No. Invoice': 'Nº Fatura', 'Identifica este documento. Suele ser una variante de la invoice.': 'Identifica este documento. Geralmente uma variação da fatura.', 'Fecha': 'Data', 'Monto + moneda': 'Valor + moeda', 'Total facturado en este embarque': 'Total faturado neste embarque', 'Total invoices': 'Total faturas',
     'Contenedores': 'Contêineres', 'Contenedor': 'Contêiner', 'Cada caja física que viaja en el embarque. Los números son los que están pintados en el contenedor (4 letras + 7 dígitos).': 'Cada caixa física que viaja no embarque. Os números são os pintados no contêiner (4 letras + 7 dígitos).', 'Captura los números de contenedor en cuanto te los entregue tu agente. Los necesitas antes del packing list.': 'Capture os números de contêiner assim que seu agente os entregar. Você precisa deles antes do packing list.', 'Agregar primer contenedor': 'Adicionar primeiro contêiner', 'Agregar contenedor': 'Adicionar contêiner', 'No. Contenedor': 'Nº Contêiner', 'No. de Sello': 'Nº Lacre', 'Sello de seguridad que se rompe al abrir el contenedor.': 'Lacre de segurança que se rompe ao abrir o contêiner.', 'Peso bruto (kg)': 'Peso bruto (kg)', 'Volumen (m³)': 'Volume (m³)', 'No. de paquetes / bultos': 'Nº de pacotes / volumes', 'Dimensión': 'Dimensão', 'Contenedor sin número': 'Contêiner sem número',
     'Packing Lists': 'Packing Lists', 'Nuevo packing': 'Novo packing', 'Sin packing lists todavía': 'Nenhum packing list ainda', 'Aquí registras placa por placa (o pieza por pieza) lo que va en cada contenedor. ': 'Aqui você registra chapa por chapa (ou peça por peça) o que vai em cada contêiner. ', 'Es la parte más detallada.': 'É a parte mais detalhada.', 'Empezar con el asistente': 'Começar com o assistente', 'Cómo funciona el asistente': 'Como funciona o assistente', 'El asistente te llevará paso a paso: ': 'O assistente te guiará passo a passo: ', 'En lugar de que escribas mil líneas a mano, el asistente ': 'Em vez de escrever mil linhas à mão, o assistente ', 'genera las filas automáticamente': 'gera as linhas automaticamente', 'Tip: el packing list es lo más detallado.': 'Dica: o packing list é a parte mais detalhada.', 'Fecha del Packing': 'Data do Packing', 'No. del Packing': 'Nº do Packing',
-    'Bloque': 'Bloco', 'Bloques configurados': 'Blocos configurados', 'Atado': 'Amarrado', 'No. Placa': 'Nº Chapa', 'Grosor cm': 'Espessura cm', 'Alto m': 'Altura m', 'Ancho m': 'Largura m', 'Foto': 'Foto', 'Notas': 'Notas', 'Referencia': 'Referência', 'Placas / piezas': 'Chapas / peças', 'Crear primer bloque': 'Criar primeiro bloco', 'Sin bloques aún': 'Sem blocos ainda', 'Empieza con uno. Puedes agregar tantos como necesites.': 'Comece com um. Pode adicionar quantos precisar.', 'Agregar bloque': 'Adicionar bloco', 'Un bloque es la piedra original de cantera, antes de cortarse. De cada bloque salen varias placas. Si tienes 3 bloques con 18, 16 y 14 placas, este paso generará automáticamente 48 filas para llenar.': 'Um bloco é a pedra original da pedreira, antes de ser cortada. De cada bloco saem várias chapas. Se você tem 3 blocos com 18, 16 e 14 chapas, este passo gerará automaticamente 48 linhas para preencher.', 'Antes de capturar placa por placa, vas a configurar los ': 'Antes de capturar chapa por chapa, você vai configurar os ', 'Puedes continuar y subirlas después, pero el packing list no se considerará completo hasta que cada bloque tenga al menos una foto.': 'Pode continuar e enviá-las depois, mas o packing list não será considerado completo até que cada bloco tenha pelo menos uma foto.', 'Estructura del packing': 'Estrutura do packing', 'Filas a generar': 'Linhas a gerar', 'Ajustar bloques': 'Ajustar blocos', 'Listo, volver al embarque': 'Pronto, voltar ao embarque', 'Iniciar llenado': 'Iniciar preenchimento', 'Paso ': 'Passo ', 'Ordenados de lo más fácil a lo más detallado. Comienza por el primero.': 'Ordenados do mais fácil ao mais detalhado. Comece pelo primeiro.',
+    'Bloque': 'Bloco', 'Bloques configurados': 'Blocos configurados', 'Atado': 'Amarrado', 'No. Placa': 'Nº Chapa', 'Grosor cm': 'Espessura cm', 'Alto m': 'Altura m', 'Largo m': 'Comprimento m', 'Foto': 'Foto', 'Notas': 'Notas', 'Referencia': 'Referência', 'Placas / piezas': 'Chapas / peças', 'Crear primer bloque': 'Criar primeiro bloco', 'Sin bloques aún': 'Sem blocos ainda', 'Empieza con uno. Puedes agregar tantos como necesites.': 'Comece com um. Pode adicionar quantos precisar.', 'Agregar bloque': 'Adicionar bloco', 'Un bloque es la piedra original de cantera, antes de cortarse. De cada bloque salen varias placas. Si tienes 3 bloques con 18, 16 y 14 placas, este paso generará automáticamente 48 filas para llenar.': 'Um bloco é a pedra original da pedreira, antes de ser cortada. De cada bloco saem várias chapas. Se você tem 3 blocos com 18, 16 e 14 chapas, este passo gerará automaticamente 48 linhas para preencher.', 'Antes de capturar placa por placa, vas a configurar los ': 'Antes de capturar chapa por chapa, você vai configurar os ', 'Puedes continuar y subirlas después, pero el packing list no se considerará completo hasta que cada bloque tenga al menos una foto.': 'Pode continuar e enviá-las depois, mas o packing list não será considerado completo até que cada bloco tenha pelo menos uma foto.', 'Estructura del packing': 'Estrutura do packing', 'Filas a generar': 'Linhas a gerar', 'Ajustar bloques': 'Ajustar blocos', 'Listo, volver al embarque': 'Pronto, voltar ao embarque', 'Iniciar llenado': 'Iniciar preenchimento', 'Paso ': 'Passo ', 'Ordenados de lo más fácil a lo más detallado. Comienza por el primero.': 'Ordenados do mais fácil ao mais detalhado. Comece pelo primeiro.',
     'Llena más rápido con propagación': 'Preencha mais rápido com propagação', 'Pasa el cursor sobre cualquier celda y verás ': 'Passe o cursor sobre qualquer célula e verá ', 'dos íconos a la derecha': 'dois ícones à direita', 'copia el valor a la siguiente fila del mismo bloque ·': 'copia o valor à próxima linha do mesmo bloco ·', 'copia a todas las filas debajo en el mismo bloque. También puedes copiar/pegar desde Excel y usar ': 'copia a todas as linhas abaixo no mesmo bloco. Também pode copiar/colar do Excel e usar ', ' entre celdas.': ' entre células.', 'Copiar a la siguiente fila del mismo bloque': 'Copiar para a próxima linha do mesmo bloco', 'Copiar a TODAS las filas del mismo bloque (abajo)': 'Copiar para TODAS as linhas do mesmo bloco (abaixo)', 'Todas (': 'Todas (', 'Errores (': 'Erros (', 'Sin dimensiones': 'Sem dimensões', 'con errores': 'com erros', 'Exportar CSV': 'Exportar CSV', 'Pegar de Excel': 'Colar do Excel', 'Pegar desde Excel': 'Colar do Excel',
     'Copia el rango en Excel (con o sin la fila de headers) y pégalo aquí con ': 'Copie o intervalo no Excel (com ou sem a linha de cabeçalho) e cole aqui com ', 'Aplicar a ': 'Aplicar a ', 'Columnas que se aplicarán: ': 'Colunas a aplicar: ', 'No se detectaron filas válidas. Verifica que pegaste el contenido de Excel (celdas separadas por tab).': 'Nenhuma linha válida detectada. Verifique se colou o conteúdo do Excel (células separadas por tab).',
     'Documentos del embarque': 'Documentos do embarque', 'Sube los documentos legales y de calidad que acompañan este embarque.': 'Envie os documentos legais e de qualidade que acompanham este embarque.', 'Documentos que aplican a toda la Proforma (no a un embarque específico). Los documentos por embarque están dentro de cada embarque.': 'Documentos que se aplicam a toda a Proforma (não a um embarque específico). Os documentos por embarque estão dentro de cada embarque.', 'Arrastra tus archivos aquí': 'Arraste seus arquivos aqui', 'PDF, JPG, PNG · máximo 10 MB por archivo · o ': 'PDF, JPG, PNG · máximo 10 MB por arquivo · ou ', 'elige desde tu computadora': 'escolha do seu computador', 'Subir foto': 'Enviar foto',
@@ -1304,7 +1307,7 @@ const Overview = ({ proforma, status, setRoute }) => {
         pending.push({
             id: 'globals', icon: 'globe', tone: 'partial',
             title: 'Completar datos generales de la Proforma',
-            desc: `Te faltan ${Math.ceil((100 - status.globals_pct) / 14)} campos: incoterm, puerto destino y otros.`,
+            desc: `Completa el número de Proforma y el puerto destino.`,
             action: () => setRoute({ section: 'globals' }),
         });
     proforma.shipments.forEach((s, idx) => {
@@ -1409,8 +1412,6 @@ const Globals = ({ proforma, setProforma, status, setRoute, validationStyle = 'i
     // simulated validation
     if (g.proforma_number && !/^PI-/i.test(g.proforma_number))
         errors.proforma_number = 'El número debería empezar con "PI-" para identificar una Proforma.';
-    if (!g.incoterm)
-        errors.incoterm = 'Falta este dato: define quién paga y se hace cargo del transporte.';
     if (!g.port_destination)
         errors.port_destination = 'Es necesario para coordinar la llegada del embarque.';
     const errorList = Object.entries(errors);
@@ -1452,26 +1453,10 @@ const Globals = ({ proforma, setProforma, status, setRoute, validationStyle = 'i
             React.createElement("div", { className: "card-head" },
                 React.createElement("div", null,
                     React.createElement("h2", null, "Log\u00EDstica internacional"),
-                    React.createElement("p", { className: "sub" }, "Ruta y t\u00E9rminos del env\u00EDo. Estos datos van impresos en la documentaci\u00F3n de aduanas."))),
-            React.createElement("div", { className: "fld-row cols-3" },
-                React.createElement(Field, { label: "Pa\u00EDs de origen", required: true, help: "Pa\u00EDs desde donde sale la mercanc\u00EDa." },
-                    React.createElement(Input, { placeholder: "Ej. China", value: g.country_origin, onChange: (e) => update('country_origin', e.target.value) })),
-                React.createElement(Field, { label: "Puerto de origen", required: true, help: "Puerto mar\u00EDtimo o aeropuerto desde donde zarpa el embarque.", helpExample: "Ej: Shanghai, Ningbo" },
-                    React.createElement(Input, { placeholder: "Ej. Shanghai", value: g.port_origin, onChange: (e) => update('port_origin', e.target.value) })),
+                    React.createElement("p", { className: "sub" }, "Puerto de destino del embarque. Este dato va impreso en la documentaci\u00F3n de aduanas."))),
+            React.createElement("div", { className: "fld-row" },
                 React.createElement(Field, { label: "Puerto destino", required: true, help: "El puerto mexicano donde llegar\u00E1 el embarque.", helpExample: "Ej: Manzanillo, Veracruz, L\u00E1zaro C\u00E1rdenas", error: errors.port_destination },
-                    React.createElement(Input, { placeholder: "Ej. Manzanillo", value: g.port_destination, onChange: (e) => update('port_destination', e.target.value) }))),
-            React.createElement("div", { className: "fld-row", style: { marginTop: 16 } },
-                React.createElement(Field, { label: "Incoterm", required: true, help: "Define qu\u00E9 parte (proveedor o cliente) cubre el transporte, seguro y aduanas. Si no est\u00E1s seguro, pregunta a tu contacto de SOM GROUP.", helpExample: "CIF = t\u00FA pagas hasta el puerto destino, incluyendo seguro", error: errors.incoterm },
-                    React.createElement(Select, { value: g.incoterm, onChange: (e) => update('incoterm', e.target.value) },
-                        React.createElement("option", { value: "" }, "Selecciona\u2026"),
-                        React.createElement("option", null, "EXW"),
-                        React.createElement("option", null, "FOB"),
-                        React.createElement("option", null, "CIF"),
-                        React.createElement("option", null, "CFR"),
-                        React.createElement("option", null, "DAP"),
-                        React.createElement("option", null, "DDP"))),
-                React.createElement(Field, { label: "Condiciones de pago", required: true, help: "C\u00F3mo y cu\u00E1ndo te van a pagar.", helpExample: "T/T 30% advance, 70% B/L copy" },
-                    React.createElement(Input, { placeholder: "Ej. T/T 30% advance, 70% B/L copy", value: g.payment_terms, onChange: (e) => update('payment_terms', e.target.value) })))),
+                    React.createElement(Input, { placeholder: "Ej. Manzanillo", value: g.port_destination, onChange: (e) => update('port_destination', e.target.value) })))),
         React.createElement("div", { className: "card" },
             React.createElement("div", { className: "card-head" },
                 React.createElement("div", null,
@@ -1546,7 +1531,7 @@ const ShipmentsList = ({ proforma, setProforma, status, setRoute }) => {
                     s.number),
                 React.createElement("div", { className: "meta" },
                     React.createElement("div", { className: "title" },
-                        React.createElement("span", null, s.vessel || React.createElement("span", { className: "text-muted" }, "Sin buque asignado")),
+                        React.createElement("span", null, s.shipping_line || React.createElement("span", { className: "text-muted" }, "Sin naviera asignada")),
                         React.createElement(Badge, { tone: STATUS_TONE[s.status], dot: true }, STATUS_LABEL[s.status] || 'Borrador'),
                         sst.status === 'done' && React.createElement(Badge, { tone: "done" },
                             React.createElement(Icon, { name: "check", size: 10 }),
@@ -1560,19 +1545,12 @@ const ShipmentsList = ({ proforma, setProforma, status, setRoute }) => {
                     React.createElement("div", { className: "route" },
                         React.createElement("span", null,
                             React.createElement(Icon, { name: "anchor", size: 11 }),
-                            " ",
-                            s.shipping_line || 'Sin naviera'),
-                        React.createElement("span", { className: "arrow" }, "\u00B7"),
-                        React.createElement("span", { className: "mono" }, proforma.globals.port_origin || '—'),
-                        React.createElement(Icon, { name: "arrow_right", size: 11, className: "arrow" }),
-                        React.createElement("span", { className: "mono" }, proforma.globals.port_destination || '—'),
+                            " Destino ",
+                            React.createElement("span", { className: "mono" }, proforma.globals.port_destination || '—')),
                         React.createElement("span", { className: "arrow" }, "\u00B7"),
                         React.createElement("span", null,
                             "ETD ",
-                            React.createElement("span", { className: "mono" }, s.etd || '—')),
-                        React.createElement("span", null,
-                            "ETA ",
-                            React.createElement("span", { className: "mono" }, s.eta || '—')))),
+                            React.createElement("span", { className: "mono" }, s.etd || '—')))),
                 React.createElement("div", { style: { display: 'flex', alignItems: 'center', gap: 16 } },
                     React.createElement("div", { style: { textAlign: 'right', fontSize: 12 } },
                         React.createElement("div", { className: "mono", style: { fontWeight: 700, fontSize: 16 } },
@@ -1630,13 +1608,11 @@ const ShipmentDetail = ({ proforma, setProforma, status, setRoute, route, openPa
                     "Embarque #",
                     ship.number,
                     React.createElement(Badge, { tone: STATUS_TONE[ship.status], dot: true }, STATUS_LABEL[ship.status] || 'Borrador')),
-                React.createElement("p", { className: "lead" }, ship.vessel ? React.createElement("span", null,
-                    "Buque ",
-                    React.createElement("strong", { className: "mono" }, ship.vessel),
-                    " de ",
+                React.createElement("p", { className: "lead" }, ship.shipping_line ? React.createElement("span", null,
+                    "Naviera ",
                     React.createElement("strong", null, ship.shipping_line),
                     ".") :
-                    React.createElement("span", null, "A\u00FAn sin buque ni naviera. Empieza por la pesta\u00F1a de Log\u00EDstica."))),
+                    React.createElement("span", null, "A\u00FAn sin naviera. Empieza por la pesta\u00F1a de Log\u00EDstica."))),
             React.createElement("div", { className: "head-actions" },
                 React.createElement("span", { className: "text-muted text-small" },
                     sst.pct,
@@ -1683,17 +1659,8 @@ const TabLogistics = ({ ship, updateShip }) => (React.createElement("div", null,
                     React.createElement("option", { value: "land" }, "Terrestre"))),
             React.createElement(Field, { label: "Naviera / Aerol\u00EDnea", required: true, help: "Compa\u00F1\u00EDa que opera el transporte.", helpExample: "COSCO, MSC, Hapag-Lloyd\u2026" },
                 React.createElement(Input, { placeholder: "Ej. COSCO Shipping Lines", value: ship.shipping_line, onChange: (e) => updateShip({ shipping_line: e.target.value }) })),
-            React.createElement(Field, { label: "Buque + viaje", required: true, help: "Nombre del buque seguido del n\u00FAmero de viaje.", helpExample: "COSCO TAICANG / 042E" },
-                React.createElement(Input, { mono: true, placeholder: "Ej. COSCO TAICANG / 042E", value: ship.vessel, onChange: (e) => updateShip({ vessel: e.target.value }) }))),
-        React.createElement("div", { className: "fld-row cols-3", style: { marginTop: 16 } },
             React.createElement(Field, { label: "ETD", required: true, help: "Estimated Time of Departure \u2014 fecha estimada de salida del puerto origen." },
-                React.createElement(Input, { type: "date", value: ship.etd, onChange: (e) => updateShip({ etd: e.target.value }) })),
-            React.createElement(Field, { label: "ETA", required: true, help: "Estimated Time of Arrival \u2014 fecha estimada de llegada al puerto destino." },
-                React.createElement(Input, { type: "date", value: ship.eta, onChange: (e) => updateShip({ eta: e.target.value }) })),
-            React.createElement(Field, { label: "Estado actual", required: true },
-                React.createElement(Select, { value: ship.status, onChange: (e) => updateShip({ status: e.target.value }) }, Object.entries(STATUS_LABEL).map(([k, v]) => React.createElement("option", { key: k, value: k }, v))))),
-        React.createElement(Field, { label: "Observaciones", optional: true, className: "fld-full", hint: "Notas internas sobre el viaje.", style: { marginTop: 16 } },
-            React.createElement(Textarea, { rows: 2, value: ship.notes, placeholder: "Ej. Cambio de buque por sobrecupo. Reasignado a TAICANG.", onChange: (e) => updateShip({ notes: e.target.value }) }))),
+                React.createElement(Input, { type: "date", value: ship.etd, onChange: (e) => updateShip({ etd: e.target.value }) })))),
     React.createElement("div", { className: "card" },
         React.createElement("div", { className: "card-head" },
             React.createElement("div", null,
@@ -2083,6 +2050,7 @@ const Step2Blocks = ({ proforma, draft, setDraft }) => {
         React.createElement(Callout, { tone: "info", icon: "info", title: "\u00BFQu\u00E9 es un bloque?" }, "Un bloque es la piedra original de cantera, antes de cortarse. De cada bloque salen varias placas. Si tienes 3 bloques con 18, 16 y 14 placas, este paso generar\u00E1 autom\u00E1ticamente 48 filas para llenar."),
         React.createElement("div", { style: { marginTop: 20, display: 'flex', flexDirection: 'column', gap: 24 } }, products.map(p => {
             const productBlocks = draft.blocks.filter(b => b.product === p.id);
+            const needsPhoto = (p.kind || 'placa') === 'placa';
             return (React.createElement("div", { key: p.id },
                 React.createElement("div", { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 } },
                     React.createElement("div", null,
@@ -2097,7 +2065,7 @@ const Step2Blocks = ({ proforma, draft, setDraft }) => {
                             " configurados")),
                     React.createElement(Btn, { variant: "secondary", size: "sm", icon: "plus", onClick: () => addBlock(p.id) }, "Agregar bloque")),
                 productBlocks.length === 0 ? (React.createElement(Empty, { icon: "cube", title: "Sin bloques a\u00FAn", action: React.createElement(Btn, { variant: "accent", size: "sm", icon: "plus", onClick: () => addBlock(p.id) }, "Crear primer bloque") }, "Empieza con uno. Puedes agregar tantos como necesites.")) : (React.createElement("div", { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 12 } }, productBlocks.map((b, bi) => (React.createElement("div", { key: b.id, className: "block-card" },
-                    React.createElement("div", { className: `block-photo ${b.photo ? 'has-photo' : ''}`, onClick: () => updBlock(b.id, { photo: !b.photo }) }, b.photo ? (React.createElement(Imgph, { style: { width: '100%', height: '100%', borderRadius: 8 } }, "foto bloque")) : (React.createElement("div", { style: { textAlign: 'center' } },
+                    needsPhoto && React.createElement("div", { className: `block-photo ${b.photo ? 'has-photo' : ''}`, onClick: () => updBlock(b.id, { photo: !b.photo }) }, b.photo ? (React.createElement(Imgph, { style: { width: '100%', height: '100%', borderRadius: 8 } }, "foto bloque")) : (React.createElement("div", { style: { textAlign: 'center' } },
                         React.createElement(Icon, { name: "camera", size: 20 }),
                         React.createElement("div", { style: { fontSize: 10, marginTop: 4, fontWeight: 600 } }, "Subir foto")))),
                     React.createElement("div", { className: "block-fields" },
@@ -2108,21 +2076,28 @@ const Step2Blocks = ({ proforma, draft, setDraft }) => {
                                 React.createElement(Input, { mono: true, type: "number", min: 1, value: b.count || '', placeholder: "18", onChange: (e) => updBlock(b.id, { count: +e.target.value }) })),
                             React.createElement(Field, { label: "Estado" },
                                 React.createElement("div", { style: { display: 'flex', gap: 6, alignItems: 'center', padding: '8px 0' } },
-                                    b.photo
-                                        ? React.createElement(Badge, { tone: "done" },
-                                            React.createElement(Icon, { name: "check", size: 10 }),
-                                            " Foto OK")
-                                        : React.createElement(Badge, { tone: "partial" },
-                                            React.createElement(Icon, { name: "camera", size: 10 }),
-                                            " Falta foto"),
+                                    (!needsPhoto
+                                        ? React.createElement("span", { className: "text-muted text-small" }, "No requiere foto")
+                                        : (b.photo
+                                            ? React.createElement(Badge, { tone: "done" },
+                                                React.createElement(Icon, { name: "check", size: 10 }),
+                                                " Foto OK")
+                                            : React.createElement(Badge, { tone: "partial" },
+                                                React.createElement(Icon, { name: "camera", size: 10 }),
+                                                " Falta foto"))),
                                     React.createElement(Btn, { variant: "ghost", size: "sm", icon: "trash", className: "btn-danger-ghost", onClick: () => delBlock(b.id) }))))))))))));
         }))));
 };
 /* ====================== Step 3 ====================== */
 const Step3Review = ({ proforma, draft }) => {
     const totalPlates = draft.blocks.reduce((a, b) => a + (+b.count || 0), 0);
-    const photosMissing = draft.blocks.filter(b => !b.photo).length;
     const products = proforma.products.filter(p => draft.products.includes(p.id));
+    const needsBlockPhoto = (b) => {
+        const pr = proforma.products.find(p => p.id === b.product);
+        return ((pr && pr.kind) || 'placa') === 'placa';
+    };
+    const blockOk = (b) => !needsBlockPhoto(b) || b.photo;
+    const photosMissing = draft.blocks.filter(b => needsBlockPhoto(b) && !b.photo).length;
     return (React.createElement("div", null,
         React.createElement("div", { style: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 24 } },
             React.createElement("div", { style: { padding: 18, border: '1px solid var(--border)', borderRadius: 12, background: 'var(--surface)' } },
@@ -2148,11 +2123,11 @@ const Step3Review = ({ proforma, draft }) => {
                     React.createElement("div", { style: { display: 'flex', gap: 8, flexWrap: 'wrap' } }, pblocks.map(b => (React.createElement("div", { key: b.id, style: {
                             display: 'flex', alignItems: 'center', gap: 8,
                             padding: '6px 10px', borderRadius: 8,
-                            background: b.photo ? 'var(--ok-soft)' : 'var(--warn-soft)',
-                            border: `1px solid ${b.photo ? 'var(--ok-border)' : 'var(--warn-border)'}`,
+                            background: blockOk(b) ? 'var(--ok-soft)' : 'var(--warn-soft)',
+                            border: `1px solid ${blockOk(b) ? 'var(--ok-border)' : 'var(--warn-border)'}`,
                             fontSize: 12.5,
                         } },
-                        React.createElement(Icon, { name: b.photo ? 'check' : 'camera', size: 11 }),
+                        React.createElement(Icon, { name: blockOk(b) ? 'check' : 'camera', size: 11 }),
                         React.createElement("span", { className: "mono", style: { fontWeight: 600 } }, b.name),
                         React.createElement("span", { className: "text-muted", style: { fontSize: 11 } },
                             "\u00D7 ",
@@ -2224,7 +2199,7 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship }) => {
         { header: 'No. Placa',  field: 'plate',     type: 'string' },
         { header: 'Grosor cm',  field: 'thickness', type: 'number' },
         { header: 'Alto m',     field: 'h',         type: 'number' },
-        { header: 'Ancho m',    field: 'w',         type: 'number' },
+        { header: 'Largo m',    field: 'w',         type: 'number' },
         { header: 'Contenedor', field: 'container', type: 'string' },
         { header: 'Notas',      field: 'notes',     type: 'string' },
     ];
@@ -2341,7 +2316,7 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship }) => {
                             React.createElement("th", { style: { minWidth: 110 } }, "No. Placa"),
                             React.createElement("th", { style: { width: 110 } }, "Grosor cm"),
                             React.createElement("th", { style: { width: 110 } }, "Alto m"),
-                            React.createElement("th", { style: { width: 110 } }, "Ancho m"),
+                            React.createElement("th", { style: { width: 110 } }, "Largo m"),
                             React.createElement("th", { style: { width: 80 } }, "\u00C1rea m\u00B2"),
                             React.createElement("th", { style: { minWidth: 180 } }, "Contenedor"),
                             React.createElement("th", { style: { width: 60 } }, "Foto"),
@@ -2406,7 +2381,7 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship }) => {
                     React.createElement("button", { className: "icon-btn", onClick: () => setPasteOpen(false), "aria-label": "Cerrar" },
                         React.createElement(Icon, { name: "x", size: 16 }))),
                 React.createElement("div", { style: { padding: '16px 22px', display: 'flex', flexDirection: 'column', gap: 10, flex: '1 1 auto', minHeight: 0, overflow: 'auto' } },
-                    React.createElement("textarea", { value: pasteText, onChange: (e) => setPasteText(e.target.value), placeholder: 'Pega aqu\u00ED los datos copiados de Excel...\n\nColumnas esperadas (en este orden si no incluyes headers):\n#  Bloque  Atado  No. Placa  Grosor cm  Alto m  Ancho m  Contenedor  Notas', autoFocus: true, spellCheck: false, style: { width: '100%', minHeight: 180, fontFamily: 'var(--font-mono)', fontSize: 12, padding: 12, border: '1px solid var(--border)', borderRadius: 8, resize: 'vertical', background: 'var(--surface-alt)', color: 'var(--ink)', lineHeight: 1.5 } }),
+                    React.createElement("textarea", { value: pasteText, onChange: (e) => setPasteText(e.target.value), placeholder: 'Pega aqu\u00ED los datos copiados de Excel...\n\nColumnas esperadas (en este orden si no incluyes headers):\n#  Bloque  Atado  No. Placa  Grosor cm  Alto m  Largo m  Contenedor  Notas', autoFocus: true, spellCheck: false, style: { width: '100%', minHeight: 180, fontFamily: 'var(--font-mono)', fontSize: 12, padding: 12, border: '1px solid var(--border)', borderRadius: 8, resize: 'vertical', background: 'var(--surface-alt)', color: 'var(--ink)', lineHeight: 1.5 } }),
                     pastePreview && pastePreview.dataRows.length > 0 && React.createElement("div", { style: { fontSize: 12, color: 'var(--ink-2)', padding: '10px 12px', background: 'var(--ok-soft)', border: '1px solid var(--ok)', borderRadius: 8, display: 'flex', flexDirection: 'column', gap: 4 } },
                         React.createElement("div", null,
                             React.createElement("strong", null, pastePreview.dataRows.length),
@@ -2524,8 +2499,7 @@ const Confirm = ({ proforma, status, setRoute, onComplete }) => {
             React.createElement("div", { style: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 16 } },
                 React.createElement(StatCard, { label: "Proforma", value: proforma.globals.proforma_number || '—', mono: true }),
                 React.createElement(StatCard, { label: "Orden de compra", value: proforma.po_name, mono: true }),
-                React.createElement(StatCard, { label: "Incoterm", value: proforma.globals.incoterm || '—' }),
-                React.createElement(StatCard, { label: "Origen \u2192 Destino", value: `${proforma.globals.port_origin || '?'} → ${proforma.globals.port_destination || '?'}` }),
+                React.createElement(StatCard, { label: "Destino", value: proforma.globals.port_destination || '—' }),
                 React.createElement(StatCard, { label: "Embarques", value: proforma.shipments.length }),
                 React.createElement(StatCard, { label: "Total invoices", value: `${proforma.shipments.reduce((a, s) => a + s.invoices.reduce((b, i) => b + (i.amount || 0), 0), 0).toLocaleString()} USD`, mono: true }))),
         React.createElement("div", { className: "card" },
@@ -2631,7 +2605,7 @@ const GUIDE_CONTENT = {
         title: 'Tu llenado en 4 etapas',
         sub: 'Te recomendamos seguir este orden. Si necesitas saltar a otra sección, también puedes.',
         steps: [
-            { num: 1, title: 'Datos generales', body: 'Una sola vez al inicio. Identificación de la Proforma, puertos e incoterm.' },
+            { num: 1, title: 'Datos generales', body: 'Una sola vez al inicio. Identificación de la Proforma y puerto destino.' },
             { num: 2, title: 'Embarques', body: 'Crea uno o varios. Cada uno con logística, B/L, invoices, contenedores y packing.' },
             { num: 3, title: 'Documentos', body: 'Sube certificados de calidad y otros papeles generales.' },
             { num: 4, title: 'Revisar y enviar', body: 'Última verificación y notificación a SOM GROUP.' },
@@ -2643,9 +2617,8 @@ const GUIDE_CONTENT = {
         sub: 'Esta sección define identidad y ruta. Si no sabes algo, pregunta a tu agente o déjalo vacío y vuelve después.',
         steps: [
             { num: 1, title: 'Número de Proforma', body: 'Es el ID que tu sistema usa. Suele comenzar con "PI-".' },
-            { num: 2, title: 'Origen y destino', body: 'País y puerto de salida + puerto donde llegará.' },
-            { num: 3, title: 'Incoterm', body: 'Define quién paga qué. Lo acordaste con tu contacto de SOM GROUP.' },
-            { num: 4, title: 'Pagos y notas', body: 'Términos de pago y observaciones generales.' },
+            { num: 2, title: 'Puerto destino', body: 'El puerto donde llegará el embarque.' },
+            { num: 3, title: 'Notas', body: 'Observaciones generales, si aplican.' },
         ],
         illustration: 'mapa de ruta',
     },
@@ -2654,7 +2627,7 @@ const GUIDE_CONTENT = {
         title: 'Embarques',
         sub: 'Un embarque = un viaje. Puedes dividir la PO en varios embarques si la producción sale en fechas distintas.',
         steps: [
-            { num: 1, title: 'Agrega un embarque', body: 'Hazlo en cuanto tengas el buque o vuelo asignado.' },
+            { num: 1, title: 'Agrega un embarque', body: 'Hazlo en cuanto tengas la naviera o vuelo asignado.' },
             { num: 2, title: 'Llena las 5 secciones', body: 'Logística, B/L, invoices, contenedores y packing list.' },
             { num: 3, title: 'Sube documentos', body: 'Certificado de origen, fitosanitario, etc.' },
         ],
@@ -2664,7 +2637,7 @@ const GUIDE_CONTENT = {
         title: 'Captura por pestañas',
         sub: 'Sigue las pestañas de izquierda a derecha. El packing list es lo más detallado — déjalo para el final.',
         steps: [
-            { num: 1, title: 'Logística + B/L', body: 'Naviera, buque, fechas y el documento B/L.' },
+            { num: 1, title: 'Logística + B/L', body: 'Naviera, fecha de salida (ETD) y el documento B/L.' },
             { num: 2, title: 'Invoices', body: 'Factura(s) comercial(es). Puede ser una global o varias parciales.' },
             { num: 3, title: 'Contenedores', body: 'Los números físicos pintados en cada contenedor.' },
             { num: 4, title: 'Packing list', body: 'Asistente paso a paso. Captura placa por placa.' },

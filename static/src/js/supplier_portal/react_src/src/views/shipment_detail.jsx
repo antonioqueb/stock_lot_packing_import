@@ -42,8 +42,8 @@ const ShipmentDetail = ({ proforma, setProforma, status, setRoute, route, openPa
             <Badge tone={STATUS_TONE[ship.status]} dot>{STATUS_LABEL[ship.status] || 'Borrador'}</Badge>
           </h1>
           <p className="lead">
-            {ship.vessel ? <span>Buque <strong className="mono">{ship.vessel}</strong> de <strong>{ship.shipping_line}</strong>.</span> :
-            <span>Aún sin buque ni naviera. Empieza por la pestaña de Logística.</span>}
+            {ship.shipping_line ? <span>Naviera <strong>{ship.shipping_line}</strong>.</span> :
+            <span>Aún sin naviera. Empieza por la pestaña de Logística.</span>}
           </p>
         </div>
         <div className="head-actions">
@@ -112,32 +112,10 @@ const TabLogistics = ({ ship, updateShip }) => (
           <Input placeholder="Ej. COSCO Shipping Lines" value={ship.shipping_line}
                  onChange={(e) => updateShip({ shipping_line: e.target.value })}/>
         </Field>
-        <Field label="Buque + viaje" required
-               help="Nombre del buque seguido del número de viaje." helpExample="COSCO TAICANG / 042E">
-          <Input mono placeholder="Ej. COSCO TAICANG / 042E" value={ship.vessel}
-                 onChange={(e) => updateShip({ vessel: e.target.value })}/>
-        </Field>
-      </div>
-
-      <div className="fld-row cols-3" style={{marginTop: 16}}>
         <Field label="ETD" required help="Estimated Time of Departure — fecha estimada de salida del puerto origen.">
           <Input type="date" value={ship.etd} onChange={(e) => updateShip({ etd: e.target.value })}/>
         </Field>
-        <Field label="ETA" required help="Estimated Time of Arrival — fecha estimada de llegada al puerto destino.">
-          <Input type="date" value={ship.eta} onChange={(e) => updateShip({ eta: e.target.value })}/>
-        </Field>
-        <Field label="Estado actual" required>
-          <Select value={ship.status} onChange={(e) => updateShip({ status: e.target.value })}>
-            {Object.entries(STATUS_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-          </Select>
-        </Field>
       </div>
-
-      <Field label="Observaciones" optional className="fld-full" hint="Notas internas sobre el viaje."
-             style={{marginTop: 16}}>
-        <Textarea rows={2} value={ship.notes} placeholder="Ej. Cambio de buque por sobrecupo. Reasignado a TAICANG."
-                  onChange={(e) => updateShip({ notes: e.target.value })}/>
-      </Field>
     </div>
 
     <div className="card">

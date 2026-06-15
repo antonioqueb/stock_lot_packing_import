@@ -7,7 +7,6 @@ const Globals = ({ proforma, setProforma, status, setRoute, validationStyle = 'i
   const errors = {};
   // simulated validation
   if (g.proforma_number && !/^PI-/i.test(g.proforma_number)) errors.proforma_number = 'El número debería empezar con "PI-" para identificar una Proforma.';
-  if (!g.incoterm) errors.incoterm = 'Falta este dato: define quién paga y se hace cargo del transporte.';
   if (!g.port_destination) errors.port_destination = 'Es necesario para coordinar la llegada del embarque.';
 
   const errorList = Object.entries(errors);
@@ -79,45 +78,16 @@ const Globals = ({ proforma, setProforma, status, setRoute, validationStyle = 'i
         <div className="card-head">
           <div>
             <h2>Logística internacional</h2>
-            <p className="sub">Ruta y términos del envío. Estos datos van impresos en la documentación de aduanas.</p>
+            <p className="sub">Puerto de destino del embarque. Este dato va impreso en la documentación de aduanas.</p>
           </div>
         </div>
-        <div className="fld-row cols-3">
-          <Field label="País de origen" required
-                 help="País desde donde sale la mercancía.">
-            <Input placeholder="Ej. China" value={g.country_origin}
-                   onChange={(e) => update('country_origin', e.target.value)}/>
-          </Field>
-          <Field label="Puerto de origen" required
-                 help="Puerto marítimo o aeropuerto desde donde zarpa el embarque." helpExample="Ej: Shanghai, Ningbo">
-            <Input placeholder="Ej. Shanghai" value={g.port_origin}
-                   onChange={(e) => update('port_origin', e.target.value)}/>
-          </Field>
+        <div className="fld-row">
           <Field label="Puerto destino" required
                  help="El puerto mexicano donde llegará el embarque."
                  helpExample="Ej: Manzanillo, Veracruz, Lázaro Cárdenas"
                  error={errors.port_destination}>
             <Input placeholder="Ej. Manzanillo" value={g.port_destination}
                    onChange={(e) => update('port_destination', e.target.value)}/>
-          </Field>
-        </div>
-
-        <div className="fld-row" style={{marginTop: 16}}>
-          <Field label="Incoterm" required
-                 help="Define qué parte (proveedor o cliente) cubre el transporte, seguro y aduanas. Si no estás seguro, pregunta a tu contacto de SOM GROUP."
-                 helpExample="CIF = tú pagas hasta el puerto destino, incluyendo seguro"
-                 error={errors.incoterm}>
-            <Select value={g.incoterm} onChange={(e) => update('incoterm', e.target.value)}>
-              <option value="">Selecciona…</option>
-              <option>EXW</option><option>FOB</option><option>CIF</option>
-              <option>CFR</option><option>DAP</option><option>DDP</option>
-            </Select>
-          </Field>
-          <Field label="Condiciones de pago" required
-                 help="Cómo y cuándo te van a pagar."
-                 helpExample="T/T 30% advance, 70% B/L copy">
-            <Input placeholder="Ej. T/T 30% advance, 70% B/L copy" value={g.payment_terms}
-                   onChange={(e) => update('payment_terms', e.target.value)}/>
           </Field>
         </div>
       </div>

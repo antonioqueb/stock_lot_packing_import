@@ -65,21 +65,16 @@ const ShipmentsList = ({ proforma, setProforma, status, setRoute }) => {
                 <div className="num">#{s.number}</div>
                 <div className="meta">
                   <div className="title">
-                    <span>{s.vessel || <span className="text-muted">Sin buque asignado</span>}</span>
+                    <span>{s.shipping_line || <span className="text-muted">Sin naviera asignada</span>}</span>
                     <Badge tone={STATUS_TONE[s.status]} dot>{STATUS_LABEL[s.status] || 'Borrador'}</Badge>
                     {sst.status === 'done' && <Badge tone="done"><Icon name="check" size={10}/> Completo</Badge>}
                     {sst.status === 'partial' && <Badge tone="partial"><Icon name="minus" size={10}/> {sst.pct}%</Badge>}
                     {sst.status === 'todo' && <Badge tone="todo">Sin datos</Badge>}
                   </div>
                   <div className="route">
-                    <span><Icon name="anchor" size={11}/> {s.shipping_line || 'Sin naviera'}</span>
-                    <span className="arrow">·</span>
-                    <span className="mono">{proforma.globals.port_origin || '—'}</span>
-                    <Icon name="arrow_right" size={11} className="arrow"/>
-                    <span className="mono">{proforma.globals.port_destination || '—'}</span>
+                    <span><Icon name="anchor" size={11}/> Destino <span className="mono">{proforma.globals.port_destination || '—'}</span></span>
                     <span className="arrow">·</span>
                     <span>ETD <span className="mono">{s.etd || '—'}</span></span>
-                    <span>ETA <span className="mono">{s.eta || '—'}</span></span>
                   </div>
                 </div>
 

@@ -7,7 +7,7 @@ const GUIDE_CONTENT = {
     title: 'Tu llenado en 4 etapas',
     sub: 'Te recomendamos seguir este orden. Si necesitas saltar a otra sección, también puedes.',
     steps: [
-      { num: 1, title: 'Datos generales', body: 'Una sola vez al inicio. Identificación de la Proforma, puertos e incoterm.' },
+      { num: 1, title: 'Datos generales', body: 'Una sola vez al inicio. Identificación de la Proforma y puerto destino.' },
       { num: 2, title: 'Embarques', body: 'Crea uno o varios. Cada uno con logística, B/L, invoices, contenedores y packing.' },
       { num: 3, title: 'Documentos', body: 'Sube certificados de calidad y otros papeles generales.' },
       { num: 4, title: 'Revisar y enviar', body: 'Última verificación y notificación a SOM GROUP.' },
@@ -19,9 +19,8 @@ const GUIDE_CONTENT = {
     sub: 'Esta sección define identidad y ruta. Si no sabes algo, pregunta a tu agente o déjalo vacío y vuelve después.',
     steps: [
       { num: 1, title: 'Número de Proforma', body: 'Es el ID que tu sistema usa. Suele comenzar con "PI-".' },
-      { num: 2, title: 'Origen y destino', body: 'País y puerto de salida + puerto donde llegará.' },
-      { num: 3, title: 'Incoterm', body: 'Define quién paga qué. Lo acordaste con tu contacto de SOM GROUP.' },
-      { num: 4, title: 'Pagos y notas', body: 'Términos de pago y observaciones generales.' },
+      { num: 2, title: 'Puerto destino', body: 'El puerto donde llegará el embarque.' },
+      { num: 3, title: 'Notas', body: 'Observaciones generales, si aplican.' },
     ],
     illustration: 'mapa de ruta',
   },
@@ -30,7 +29,7 @@ const GUIDE_CONTENT = {
     title: 'Embarques',
     sub: 'Un embarque = un viaje. Puedes dividir la PO en varios embarques si la producción sale en fechas distintas.',
     steps: [
-      { num: 1, title: 'Agrega un embarque', body: 'Hazlo en cuanto tengas el buque o vuelo asignado.' },
+      { num: 1, title: 'Agrega un embarque', body: 'Hazlo en cuanto tengas la naviera o vuelo asignado.' },
       { num: 2, title: 'Llena las 5 secciones', body: 'Logística, B/L, invoices, contenedores y packing list.' },
       { num: 3, title: 'Sube documentos', body: 'Certificado de origen, fitosanitario, etc.' },
     ],
@@ -40,7 +39,7 @@ const GUIDE_CONTENT = {
     title: 'Captura por pestañas',
     sub: 'Sigue las pestañas de izquierda a derecha. El packing list es lo más detallado — déjalo para el final.',
     steps: [
-      { num: 1, title: 'Logística + B/L', body: 'Naviera, buque, fechas y el documento B/L.' },
+      { num: 1, title: 'Logística + B/L', body: 'Naviera, fecha de salida (ETD) y el documento B/L.' },
       { num: 2, title: 'Invoices', body: 'Factura(s) comercial(es). Puede ser una global o varias parciales.' },
       { num: 3, title: 'Contenedores', body: 'Los números físicos pintados en cada contenedor.' },
       { num: 4, title: 'Packing list', body: 'Asistente paso a paso. Captura placa por placa.' },
