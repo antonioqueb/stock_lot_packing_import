@@ -914,14 +914,17 @@ class PackingListImportWizard(models.TransientModel):
             raw_b = idx.value(1, r)
             raw_c = idx.value(2, r)
 
+            val_a = self._to_float(raw_a)
             val_b = self._to_float(raw_b)
             val_c = self._to_float(raw_c)
 
             es_valido = False
             if unit_type == "Placa":
-                if val_b > 0 and val_c > 0:
+                # Placa: A=Largo, B=Alto, C=Grosor
+                if val_a > 0 and val_b > 0:
                     es_valido = True
             else:
+                # Pieza: A=Grosor, B=Cantidad
                 if val_b > 0:
                     es_valido = True
 
@@ -929,9 +932,9 @@ class PackingListImportWizard(models.TransientModel):
                 filas_validas += 1
                 rows.append({
                     "product": product,
-                    "grosor": str(raw_a or "").strip(),
+                    "grosor": str((raw_c if unit_type == "Placa" else raw_a) or "").strip(),
                     "alto": val_b if unit_type == "Placa" else 0.0,
-                    "ancho": val_c if unit_type == "Placa" else 0.0,
+                    "ancho": val_a if unit_type == "Placa" else 0.0,
                     "quantity": val_b if unit_type != "Placa" else 0.0,
                     "color": str(idx.value(idx_notas, r) or "").strip(),
                     "bloque": str(idx.value(idx_bloque, r) or "").strip(),
@@ -1056,26 +1059,30 @@ class PackingListImportWizard(models.TransientModel):
                 col_ref = 11
 
             for r in range(4, sheet.max_row + 1):
+                raw_a = sheet.cell(r, 1).value
                 raw_b = sheet.cell(r, 2).value
                 raw_c = sheet.cell(r, 3).value
 
+                val_a = self._to_float(raw_a)
                 val_b = self._to_float(raw_b)
                 val_c = self._to_float(raw_c)
 
                 es_valido = False
                 if unit_type == "Placa":
-                    if val_b > 0 and val_c > 0:
+                    # Placa: A=Largo, B=Alto, C=Grosor
+                    if val_a > 0 and val_b > 0:
                         es_valido = True
                 else:
+                    # Pieza: A=Grosor, B=Cantidad
                     if val_b > 0:
                         es_valido = True
 
                 if es_valido:
                     rows.append({
                         "product": product,
-                        "grosor": str(sheet.cell(r, 1).value or "").strip(),
+                        "grosor": str((raw_c if unit_type == "Placa" else raw_a) or "").strip(),
                         "alto": val_b if unit_type == "Placa" else 0.0,
-                        "ancho": val_c if unit_type == "Placa" else 0.0,
+                        "ancho": val_a if unit_type == "Placa" else 0.0,
                         "quantity": val_b if unit_type != "Placa" else 0.0,
                         "color": str(sheet.cell(r, col_notas).value or "").strip(),
                         "bloque": str(sheet.cell(r, col_bloque).value or "").strip(),

@@ -217,10 +217,11 @@ class WorksheetImportWizard(models.TransientModel):
                 if not lot_name or lot_name == 'Nº Lote': continue
 
                 if is_placa:
-                    alto_r = self._to_float(idx.value(13, r))
-                    ancho_r = self._to_float(idx.value(14, r))
+                    # Col N (13) = LARGO REAL, Col O (14) = ALTO REAL
+                    ancho_r = self._to_float(idx.value(13, r))
+                    alto_r = self._to_float(idx.value(14, r))
                     _logger.info(
-                        "[WS_IMPORT] placa | fila %s | lote %s | N(raw)=%r O(raw)=%r -> alto=%s ancho=%s",
+                        "[WS_IMPORT] placa | fila %s | lote %s | N/Largo(raw)=%r O/Alto(raw)=%r -> alto=%s ancho=%s",
                         r, lot_name, idx.value(13, r), idx.value(14, r), alto_r, ancho_r,
                     )
                     all_rows.append({
@@ -272,15 +273,13 @@ class WorksheetImportWizard(models.TransientModel):
                 if not lot_name: continue
 
                 if is_placa:
-                    # Plantilla WS: col 15 = Alto Real, col 16 = Largo Real
-                    # (antes se leían 14/15, desfasadas una columna contra
-                    # la plantilla generada por action_download_worksheet).
+                    # Plantilla WS: col 15 = Largo Real, col 16 = Alto Real
                     all_rows.append({
                         'product': product,
                         'lot_name': lot_name,
                         'is_placa': True,
-                        'alto_real': self._to_float(sheet.cell(r, 15).value),
-                        'ancho_real': self._to_float(sheet.cell(r, 16).value),
+                        'ancho_real': self._to_float(sheet.cell(r, 15).value),
+                        'alto_real': self._to_float(sheet.cell(r, 16).value),
                     })
                 else:
                     # Formatos: col 15 = CANT. REAL.

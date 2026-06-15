@@ -16,7 +16,7 @@
                     
                     <div class="alert alert-success" role="alert" invisible="ws_spreadsheet_id == False">
                         <p><strong><i class="fa fa-table"></i> Spreadsheet Detectado:</strong></p>
-                        <p>El sistema leerá las columnas <strong>"ALTO REAL (m)"</strong> y <strong>"LARGO REAL (m)"</strong> directamente de tu hoja de cálculo activa.</p>
+                        <p>El sistema leerá las columnas <strong>"LARGO REAL (m)"</strong> y <strong>"ALTO REAL (m)"</strong> directamente de tu hoja de cálculo activa.</p>
                         <p>Asegúrate de haber guardado los cambios en el Spreadsheet antes de procesar.</p>
                     </div>
 

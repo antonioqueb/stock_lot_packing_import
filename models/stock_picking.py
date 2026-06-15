@@ -121,11 +121,9 @@ class StockPicking(models.Model):
                     return str(val).strip()
 
                 # --- LECTURA SEGÚN TIPO (COLUMNAS RECORRIDAS) ---
-                
-                # Datos comunes base (Grosor siempre es A)
-                grosor = get_val("A")
-                
+
                 # Inicializar variables
+                grosor = ""
                 alto = 0.0
                 ancho = 0.0
                 qty = 0.0
@@ -141,9 +139,10 @@ class StockPicking(models.Model):
 
                 if unit_type == 'Placa':
                     # Mapeo Estandar:
-                    # A=Grosor, B=Alto, C=Ancho, D=Peso, E=Notas, F=Bloque, G=Placa, H=Atado, I=Grupo, J=Pedimento, K=Contenedor, L=RefProv
+                    # A=Largo, B=Alto, C=Grosor, D=Peso, E=Notas, F=Bloque, G=Placa, H=Atado, I=Grupo, J=Pedimento, K=Contenedor, L=RefProv
+                    ancho = get_val("A", float)
                     alto = get_val("B", float)
-                    ancho = get_val("C", float)
+                    grosor = get_val("C")
                     peso = get_val("D", float)
                     color = get_val("E")
                     bloque = get_val("F")
@@ -156,6 +155,7 @@ class StockPicking(models.Model):
                 else:
                     # Mapeo Recorrido (Sin Ancho):
                     # A=Grosor, B=Cantidad, C=Peso, D=Notas, E=Bloque, F=Placa, G=Atado, H=Grupo, I=Pedimento, J=Contenedor, K=RefProv
+                    grosor = get_val("A")
                     qty = get_val("B", float)
                     peso = get_val("C", float) # Recorrido de D a C
                     color = get_val("D")       # Recorrido de E a D
@@ -355,15 +355,13 @@ class StockPicking(models.Model):
                         if 'cells' not in sheet: sheet['cells'] = {}
                         sheet['cells'][f"{col_letter}{current_row}"] = {"content": str(val)}
 
-                # Columna A siempre es Grosor
-                set_c("A", row.get('grosor', ''))
-                
                 # --- ESCRITURA CON RECORRIDO ---
                 if unit_type == 'Placa':
                     # PLACA: Estructura Completa
-                    # B=Alto, C=Ancho, D=Peso, E=Notas, F=Bloque, G=Placa, H=Atado, I=Grupo, J=Pedimento, K=Contenedor, L=RefProv
+                    # A=Largo, B=Alto, C=Grosor, D=Peso, E=Notas, F=Bloque, G=Placa, H=Atado, I=Grupo, J=Pedimento, K=Contenedor, L=RefProv
+                    set_c("A", row.get('ancho', ''))
                     set_c("B", row.get('alto', ''))
-                    set_c("C", row.get('ancho', ''))
+                    set_c("C", row.get('grosor', ''))
                     set_c("D", row.get('peso', ''))
                     set_c("E", row.get('color', ''))
                     set_c("F", row.get('bloque', ''))
@@ -376,8 +374,9 @@ class StockPicking(models.Model):
                     set_c("M", "Actualizado Portal")
                 else:
                     # PIEZA: Estructura Recorrida (Se salta la columna de ancho "extra")
-                    # B=Cantidad. C=Peso (Antes D). D=Notas (Antes E)...
-                    set_c("B", row.get('quantity')) 
+                    # A=Grosor, B=Cantidad. C=Peso (Antes D). D=Notas (Antes E)...
+                    set_c("A", row.get('grosor', ''))
+                    set_c("B", row.get('quantity'))
                     set_c("C", row.get('peso', ''))    # Recorrido
                     set_c("D", row.get('color', ''))   # Recorrido
                     set_c("E", row.get('bloque', ''))  # Recorrido
@@ -471,8 +470,8 @@ class StockPicking(models.Model):
                 # Columna A siempre es Grosor
                 
                 if unit_type == 'Placa':
-                    # Placa: [Grosor, Alto, Ancho] + Comunes
-                    headers = ['Grosor (cm)', 'Alto (m)', 'Largo (m)'] + common_headers_suffix
+                    # Placa: [Largo, Alto, Grosor] + Comunes
+                    headers = ['Largo (m)', 'Alto (m)', 'Grosor (cm)'] + common_headers_suffix
                 else:
                     # Pieza: [Grosor, Cantidad] + Comunes
                     # Aquí se elimina la columna vacía. "Peso" pasa a ser la columna C.
@@ -545,12 +544,12 @@ class StockPicking(models.Model):
             products = self.move_line_ids.mapped('product_id')
             folder = self.env['documents.document'].search([('type', '=', 'folder')], limit=1)
             
-            base_headers = ['Nº Lote', 'Grosor', 'Alto Teo.', 'Largo Teo.', 'Color', 'Bloque', 'No. Placa', 'Atado', 'Tipo', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Prov.']
+            base_headers = ['Nº Lote', 'Largo Teo.', 'Alto Teo.', 'Grosor', 'Color', 'Bloque', 'No. Placa', 'Atado', 'Tipo', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Prov.']
             sheets = []
             for product in products:
                 is_placa = self._ws_product_is_placa(product)
                 if is_placa:
-                    headers = base_headers + ['ALTO REAL (m)', 'LARGO REAL (m)']
+                    headers = base_headers + ['LARGO REAL (m)', 'ALTO REAL (m)']
                 else:
                     # Formatos: solo cantidad real contra teórica.
                     headers = base_headers + ['CANT. TEÓRICA', 'CANT. REAL']
@@ -568,9 +567,9 @@ class StockPicking(models.Model):
                 for ml in move_lines:
                     lot = ml.lot_id
                     cells[f"A{row_idx}"] = self._make_cell(lot.name)
-                    cells[f"B{row_idx}"] = self._make_cell(lot.x_grosor)
+                    cells[f"B{row_idx}"] = self._make_cell(lot.x_ancho)
                     cells[f"C{row_idx}"] = self._make_cell(lot.x_alto)
-                    cells[f"D{row_idx}"] = self._make_cell(lot.x_ancho)
+                    cells[f"D{row_idx}"] = self._make_cell(lot.x_grosor)
                     cells[f"E{row_idx}"] = self._make_cell(lot.x_color)
                     cells[f"F{row_idx}"] = self._make_cell(lot.x_bloque)
                     cells[f"G{row_idx}"] = self._make_cell(lot.x_numero_placa) 
@@ -635,7 +634,7 @@ class StockPicking(models.Model):
             # --- HEADERS DINÁMICOS EXCEL SIN HUECOS ---
             headers = []
             if unit_type == 'Placa':
-                headers = ['Grosor (cm)', 'Alto (m)', 'Largo (m)'] + common_headers_suffix
+                headers = ['Largo (m)', 'Alto (m)', 'Grosor (cm)'] + common_headers_suffix
             else:
                 # Pieza: [Grosor, Cantidad] + Comunes (sin huecos)
                 headers = ['Grosor (cm)', 'Cantidad'] + common_headers_suffix
@@ -672,17 +671,17 @@ class StockPicking(models.Model):
             ws['A1'] = 'PRODUCTO:'; ws['B1'] = f'{product.name} ({product.default_code or ""})'
             is_placa = self._ws_product_is_placa(product)
             if is_placa:
-                headers = ['Lote', 'Grosor', 'Alto Teo.', 'Largo Teo.', 'Color', 'Bloque', 'No. Placa', 'Atado', 'Tipo', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Prov', 'Cantidad', 'Alto Real', 'Largo Real']
+                headers = ['Lote', 'Largo Teo.', 'Alto Teo.', 'Grosor', 'Color', 'Bloque', 'No. Placa', 'Atado', 'Tipo', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Prov', 'Cantidad', 'Largo Real', 'Alto Real']
             else:
-                headers = ['Lote', 'Grosor', 'Alto Teo.', 'Largo Teo.', 'Color', 'Bloque', 'No. Placa', 'Atado', 'Tipo', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Prov', 'Cant. Teórica', 'CANT. REAL']
+                headers = ['Lote', 'Largo Teo.', 'Alto Teo.', 'Grosor', 'Color', 'Bloque', 'No. Placa', 'Atado', 'Tipo', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Prov', 'Cant. Teórica', 'CANT. REAL']
             for col_num, header in enumerate(headers, 1):
                 cell = ws.cell(row=3, column=col_num); cell.value = header; cell.fill = header_fill; cell.font = header_font; cell.border = border
             curr = 4
             for ml in self.move_line_ids.filtered(lambda x: x.product_id == product):
                 ws.cell(row=curr, column=1, value=ml.lot_id.name).fill = data_fill
-                ws.cell(row=curr, column=2, value=ml.lot_id.x_grosor).fill = data_fill
+                ws.cell(row=curr, column=2, value=ml.lot_id.x_ancho).fill = data_fill
                 ws.cell(row=curr, column=3, value=ml.lot_id.x_alto).fill = data_fill
-                ws.cell(row=curr, column=4, value=ml.lot_id.x_ancho).fill = data_fill
+                ws.cell(row=curr, column=4, value=ml.lot_id.x_grosor).fill = data_fill
                 ws.cell(row=curr, column=14, value=self._ws_move_line_qty(ml)).fill = data_fill
                 for col in range(1, 15): ws.cell(row=curr, column=col).border = border
                 ws.cell(row=curr, column=15).fill = editable_fill; ws.cell(row=curr, column=15).border = border
