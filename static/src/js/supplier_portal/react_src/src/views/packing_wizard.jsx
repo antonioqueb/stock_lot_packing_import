@@ -433,7 +433,7 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
 
   const filtered = filter === 'all' ? rows : filter === 'errors' ? errors : filter === 'empty' ? rows.filter(r => !r.h || !r.w) : rows;
 
-  const updRow = (id, patch) => setRows(rows.map(r => r.id === id ? { ...r, ...patch } : r));
+  const updRow = (id, patch) => setRows(prev => prev.map(r => r.id === id ? { ...r, ...patch } : r));
   const portalRowImageId = (r) => {
     const v = r._odoo_id || r.id;
     return (typeof v === 'number' || (typeof v === 'string' && /^\d+$/.test(v))) ? parseInt(v, 10) : 0;

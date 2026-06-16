@@ -2186,7 +2186,7 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
     const errors = rows.filter(r => r.errors && r.errors.length > 0);
     const completeRows = rows.filter(r => r.h > 0 && r.w > 0 && r.container);
     const filtered = filter === 'all' ? rows : filter === 'errors' ? errors : filter === 'empty' ? rows.filter(r => !r.h || !r.w) : rows;
-    const updRow = (id, patch) => setRows(rows.map(r => r.id === id ? { ...r, ...patch } : r));
+    const updRow = (id, patch) => setRows(prev => prev.map(r => r.id === id ? { ...r, ...patch } : r));
     // Captura real de la foto de la fila (solo placas). Guarda el base64 en
     // pendingImages (se sube al persistir, cuando la fila ya tiene id real).
     const pickRowPhoto = (r, file) => {
