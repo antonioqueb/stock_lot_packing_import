@@ -449,6 +449,15 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
     });
   };
 
+  // Para "No. Placa" la propagación es CONSECUTIVA (P-001 → P-002 → P-003…);
+  // para el resto se copia el valor tal cual.
+  const incPlate = (value, step) => {
+    const sval = String(value == null ? '' : value);
+    const m = sval.match(/^(.*?)(\d+)(\D*)$/);
+    if (!m) return sval;
+    const n = parseInt(m[2], 10) + step;
+    return m[1] + String(n).padStart(m[2].length, '0') + m[3];
+  };
   // PROPAGATION — copy the value of `field` from `sourceId` either to the next row
   // in the same block, or to every row below it inside the same block.
   const propagate = (sourceId, field, mode) => {
@@ -456,20 +465,26 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
     if (idx < 0) return;
     const src = rows[idx];
     const block = src.block;
+    const isPlate = field === 'plate';
     if (mode === 'next') {
       for (let i = idx + 1; i < rows.length; i++) {
         if (rows[i].block === block) {
           const targetId = rows[i].id;
-          setRows(prev => prev.map(r => r.id === targetId ? { ...r, [field]: src[field] } : r));
+          const val = isPlate ? incPlate(src[field], 1) : src[field];
+          setRows(prev => prev.map(r => r.id === targetId ? { ...r, [field]: val } : r));
           return;
         }
       }
     } else {
-      const targetIds = new Set();
+      const valById = {};
+      let k = 0;
       for (let i = idx + 1; i < rows.length; i++) {
-        if (rows[i].block === block) targetIds.add(rows[i].id);
+        if (rows[i].block === block) {
+          k += 1;
+          valById[rows[i].id] = isPlate ? incPlate(src[field], k) : src[field];
+        }
       }
-      setRows(prev => prev.map(r => targetIds.has(r.id) ? { ...r, [field]: src[field] } : r));
+      setRows(prev => prev.map(r => Object.prototype.hasOwnProperty.call(valById, r.id) ? { ...r, [field]: valById[r.id] } : r));
     }
   };
 
@@ -679,30 +694,30 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                       onClick={() => setActiveRow(r.id)}>
                     <td style={{textAlign: 'center', color: 'var(--ink-4)', fontSize: 11}}>{rows.indexOf(r) + 1}</td>
                     <td className="cell-block"><input value={r.block} onChange={(e) => updRow(r.id, { block: e.target.value })}/></td>
-                    <PropCell rowId={r.id} field="atado">
+                    {PropCell({ rowId: r.id, field: "atado", children: (
                       <input value={r.atado} onChange={(e) => updRow(r.id, { atado: e.target.value })}/>
-                    </PropCell>
-                    <PropCell rowId={r.id} field="plate">
+                    )})}
+                    {PropCell({ rowId: r.id, field: "plate", children: (
                       <input value={r.plate} onChange={(e) => updRow(r.id, { plate: e.target.value })}/>
-                    </PropCell>
-                    <PropCell rowId={r.id} field="thickness">
+                    )})}
+                    {PropCell({ rowId: r.id, field: "thickness", children: (
                       <input type="number" step="0.1" value={r.thickness} onChange={(e) => updRow(r.id, { thickness: +e.target.value })}/>
-                    </PropCell>
-                    <PropCell rowId={r.id} field="h" errClass={noH ? 'is-error' : ''}>
+                    )})}
+                    {PropCell({ rowId: r.id, field: "h", errClass: noH ? 'is-error' : '', children: (
                       <input type="number" step="0.01" value={r.h || ''} placeholder="0.00"
                              onChange={(e) => updRow(r.id, { h: +e.target.value })}/>
-                    </PropCell>
-                    <PropCell rowId={r.id} field="w" errClass={noW ? 'is-error' : ''}>
+                    )})}
+                    {PropCell({ rowId: r.id, field: "w", errClass: noW ? 'is-error' : '', children: (
                       <input type="number" step="0.01" value={r.w || ''} placeholder="0.00"
                              onChange={(e) => updRow(r.id, { w: +e.target.value })}/>
-                    </PropCell>
+                    )})}
                     <td className="cell-computed"><input readOnly value={area}/></td>
-                    <PropCell rowId={r.id} field="container" errClass={noC ? 'is-error' : ''}>
+                    {PropCell({ rowId: r.id, field: "container", errClass: noC ? 'is-error' : '', children: (
                       <select value={r.container} onChange={(e) => updRow(r.id, { container: e.target.value })}>
                         <option value="">— sin asignar —</option>
                         {containers.map(c => <option key={c} value={c}>{c}</option>)}
                       </select>
-                    </PropCell>
+                    )})}
                     {anyPlaca && (
                       <td style={{textAlign: 'center'}}>
                         {rowIsPlaca(r) ? (
@@ -718,9 +733,9 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                         )}
                       </td>
                     )}
-                    <PropCell rowId={r.id} field="notes">
+                    {PropCell({ rowId: r.id, field: "notes", children: (
                       <input placeholder="—" value={r.notes} onChange={(e) => updRow(r.id, { notes: e.target.value })}/>
-                    </PropCell>
+                    )})}
                   </tr>
                   </React.Fragment>
                 );

@@ -2204,30 +2204,46 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
         const v = r._odoo_id || r.id;
         return (typeof v === 'number' || (typeof v === 'string' && /^\d+$/.test(v))) ? parseInt(v, 10) : 0;
     };
-    // PROPAGATION — copy the value of `field` from `sourceId` either to the next row
-    // in the same block, or to every row below it inside the same block.
+    // Para "No. Placa" la propagación es CONSECUTIVA: incrementa la parte
+    // numérica conservando prefijo y ceros (P-001 → P-002 → P-003…). Para el
+    // resto de columnas se copia el valor tal cual.
+    const incPlate = (value, step) => {
+        const sval = String(value == null ? '' : value);
+        const m = sval.match(/^(.*?)(\d+)(\D*)$/);
+        if (!m)
+            return sval;
+        const n = parseInt(m[2], 10) + step;
+        return m[1] + String(n).padStart(m[2].length, '0') + m[3];
+    };
+    // PROPAGATION — copia el valor de `field` desde `sourceId` a la siguiente fila
+    // del mismo bloque, o a todas las de abajo dentro del mismo bloque.
     const propagate = (sourceId, field, mode) => {
         const idx = rows.findIndex(r => r.id === sourceId);
         if (idx < 0)
             return;
         const src = rows[idx];
         const block = src.block;
+        const isPlate = field === 'plate';
         if (mode === 'next') {
             for (let i = idx + 1; i < rows.length; i++) {
                 if (rows[i].block === block) {
                     const targetId = rows[i].id;
-                    setRows(prev => prev.map(r => r.id === targetId ? { ...r, [field]: src[field] } : r));
+                    const val = isPlate ? incPlate(src[field], 1) : src[field];
+                    setRows(prev => prev.map(r => r.id === targetId ? { ...r, [field]: val } : r));
                     return;
                 }
             }
         }
         else {
-            const targetIds = new Set();
+            const valById = {};
+            let k = 0;
             for (let i = idx + 1; i < rows.length; i++) {
-                if (rows[i].block === block)
-                    targetIds.add(rows[i].id);
+                if (rows[i].block === block) {
+                    k += 1;
+                    valById[rows[i].id] = isPlate ? incPlate(src[field], k) : src[field];
+                }
             }
-            setRows(prev => prev.map(r => targetIds.has(r.id) ? { ...r, [field]: src[field] } : r));
+            setRows(prev => prev.map(r => Object.prototype.hasOwnProperty.call(valById, r.id) ? { ...r, [field]: valById[r.id] } : r));
         }
     };
     // Helper that decides if propagation is available — needs a value and at least one row below in the same block
@@ -2242,7 +2258,13 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
         return false;
     };
     // Cell wrapper that injects the two propagation buttons
-    const PropCell = ({ rowId, field, children, extra, errClass }) => {
+    // OJO: PropCell se INVOCA como función (PropCell(props, children)), NO como
+    // componente vía React.createElement. Un componente definido dentro de
+    // Step4Sheet tendría identidad nueva en cada render (cada tecla dispara
+    // setRows) y React desmontaría/remontaría la celda, haciendo que el input
+    // pierda el foco en cada pulsación.
+    const PropCell = (props, children) => {
+        const { rowId, field, extra, errClass } = props;
         const propable = canPropagate(rowId);
         return (React.createElement("td", { className: `${propable ? 'propable' : ''} ${errClass || ''} ${extra || ''}` },
             children,
@@ -2417,19 +2439,19 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                             React.createElement("td", { style: { textAlign: 'center', color: 'var(--ink-4)', fontSize: 11 } }, rows.indexOf(r) + 1),
                             React.createElement("td", { className: "cell-block" },
                                 React.createElement("input", { value: r.block, onChange: (e) => updRow(r.id, { block: e.target.value }) })),
-                            React.createElement(PropCell, { rowId: r.id, field: "atado" },
+                            PropCell({ rowId: r.id, field: "atado" },
                                 React.createElement("input", { value: r.atado, onChange: (e) => updRow(r.id, { atado: e.target.value }) })),
-                            React.createElement(PropCell, { rowId: r.id, field: "plate" },
+                            PropCell({ rowId: r.id, field: "plate" },
                                 React.createElement("input", { value: r.plate, onChange: (e) => updRow(r.id, { plate: e.target.value }) })),
-                            React.createElement(PropCell, { rowId: r.id, field: "thickness" },
+                            PropCell({ rowId: r.id, field: "thickness" },
                                 React.createElement("input", { type: "number", step: "0.1", value: r.thickness, onChange: (e) => updRow(r.id, { thickness: +e.target.value }) })),
-                            React.createElement(PropCell, { rowId: r.id, field: "h", errClass: noH ? 'is-error' : '' },
+                            PropCell({ rowId: r.id, field: "h", errClass: noH ? 'is-error' : '' },
                                 React.createElement("input", { type: "number", step: "0.01", value: r.h || '', placeholder: "0.00", onChange: (e) => updRow(r.id, { h: +e.target.value }) })),
-                            React.createElement(PropCell, { rowId: r.id, field: "w", errClass: noW ? 'is-error' : '' },
+                            PropCell({ rowId: r.id, field: "w", errClass: noW ? 'is-error' : '' },
                                 React.createElement("input", { type: "number", step: "0.01", value: r.w || '', placeholder: "0.00", onChange: (e) => updRow(r.id, { w: +e.target.value }) })),
                             React.createElement("td", { className: "cell-computed" },
                                 React.createElement("input", { readOnly: true, value: area })),
-                            React.createElement(PropCell, { rowId: r.id, field: "container", errClass: noC ? 'is-error' : '' },
+                            PropCell({ rowId: r.id, field: "container", errClass: noC ? 'is-error' : '' },
                                 React.createElement("select", { value: r.container, onChange: (e) => updRow(r.id, { container: e.target.value }) },
                                     React.createElement("option", { value: "" }, "\u2014 sin asignar \u2014"),
                                     containers.map(c => React.createElement("option", { key: c, value: c }, c)))),
@@ -2440,7 +2462,7 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                                         ? React.createElement("img", { src: rowPhotoSrc(r), alt: "foto", style: { width: '100%', height: '100%', objectFit: 'cover', borderRadius: 4 } })
                                         : React.createElement(Icon, { name: "camera", size: 12 }))
                                 : React.createElement("span", { className: "text-muted", style: { fontSize: 11 } }, "—")),
-                            React.createElement(PropCell, { rowId: r.id, field: "notes" },
+                            PropCell({ rowId: r.id, field: "notes" },
                                 React.createElement("input", { placeholder: "\u2014", value: r.notes, onChange: (e) => updRow(r.id, { notes: e.target.value }) })))));
                     }))))),
         React.createElement(Callout, { tone: "info", icon: "sparkles", title: "Llena m\u00E1s r\u00E1pido con propagaci\u00F3n" },
