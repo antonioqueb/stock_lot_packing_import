@@ -1863,10 +1863,13 @@ const TabPackings = ({ ship, updateShip, openPackingWizard, proforma, onDeletePa
    Documents tab (per shipment)
    ============================================================ */
 // Mapea los documentos serializados del backend a la forma del estado del portal.
+// (docKind vive en el IIFE puente y no es accesible aquí, así que mapeamos local.)
+const DOC_KIND_MAP = { bl: 'BL', invoice: 'INV', packing_list: 'PACKING', eur1: 'EUR1', certificate_origin: 'CO', fumigation: 'PHYTO' };
+const mapDocKind = (t) => DOC_KIND_MAP[t] || String(t || 'OTHER').toUpperCase();
 const mapServerDocs = (docs) => (docs || []).map(d => ({
     id: d.id,
     name: d.name || 'documento',
-    kind: docKind(d.document_type || d.kind),
+    kind: mapDocKind(d.document_type || d.kind),
     size: d.file_size || d.size || 0,
     uploaded: d.uploaded || d.create_date || '',
 }));
