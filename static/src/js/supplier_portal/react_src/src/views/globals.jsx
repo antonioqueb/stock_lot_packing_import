@@ -5,8 +5,6 @@ const Globals = ({ proforma, setProforma, status, setRoute, validationStyle = 'i
   const update = (k, v) => setProforma({ ...proforma, globals: { ...g, [k]: v } });
 
   const errors = {};
-  // simulated validation
-  if (g.proforma_number && !/^PI-/i.test(g.proforma_number)) errors.proforma_number = 'El número debería empezar con "PI-" para identificar una Proforma.';
 
   const errorList = Object.entries(errors);
 

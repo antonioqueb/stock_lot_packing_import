@@ -1105,15 +1105,18 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
 /* Block card (packing wizard) */
 .block-card {
   border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
   border-radius: var(--r-md);
   background: var(--surface);
-  padding: 16px;
-  display: grid;
-  grid-template-columns: 110px 1fr;
+  padding: 14px 16px;
+  display: flex;
+  align-items: flex-end;
   gap: 16px;
 }
 .block-card .block-photo {
-  aspect-ratio: 1;
+  width: 64px;
+  height: 64px;
+  flex: 0 0 64px;
   border-radius: var(--r);
   overflow: hidden;
   background: var(--surface-alt);
@@ -1137,8 +1140,16 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
   display: grid; place-items: center;
   font-weight: 700;
 }
-.block-card .block-fields { display: flex; flex-direction: column; gap: 12px; }
-.block-card .block-fields-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.block-card .block-fields { display: flex; flex-direction: row; align-items: flex-end; gap: 16px; flex: 1; min-width: 0; }
+.block-card .block-fields > :first-child { flex: 2; min-width: 140px; }
+.block-card .block-fields-row { display: flex; flex-direction: row; align-items: flex-end; gap: 16px; flex: 3; min-width: 0; }
+.block-card .block-fields-row > :first-child { flex: 0 0 120px; }
+.block-card .block-fields-row > :last-child { flex: 1; }
+@media (max-width: 720px) {
+  .block-card { flex-wrap: wrap; }
+  .block-card .block-fields { flex-wrap: wrap; }
+  .block-card .block-fields-row { flex-wrap: wrap; }
+}
 
 /* Spreadsheet (packing rows) */
 .sheet {

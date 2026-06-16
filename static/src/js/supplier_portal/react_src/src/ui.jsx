@@ -39,9 +39,30 @@ const Field = ({
   );
 };
 
-const Input = (p) => <input className={`input ${p.mono ? 'mono' : ''} ${p.className || ''}`} {...p} />;
+// Fuerza mayúsculas en cualquier campo de texto: transforma el valor (para que se
+// guarde en mayúsculas) y conserva la posición del cursor para no estorbar al teclear.
+const forceUpper = (onChange) => (e) => {
+  const el = e.target;
+  const pos = el.selectionStart;
+  el.value = el.value.toUpperCase();
+  try { el.setSelectionRange(pos, pos); } catch (_) {}
+  if (onChange) onChange(e);
+};
+const Input = ({ onChange, style, type, mono, className, ...p }) => {
+  const isText = !type || type === 'text' || type === 'search' || type === 'tel';
+  return <input
+    type={type}
+    className={`input ${mono ? 'mono' : ''} ${className || ''}`}
+    style={isText ? Object.assign({ textTransform: 'uppercase' }, style || {}) : style}
+    onChange={(isText && onChange) ? forceUpper(onChange) : onChange}
+    {...p} />;
+};
 const Select = ({ children, className = '', ...p }) => <select className={`select ${className}`} {...p}>{children}</select>;
-const Textarea = (p) => <textarea className={`textarea ${p.className || ''}`} {...p} />;
+const Textarea = ({ onChange, style, className, ...p }) => <textarea
+  className={`textarea ${className || ''}`}
+  style={Object.assign({ textTransform: 'uppercase' }, style || {})}
+  onChange={onChange ? forceUpper(onChange) : onChange}
+  {...p} />;
 
 const Badge = ({ tone = 'draft', children, dot }) => (
   <span className={`badge ${tone}`}>

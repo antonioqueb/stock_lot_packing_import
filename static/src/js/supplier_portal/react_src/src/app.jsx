@@ -147,12 +147,14 @@ function App() {
               ))}
             </div>
 
+            {route.section !== 'shipments' && (
             <button className={`guide-toggle ${guideOpen ? 'is-active' : ''}`}
                     onClick={() => setGuideOpen(!guideOpen)}
                     title={guideOpen ? tFn('hide_guide') : tFn('show_guide')}>
               <Icon name="sparkles" size={14}/>
               <span>{guideOpen ? 'Ocultar guía' : 'Mostrar guía'}</span>
             </button>
+            )}
             <button className="guide-toggle" onClick={() => setShowOnboard(true)} title="Tutorial inicial">
               <Icon name="play" size={12}/>
               <span>Tutorial</span>
@@ -162,7 +164,7 @@ function App() {
           </div>
         </header>
 
-        <div className={`app-body ${!guideOpen ? 'guide-collapsed' : ''}`}>
+        <div className={`app-body ${!(guideOpen && route.section !== 'shipments') ? 'guide-collapsed' : ''}`}>
           <Sidebar proforma={proforma} route={route} setRoute={setRoute} status={status} mobileOpen={mobileNav}/>
 
           <main className="main">
@@ -174,7 +176,7 @@ function App() {
             {route.section === 'review'    && <Confirm proforma={proforma} status={status} setRoute={setRoute}/>}
           </main>
 
-          {guideOpen && <GuidePanel route={route} onClose={() => setGuideOpen(false)}/>}
+          {guideOpen && route.section !== 'shipments' && <GuidePanel route={route} onClose={() => setGuideOpen(false)}/>}
         </div>
 
         {packingWiz && (
@@ -244,5 +246,26 @@ function completedProforma() {
   return base;
 }
 
+// Límite de error: si algún componente lanza durante el render, en lugar de dejar
+// la app en blanco o en un ciclo de remontaje, mostramos un aviso y un botón de
+// recarga. (En el bundle conectado, los datos siguen a salvo en el respaldo local.)
+class PortalErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(error) { return { error }; }
+  componentDidCatch(error, info) { console.error('[SupplierPortal] Error de render:', error, info); }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{padding: 24, maxWidth: 520, margin: '48px auto', textAlign: 'center', fontFamily: 'inherit'}}>
+          <h2 style={{marginBottom: 8}}>Ocurrió un problema al mostrar el portal</h2>
+          <p style={{color: '#666', lineHeight: 1.5, marginBottom: 16}}>Tus datos capturados están a salvo. Recarga la página para continuar desde donde te quedaste.</p>
+          <button onClick={() => window.location.reload()} style={{padding: '10px 20px', cursor: 'pointer', borderRadius: 8, border: 'none', background: 'var(--accent, #59473d)', color: '#fff', fontWeight: 600}}>Recargar</button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 const __supplierPortalRoot = document.getElementById('root');
-if (__supplierPortalRoot) { ReactDOM.createRoot(__supplierPortalRoot).render(<App/>); }
+if (__supplierPortalRoot) { ReactDOM.createRoot(__supplierPortalRoot).render(<PortalErrorBoundary><App/></PortalErrorBoundary>); }

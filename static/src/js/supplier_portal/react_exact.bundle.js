@@ -1197,9 +1197,36 @@ const Field = ({ label, required, optional, help, helpExample, hint, error, warn
             ok),
         hint && !error && !warn && !ok && React.createElement("span", { className: "fld-msg hint" }, hint)));
 };
-const Input = (p) => React.createElement("input", { className: `input ${p.mono ? 'mono' : ''} ${p.className || ''}`, ...p });
+// Fuerza mayúsculas en cualquier campo de texto: transforma el valor (para que se
+// guarde en mayúsculas) y conserva la posición del cursor para no estorbar al teclear.
+const forceUpper = (onChange) => (e) => {
+    const el = e.target;
+    const pos = el.selectionStart;
+    el.value = el.value.toUpperCase();
+    try {
+        el.setSelectionRange(pos, pos);
+    }
+    catch (_) { }
+    if (onChange)
+        onChange(e);
+};
+const Input = ({ onChange, style, type, mono, className, ...p }) => {
+    const isText = !type || type === 'text' || type === 'search' || type === 'tel';
+    return React.createElement("input", {
+        type,
+        className: `input ${mono ? 'mono' : ''} ${className || ''}`,
+        style: isText ? Object.assign({ textTransform: 'uppercase' }, style || {}) : style,
+        onChange: (isText && onChange) ? forceUpper(onChange) : onChange,
+        ...p
+    });
+};
 const Select = ({ children, className = '', ...p }) => React.createElement("select", { className: `select ${className}`, ...p }, children);
-const Textarea = (p) => React.createElement("textarea", { className: `textarea ${p.className || ''}`, ...p });
+const Textarea = ({ onChange, style, className, ...p }) => React.createElement("textarea", {
+    className: `textarea ${className || ''}`,
+    style: Object.assign({ textTransform: 'uppercase' }, style || {}),
+    onChange: onChange ? forceUpper(onChange) : onChange,
+    ...p
+});
 const Badge = ({ tone = 'draft', children, dot }) => (React.createElement("span", { className: `badge ${tone}` },
     dot && React.createElement("span", { className: "dot" }),
     children));
@@ -1420,9 +1447,6 @@ const Globals = ({ proforma, setProforma, status, setRoute, validationStyle = 'i
     const g = proforma.globals;
     const update = (k, v) => setProforma({ ...proforma, globals: { ...g, [k]: v } });
     const errors = {};
-    // simulated validation
-    if (g.proforma_number && !/^PI-/i.test(g.proforma_number))
-        errors.proforma_number = 'El número debería empezar con "PI-" para identificar una Proforma.';
     const errorList = Object.entries(errors);
     return (React.createElement("div", null,
         React.createElement("div", { className: "crumb" },
@@ -1709,12 +1733,12 @@ const TabInvoices = ({ ship, updateShip }) => {
                             React.createElement(Input, { type: "date", value: inv.date, onChange: (e) => updInv(inv.id, { date: e.target.value }) })),
                         React.createElement(Field, { label: "Monto + moneda", required: true },
                             React.createElement("div", { style: { display: 'flex', gap: 8 } },
-                                React.createElement(Input, { mono: true, style: { flex: 1 }, placeholder: "62400", value: inv.amount || '', onChange: (e) => updInv(inv.id, { amount: parseFloat(e.target.value || 0) }) }),
+                                React.createElement(Input, { mono: true, inputMode: "decimal", style: { flex: 1 }, placeholder: "62,400.00", value: (inv.amountText !== undefined ? inv.amountText : (inv.amount ? inv.amount.toLocaleString('en-US', { maximumFractionDigits: 2 }) : '')), onChange: (e) => { const raw = e.target.value.replace(/[^0-9.,]/g, ''); const num = parseFloat(raw.replace(/,/g, '')) || 0; updInv(inv.id, { amount: num, amountText: raw }); } }),
                                 React.createElement(Select, { style: { width: 90 }, value: inv.currency, onChange: (e) => updInv(inv.id, { currency: e.target.value }) }, ['USD', 'EUR', 'CNY', 'MXN'].map(c => React.createElement("option", { key: c }, c))))))))),
                 React.createElement("div", { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 8, borderTop: '1px solid var(--border-soft)' } },
                     React.createElement("span", { className: "text-muted text-small" }, "Total facturado en este embarque"),
                     React.createElement("strong", { className: "mono", style: { fontSize: 18 } },
-                        ship.invoices.reduce((a, i) => a + (i.amount || 0), 0).toLocaleString(),
+                        ship.invoices.reduce((a, i) => a + (i.amount || 0), 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
                         " USD")))))));
 };
 /* ============================================================
@@ -1840,6 +1864,7 @@ const TabPackings = ({ ship, updateShip, openPackingWizard, proforma, onDeletePa
    ============================================================ */
 const TabDocuments = ({ ship, updateShip }) => {
     const DOC_TYPES = [
+        { kind: 'BL', label: 'Bill of Lading (B/L)', desc: 'El PDF del B/L que emite la naviera. Es obligatorio: sin él, aduanas no libera el embarque.', required: true },
         { kind: 'CO', label: 'Certificate of Origin', desc: 'Certifica el país donde se fabricó la mercancía. Lo emite la Cámara de Comercio local.' },
         { kind: 'PHYTO', label: 'Certificado fitosanitario', desc: 'Si la mercancía incluye empaque de madera, certifica que está fumigada (HT/MB).' },
         { kind: 'INSPEC', label: 'Reporte de inspección', desc: 'Reporte de inspección de calidad pre-embarque (SGS, Bureau Veritas, etc).' },
@@ -1862,7 +1887,7 @@ const TabDocuments = ({ ship, updateShip }) => {
                         React.createElement("div", { className: "text-muted", style: { fontSize: 12, lineHeight: 1.45 } }, dt.desc)),
                     doc ? React.createElement(Badge, { tone: "done" },
                         React.createElement(Icon, { name: "check", size: 10 }))
-                        : React.createElement(Badge, { tone: "todo" }, "Pendiente")),
+                        : React.createElement(Badge, { tone: dt.required ? 'warn' : 'todo' }, dt.required ? 'Obligatorio' : 'Pendiente')),
                 doc ? (React.createElement("div", { className: "doc-row", style: { padding: '8px 10px' } },
                     React.createElement("div", { className: "doc-icon", style: { width: 28, height: 28 } },
                         React.createElement(Icon, { name: "file", size: 14 })),
@@ -2104,7 +2129,7 @@ const Step2Blocks = ({ proforma, draft, setDraft, pendingImages }) => {
                             p.unit,
                             " configurados")),
                     React.createElement(Btn, { variant: "secondary", size: "sm", icon: "plus", onClick: () => addBlock(p.id) }, "Agregar bloque")),
-                productBlocks.length === 0 ? (React.createElement(Empty, { icon: "cube", title: "Sin bloques a\u00FAn", action: React.createElement(Btn, { variant: "accent", size: "sm", icon: "plus", onClick: () => addBlock(p.id) }, "Crear primer bloque") }, "Empieza con uno. Puedes agregar tantos como necesites.")) : (React.createElement("div", { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 12 } }, productBlocks.map((b, bi) => (React.createElement("div", { key: b.id, className: "block-card" },
+                productBlocks.length === 0 ? (React.createElement(Empty, { icon: "cube", title: "Sin bloques a\u00FAn" }, "Empieza con uno. Puedes agregar tantos como necesites.")) : (React.createElement("div", { style: { display: 'flex', flexDirection: 'column', gap: 12 } }, productBlocks.map((b, bi) => (React.createElement("div", { key: b.id, className: "block-card" },
                     needsPhoto && React.createElement("label", { className: `block-photo ${b.photo ? 'has-photo' : ''}`, style: { cursor: 'pointer', overflow: 'hidden' }, title: "Subir/Reemplazar foto del bloque" },
                         React.createElement("input", { type: "file", accept: "image/*", style: { display: 'none' }, onChange: (e) => pickBlockPhoto(b, e.target.files && e.target.files[0]) }),
                         blockPhotoSrc(b) ? (React.createElement("img", { src: blockPhotoSrc(b), alt: "foto bloque", style: { width: '100%', height: '100%', objectFit: 'cover', borderRadius: 8 } })) : (React.createElement("div", { style: { textAlign: 'center' } },
@@ -2112,7 +2137,7 @@ const Step2Blocks = ({ proforma, draft, setDraft, pendingImages }) => {
                             React.createElement("div", { style: { fontSize: 10, marginTop: 4, fontWeight: 600 } }, "Subir foto")))),
                     React.createElement("div", { className: "block-fields" },
                         React.createElement(Field, { label: `Nombre del bloque #${bi + 1}`, required: true },
-                            React.createElement(Input, { mono: true, placeholder: "Ej. B-2024-117", value: b.name, onChange: (e) => updBlock(b.id, { name: e.target.value }) })),
+                            React.createElement(Input, { mono: true, placeholder: "Ej. 3024117 ", value: b.name, onChange: (e) => updBlock(b.id, { name: e.target.value }) })),
                         React.createElement("div", { className: "block-fields-row" },
                             React.createElement(Field, { label: "Placas / piezas", required: true },
                                 React.createElement(Input, { mono: true, type: "number", min: 1, value: b.count || '', placeholder: "18", onChange: (e) => updBlock(b.id, { count: +e.target.value }) })),
@@ -2438,11 +2463,11 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                         const dataRow = React.createElement("tr", { key: r.id, className: `${isBlockStart ? 'block-start' : ''} ${activeRow === r.id ? 'is-active' : ''}`, onClick: () => setActiveRow(r.id) },
                             React.createElement("td", { style: { textAlign: 'center', color: 'var(--ink-4)', fontSize: 11 } }, rows.indexOf(r) + 1),
                             React.createElement("td", { className: "cell-block" },
-                                React.createElement("input", { value: r.block, onChange: (e) => updRow(r.id, { block: e.target.value }) })),
+                                React.createElement("input", { value: r.block, style: { textTransform: 'uppercase' }, onChange: forceUpper((e) => updRow(r.id, { block: e.target.value })) })),
                             PropCell({ rowId: r.id, field: "atado" },
-                                React.createElement("input", { value: r.atado, onChange: (e) => updRow(r.id, { atado: e.target.value }) })),
+                                React.createElement("input", { value: r.atado, style: { textTransform: 'uppercase' }, onChange: forceUpper((e) => updRow(r.id, { atado: e.target.value })) })),
                             PropCell({ rowId: r.id, field: "plate" },
-                                React.createElement("input", { value: r.plate, onChange: (e) => updRow(r.id, { plate: e.target.value }) })),
+                                React.createElement("input", { value: r.plate, style: { textTransform: 'uppercase' }, onChange: forceUpper((e) => updRow(r.id, { plate: e.target.value })) })),
                             PropCell({ rowId: r.id, field: "thickness" },
                                 React.createElement("input", { type: "text", inputMode: "decimal", value: r.thickness || '', onChange: (e) => updRow(r.id, { thickness: e.target.value }) })),
                             PropCell({ rowId: r.id, field: "h", errClass: noH ? 'is-error' : '' },
@@ -2463,7 +2488,7 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                                         : React.createElement(Icon, { name: "camera", size: 12 }))
                                 : React.createElement("span", { className: "text-muted", style: { fontSize: 11 } }, "—")),
                             PropCell({ rowId: r.id, field: "notes" },
-                                React.createElement("input", { placeholder: "\u2014", value: r.notes, onChange: (e) => updRow(r.id, { notes: e.target.value }) })));
+                                React.createElement("input", { placeholder: "\u2014", value: r.notes, style: { textTransform: 'uppercase' }, onChange: forceUpper((e) => updRow(r.id, { notes: e.target.value })) })));
                         return groupHeader ? [groupHeader, dataRow] : [dataRow];
                     }))))),
         React.createElement(Callout, { tone: "info", icon: "sparkles", title: "Llena m\u00E1s r\u00E1pido con propagaci\u00F3n" },
@@ -2614,7 +2639,7 @@ const Confirm = ({ proforma, status, setRoute, onComplete }) => {
                 React.createElement(StatCard, { label: "Orden de compra", value: proforma.po_name, mono: true }),
                 React.createElement(StatCard, { label: "Destino", value: proforma.globals.port_destination || '—' }),
                 React.createElement(StatCard, { label: "Embarques", value: proforma.shipments.length }),
-                React.createElement(StatCard, { label: "Total invoices", value: `${proforma.shipments.reduce((a, s) => a + s.invoices.reduce((b, i) => b + (i.amount || 0), 0), 0).toLocaleString()} USD`, mono: true }))),
+                React.createElement(StatCard, { label: "Total invoices", value: `${proforma.shipments.reduce((a, s) => a + s.invoices.reduce((b, i) => b + (i.amount || 0), 0), 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD`, mono: true }))),
         React.createElement("div", { className: "card" },
             React.createElement("div", { className: "card-head" },
                 React.createElement("div", null,
@@ -2734,16 +2759,6 @@ const GUIDE_CONTENT = {
         ],
         illustration: 'mapa de ruta',
     },
-    shipments: {
-        label: 'Guía',
-        title: 'Embarques',
-        sub: 'Un embarque = un viaje. Puedes dividir la PO en varios embarques si la producción sale en fechas distintas.',
-        steps: [
-            { num: 1, title: 'Agrega un embarque', body: 'Hazlo en cuanto tengas la naviera o vuelo asignado.' },
-            { num: 2, title: 'Llena las 5 secciones', body: 'Logística, B/L, invoices, contenedores y packing list.' },
-            { num: 3, title: 'Sube documentos', body: 'Certificado de origen, fitosanitario, etc.' },
-        ],
-    },
     shipment: {
         label: 'Guía del embarque',
         title: 'Captura por pestañas',
@@ -2816,6 +2831,43 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/ {
 const ACCENT_OPTIONS = ['#59473d', '#3F7CD8', '#4F8B6E', '#C56A2F'];
 const PORTAL_RAW_PAYLOAD = (window.SupplierReactExactData && window.SupplierReactExactData.raw) || {};
 const PORTAL_TOKEN = PORTAL_RAW_PAYLOAD.token || '';
+// ── Respaldo local (anti-pérdida) ────────────────────────────────────────────
+// Todo cambio se vuelca de forma SÍNCRONA a localStorage. Si la app se cierra,
+// se cuelga o se reinicia antes de que el guardado al servidor (debounce 500ms)
+// alcance a correr, lo capturado se recupera al volver a abrir. Se guarda también
+// el mapa de ids reales para que, al re-sincronizar, se ACTUALICEN los registros
+// existentes en Odoo en lugar de duplicarlos.
+const PORTAL_DRAFT_VERSION = 1;
+function portalDraftKey() {
+    return 'supplier_portal_draft_v' + PORTAL_DRAFT_VERSION + ':' + (PORTAL_TOKEN || 'anon');
+}
+function loadPortalDraft() {
+    try {
+        const raw = localStorage.getItem(portalDraftKey());
+        if (!raw)
+            return null;
+        const parsed = JSON.parse(raw);
+        if (!parsed || !parsed.proforma)
+            return null;
+        return parsed;
+    }
+    catch (_) {
+        return null;
+    }
+}
+function savePortalDraft(proforma, idMap, syncedHash) {
+    if (!PORTAL_TOKEN || !proforma)
+        return;
+    try {
+        localStorage.setItem(portalDraftKey(), JSON.stringify({
+            proforma,
+            idMap: idMap || {},
+            syncedHash: syncedHash || '',
+            ts: Date.now(),
+        }));
+    }
+    catch (_) { /* cuota llena o storage no disponible: best-effort */ }
+}
 function portalIsRealId(value) {
     return value !== null && value !== undefined && /^\d+$/.test(String(value));
 }
@@ -3086,6 +3138,9 @@ function App() {
             }
         }
         lastHashRef.current = currentHash;
+        // El servidor ya tiene este estado: actualiza el respaldo local marcándolo
+        // como sincronizado (syncedHash = currentHash) e incluyendo el idMap actual.
+        savePortalDraft(snapshot, idMapRef.current, currentHash);
         setSaveState('saved');
     }, [buildContainerPayload, buildInvoicePayload, buildPackingRows, shipmentPayload, realMappedId, t.show_completed_route]);
     const runPersist = React.useCallback(async (snapshot) => {
@@ -3120,10 +3175,13 @@ function App() {
         setProformaRaw(prev => {
             const next = typeof nextOrUpdater === 'function' ? nextOrUpdater(prev) : nextOrUpdater;
             proformaRef.current = next;
+            // Respaldo local inmediato (síncrono) ANTES del guardado al servidor.
+            if (!t.show_completed_route)
+                savePortalDraft(next, idMapRef.current, lastHashRef.current);
             schedulePersist(next);
             return next;
         });
-    }, [schedulePersist]);
+    }, [schedulePersist, t.show_completed_route]);
     const reloadPortal = React.useCallback(async () => {
         if (!PORTAL_TOKEN || t.show_completed_route)
             return;
@@ -3161,19 +3219,89 @@ function App() {
             alert(err.message || 'No se pudo completar la proforma.');
         }
     }, [flushPersist, reloadPortal]);
+    // El arranque corre UNA sola vez por montaje. Antes se re-ejecutaba y podía
+    // sobrescribir el estado en memoria (reiniciando la vista y perdiendo lo no
+    // guardado). El guard evita ese ciclo/reinicio inesperado.
+    const bootstrappedRef = React.useRef(false);
     React.useEffect(() => {
         if (t.show_completed_route) {
             const next = completedProforma();
             proformaRef.current = next;
             setProformaRaw(next);
-        } else {
-            const next = (window.SupplierReactExactData && window.SupplierReactExactData.proforma) || MOCK_PROFORMA;
-            proformaRef.current = next;
-            lastHashRef.current = JSON.stringify(next);
-            setProformaRaw(next);
-            reloadPortal();
+            return;
         }
+        if (bootstrappedRef.current)
+            return;
+        bootstrappedRef.current = true;
+        let base = (window.SupplierReactExactData && window.SupplierReactExactData.proforma) || MOCK_PROFORMA;
+        proformaRef.current = base;
+        lastHashRef.current = JSON.stringify(base);
+        setProformaRaw(base);
+        (async () => {
+            // 1) Verdad del servidor (lo último confirmado en Odoo).
+            try {
+                const result = await portalRpc('/supplier/api/v2/reload', { token: PORTAL_TOKEN });
+                if (result && result.success && result.proforma) {
+                    base = normalizePortalProforma(result.proforma);
+                    proformaRef.current = base;
+                    lastHashRef.current = JSON.stringify(base);
+                    setProformaRaw(base);
+                    setSaveState('saved');
+                }
+            }
+            catch (err) {
+                console.error('[SupplierPortal] Error recargando portal:', err);
+            }
+            // 2) Recuperación anti-pérdida: si el respaldo local tiene cambios que
+            //    nunca llegaron al servidor, se restauran y se reintenta el guardado.
+            try {
+                const draft = loadPortalDraft();
+                if (draft && draft.proforma) {
+                    const draftHash = JSON.stringify(draft.proforma);
+                    const unsynced = draftHash !== (draft.syncedHash || '') && draftHash !== lastHashRef.current;
+                    if (unsynced) {
+                        if (draft.idMap)
+                            idMapRef.current = Object.assign(idMapRef.current, draft.idMap);
+                        proformaRef.current = draft.proforma;
+                        lastHashRef.current = draft.syncedHash || '';
+                        setProformaRaw(draft.proforma);
+                        setSaveState('dirty');
+                        schedulePersist(draft.proforma);
+                        console.info('[SupplierPortal] Datos recuperados del respaldo local.');
+                    }
+                }
+            }
+            catch (err) {
+                console.error('[SupplierPortal] Error recuperando respaldo local:', err);
+            }
+        })();
     }, [t.show_completed_route]);
+    // Vuelca lo pendiente al cerrar/ocultar la pestaña. El respaldo local es
+    // síncrono (garantizado); además se intenta empujar al servidor best-effort.
+    React.useEffect(() => {
+        if (!PORTAL_TOKEN || t.show_completed_route)
+            return;
+        const flushNow = () => {
+            try {
+                savePortalDraft(proformaRef.current, idMapRef.current, lastHashRef.current);
+                if (saveTimerRef.current) {
+                    clearTimeout(saveTimerRef.current);
+                    saveTimerRef.current = null;
+                }
+                runPersist(proformaRef.current);
+            }
+            catch (_) { }
+        };
+        const onVisibility = () => { if (document.visibilityState === 'hidden') flushNow(); };
+        window.addEventListener('beforeunload', flushNow);
+        window.addEventListener('pagehide', flushNow);
+        document.addEventListener('visibilitychange', onVisibility);
+        return () => {
+            window.removeEventListener('beforeunload', flushNow);
+            window.removeEventListener('pagehide', flushNow);
+            document.removeEventListener('visibilitychange', onVisibility);
+        };
+    }, [runPersist, t.show_completed_route]);
     React.useEffect(() => () => {
         if (saveTimerRef.current)
             clearTimeout(saveTimerRef.current);
@@ -3235,6 +3363,9 @@ function App() {
             };
 
             proformaRef.current = next;
+            // Respaldo local inmediato del packing recién capturado (anti-pérdida).
+            if (!t.show_completed_route)
+                savePortalDraft(next, idMapRef.current, lastHashRef.current);
 
             // PL-PERSIST-001:
             // El Packing List no debe esperar al debounce global. Al cerrar el
@@ -3305,14 +3436,14 @@ function App() {
                             ":"),
                         React.createElement("strong", null, proforma.po_name)),
                     React.createElement("div", { className: "lang-pill", role: "tablist", "aria-label": "Idioma" }, ['es', 'en', 'zh', 'it', 'pt'].map(l => (React.createElement("button", { key: l, className: lang === l ? 'active' : '', onClick: () => setTweak({ lang: l }) }, l === 'zh' ? '中' : l.toUpperCase())))),
-                    React.createElement("button", { className: `guide-toggle ${guideOpen ? 'is-active' : ''}`, onClick: () => setGuideOpen(!guideOpen), title: guideOpen ? tFn('hide_guide') : tFn('show_guide') },
+                    route.section !== 'shipments' && React.createElement("button", { className: `guide-toggle ${guideOpen ? 'is-active' : ''}`, onClick: () => setGuideOpen(!guideOpen), title: guideOpen ? tFn('hide_guide') : tFn('show_guide') },
                         React.createElement(Icon, { name: "sparkles", size: 14 }),
                         React.createElement("span", null, guideOpen ? 'Ocultar guía' : 'Mostrar guía')),
                     React.createElement("button", { className: "guide-toggle", onClick: () => setShowOnboard(true), title: "Tutorial inicial" },
                         React.createElement(Icon, { name: "play", size: 12 }),
                         React.createElement("span", null, "Tutorial")),
                     React.createElement("div", { className: "user-avatar", title: "ZW" }, "ZW"))),
-            React.createElement("div", { className: `app-body ${!guideOpen ? 'guide-collapsed' : ''}` },
+            React.createElement("div", { className: `app-body ${!(guideOpen && route.section !== 'shipments') ? 'guide-collapsed' : ''}` },
                 React.createElement(Sidebar, { proforma: proforma, route: route, setRoute: setRoute, status: status, mobileOpen: mobileNav }),
                 React.createElement("main", { className: "main" },
                     route.section === 'overview' && React.createElement(Overview, { proforma: proforma, status: status, setRoute: setRoute }),
@@ -3321,7 +3452,7 @@ function App() {
                     route.section === 'shipment' && React.createElement(ShipmentDetail, { proforma: proforma, setProforma: setProforma, status: status, setRoute: setRoute, route: route, openPackingWizard: openPackingWizard, onDeleteShipment: deleteShipment, onDeletePacking: deletePacking }),
                     route.section === 'documents' && React.createElement(Documents, { proforma: proforma, setProforma: setProforma, setRoute: setRoute }),
                     route.section === 'review' && React.createElement(Confirm, { proforma: proforma, status: status, setRoute: setRoute, onComplete: completePortal })),
-                guideOpen && React.createElement(GuidePanel, { route: route, onClose: () => setGuideOpen(false) })),
+                guideOpen && route.section !== 'shipments' && React.createElement(GuidePanel, { route: route, onClose: () => setGuideOpen(false) })),
             packingWiz && (React.createElement(PackingWizard, { proforma: proforma, shipmentId: packingWiz.shipmentId, packingId: packingWiz.packingId, sampleRows: SAMPLE_ROWS, onClose: closePackingWizard, onSave: savePacking, pendingImages: pendingImagesRef })),
             showOnboard && React.createElement(Onboarding, { onClose: () => setShowOnboard(false) }),
             React.createElement(TweaksPanel, { title: "Tweaks" },
@@ -3378,9 +3509,31 @@ function completedProforma() {
     });
     return base;
 }
+// Límite de error: si algún componente lanza durante el render, en lugar de
+// dejar la app en blanco o en un ciclo de remontaje, mostramos un aviso y un
+// botón de recarga. Los datos capturados siguen a salvo en el respaldo local,
+// así que al recargar se recuperan.
+class PortalErrorBoundary extends React.Component {
+    constructor(props) {
+        super(props);
+        this.state = { error: null };
+    }
+    static getDerivedStateFromError(error) {
+        return { error };
+    }
+    componentDidCatch(error, info) {
+        console.error('[SupplierPortal] Error de render:', error, info);
+    }
+    render() {
+        if (this.state.error) {
+            return React.createElement('div', { style: { padding: 24, maxWidth: 520, margin: '48px auto', textAlign: 'center', fontFamily: 'inherit' } }, React.createElement('h2', { style: { marginBottom: 8 } }, 'Ocurrió un problema al mostrar el portal'), React.createElement('p', { style: { color: '#666', lineHeight: 1.5, marginBottom: 16 } }, 'Tus datos capturados están a salvo. Recarga la página para continuar desde donde te quedaste.'), React.createElement('button', { onClick: () => window.location.reload(), style: { padding: '10px 20px', cursor: 'pointer', borderRadius: 8, border: 'none', background: 'var(--accent, #59473d)', color: '#fff', fontWeight: 600 } }, 'Recargar'));
+        }
+        return this.props.children;
+    }
+}
 const __supplierPortalRoot = document.getElementById('root');
 if (__supplierPortalRoot) {
-    ReactDOM.createRoot(__supplierPortalRoot).render(React.createElement(App, null));
+    ReactDOM.createRoot(__supplierPortalRoot).render(React.createElement(PortalErrorBoundary, null, React.createElement(App, null)));
 }
 
 })();

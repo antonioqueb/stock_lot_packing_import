@@ -289,13 +289,11 @@ const Step2Blocks = ({ proforma, draft, setDraft, pendingImages }) => {
               </div>
 
               {productBlocks.length === 0 ? (
-                <Empty icon="cube" title="Sin bloques aún" action={
-                  <Btn variant="accent" size="sm" icon="plus" onClick={() => addBlock(p.id)}>Crear primer bloque</Btn>
-                }>
+                <Empty icon="cube" title="Sin bloques aún">
                   Empieza con uno. Puedes agregar tantos como necesites.
                 </Empty>
               ) : (
-                <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 12}}>
+                <div style={{display: 'flex', flexDirection: 'column', gap: 12}}>
                   {productBlocks.map((b, bi) => (
                     <div key={b.id} className="block-card">
                       {needsPhoto && (
@@ -314,7 +312,7 @@ const Step2Blocks = ({ proforma, draft, setDraft, pendingImages }) => {
                       )}
                       <div className="block-fields">
                         <Field label={`Nombre del bloque #${bi + 1}`} required>
-                          <Input mono placeholder="Ej. B-2024-117" value={b.name}
+                          <Input mono placeholder="Ej. 3024117 " value={b.name}
                                  onChange={(e) => updBlock(b.id, { name: e.target.value })}/>
                         </Field>
                         <div className="block-fields-row">
@@ -697,12 +695,12 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                   <tr key={r.id} className={`${isBlockStart ? 'block-start' : ''} ${activeRow === r.id ? 'is-active' : ''}`}
                       onClick={() => setActiveRow(r.id)}>
                     <td style={{textAlign: 'center', color: 'var(--ink-4)', fontSize: 11}}>{rows.indexOf(r) + 1}</td>
-                    <td className="cell-block"><input value={r.block} onChange={(e) => updRow(r.id, { block: e.target.value })}/></td>
+                    <td className="cell-block"><input value={r.block} style={{textTransform: 'uppercase'}} onChange={forceUpper((e) => updRow(r.id, { block: e.target.value }))}/></td>
                     {PropCell({ rowId: r.id, field: "atado", children: (
-                      <input value={r.atado} onChange={(e) => updRow(r.id, { atado: e.target.value })}/>
+                      <input value={r.atado} style={{textTransform: 'uppercase'}} onChange={forceUpper((e) => updRow(r.id, { atado: e.target.value }))}/>
                     )})}
                     {PropCell({ rowId: r.id, field: "plate", children: (
-                      <input value={r.plate} onChange={(e) => updRow(r.id, { plate: e.target.value })}/>
+                      <input value={r.plate} style={{textTransform: 'uppercase'}} onChange={forceUpper((e) => updRow(r.id, { plate: e.target.value }))}/>
                     )})}
                     {PropCell({ rowId: r.id, field: "thickness", children: (
                       <input type="text" inputMode="decimal" value={r.thickness || ''} onChange={(e) => updRow(r.id, { thickness: e.target.value })}/>
@@ -738,7 +736,7 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                       </td>
                     )}
                     {PropCell({ rowId: r.id, field: "notes", children: (
-                      <input placeholder="—" value={r.notes} onChange={(e) => updRow(r.id, { notes: e.target.value })}/>
+                      <input placeholder="—" value={r.notes} style={{textTransform: 'uppercase'}} onChange={forceUpper((e) => updRow(r.id, { notes: e.target.value }))}/>
                     )})}
                   </tr>
                 );

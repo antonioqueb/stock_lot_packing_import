@@ -191,8 +191,9 @@ const TabInvoices = ({ ship, updateShip }) => {
                   </Field>
                   <Field label="Monto + moneda" required>
                     <div style={{display: 'flex', gap: 8}}>
-                      <Input mono style={{flex: 1}} placeholder="62400" value={inv.amount || ''}
-                             onChange={(e) => updInv(inv.id, { amount: parseFloat(e.target.value || 0) })}/>
+                      <Input mono inputMode="decimal" style={{flex: 1}} placeholder="62,400.00"
+                             value={inv.amountText !== undefined ? inv.amountText : (inv.amount ? inv.amount.toLocaleString('en-US', { maximumFractionDigits: 2 }) : '')}
+                             onChange={(e) => { const raw = e.target.value.replace(/[^0-9.,]/g, ''); const num = parseFloat(raw.replace(/,/g, '')) || 0; updInv(inv.id, { amount: num, amountText: raw }); }}/>
                       <Select style={{width: 90}} value={inv.currency}
                               onChange={(e) => updInv(inv.id, { currency: e.target.value })}>
                         {['USD','EUR','CNY','MXN'].map(c => <option key={c}>{c}</option>)}
@@ -206,7 +207,7 @@ const TabInvoices = ({ ship, updateShip }) => {
             <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 8, borderTop: '1px solid var(--border-soft)'}}>
               <span className="text-muted text-small">Total facturado en este embarque</span>
               <strong className="mono" style={{fontSize: 18}}>
-                {ship.invoices.reduce((a,i) => a + (i.amount || 0), 0).toLocaleString()} USD
+                {ship.invoices.reduce((a,i) => a + (i.amount || 0), 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
               </strong>
             </div>
           </div>
@@ -379,6 +380,7 @@ const TabPackings = ({ ship, updateShip, openPackingWizard, proforma, onDeletePa
    ============================================================ */
 const TabDocuments = ({ ship, updateShip }) => {
   const DOC_TYPES = [
+    { kind: 'BL',     label: 'Bill of Lading (B/L)', desc: 'El PDF del B/L que emite la naviera. Es obligatorio: sin él, aduanas no libera el embarque.', required: true },
     { kind: 'CO',     label: 'Certificate of Origin', desc: 'Certifica el país donde se fabricó la mercancía. Lo emite la Cámara de Comercio local.' },
     { kind: 'PHYTO',  label: 'Certificado fitosanitario', desc: 'Si la mercancía incluye empaque de madera, certifica que está fumigada (HT/MB).' },
     { kind: 'INSPEC', label: 'Reporte de inspección', desc: 'Reporte de inspección de calidad pre-embarque (SGS, Bureau Veritas, etc).' },
@@ -408,7 +410,7 @@ const TabDocuments = ({ ship, updateShip }) => {
                   <div className="text-muted" style={{fontSize: 12, lineHeight: 1.45}}>{dt.desc}</div>
                 </div>
                 {doc ? <Badge tone="done"><Icon name="check" size={10}/></Badge>
-                     : <Badge tone="todo">Pendiente</Badge>}
+                     : <Badge tone={dt.required ? 'warn' : 'todo'}>{dt.required ? 'Obligatorio' : 'Pendiente'}</Badge>}
               </div>
               {doc ? (
                 <div className="doc-row" style={{padding: '8px 10px'}}>

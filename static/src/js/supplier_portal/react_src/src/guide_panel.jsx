@@ -23,16 +23,6 @@ const GUIDE_CONTENT = {
     ],
     illustration: 'mapa de ruta',
   },
-  shipments: {
-    label: 'Guía',
-    title: 'Embarques',
-    sub: 'Un embarque = un viaje. Puedes dividir la PO en varios embarques si la producción sale en fechas distintas.',
-    steps: [
-      { num: 1, title: 'Agrega un embarque', body: 'Hazlo en cuanto tengas la naviera o vuelo asignado.' },
-      { num: 2, title: 'Llena las 5 secciones', body: 'Logística, B/L, invoices, contenedores y packing list.' },
-      { num: 3, title: 'Sube documentos', body: 'Certificado de origen, fitosanitario, etc.' },
-    ],
-  },
   shipment: {
     label: 'Guía del embarque',
     title: 'Captura por pestañas',
