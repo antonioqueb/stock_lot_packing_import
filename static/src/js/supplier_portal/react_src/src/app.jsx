@@ -1,7 +1,7 @@
 /* global React, ReactDOM, Icon, Btn, Badge,
    MOCK_PROFORMA, SAMPLE_ROWS, computeStatus, LangCtx, I18N,
    Sidebar, Overview, Globals, ShipmentsList, ShipmentDetail,
-   PackingWizard, Documents, Confirm, Onboarding, GuidePanel,
+   PackingWizard, Documents, Confirm, Onboarding,
    useTweaks, TweaksPanel, TweakSection, TweakRadio, TweakToggle, TweakColor, TweakSelect */
 
 const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
@@ -35,11 +35,9 @@ function App() {
   const [route, setRoute] = React.useState({ section: 'overview' });
   const [packingWiz, setPackingWiz] = React.useState(null);
   const [showOnboard, setShowOnboard] = React.useState(t.show_onboarding);
-  const [guideOpen, setGuideOpen] = React.useState(t.show_guide_panel);
   const [mobileNav, setMobileNav] = React.useState(false);
 
   React.useEffect(() => { setShowOnboard(t.show_onboarding); }, [t.show_onboarding]);
-  React.useEffect(() => { setGuideOpen(t.show_guide_panel); }, [t.show_guide_panel]);
 
   // Inject dynamic accent color
   React.useEffect(() => {
@@ -147,14 +145,6 @@ function App() {
               ))}
             </div>
 
-            {route.section !== 'shipments' && (
-            <button className={`guide-toggle ${guideOpen ? 'is-active' : ''}`}
-                    onClick={() => setGuideOpen(!guideOpen)}
-                    title={guideOpen ? tFn('hide_guide') : tFn('show_guide')}>
-              <Icon name="sparkles" size={14}/>
-              <span>{guideOpen ? 'Ocultar guía' : 'Mostrar guía'}</span>
-            </button>
-            )}
             <button className="guide-toggle" onClick={() => setShowOnboard(true)} title="Tutorial inicial">
               <Icon name="play" size={12}/>
               <span>Tutorial</span>
@@ -164,7 +154,7 @@ function App() {
           </div>
         </header>
 
-        <div className={`app-body ${!(guideOpen && route.section !== 'shipments') ? 'guide-collapsed' : ''}`}>
+        <div className="app-body guide-collapsed">
           <Sidebar proforma={proforma} route={route} setRoute={setRoute} status={status} mobileOpen={mobileNav}/>
 
           <main className="main">
@@ -175,8 +165,6 @@ function App() {
             {route.section === 'documents' && <Documents proforma={proforma} setProforma={setProforma} setRoute={setRoute}/>}
             {route.section === 'review'    && <Confirm proforma={proforma} status={status} setRoute={setRoute}/>}
           </main>
-
-          {guideOpen && route.section !== 'shipments' && <GuidePanel route={route} onClose={() => setGuideOpen(false)}/>}
         </div>
 
         {packingWiz && (
@@ -200,8 +188,7 @@ function App() {
                         options={[{value:'comfortable',label:'Cómoda'},{value:'compact',label:'Compacta'}]}/>
           </TweakSection>
 
-          <TweakSection label="Guía y onboarding">
-            <TweakToggle label="Panel guía a la derecha" value={t.show_guide_panel} onChange={(v) => setTweak({ show_guide_panel: v })}/>
+          <TweakSection label="Onboarding">
             <TweakToggle label="Mostrar onboarding ahora" value={t.show_onboarding} onChange={(v) => setTweak({ show_onboarding: v })}/>
           </TweakSection>
 

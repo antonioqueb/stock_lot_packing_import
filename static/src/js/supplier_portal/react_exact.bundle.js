@@ -2822,90 +2822,11 @@ const Onboarding = ({ onClose }) => {
                         : React.createElement(Btn, { variant: "accent", icon: "check", onClick: onClose }, "Empezar"))))));
 };
 window.Onboarding = Onboarding;
-// ===== src/guide_panel.jsx =====
-/* global React, Icon, Btn, Imgph */
-// Contextual right-side guidance panel — changes based on current route
-const GUIDE_CONTENT = {
-    overview: {
-        label: 'Guía',
-        title: 'Tu llenado en 4 etapas',
-        sub: 'Te recomendamos seguir este orden. Si necesitas saltar a otra sección, también puedes.',
-        steps: [
-            { num: 1, title: 'Datos generales', body: 'Una sola vez al inicio. Identificación de la Proforma y puerto destino.' },
-            { num: 2, title: 'Embarques', body: 'Crea uno o varios. Cada uno con logística, B/L, invoices, contenedores y packing.' },
-            { num: 3, title: 'Documentos', body: 'Sube certificados de calidad y otros papeles generales.' },
-            { num: 4, title: 'Revisar y enviar', body: 'Última verificación y notificación a SOM GROUP.' },
-        ],
-    },
-    globals: {
-        label: 'Guía',
-        title: 'Datos de la Proforma',
-        sub: 'Esta sección define identidad y ruta. Si no sabes algo, pregunta a tu agente o déjalo vacío y vuelve después.',
-        steps: [
-            { num: 1, title: 'Número de Proforma', body: 'Es el ID que tu sistema usa. Suele comenzar con "PI-".' },
-            { num: 2, title: 'Notas', body: 'Observaciones generales, si aplican.' },
-        ],
-        illustration: 'mapa de ruta',
-    },
-    shipment: {
-        label: 'Guía del embarque',
-        title: 'Captura por pestañas',
-        sub: 'Sigue las pestañas de izquierda a derecha. El packing list es lo más detallado — déjalo para el final.',
-        steps: [
-            { num: 1, title: 'Logística + B/L', body: 'Naviera, fecha de salida (ETD) y el documento B/L.' },
-            { num: 2, title: 'Invoices', body: 'Factura(s) comercial(es). Puede ser una global o varias parciales.' },
-            { num: 3, title: 'Contenedores', body: 'Los números físicos pintados en cada contenedor.' },
-            { num: 4, title: 'Packing list', body: 'Asistente paso a paso. Captura placa por placa.' },
-            { num: 5, title: 'Documentos', body: 'CO, fitosanitario, inspección.' },
-        ],
-    },
-    documents: {
-        label: 'Guía',
-        title: 'Documentos generales',
-        sub: 'Documentos que aplican a toda la Proforma. Acepta PDF, JPG, PNG hasta 10 MB.',
-        steps: [
-            { num: 1, title: 'Proforma firmada', body: 'La que enviaste a SOM GROUP con firma.' },
-            { num: 2, title: 'Certificados de calidad', body: 'Pruebas técnicas: mineralogía, densidad, absorción.' },
-            { num: 3, title: 'Fotos del producto', body: 'Catálogo o muestras a granel.' },
-        ],
-    },
-    review: {
-        label: 'Antes de enviar',
-        title: 'Verifica todo',
-        sub: 'Una vez marcada como completa, SOM GROUP recibe una notificación. Si después necesitas editar, pídeselo a tu contacto.',
-        steps: [
-            { num: 1, title: 'Resumen general', body: 'Datos clave que se enviarán.' },
-            { num: 2, title: 'Checklist por sección', body: 'Si algo está en ámbar, vuelve a esa sección.' },
-            { num: 3, title: 'Marcar como completa', body: 'Solo se habilita cuando todo está en verde.' },
-        ],
-    },
-};
-const GuidePanel = ({ route, onClose }) => {
-    const key = route.section === 'shipment' ? 'shipment' : route.section;
-    const content = GUIDE_CONTENT[key] || GUIDE_CONTENT.overview;
-    return (React.createElement("aside", { className: "guide" },
-        React.createElement("div", { className: "guide-head" },
-            React.createElement("span", { className: "label" }, content.label),
-            React.createElement("button", { className: "icon-btn", onClick: onClose, "aria-label": "Ocultar gu\u00EDa" },
-                React.createElement(Icon, { name: "x", size: 14 }))),
-        React.createElement("div", null,
-            React.createElement("h3", null, content.title),
-            React.createElement("p", { className: "sub" }, content.sub)),
-        React.createElement("div", { className: "guide-illustration" },
-            React.createElement("img", { src: "/stock_lot_packing_import/static/src/img/ilusttraci%C3%B3n.png", alt: content.illustration || 'ilustración guía', style: { width: '100%', height: '100%', objectFit: 'contain' } })),
-        React.createElement("div", { className: "guide-steps" }, content.steps.map((s, i) => (React.createElement("div", { key: s.num, className: `guide-step ${i === 0 ? 'active' : ''}` },
-            React.createElement("span", { className: "num" }, s.num),
-            React.createElement("div", { className: "body" },
-                React.createElement("strong", null, s.title),
-                s.body))))),
-        React.createElement("div", { style: { marginTop: 'auto' } })));
-};
-window.GuidePanel = GuidePanel;
 // ===== src/app.jsx =====
 /* global React, ReactDOM, Icon, Btn, Badge,
    MOCK_PROFORMA, SAMPLE_ROWS, computeStatus, LangCtx, I18N,
    Sidebar, Overview, Globals, ShipmentsList, ShipmentDetail,
-   PackingWizard, Documents, Confirm, Onboarding, GuidePanel,
+   PackingWizard, Documents, Confirm, Onboarding,
    useTweaks, TweaksPanel, TweakSection, TweakRadio, TweakToggle, TweakColor, TweakSelect */
 const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/ {
     "lang": "es",
@@ -3409,10 +3330,8 @@ function App() {
     const [route, setRoute] = React.useState({ section: 'overview' });
     const [packingWiz, setPackingWiz] = React.useState(null);
     const [showOnboard, setShowOnboard] = React.useState(t.show_onboarding);
-    const [guideOpen, setGuideOpen] = React.useState(t.show_guide_panel);
     const [mobileNav, setMobileNav] = React.useState(false);
     React.useEffect(() => { setShowOnboard(t.show_onboarding); }, [t.show_onboarding]);
-    React.useEffect(() => { setGuideOpen(t.show_guide_panel); }, [t.show_guide_panel]);
     // Inject dynamic accent color
     React.useEffect(() => {
         // convert hex to oklch-ish accent — use raw hex; lighter soft is computed via mix
@@ -3534,14 +3453,11 @@ function App() {
                             ":"),
                         React.createElement("strong", null, proforma.po_name)),
                     React.createElement("div", { className: "lang-pill", role: "tablist", "aria-label": "Idioma" }, ['es', 'en', 'zh', 'it', 'pt'].map(l => (React.createElement("button", { key: l, className: lang === l ? 'active' : '', onClick: () => setTweak({ lang: l }) }, l === 'zh' ? '中' : l.toUpperCase())))),
-                    route.section !== 'shipments' && React.createElement("button", { className: `guide-toggle ${guideOpen ? 'is-active' : ''}`, onClick: () => setGuideOpen(!guideOpen), title: guideOpen ? tFn('hide_guide') : tFn('show_guide') },
-                        React.createElement(Icon, { name: "sparkles", size: 14 }),
-                        React.createElement("span", null, guideOpen ? 'Ocultar guía' : 'Mostrar guía')),
                     React.createElement("button", { className: "guide-toggle", onClick: () => setShowOnboard(true), title: "Tutorial inicial" },
                         React.createElement(Icon, { name: "play", size: 12 }),
                         React.createElement("span", null, "Tutorial")),
                     React.createElement("div", { className: "user-avatar", title: "ZW" }, "ZW"))),
-            React.createElement("div", { className: `app-body ${!(guideOpen && route.section !== 'shipments') ? 'guide-collapsed' : ''}` },
+            React.createElement("div", { className: "app-body guide-collapsed" },
                 React.createElement(Sidebar, { proforma: proforma, route: route, setRoute: setRoute, status: status, mobileOpen: mobileNav }),
                 React.createElement("main", { className: "main" },
                     route.section === 'overview' && React.createElement(Overview, { proforma: proforma, status: status, setRoute: setRoute }),
@@ -3549,8 +3465,7 @@ function App() {
                     route.section === 'shipments' && React.createElement(ShipmentsList, { proforma: proforma, setProforma: setProforma, status: status, setRoute: setRoute }),
                     route.section === 'shipment' && React.createElement(ShipmentDetail, { proforma: proforma, setProforma: setProforma, status: status, setRoute: setRoute, route: route, openPackingWizard: openPackingWizard, onDeleteShipment: deleteShipment, onDeletePacking: deletePacking }),
                     route.section === 'documents' && React.createElement(Documents, { proforma: proforma, setProforma: setProforma, setRoute: setRoute }),
-                    route.section === 'review' && React.createElement(Confirm, { proforma: proforma, status: status, setRoute: setRoute, onComplete: completePortal })),
-                guideOpen && route.section !== 'shipments' && React.createElement(GuidePanel, { route: route, onClose: () => setGuideOpen(false) })),
+                    route.section === 'review' && React.createElement(Confirm, { proforma: proforma, status: status, setRoute: setRoute, onComplete: completePortal }))),
             packingWiz && (React.createElement(PackingWizard, { proforma: proforma, shipmentId: packingWiz.shipmentId, packingId: packingWiz.packingId, sampleRows: SAMPLE_ROWS, onClose: closePackingWizard, onSave: savePacking, pendingImages: pendingImagesRef })),
             showOnboard && React.createElement(Onboarding, { onClose: () => setShowOnboard(false) }),
             React.createElement(TweaksPanel, { title: "Tweaks" },
@@ -3558,8 +3473,7 @@ function App() {
                     React.createElement(TweakRadio, { label: "Idioma", value: t.lang, onChange: (v) => setTweak({ lang: v }), options: [{ value: 'es', label: 'ES' }, { value: 'en', label: 'EN' }, { value: 'zh', label: '中' }, { value: 'it', label: 'IT' }, { value: 'pt', label: 'PT' }] }),
                     React.createElement(TweakColor, { label: "Acento", value: t.accent, options: ACCENT_OPTIONS, onChange: (v) => setTweak({ accent: v }) }),
                     React.createElement(TweakRadio, { label: "Densidad", value: t.density, onChange: (v) => setTweak({ density: v }), options: [{ value: 'comfortable', label: 'Cómoda' }, { value: 'compact', label: 'Compacta' }] })),
-                React.createElement(TweakSection, { label: "Gu\u00EDa y onboarding" },
-                    React.createElement(TweakToggle, { label: "Panel gu\u00EDa a la derecha", value: t.show_guide_panel, onChange: (v) => setTweak({ show_guide_panel: v }) }),
+                React.createElement(TweakSection, { label: "Onboarding" },
                     React.createElement(TweakToggle, { label: "Mostrar onboarding ahora", value: t.show_onboarding, onChange: (v) => setTweak({ show_onboarding: v }) })),
                 React.createElement(TweakSection, { label: "Validaci\u00F3n" },
                     React.createElement(TweakSelect, { label: "Estilo cuando hay errores", value: t.validation_style, onChange: (v) => setTweak({ validation_style: v }), options: [
