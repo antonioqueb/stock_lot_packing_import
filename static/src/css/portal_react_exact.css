@@ -1046,11 +1046,12 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
   background: var(--surface) !important;
 }
 
-/* La tabla no debe empujar el modal fuera del viewport */
+/* La tabla scrollea por dentro (horizontal y vertical) para que la cabecera
+   pueda quedar fija (sticky) mientras se recorren las filas. */
 .modal-scrim .sheet-scroll {
   max-width: 100% !important;
-  overflow-x: auto !important;
-  overflow-y: visible !important;
+  overflow: auto !important;
+  max-height: min(58vh, 560px) !important;
 }
 
 /* Evita que la tabla de placas rompa el layout horizontal del popup */
@@ -1168,6 +1169,10 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
   border-right: 1px solid var(--border-soft);
   text-align: left;
   white-space: nowrap;
+  /* Cabecera siempre visible al hacer scroll vertical de las filas. */
+  position: sticky;
+  top: 0;
+  z-index: 5;
 }
 .sheet-table thead th:last-child { border-right: 0; }
 .sheet-table tbody td {
