@@ -456,64 +456,100 @@ class StockPicking(models.Model):
             string = chr(65 + remainder) + string
         return string
 
+    def _build_pl_sheet(self, product, taken_names):
+        """Construye la definición de una hoja del spreadsheet de PL para un
+        producto (cabeceras según placa/pieza). ``taken_names`` evita nombres de
+        hoja duplicados."""
+        common_headers_suffix = ['Peso (kg)', 'Notas', 'Bloque', 'No. Placa', 'Atado', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Proveedor', 'Ref. Interna']
+        cells = {}
+        cells["A1"] = self._make_cell("PRODUCTO:")
+        cells["B1"] = self._make_cell(f"{product.name} ({product.default_code or ''})")
+
+        unit_type = product.product_tmpl_id.x_unidad_del_producto or 'Placa'
+        if unit_type == 'Placa':
+            headers = ['Largo (m)', 'Alto (m)', 'Grosor (cm)'] + common_headers_suffix
+        else:
+            headers = ['Grosor (cm)', 'Cantidad'] + common_headers_suffix
+
+        for i, header in enumerate(headers):
+            if header:
+                cells[f"{self._get_col_letter(i)}3"] = self._make_cell(header, style=1)
+
+        sheet_name = (product.default_code or product.name)[:31]
+        base_name = sheet_name
+        count = 1
+        while sheet_name in taken_names:
+            sheet_name = f"{base_name[:28]}_{count}"
+            count += 1
+        taken_names.add(sheet_name)
+
+        return {
+            "id": f"pl_sheet_{product.id}",
+            "name": sheet_name,
+            "cells": cells,
+            "colNumber": 14,
+            "rowNumber": 250,
+            "isProtected": True,
+            "protectedRanges": [{"range": "A4:N250", "isProtected": False}],
+        }
+
+    def _ensure_pl_sheets_for_products(self, products):
+        """Agrega al spreadsheet ya existente una hoja por cada producto del
+        picking que todavía no la tenga, preservando hojas y datos capturados.
+
+        El spreadsheet se crea una sola vez; si se agregan productos después
+        (p. ej. desde el portal), sin esto la importación solo vería las hojas
+        que existían al generarlo y reflejaría un solo material.
+        """
+        doc = self.spreadsheet_id
+        if not doc:
+            return
+        data = self._get_current_spreadsheet_state(doc)
+        if not data or not data.get('sheets'):
+            return
+
+        existing_product_ids = set()
+        for sheet in data['sheets']:
+            prod = self._resolve_sheet_product(sheet)
+            if prod:
+                existing_product_ids.add(prod.id)
+
+        taken_names = {s.get('name') for s in data['sheets']}
+        added = False
+        for product in products:
+            if product.id in existing_product_ids:
+                continue
+            data['sheets'].append(self._build_pl_sheet(product, taken_names))
+            existing_product_ids.add(product.id)
+            added = True
+
+        if not added:
+            return
+
+        # Reescribimos la base con el estado fusionado (datos + revisiones) más
+        # las hojas nuevas, y limpiamos revisiones para mantener consistencia.
+        doc.write({
+            'spreadsheet_data': json.dumps(data, ensure_ascii=False, default=str),
+            'spreadsheet_snapshot': False,
+        })
+        self.env['spreadsheet.revision'].sudo().search([
+            ('res_model', '=', 'documents.document'),
+            ('res_id', '=', doc.id),
+        ]).unlink()
+
     def action_open_packing_list_spreadsheet(self):
         self.ensure_one()
-        if self.picking_type_code != 'incoming' and not self.packing_list_imported: 
+        if self.picking_type_code != 'incoming' and not self.packing_list_imported:
             raise UserError('Solo disponible para Recepciones o Transferencias con Packing List ya cargado.')
-        
+
+        products = self.move_ids.mapped('product_id')
+        if not products:
+            raise UserError('Sin productos.')
+
         if not self.spreadsheet_id:
-            products = self.move_ids.mapped('product_id')
-            if not products: raise UserError('Sin productos.')
-
             folder = self.env['documents.document'].search([('type', '=', 'folder')], limit=1)
-            
-            # --- DEFINICIÓN DE COLUMNAS SIN ESPACIOS VACÍOS ---
-            # Cabeceras Base (se moverán según el tipo)
-            # Orden: [Variable Dimensión], Peso, Notas, Bloque, Placa, Atado, Grupo, Pedimento, Contenedor, RefProv, RefInt
-            common_headers_suffix = ['Peso (kg)', 'Notas', 'Bloque', 'No. Placa', 'Atado', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Proveedor', 'Ref. Interna']
-            
-            sheets = []
-            for index, product in enumerate(products):
-                cells = {}
-                cells["A1"] = self._make_cell("PRODUCTO:")
-                p_str = f"{product.name} ({product.default_code or ''})"
-                cells["B1"] = self._make_cell(p_str)
-                
-                unit_type = product.product_tmpl_id.x_unidad_del_producto or 'Placa'
-                
-                # Cabeceras Dinámicas
-                headers = []
-                # Columna A siempre es Grosor
-                
-                if unit_type == 'Placa':
-                    # Placa: [Largo, Alto, Grosor] + Comunes
-                    headers = ['Largo (m)', 'Alto (m)', 'Grosor (cm)'] + common_headers_suffix
-                else:
-                    # Pieza: [Grosor, Cantidad] + Comunes
-                    # Aquí se elimina la columna vacía. "Peso" pasa a ser la columna C.
-                    headers = ['Grosor (cm)', 'Cantidad'] + common_headers_suffix
-
-                for i, header in enumerate(headers):
-                    col_letter = self._get_col_letter(i)
-                    if header: 
-                        cells[f"{col_letter}3"] = self._make_cell(header, style=1)
-
-                sheet_name = (product.default_code or product.name)[:31]
-                count = 1
-                base_name = sheet_name
-                while any(s['name'] == sheet_name for s in sheets):
-                    sheet_name = f"{base_name[:28]}_{count}"
-                    count += 1
-
-                sheets.append({
-                    "id": f"pl_sheet_{product.id}",
-                    "name": sheet_name,
-                    "cells": cells,
-                    "colNumber": 14, 
-                    "rowNumber": 250,
-                    "isProtected": True,
-                    "protectedRanges": [{"range": "A4:N250", "isProtected": False}] 
-                })
+            taken_names = set()
+            sheets = [self._build_pl_sheet(product, taken_names) for product in products]
 
             spreadsheet_data = {
                 "version": 16,
@@ -523,7 +559,7 @@ class StockPicking(models.Model):
 
             vals = {
                 'name': f'PL: {self.name}.osheet',
-                'type': 'binary', 
+                'type': 'binary',
                 'handler': 'spreadsheet',
                 'mimetype': 'application/o-spreadsheet',
                 'spreadsheet_data': json.dumps(spreadsheet_data, ensure_ascii=False, default=str),
@@ -532,6 +568,9 @@ class StockPicking(models.Model):
             }
             if folder: vals['folder_id'] = folder.id
             self.spreadsheet_id = self.env['documents.document'].create(vals)
+        else:
+            # Ya existe: asegúrate de que tenga una hoja por cada producto actual.
+            self._ensure_pl_sheets_for_products(products)
 
         return self._action_launch_spreadsheet(self.spreadsheet_id)
 

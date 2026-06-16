@@ -199,37 +199,24 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
         return vals
 
     def _cleanup_zero_move(self, move):
-        """
-        Si un move queda en 0:
-        - si no tiene move lines, se intenta cancelar/unlink
-        - si ya tiene move lines, solo se pone en 0
+        """Cuando un producto queda sin cantidad capturada NO se elimina del
+        picking: únicamente se pone su demanda en 0.
+
+        Antes, si el proveedor omitía un producto en el packing, su move se
+        cancelaba/eliminaba y el producto desaparecía por completo de la orden
+        de recepción, sin forma de volver a agregarlo. Ahora se conserva (en 0)
+        para que siga disponible y se pueda capturar después o al rehacer el PL.
         """
         if move.state in ("done", "cancel"):
             return
 
         try:
-            if move.move_line_ids:
-                move.sudo().write({"product_uom_qty": 0.0})
-                return
+            move.sudo().write({"product_uom_qty": 0.0})
         except Exception:
-            pass
-
-        try:
-            if hasattr(move, "_action_cancel"):
-                move.sudo()._action_cancel()
-        except Exception:
-            pass
-
-        try:
-            move.sudo().unlink()
-        except Exception:
-            try:
-                move.sudo().write({"product_uom_qty": 0.0})
-            except Exception:
-                _logger.warning(
-                    "[Portal] No se pudo limpiar move %s en picking %s.",
-                    move.id, move.picking_id.id
-                )
+            _logger.warning(
+                "[Portal] No se pudo poner en 0 el move %s en picking %s.",
+                move.id, move.picking_id.id
+            )
 
     def _sync_picking_moves_from_shipment(self, shipment):
         """
