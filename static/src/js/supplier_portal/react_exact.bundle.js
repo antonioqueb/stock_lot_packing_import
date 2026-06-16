@@ -2257,11 +2257,18 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
     // productos de la PO (orden estable: conserva el orden de bloques dentro de
     // cada producto) y, al renderizar, mostramos un encabezado cuando cambia el
     // producto para separar visualmente los grupos.
+    // Clave de producto normalizada a string (los ids de Odoo a veces llegan
+    // como número y otras como string; comparar sin normalizar fragmentaba los
+    // grupos y mostraba encabezados a media tabla).
+    const prodKey = (r) => String((r && r.product_id != null && r.product_id !== false) ? r.product_id : '');
     const productById = {};
-    (proforma.products || []).forEach((p, pi) => { productById[p.id] = Object.assign({}, p, { _order: pi }); });
-    const productOrder = (r) => { const p = productById[r.product_id]; return p ? p._order : 999; };
-    const visibleRows = filtered.slice().sort((a, b) => productOrder(a) - productOrder(b));
-    const multiProduct = new Set(rows.map(r => r.product_id)).size > 1;
+    (proforma.products || []).forEach((p) => { productById[String(p.id)] = p; });
+    // Orden de aparición de cada producto en las filas → agrupa contiguo y
+    // conserva el orden de bloques dentro de cada producto (sort estable).
+    const prodOrder = [];
+    filtered.forEach(r => { const k = prodKey(r); if (prodOrder.indexOf(k) < 0) prodOrder.push(k); });
+    const visibleRows = filtered.slice().sort((a, b) => prodOrder.indexOf(prodKey(a)) - prodOrder.indexOf(prodKey(b)));
+    const multiProduct = prodOrder.length > 1;
     // ---- Excel-compatible CSV export & paste ----
     const COL_DEFS = [
         { header: '#',          field: null,        type: 'index'  },
@@ -2397,9 +2404,9 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                         const noH = !r.h;
                         const noW = !r.w;
                         const noC = !r.container;
-                        const isProductStart = i === 0 || visibleRows[i - 1].product_id !== r.product_id;
+                        const isProductStart = i === 0 || prodKey(visibleRows[i - 1]) !== prodKey(r);
                         const isBlockStart = isProductStart || visibleRows[i - 1].block !== r.block;
-                        const prod = productById[r.product_id];
+                        const prod = productById[prodKey(r)];
                         const groupHeader = (multiProduct && isProductStart) ? React.createElement("tr", { className: "product-group", "data-noncommentable": "" },
                             React.createElement("td", { colSpan: anyPlaca ? 11 : 10, style: { background: 'var(--accent-soft)', borderTop: '2px solid var(--accent)', padding: '8px 12px', fontSize: 12.5, letterSpacing: '0.02em', position: 'sticky', left: 0 } },
                                 React.createElement("span", { style: { fontWeight: 700, color: 'var(--accent)' } }, (prod && prod.name) || 'Producto'),

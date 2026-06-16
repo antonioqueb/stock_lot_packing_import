@@ -507,11 +507,13 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
   // Agrupación visual por producto: ordenamos las filas según el orden de los
   // productos de la PO (orden estable: conserva el orden de bloques dentro de
   // cada producto) y mostramos un encabezado al cambiar de producto.
+  const prodKey = (r) => String((r && r.product_id != null && r.product_id !== false) ? r.product_id : '');
   const productById = {};
-  (proforma.products || []).forEach((p, pi) => { productById[p.id] = { ...p, _order: pi }; });
-  const productOrder = (r) => { const p = productById[r.product_id]; return p ? p._order : 999; };
-  const visibleRows = filtered.slice().sort((a, b) => productOrder(a) - productOrder(b));
-  const multiProduct = new Set(rows.map(r => r.product_id)).size > 1;
+  (proforma.products || []).forEach((p) => { productById[String(p.id)] = p; });
+  const prodOrder = [];
+  filtered.forEach(r => { const k = prodKey(r); if (prodOrder.indexOf(k) < 0) prodOrder.push(k); });
+  const visibleRows = filtered.slice().sort((a, b) => prodOrder.indexOf(prodKey(a)) - prodOrder.indexOf(prodKey(b)));
+  const multiProduct = prodOrder.length > 1;
 
   // ---- Excel-compatible CSV export & paste ----
   const COL_DEFS = [
@@ -660,9 +662,9 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                 const noH = !r.h;
                 const noW = !r.w;
                 const noC = !r.container;
-                const isProductStart = i === 0 || visibleRows[i-1].product_id !== r.product_id;
+                const isProductStart = i === 0 || prodKey(visibleRows[i-1]) !== prodKey(r);
                 const isBlockStart = isProductStart || visibleRows[i-1].block !== r.block;
-                const prod = productById[r.product_id];
+                const prod = productById[prodKey(r)];
                 return (
                   <React.Fragment key={r.id}>
                   {multiProduct && isProductStart && (
