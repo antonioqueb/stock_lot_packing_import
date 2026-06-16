@@ -561,7 +561,7 @@ class PackingListImportWizard(models.TransientModel):
                 len(idx._cells),
             )
 
-            product = self._identify_product_from_sheet(idx)
+            product = self._resolve_product_from_sheet_id(sheet) or self._identify_product_from_sheet(idx)
             _logger.info(
                 "[PL_DEBUG] Producto identificado en hoja '%s': %s",
                 sheet.get("name"),
@@ -857,6 +857,21 @@ class PackingListImportWizard(models.TransientModel):
             short_name,
         )
         return None
+
+    def _resolve_product_from_sheet_id(self, sheet):
+        """Resuelve el producto desde el id determinista de la hoja
+        (``pl_sheet_<id>`` / ``ws_sheet_<id>``) generado en la plantilla.
+
+        Es más fiable que buscar por el nombre impreso en la cabecera: con
+        varios productos de nombre parecido la búsqueda difusa podía devolver
+        el mismo producto para varias hojas y solo importarse uno.
+        """
+        sheet_id = str((sheet or {}).get("id") or "")
+        match = re.search(r"_sheet_(\d+)$", sheet_id)
+        if not match:
+            return None
+        product = self.env["product.product"].browse(int(match.group(1)))
+        return product if product.exists() else None
 
     def _identify_product_from_sheet(self, idx):
         p_info = None

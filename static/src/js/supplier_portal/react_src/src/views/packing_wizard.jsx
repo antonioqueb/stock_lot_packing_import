@@ -15,7 +15,19 @@ const WIZARD_STEPS = [
   { id: 4, label: 'Llenar placas' },
 ];
 
-const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampleRows }) => {
+// Lee un File como base64 (sin el prefijo data:...;base64,) para Odoo.
+const wizFileToBase64 = (typeof fileToBase64 === 'function') ? fileToBase64 : (file) => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => {
+    const res = String(reader.result || '');
+    const comma = res.indexOf(',');
+    resolve({ data: comma >= 0 ? res.slice(comma + 1) : res, name: file.name || 'foto.jpg', dataUrl: res });
+  };
+  reader.onerror = reject;
+  reader.readAsDataURL(file);
+});
+
+const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampleRows, pendingImages }) => {
   const ship = proforma.shipments.find(s => s.id === shipmentId);
   const existing = packingId ? ship.packings.find(p => p.id === packingId) : null;
 
@@ -55,24 +67,45 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
     }
     onClose();
   };
-  // generate empty rows from blocks if rows is empty when entering step 4
+  // Firma de la estructura de bloques. Si cambia (el usuario corrigió la
+  // selección de productos o ajustó bloques), hay que REGENERAR las filas.
+  const blocksSig = draft.blocks.map(b => `${b.id}:${b.product}:${b.count}:${b.name}`).join('|');
+  const genSigRef = React.useRef(null);
+  // Genera (o regenera) las filas a partir de los bloques. Conserva los datos
+  // ya capturados de los bloques que no cambiaron (match por id de fila).
   React.useEffect(() => {
-    if (step === 4 && rows.length === 0 && draft.blocks.length > 0) {
-      const generated = [];
-      draft.blocks.forEach((b, bi) => {
-        for (let i = 0; i < b.count; i++) {
-          generated.push({
-            id: `r-${b.id}-${i}`,
-            block: b.name, atado: `A-${String(bi+1).padStart(2,'0')}`,
-            plate: `P-${String(generated.length + 1).padStart(3, '0')}`,
-            ref: '', thickness: 2, h: 0, w: 0, notes: '', container: '', photo: false, errors: [],
-            blockStart: i === 0,
-          });
-        }
-      });
-      setRows(generated);
+    if (step !== 4 || draft.blocks.length === 0) return;
+    const needGen = rows.length === 0 || (genSigRef.current !== null && genSigRef.current !== blocksSig);
+    if (!needGen) {
+      genSigRef.current = blocksSig;
+      return;
     }
-  }, [step]);
+    const KEEP = ['h','w','thickness','container','container_id','notes','photo','quantity','weight','plate','atado','grupo','pedimento','ref'];
+    const prevById = {};
+    rows.forEach(r => { prevById[r.id] = r; });
+    const generated = [];
+    draft.blocks.forEach((b, bi) => {
+      const product = proforma.products.find(p => String(p.id) === String(b.product)) || proforma.products[0] || {};
+      const tipo = product.kind === 'placa' ? 'Placa' : (product.kind === 'formato' ? 'Formato' : 'Pieza');
+      for (let i = 0; i < b.count; i++) {
+        const id = `r-${b.id}-${i}`;
+        const base = {
+          id,
+          product_id: b.product || product.id,
+          tipo,
+          block: b.name, atado: `A-${String(bi+1).padStart(2,'0')}`,
+          plate: `P-${String(generated.length + 1).padStart(3, '0')}`,
+          ref: product.ref || '', thickness: 2, h: 0, w: 0, quantity: tipo === 'Placa' ? 0 : 1, weight: 0, notes: '', grupo: '', pedimento: '', container: '', container_id: false, photo: false, errors: [],
+          blockStart: i === 0,
+        };
+        const prev = prevById[id];
+        if (prev) KEEP.forEach(k => { if (prev[k] !== undefined) base[k] = prev[k]; });
+        generated.push(base);
+      }
+    });
+    genSigRef.current = blocksSig;
+    setRows(generated);
+  }, [step, blocksSig]);
 
   const canNext = () => {
     if (step === 1) return draft.products.length > 0;
@@ -116,9 +149,9 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
           </div>
 
           {step === 1 && <Step1Products proforma={proforma} draft={draft} setDraft={setDraft}/>}
-          {step === 2 && <Step2Blocks proforma={proforma} draft={draft} setDraft={setDraft}/>}
+          {step === 2 && <Step2Blocks proforma={proforma} draft={draft} setDraft={setDraft} pendingImages={pendingImages}/>}
           {step === 3 && <Step3Review proforma={proforma} draft={draft}/>}
-          {step === 4 && <Step4Sheet proforma={proforma} draft={draft} rows={rows} setRows={setRows} ship={ship}/>}
+          {step === 4 && <Step4Sheet proforma={proforma} draft={draft} rows={rows} setRows={setRows} ship={ship} pendingImages={pendingImages}/>}
         </div>
 
         <div className="modal-foot">
@@ -212,7 +245,7 @@ const Step1Products = ({ proforma, draft, setDraft }) => {
 };
 
 /* ====================== Step 2 ====================== */
-const Step2Blocks = ({ proforma, draft, setDraft }) => {
+const Step2Blocks = ({ proforma, draft, setDraft, pendingImages }) => {
   const products = proforma.products.filter(p => draft.products.includes(p.id));
 
   const addBlock = (productId) => {
@@ -224,6 +257,16 @@ const Step2Blocks = ({ proforma, draft, setDraft }) => {
   };
   const updBlock = (id, patch) => setDraft({ ...draft, blocks: draft.blocks.map(b => b.id === id ? { ...b, ...patch } : b) });
   const delBlock = (id) => setDraft({ ...draft, blocks: draft.blocks.filter(b => b.id !== id) });
+  // Captura real de la foto del bloque (se sube al persistir).
+  const pickBlockPhoto = (b, file) => {
+    if (!file) return;
+    const preview = URL.createObjectURL(file);
+    wizFileToBase64(file).then(({ data, name }) => {
+      if (pendingImages && pendingImages.current) pendingImages.current.blocks[b.id] = { data, name };
+      updBlock(b.id, { photo: true, image_preview: preview });
+    });
+  };
+  const blockPhotoSrc = (b) => b.image_preview || (b.block_image_id ? `/web/image/supplier.shipment.block.image/${b.block_image_id}/image` : '');
 
   return (
     <div>
@@ -256,17 +299,18 @@ const Step2Blocks = ({ proforma, draft, setDraft }) => {
                   {productBlocks.map((b, bi) => (
                     <div key={b.id} className="block-card">
                       {needsPhoto && (
-                        <div className={`block-photo ${b.photo ? 'has-photo' : ''}`}
-                             onClick={() => updBlock(b.id, { photo: !b.photo })}>
-                          {b.photo ? (
-                            <Imgph style={{width: '100%', height: '100%', borderRadius: 8}}>foto bloque</Imgph>
+                        <label className={`block-photo ${b.photo ? 'has-photo' : ''}`} style={{cursor: 'pointer', overflow: 'hidden'}} title="Subir/Reemplazar foto del bloque">
+                          <input type="file" accept="image/*" style={{display: 'none'}}
+                                 onChange={(e) => pickBlockPhoto(b, e.target.files && e.target.files[0])}/>
+                          {blockPhotoSrc(b) ? (
+                            <img src={blockPhotoSrc(b)} alt="foto bloque" style={{width: '100%', height: '100%', objectFit: 'cover', borderRadius: 8}}/>
                           ) : (
                             <div style={{textAlign: 'center'}}>
                               <Icon name="camera" size={20}/>
                               <div style={{fontSize: 10, marginTop: 4, fontWeight: 600}}>Subir foto</div>
                             </div>
                           )}
-                        </div>
+                        </label>
                       )}
                       <div className="block-fields">
                         <Field label={`Nombre del bloque #${bi + 1}`} required>
@@ -376,9 +420,13 @@ const Step3Review = ({ proforma, draft }) => {
 };
 
 /* ====================== Step 4: Spreadsheet ====================== */
-const Step4Sheet = ({ proforma, draft, rows, setRows, ship }) => {
+const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => {
   const [filter, setFilter] = React.useState('all');
   const [activeRow, setActiveRow] = React.useState(null);
+
+  // Solo las placas llevan foto por fila. Piezas/Formatos no llevan foto.
+  const rowIsPlaca = (r) => String(r.tipo || 'Placa').toLowerCase().indexOf('placa') >= 0;
+  const anyPlaca = rows.some(rowIsPlaca);
 
   const errors = rows.filter(r => r.errors && r.errors.length > 0);
   const completeRows = rows.filter(r => r.h > 0 && r.w > 0 && r.container);
@@ -386,6 +434,20 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship }) => {
   const filtered = filter === 'all' ? rows : filter === 'errors' ? errors : filter === 'empty' ? rows.filter(r => !r.h || !r.w) : rows;
 
   const updRow = (id, patch) => setRows(rows.map(r => r.id === id ? { ...r, ...patch } : r));
+  const portalRowImageId = (r) => {
+    const v = r._odoo_id || r.id;
+    return (typeof v === 'number' || (typeof v === 'string' && /^\d+$/.test(v))) ? parseInt(v, 10) : 0;
+  };
+  const rowPhotoSrc = (r) => r.image_preview || (r.photo && portalRowImageId(r) ? `/web/image/supplier.shipment.packing.row/${portalRowImageId(r)}/image` : '');
+  // Captura real de la foto de la fila (se sube al persistir).
+  const pickRowPhoto = (r, file) => {
+    if (!file) return;
+    const preview = URL.createObjectURL(file);
+    wizFileToBase64(file).then(({ data, name }) => {
+      if (pendingImages && pendingImages.current) pendingImages.current.rows[r.id] = { data, name };
+      updRow(r.id, { photo: true, image_preview: preview });
+    });
+  };
 
   // PROPAGATION — copy the value of `field` from `sourceId` either to the next row
   // in the same block, or to every row below it inside the same block.
@@ -441,6 +503,15 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship }) => {
   };
 
   const containers = ship.containers.map(c => c.number).filter(Boolean);
+
+  // Agrupación visual por producto: ordenamos las filas según el orden de los
+  // productos de la PO (orden estable: conserva el orden de bloques dentro de
+  // cada producto) y mostramos un encabezado al cambiar de producto.
+  const productById = {};
+  (proforma.products || []).forEach((p, pi) => { productById[p.id] = { ...p, _order: pi }; });
+  const productOrder = (r) => { const p = productById[r.product_id]; return p ? p._order : 999; };
+  const visibleRows = filtered.slice().sort((a, b) => productOrder(a) - productOrder(b));
+  const multiProduct = new Set(rows.map(r => r.product_id)).size > 1;
 
   // ---- Excel-compatible CSV export & paste ----
   const COL_DEFS = [
@@ -579,19 +650,30 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship }) => {
                 <th style={{width: 110}}>Largo m</th>
                 <th style={{width: 80}}>Área m²</th>
                 <th style={{minWidth: 180}}>Contenedor</th>
-                <th style={{width: 60}}>Foto</th>
+                {anyPlaca && <th style={{width: 60}}>Foto</th>}
                 <th style={{minWidth: 170}}>Notas</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((r, i) => {
+              {visibleRows.map((r, i) => {
                 const area = (r.h && r.w) ? (r.h * r.w).toFixed(2) : '';
                 const noH = !r.h;
                 const noW = !r.w;
                 const noC = !r.container;
-                const isBlockStart = i === 0 || filtered[i-1].block !== r.block;
+                const isProductStart = i === 0 || visibleRows[i-1].product_id !== r.product_id;
+                const isBlockStart = isProductStart || visibleRows[i-1].block !== r.block;
+                const prod = productById[r.product_id];
                 return (
-                  <tr key={r.id} className={`${isBlockStart ? 'block-start' : ''} ${activeRow === r.id ? 'is-active' : ''}`}
+                  <React.Fragment key={r.id}>
+                  {multiProduct && isProductStart && (
+                    <tr className="product-group" data-noncommentable="">
+                      <td colSpan={anyPlaca ? 11 : 10} style={{background: 'var(--accent-soft)', borderTop: '2px solid var(--accent)', padding: '8px 12px', fontSize: 12.5, letterSpacing: '0.02em', position: 'sticky', left: 0}}>
+                        <span style={{fontWeight: 700, color: 'var(--accent)'}}>{(prod && prod.name) || 'Producto'}</span>
+                        {prod && prod.ref ? <span className="mono" style={{marginLeft: 8, color: 'var(--ink-3)', fontWeight: 600}}>{prod.ref}</span> : null}
+                      </td>
+                    </tr>
+                  )}
+                  <tr className={`${isBlockStart ? 'block-start' : ''} ${activeRow === r.id ? 'is-active' : ''}`}
                       onClick={() => setActiveRow(r.id)}>
                     <td style={{textAlign: 'center', color: 'var(--ink-4)', fontSize: 11}}>{rows.indexOf(r) + 1}</td>
                     <td className="cell-block"><input value={r.block} onChange={(e) => updRow(r.id, { block: e.target.value })}/></td>
@@ -619,16 +701,26 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship }) => {
                         {containers.map(c => <option key={c} value={c}>{c}</option>)}
                       </select>
                     </PropCell>
-                    <td style={{textAlign: 'center'}}>
-                      <div className={`row-mini-photo ${r.photo ? 'has' : ''}`}
-                           onClick={(e) => { e.stopPropagation(); updRow(r.id, { photo: !r.photo }); }}>
-                        <Icon name={r.photo ? 'check' : 'camera'} size={12}/>
-                      </div>
-                    </td>
+                    {anyPlaca && (
+                      <td style={{textAlign: 'center'}}>
+                        {rowIsPlaca(r) ? (
+                          <label className={`row-mini-photo ${r.photo ? 'has' : ''}`} style={{cursor: 'pointer', overflow: 'hidden'}} title="Subir/Reemplazar foto de la placa" onClick={(e) => e.stopPropagation()}>
+                            <input type="file" accept="image/*" style={{display: 'none'}}
+                                   onChange={(e) => pickRowPhoto(r, e.target.files && e.target.files[0])}/>
+                            {rowPhotoSrc(r)
+                              ? <img src={rowPhotoSrc(r)} alt="foto" style={{width: '100%', height: '100%', objectFit: 'cover', borderRadius: 4}}/>
+                              : <Icon name="camera" size={12}/>}
+                          </label>
+                        ) : (
+                          <span className="text-muted" style={{fontSize: 11}}>—</span>
+                        )}
+                      </td>
+                    )}
                     <PropCell rowId={r.id} field="notes">
                       <input placeholder="—" value={r.notes} onChange={(e) => updRow(r.id, { notes: e.target.value })}/>
                     </PropCell>
                   </tr>
+                  </React.Fragment>
                 );
               })}
             </tbody>

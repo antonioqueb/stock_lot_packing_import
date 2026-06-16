@@ -67,6 +67,9 @@ function App() {
 
   const openPackingWizard = (shipmentId, packingId) => setPackingWiz({ shipmentId, packingId });
   const closePackingWizard = () => setPackingWiz(null);
+  // Imágenes capturadas en el asistente pendientes de subir (prototipo: solo
+  // preview local). En el bundle conectado se suben en persistSnapshot.
+  const pendingImagesRef = React.useRef({ blocks: {}, rows: {} });
 
   // Persist a packing (draft + rows) into the proforma state. Called by the
   // PackingWizard before closing. Creates the packing if it does not exist yet.
@@ -92,6 +95,20 @@ function App() {
           : [...s.packings, { id: 'pk-' + Date.now(), ...updated }];
         return { ...s, packings: newPackings };
       }),
+    }));
+  };
+
+  const deleteShipment = (shipmentId) => {
+    setProforma(prev => ({ ...prev, shipments: prev.shipments.filter(s => s.id !== shipmentId) }));
+    setRoute({ section: 'shipments' });
+  };
+
+  const deletePacking = (shipmentId, packingId) => {
+    setProforma(prev => ({
+      ...prev,
+      shipments: prev.shipments.map(s => s.id === shipmentId
+        ? { ...s, packings: s.packings.filter(p => p.id !== packingId) }
+        : s),
     }));
   };
 
@@ -152,7 +169,7 @@ function App() {
             {route.section === 'overview'  && <Overview proforma={proforma} status={status} setRoute={setRoute}/>}
             {route.section === 'globals'   && <Globals proforma={proforma} setProforma={setProforma} status={status} setRoute={setRoute} validationStyle={t.validation_style}/>}
             {route.section === 'shipments' && <ShipmentsList proforma={proforma} setProforma={setProforma} status={status} setRoute={setRoute}/>}
-            {route.section === 'shipment'  && <ShipmentDetail proforma={proforma} setProforma={setProforma} status={status} setRoute={setRoute} route={route} openPackingWizard={openPackingWizard}/>}
+            {route.section === 'shipment'  && <ShipmentDetail proforma={proforma} setProforma={setProforma} status={status} setRoute={setRoute} route={route} openPackingWizard={openPackingWizard} onDeleteShipment={deleteShipment} onDeletePacking={deletePacking}/>}
             {route.section === 'documents' && <Documents proforma={proforma} setProforma={setProforma} setRoute={setRoute}/>}
             {route.section === 'review'    && <Confirm proforma={proforma} status={status} setRoute={setRoute}/>}
           </main>
@@ -166,7 +183,8 @@ function App() {
                          packingId={packingWiz.packingId}
                          sampleRows={SAMPLE_ROWS}
                          onClose={closePackingWizard}
-                         onSave={savePacking}/>
+                         onSave={savePacking}
+                         pendingImages={pendingImagesRef}/>
         )}
 
         {showOnboard && <Onboarding onClose={() => setShowOnboard(false)}/>}

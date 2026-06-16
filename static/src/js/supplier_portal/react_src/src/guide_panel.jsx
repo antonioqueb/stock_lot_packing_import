@@ -19,8 +19,7 @@ const GUIDE_CONTENT = {
     sub: 'Esta sección define identidad y ruta. Si no sabes algo, pregunta a tu agente o déjalo vacío y vuelve después.',
     steps: [
       { num: 1, title: 'Número de Proforma', body: 'Es el ID que tu sistema usa. Suele comenzar con "PI-".' },
-      { num: 2, title: 'Puerto destino', body: 'El puerto donde llegará el embarque.' },
-      { num: 3, title: 'Notas', body: 'Observaciones generales, si aplican.' },
+      { num: 2, title: 'Notas', body: 'Observaciones generales, si aplican.' },
     ],
     illustration: 'mapa de ruta',
   },

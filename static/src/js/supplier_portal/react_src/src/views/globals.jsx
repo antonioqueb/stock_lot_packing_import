@@ -7,7 +7,6 @@ const Globals = ({ proforma, setProforma, status, setRoute, validationStyle = 'i
   const errors = {};
   // simulated validation
   if (g.proforma_number && !/^PI-/i.test(g.proforma_number)) errors.proforma_number = 'El número debería empezar con "PI-" para identificar una Proforma.';
-  if (!g.port_destination) errors.port_destination = 'Es necesario para coordinar la llegada del embarque.';
 
   const errorList = Object.entries(errors);
 
@@ -70,24 +69,6 @@ const Globals = ({ proforma, setProforma, status, setRoute, validationStyle = 'i
           >
             <Input mono placeholder="INV-2026-001 (opcional)" value={g.invoice_global}
                    onChange={(e) => update('invoice_global', e.target.value)}/>
-          </Field>
-        </div>
-      </div>
-
-      <div className="card">
-        <div className="card-head">
-          <div>
-            <h2>Logística internacional</h2>
-            <p className="sub">Puerto de destino del embarque. Este dato va impreso en la documentación de aduanas.</p>
-          </div>
-        </div>
-        <div className="fld-row">
-          <Field label="Puerto destino" required
-                 help="El puerto mexicano donde llegará el embarque."
-                 helpExample="Ej: Manzanillo, Veracruz, Lázaro Cárdenas"
-                 error={errors.port_destination}>
-            <Input placeholder="Ej. Manzanillo" value={g.port_destination}
-                   onChange={(e) => update('port_destination', e.target.value)}/>
           </Field>
         </div>
       </div>

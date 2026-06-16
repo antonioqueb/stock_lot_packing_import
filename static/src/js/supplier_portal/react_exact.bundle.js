@@ -57,6 +57,13 @@
                 return String(img.product_id) === String(productId) && s(img.block_name).trim().toLowerCase() === blockName && (img.has_image !== false);
             });
         }
+        function blockImageIdFor(productId, blockName) {
+            blockName = s(blockName).trim().toLowerCase();
+            var found = blockImages.find(function (img) {
+                return String(img.product_id) === String(productId) && s(img.block_name).trim().toLowerCase() === blockName && (img.has_image !== false);
+            });
+            return found ? found.id : 0;
+        }
         function rowToUi(r, idx) {
             var product = fallbackProducts.find(function (p) { return String(p.id) === String(r.product_id); }) || fallbackProducts[0] || {};
             var tipo = s(r.tipo || product.kind || 'Placa');
@@ -93,7 +100,7 @@
             var isPlaca = s(r.tipo || 'Placa').toLowerCase().indexOf('placa') >= 0;
             var key = String(pid) + '::' + block.toLowerCase();
             if (!byKey[key])
-                byKey[key] = { id: key, name: block, count: 0, photo: !isPlaca || hasBlockImage(pid, block) || !!r.photo, product: pid, needs_photo: isPlaca };
+                byKey[key] = { id: key, name: block, count: 0, photo: !isPlaca || hasBlockImage(pid, block) || !!r.photo, product: pid, needs_photo: isPlaca, block_image_id: blockImageIdFor(pid, block) };
             byKey[key].count += 1;
             if (r.photo)
                 byKey[key].photo = true;
@@ -132,7 +139,11 @@
             var shipProducts = arr(sh.products).length ? arr(sh.products).map(productFromOdoo) : products;
             return {
                 id: sh.id || ('s' + (idx + 1)),
-                number: sh.sequence || sh.number || (idx + 1),
+                // Folio mostrado al proveedor: posición (1,2,3…) según el orden del
+                // backend. Así el primero siempre es 1 aunque la secuencia interna
+                // tenga huecos por embarques eliminados (la secuencia real se usa
+                // solo para ordenar/nombrar en Odoo).
+                number: idx + 1,
                 type: sh.shipment_type || sh.type || 'maritime',
                 shipping_line: s(sh.shipping_line, ''),
                 vessel: s(sh.vessel_name || sh.vessel, ''),
@@ -922,7 +933,7 @@ const SECTIONS = [
 // Compute per-section completion
 function computeStatus(proforma) {
     const g = proforma.globals;
-    const required = ['proforma_number', 'port_destination'];
+    const required = ['proforma_number'];
     const filled = required.filter(k => (g[k] || '').toString().trim().length > 0).length;
     const globals_pct = Math.round(filled / required.length * 100);
     const globals_status = globals_pct === 100 ? 'done' : globals_pct > 0 ? 'partial' : 'todo';
@@ -972,7 +983,7 @@ const TR = {
     // Generic words / status
     'Cancelar': 'Cancel', 'Continuar': 'Continue', 'Atrás': 'Back', 'Anterior': 'Previous', 'Siguiente': 'Next', 'Saltar': 'Skip', 'Empezar': 'Get started', 'Guardar': 'Save', 'Editar': 'Edit', 'Eliminar': 'Delete', 'Subir': 'Upload', 'Cerrar': 'Close', 'Volver': 'Back', 'Abrir': 'Open', 'Ayuda': 'Help', 'Tutorial': 'Tutorial', 'Tutorial inicial': 'Initial tutorial', 'Aplicar': 'Apply', 'Generar ': 'Generate ',
     'completo': 'complete', 'completado': 'completed', 'listo': 'done', 'Pendiente': 'Pending', 'opcional': 'optional', 'obligatorio': 'required', 'Opcional': 'Optional', 'Sin datos': 'No data', 'Solicitado': 'Requested',
-    'Embarques': 'Shipments', 'Embarque #': 'Shipment #', 'Embarque no encontrado': 'Shipment not found', 'embarques': 'shipments', 'contenedores': 'containers', 'invoices': 'invoices', 'bloques': 'blocks', 'piezas solicitadas': 'pieces requested',
+    'Embarques': 'Shipments', 'Embarque #': 'Shipment #', 'Embarque no encontrado': 'Shipment not found', 'embarques': 'shipments', 'contenedores': 'containers', 'invoices': 'invoices', 'bloques': 'blocks', 'cantidad solicitada': 'requested quantity',
     // Header / nav
     'Portal proveedor': 'Supplier portal', 'Menú': 'Menu', 'Mostrar guía': 'Show guide', 'Ocultar guía': 'Hide guide',
     // Sidebar / sections
@@ -1012,7 +1023,7 @@ const TR = {
   zh: {
     'Cancelar': '取消', 'Continuar': '继续', 'Atrás': '返回', 'Anterior': '上一步', 'Siguiente': '下一步', 'Saltar': '跳过', 'Empezar': '开始', 'Guardar': '保存', 'Editar': '编辑', 'Eliminar': '删除', 'Subir': '上传', 'Cerrar': '关闭', 'Volver': '返回', 'Abrir': '打开', 'Ayuda': '帮助', 'Tutorial': '教程', 'Tutorial inicial': '初始教程', 'Aplicar': '应用', 'Generar ': '生成 ',
     'completo': '完成', 'completado': '已完成', 'listo': '已就绪', 'Pendiente': '待处理', 'opcional': '可选', 'obligatorio': '必填', 'Opcional': '可选', 'Sin datos': '无数据', 'Solicitado': '已请求',
-    'Embarques': '货运', 'Embarque #': '货运 #', 'Embarque no encontrado': '未找到货运', 'embarques': '货运', 'contenedores': '集装箱', 'invoices': '发票', 'bloques': '区块', 'piezas solicitadas': '请求件数',
+    'Embarques': '货运', 'Embarque #': '货运 #', 'Embarque no encontrado': '未找到货运', 'embarques': '货运', 'contenedores': '集装箱', 'invoices': '发票', 'bloques': '区块', 'cantidad solicitada': '请求数量',
     'Portal proveedor': '供应商门户', 'Menú': '菜单', 'Mostrar guía': '显示指南', 'Ocultar guía': '隐藏指南',
     'Vista general': '概览', 'Datos de la Proforma': '形式发票数据', 'Datos generales de la Proforma': '形式发票一般数据', 'Documentos generales': '一般文档', 'Documentos': '文档', 'Revisar y enviar': '审核并提交', 'Revisar y enviar a SOM GROUP': '审核并发送给 SOM GROUP', 'Llenado de la Proforma': '形式发票填写', 'Progreso global': '总体进度', 'Lo que te falta para terminar': '剩余事项',
     'Bienvenido al portal del proveedor': '欢迎使用供应商门户', 'Bienvenido al portal SOM GROUP': '欢迎使用 SOM GROUP 门户', 'Hola, equipo de ': '您好,', 'Aquí vas a registrar todos los datos del envío para la Orden de Compra ': '在此处录入采购订单的所有发货数据 ', 'Continuar donde quedé': '继续上次进度', 'Productos solicitados en esta PO': '本采购订单请求的产品', 'Productos solicitados en esta Proforma': '本形式发票请求的产品', 'Productos': '产品', 'Producto': '产品', 'Estado actual': '当前状态',
@@ -1041,7 +1052,7 @@ const TR = {
   it: {
     'Cancelar': 'Annulla', 'Continuar': 'Continua', 'Atrás': 'Indietro', 'Anterior': 'Precedente', 'Siguiente': 'Avanti', 'Saltar': 'Salta', 'Empezar': 'Inizia', 'Guardar': 'Salva', 'Editar': 'Modifica', 'Eliminar': 'Elimina', 'Subir': 'Carica', 'Cerrar': 'Chiudi', 'Volver': 'Indietro', 'Abrir': 'Apri', 'Ayuda': 'Aiuto', 'Tutorial': 'Tutorial', 'Tutorial inicial': 'Tutorial iniziale', 'Aplicar': 'Applica', 'Generar ': 'Genera ',
     'completo': 'completo', 'completado': 'completato', 'listo': 'pronto', 'Pendiente': 'In sospeso', 'opcional': 'opzionale', 'obligatorio': 'obbligatorio', 'Opcional': 'Opzionale', 'Sin datos': 'Nessun dato', 'Solicitado': 'Richiesto',
-    'Embarques': 'Spedizioni', 'Embarque #': 'Spedizione #', 'Embarque no encontrado': 'Spedizione non trovata', 'embarques': 'spedizioni', 'contenedores': 'container', 'invoices': 'fatture', 'bloques': 'blocchi', 'piezas solicitadas': 'pezzi richiesti',
+    'Embarques': 'Spedizioni', 'Embarque #': 'Spedizione #', 'Embarque no encontrado': 'Spedizione non trovata', 'embarques': 'spedizioni', 'contenedores': 'container', 'invoices': 'fatture', 'bloques': 'blocchi', 'cantidad solicitada': 'quantità richiesta',
     'Portal proveedor': 'Portale fornitore', 'Menú': 'Menu', 'Mostrar guía': 'Mostra guida', 'Ocultar guía': 'Nascondi guida',
     'Vista general': 'Panoramica', 'Datos de la Proforma': 'Dati della Proforma', 'Datos generales de la Proforma': 'Dati generali della Proforma', 'Documentos generales': 'Documenti generali', 'Documentos': 'Documenti', 'Revisar y enviar': 'Rivedi e invia', 'Revisar y enviar a SOM GROUP': 'Rivedi e invia a SOM GROUP', 'Llenado de la Proforma': 'Compilazione della Proforma', 'Progreso global': 'Avanzamento globale', 'Lo que te falta para terminar': 'Cosa manca per finire',
     'Bienvenido al portal del proveedor': 'Benvenuto nel portale del fornitore', 'Bienvenido al portal SOM GROUP': 'Benvenuto nel portale SOM GROUP', 'Hola, equipo de ': 'Ciao, team di ', 'Aquí vas a registrar todos los datos del envío para la Orden de Compra ': 'Qui registrerai tutti i dati della spedizione per l’Ordine d’Acquisto ', 'Continuar donde quedé': 'Riprendi da dove eri', 'Productos solicitados en esta PO': 'Prodotti richiesti in questo OdA', 'Productos solicitados en esta Proforma': 'Prodotti richiesti in questa Proforma', 'Productos': 'Prodotti', 'Producto': 'Prodotto', 'Estado actual': 'Stato attuale',
@@ -1070,7 +1081,7 @@ const TR = {
   pt: {
     'Cancelar': 'Cancelar', 'Continuar': 'Continuar', 'Atrás': 'Voltar', 'Anterior': 'Anterior', 'Siguiente': 'Próximo', 'Saltar': 'Pular', 'Empezar': 'Começar', 'Guardar': 'Salvar', 'Editar': 'Editar', 'Eliminar': 'Excluir', 'Subir': 'Enviar', 'Cerrar': 'Fechar', 'Volver': 'Voltar', 'Abrir': 'Abrir', 'Ayuda': 'Ajuda', 'Tutorial': 'Tutorial', 'Tutorial inicial': 'Tutorial inicial', 'Aplicar': 'Aplicar', 'Generar ': 'Gerar ',
     'completo': 'completo', 'completado': 'concluído', 'listo': 'pronto', 'Pendiente': 'Pendente', 'opcional': 'opcional', 'obligatorio': 'obrigatório', 'Opcional': 'Opcional', 'Sin datos': 'Sem dados', 'Solicitado': 'Solicitado',
-    'Embarques': 'Embarques', 'Embarque #': 'Embarque #', 'Embarque no encontrado': 'Embarque não encontrado', 'embarques': 'embarques', 'contenedores': 'contêineres', 'invoices': 'faturas', 'bloques': 'blocos', 'piezas solicitadas': 'peças solicitadas',
+    'Embarques': 'Embarques', 'Embarque #': 'Embarque #', 'Embarque no encontrado': 'Embarque não encontrado', 'embarques': 'embarques', 'contenedores': 'contêineres', 'invoices': 'faturas', 'bloques': 'blocos', 'cantidad solicitada': 'quantidade solicitada',
     'Portal proveedor': 'Portal do fornecedor', 'Menú': 'Menu', 'Mostrar guía': 'Mostrar guia', 'Ocultar guía': 'Ocultar guia',
     'Vista general': 'Visão geral', 'Datos de la Proforma': 'Dados da Proforma', 'Datos generales de la Proforma': 'Dados gerais da Proforma', 'Documentos generales': 'Documentos gerais', 'Documentos': 'Documentos', 'Revisar y enviar': 'Revisar e enviar', 'Revisar y enviar a SOM GROUP': 'Revisar e enviar à SOM GROUP', 'Llenado de la Proforma': 'Preenchimento da Proforma', 'Progreso global': 'Progresso geral', 'Lo que te falta para terminar': 'O que falta para terminar',
     'Bienvenido al portal del proveedor': 'Bem-vindo ao portal do fornecedor', 'Bienvenido al portal SOM GROUP': 'Bem-vindo ao portal SOM GROUP', 'Hola, equipo de ': 'Olá, equipe de ', 'Aquí vas a registrar todos los datos del envío para la Orden de Compra ': 'Aqui você vai registrar todos os dados do envio para o Pedido de Compra ', 'Continuar donde quedé': 'Continuar de onde parei', 'Productos solicitados en esta PO': 'Produtos solicitados neste pedido', 'Productos solicitados en esta Proforma': 'Produtos solicitados nesta Proforma', 'Productos': 'Produtos', 'Producto': 'Produto', 'Estado actual': 'Status atual',
@@ -1359,7 +1370,7 @@ const Overview = ({ proforma, status, setRoute }) => {
                         "invoices"),
                     React.createElement("div", { className: "item" },
                         React.createElement("strong", null, proforma.products.reduce((a, p) => a + p.requested_qty, 0)),
-                        "piezas solicitadas"))),
+                        "cantidad solicitada"))),
             React.createElement(ProgressRing, { pct: status.overall, size: 148, stroke: 10, label: status.overall === 100 ? 'listo' : 'completo' })),
         status.overall < 100 && (React.createElement("div", { className: "card" },
             React.createElement("div", { className: "card-head no-divider" },
@@ -1412,8 +1423,6 @@ const Globals = ({ proforma, setProforma, status, setRoute, validationStyle = 'i
     // simulated validation
     if (g.proforma_number && !/^PI-/i.test(g.proforma_number))
         errors.proforma_number = 'El número debería empezar con "PI-" para identificar una Proforma.';
-    if (!g.port_destination)
-        errors.port_destination = 'Es necesario para coordinar la llegada del embarque.';
     const errorList = Object.entries(errors);
     return (React.createElement("div", null,
         React.createElement("div", { className: "crumb" },
@@ -1449,14 +1458,6 @@ const Globals = ({ proforma, setProforma, status, setRoute, validationStyle = 'i
                     React.createElement(Input, { mono: true, placeholder: "PI-9920-A", value: g.proforma_number, onChange: (e) => update('proforma_number', e.target.value) })),
                 React.createElement(Field, { label: "Factura global", optional: true, help: "Si emites una factura comercial que cubre toda la PO, escr\u00EDbela aqu\u00ED. Si tienes una por embarque, d\u00E9jalo vac\u00EDo y ll\u00E9nalo en cada embarque." },
                     React.createElement(Input, { mono: true, placeholder: "INV-2026-001 (opcional)", value: g.invoice_global, onChange: (e) => update('invoice_global', e.target.value) })))),
-        React.createElement("div", { className: "card" },
-            React.createElement("div", { className: "card-head" },
-                React.createElement("div", null,
-                    React.createElement("h2", null, "Log\u00EDstica internacional"),
-                    React.createElement("p", { className: "sub" }, "Puerto de destino del embarque. Este dato va impreso en la documentaci\u00F3n de aduanas."))),
-            React.createElement("div", { className: "fld-row" },
-                React.createElement(Field, { label: "Puerto destino", required: true, help: "El puerto mexicano donde llegar\u00E1 el embarque.", helpExample: "Ej: Manzanillo, Veracruz, L\u00E1zaro C\u00E1rdenas", error: errors.port_destination },
-                    React.createElement(Input, { placeholder: "Ej. Manzanillo", value: g.port_destination, onChange: (e) => update('port_destination', e.target.value) })))),
         React.createElement("div", { className: "card" },
             React.createElement("div", { className: "card-head" },
                 React.createElement("div", null,
@@ -1579,7 +1580,7 @@ const SHIP_TABS = [
     { id: 'packings', label: 'Packing List', icon: 'box' },
     { id: 'documents', label: 'Documentos', icon: 'file' },
 ];
-const ShipmentDetail = ({ proforma, setProforma, status, setRoute, route, openPackingWizard }) => {
+const ShipmentDetail = ({ proforma, setProforma, status, setRoute, route, openPackingWizard, onDeleteShipment, onDeletePacking }) => {
     const ship = proforma.shipments.find(s => s.id === route.shipmentId);
     const idx = proforma.shipments.findIndex(s => s.id === route.shipmentId);
     const sst = status.shipments_status[idx];
@@ -1617,7 +1618,10 @@ const ShipmentDetail = ({ proforma, setProforma, status, setRoute, route, openPa
                 React.createElement("span", { className: "text-muted text-small" },
                     sst.pct,
                     "% completo"),
-                React.createElement(Btn, { variant: "ghost", icon: "trash", className: "btn-danger-ghost" }, "Eliminar embarque"))),
+                React.createElement(Btn, { variant: "ghost", icon: "trash", className: "btn-danger-ghost", onClick: () => {
+                        if (typeof onDeleteShipment === 'function' && window.confirm(`¿Eliminar el embarque #${ship.number}? Se borrarán sus invoices, contenedores y packing lists. Esta acción no se puede deshacer.`))
+                            onDeleteShipment(ship.id);
+                    } }, "Eliminar embarque"))),
         React.createElement("div", { className: "tabs" }, SHIP_TABS.map(t => {
             const done = t.id === 'logistics' ? sst.tabs.hasLog && sst.tabs.hasBL :
                 t.id === 'invoices' ? sst.tabs.hasInv :
@@ -1638,7 +1642,7 @@ const ShipmentDetail = ({ proforma, setProforma, status, setRoute, route, openPa
         tab === 'logistics' && React.createElement(TabLogistics, { ship: ship, updateShip: updateShip }),
         tab === 'invoices' && React.createElement(TabInvoices, { ship: ship, updateShip: updateShip }),
         tab === 'containers' && React.createElement(TabContainers, { ship: ship, updateShip: updateShip }),
-        tab === 'packings' && React.createElement(TabPackings, { ship: ship, updateShip: updateShip, openPackingWizard: openPackingWizard, proforma: proforma }),
+        tab === 'packings' && React.createElement(TabPackings, { ship: ship, updateShip: updateShip, openPackingWizard: openPackingWizard, proforma: proforma, onDeletePacking: onDeletePacking }),
         tab === 'documents' && React.createElement(TabDocuments, { ship: ship, updateShip: updateShip })));
 };
 /* ============================================================
@@ -1669,15 +1673,11 @@ const TabLogistics = ({ ship, updateShip }) => (React.createElement("div", null,
             React.createElement(Badge, { tone: ship.bl_number ? 'done' : 'todo' }, ship.bl_number ? React.createElement(React.Fragment, null,
                 React.createElement(Icon, { name: "check", size: 11 }),
                 " Cargado") : 'Pendiente')),
-        React.createElement("div", { className: "fld-row cols-3" },
+        React.createElement("div", { className: "fld-row cols-2" },
             React.createElement(Field, { label: "N\u00FAmero de B/L", required: true, help: "El n\u00FAmero \u00FAnico que asigna la naviera a tu embarque.", helpExample: "COSU6817042500" },
                 React.createElement(Input, { mono: true, placeholder: "Ej. COSU6817042500", value: ship.bl_number, onChange: (e) => updateShip({ bl_number: e.target.value }) })),
             React.createElement(Field, { label: "Fecha de B/L", required: true, help: "Fecha que aparece impresa en el documento." },
-                React.createElement(Input, { type: "date", value: ship.bl_date, onChange: (e) => updateShip({ bl_date: e.target.value }) })),
-            React.createElement(Field, { label: "Archivo PDF", required: true, help: "Sube el PDF original. Aceptamos m\u00E1ximo 10 MB." }, ship.bl_file ? (React.createElement("div", { style: { display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0' } },
-                React.createElement(Icon, { name: "file", size: 14, style: { color: 'var(--accent)' } }),
-                React.createElement("span", { className: "mono", style: { fontSize: 13 } }, ship.bl_file),
-                React.createElement(Btn, { variant: "ghost", size: "sm", icon: "x", onClick: () => updateShip({ bl_file: '' }) }))) : (React.createElement(Btn, { variant: "secondary", icon: "upload" }, "Subir PDF")))))));
+                React.createElement(Input, { type: "date", value: ship.bl_date, onChange: (e) => updateShip({ bl_date: e.target.value }) }))))));
 /* ============================================================
    Invoices tab
    ============================================================ */
@@ -1766,7 +1766,7 @@ const TabContainers = ({ ship, updateShip }) => {
                             React.createElement("option", null, "40HQ"),
                             React.createElement("option", null, "45HQ")))),
                 React.createElement("div", { className: "fld-row cols-3", style: { marginTop: 14 } },
-                    React.createElement(Field, { label: "Peso bruto (kg)", required: true },
+                    React.createElement(Field, { label: "Peso bruto (kg)" },
                         React.createElement(Input, { mono: true, type: "number", placeholder: "27500", value: c.weight || '', onChange: (e) => updC(c.id, { weight: +e.target.value }) })),
                     React.createElement(Field, { label: "Volumen (m\u00B3)" },
                         React.createElement(Input, { mono: true, type: "number", step: "0.1", placeholder: "67.2", value: c.volume || '', onChange: (e) => updC(c.id, { volume: +e.target.value }) })),
@@ -1777,7 +1777,7 @@ const TabContainers = ({ ship, updateShip }) => {
 /* ============================================================
    Packings tab — lists packings, button to open wizard
    ============================================================ */
-const TabPackings = ({ ship, updateShip, openPackingWizard, proforma }) => {
+const TabPackings = ({ ship, updateShip, openPackingWizard, proforma, onDeletePacking }) => {
     return (React.createElement("div", null,
         React.createElement("div", { className: "card" },
             React.createElement("div", { className: "card-head" },
@@ -1823,7 +1823,12 @@ const TabPackings = ({ ship, updateShip, openPackingWizard, proforma }) => {
                                 " ",
                                 pk.blocks.filter(b => !b.photo).length,
                                 " bloques sin foto"))),
-                    React.createElement(Btn, { variant: "secondary", icon: "pencil", onClick: () => openPackingWizard(ship.id, pk.id) }, "Editar")));
+                    React.createElement("div", { style: { display: 'flex', gap: 8 } },
+                        React.createElement(Btn, { variant: "secondary", icon: "pencil", onClick: () => openPackingWizard(ship.id, pk.id) }, "Editar"),
+                        React.createElement(Btn, { variant: "ghost", icon: "trash", className: "btn-danger-ghost", onClick: () => {
+                                if (typeof onDeletePacking === 'function' && window.confirm(`¿Eliminar el packing list ${pk.number}? Se borrarán todas sus filas. Esta acción no se puede deshacer.`))
+                                    onDeletePacking(ship.id, pk.id);
+                            } }, "Eliminar"))));
             })))),
         React.createElement(Callout, { tone: "info", icon: "sparkles", title: "C\u00F3mo funciona el asistente" },
             "En lugar de que escribas mil l\u00EDneas a mano, el asistente ",
@@ -1887,7 +1892,7 @@ const WIZARD_STEPS = [
     { id: 3, label: 'Revisión' },
     { id: 4, label: 'Llenar placas' },
 ];
-const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampleRows }) => {
+const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampleRows, pendingImages }) => {
     const ship = proforma.shipments.find(s => s.id === shipmentId);
     const existing = packingId ? ship.packings.find(p => p.id === packingId) : null;
     // determine starting step: if editing and already has rows, jump to step 4
@@ -1918,28 +1923,50 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
         }
         onClose();
     };
-    // generate empty rows from blocks if rows is empty when entering step 4
+    // Firma de la estructura de bloques. Si cambia (el usuario corrigió la
+    // selección de productos o ajustó bloques), hay que REGENERAR las filas.
+    const blocksSig = draft.blocks.map(b => `${b.id}:${b.product}:${b.count}:${b.name}`).join('|');
+    // Firma con la que se generaron las filas actuales. null = aún no generado.
+    const genSigRef = React.useRef(null);
+    // Genera (o regenera) las filas a partir de los bloques. Conserva los datos
+    // ya capturados de los bloques que no cambiaron (match por id de fila).
     React.useEffect(() => {
-        if (step === 4 && rows.length === 0 && draft.blocks.length > 0) {
-            const generated = [];
-            draft.blocks.forEach((b, bi) => {
-                const product = proforma.products.find(p => String(p.id) === String(b.product)) || proforma.products[0] || {};
-                const tipo = product.kind === 'placa' ? 'Placa' : (product.kind === 'formato' ? 'Formato' : 'Pieza');
-                for (let i = 0; i < b.count; i++) {
-                    generated.push({
-                        id: `r-${b.id}-${i}`,
-                        product_id: b.product || product.id,
-                        tipo,
-                        block: b.name, atado: `A-${String(bi + 1).padStart(2, '0')}`,
-                        plate: `P-${String(generated.length + 1).padStart(3, '0')}`,
-                        ref: product.ref || '', thickness: 2, h: 0, w: 0, quantity: tipo === 'Placa' ? 0 : 1, weight: 0, notes: '', grupo: '', pedimento: '', container: '', container_id: false, photo: false, errors: [],
-                        blockStart: i === 0,
-                    });
-                }
-            });
-            setRows(generated);
+        if (step !== 4 || draft.blocks.length === 0)
+            return;
+        const needGen = rows.length === 0 || (genSigRef.current !== null && genSigRef.current !== blocksSig);
+        if (!needGen) {
+            // p. ej. al abrir un packing existente: registramos la base para
+            // detectar cambios futuros, sin sobreescribir lo ya capturado.
+            genSigRef.current = blocksSig;
+            return;
         }
-    }, [step]);
+        const KEEP = ['h', 'w', 'thickness', 'container', 'container_id', 'notes', 'photo', 'quantity', 'weight', 'plate', 'atado', 'grupo', 'pedimento', 'ref'];
+        const prevById = {};
+        rows.forEach(r => { prevById[r.id] = r; });
+        const generated = [];
+        draft.blocks.forEach((b, bi) => {
+            const product = proforma.products.find(p => String(p.id) === String(b.product)) || proforma.products[0] || {};
+            const tipo = product.kind === 'placa' ? 'Placa' : (product.kind === 'formato' ? 'Formato' : 'Pieza');
+            for (let i = 0; i < b.count; i++) {
+                const id = `r-${b.id}-${i}`;
+                const base = {
+                    id,
+                    product_id: b.product || product.id,
+                    tipo,
+                    block: b.name, atado: `A-${String(bi + 1).padStart(2, '0')}`,
+                    plate: `P-${String(generated.length + 1).padStart(3, '0')}`,
+                    ref: product.ref || '', thickness: 2, h: 0, w: 0, quantity: tipo === 'Placa' ? 0 : 1, weight: 0, notes: '', grupo: '', pedimento: '', container: '', container_id: false, photo: false, errors: [],
+                    blockStart: i === 0,
+                };
+                const prev = prevById[id];
+                if (prev)
+                    KEEP.forEach(k => { if (prev[k] !== undefined) base[k] = prev[k]; });
+                generated.push(base);
+            }
+        });
+        genSigRef.current = blocksSig;
+        setRows(generated);
+    }, [step, blocksSig]);
     const canNext = () => {
         if (step === 1)
             return draft.products.length > 0;
@@ -1975,9 +2002,9 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
                         React.createElement("span", null, s.label)),
                     i < WIZARD_STEPS.length - 1 && React.createElement("span", { className: "step-sep" }))))),
                 step === 1 && React.createElement(Step1Products, { proforma: proforma, draft: draft, setDraft: setDraft }),
-                step === 2 && React.createElement(Step2Blocks, { proforma: proforma, draft: draft, setDraft: setDraft }),
+                step === 2 && React.createElement(Step2Blocks, { proforma: proforma, draft: draft, setDraft: setDraft, pendingImages: pendingImages }),
                 step === 3 && React.createElement(Step3Review, { proforma: proforma, draft: draft }),
-                step === 4 && React.createElement(Step4Sheet, { proforma: proforma, draft: draft, rows: rows, setRows: setRows, ship: ship })),
+                step === 4 && React.createElement(Step4Sheet, { proforma: proforma, draft: draft, rows: rows, setRows: setRows, ship: ship, pendingImages: pendingImages })),
             React.createElement("div", { className: "modal-foot" },
                 React.createElement("div", null, step > 1 && step < 4 && React.createElement(Btn, { variant: "ghost", icon: "arrow_left", onClick: () => setStep(step - 1) }, "Anterior")),
                 React.createElement("div", { style: { display: 'flex', gap: 8, alignItems: 'center' } },
@@ -2035,7 +2062,7 @@ const Step1Products = ({ proforma, draft, setDraft }) => {
         }))));
 };
 /* ====================== Step 2 ====================== */
-const Step2Blocks = ({ proforma, draft, setDraft }) => {
+const Step2Blocks = ({ proforma, draft, setDraft, pendingImages }) => {
     const products = proforma.products.filter(p => draft.products.includes(p.id));
     const addBlock = (productId) => {
         const newBlock = {
@@ -2046,6 +2073,19 @@ const Step2Blocks = ({ proforma, draft, setDraft }) => {
     };
     const updBlock = (id, patch) => setDraft({ ...draft, blocks: draft.blocks.map(b => b.id === id ? { ...b, ...patch } : b) });
     const delBlock = (id) => setDraft({ ...draft, blocks: draft.blocks.filter(b => b.id !== id) });
+    // Captura real de la foto del bloque: guarda el base64 en pendingImages (se
+    // sube al persistir) y muestra una vista previa inmediata.
+    const pickBlockPhoto = (b, file) => {
+        if (!file)
+            return;
+        const preview = URL.createObjectURL(file);
+        fileToBase64(file).then(({ data, name }) => {
+            if (pendingImages && pendingImages.current)
+                pendingImages.current.blocks[b.id] = { data, name };
+            updBlock(b.id, { photo: true, image_preview: preview });
+        });
+    };
+    const blockPhotoSrc = (b) => b.image_preview || (b.block_image_id ? `/web/image/supplier.shipment.block.image/${b.block_image_id}/image` : '');
     return (React.createElement("div", null,
         React.createElement(Callout, { tone: "info", icon: "info", title: "\u00BFQu\u00E9 es un bloque?" }, "Un bloque es la piedra original de cantera, antes de cortarse. De cada bloque salen varias placas. Si tienes 3 bloques con 18, 16 y 14 placas, este paso generar\u00E1 autom\u00E1ticamente 48 filas para llenar."),
         React.createElement("div", { style: { marginTop: 20, display: 'flex', flexDirection: 'column', gap: 24 } }, products.map(p => {
@@ -2065,9 +2105,11 @@ const Step2Blocks = ({ proforma, draft, setDraft }) => {
                             " configurados")),
                     React.createElement(Btn, { variant: "secondary", size: "sm", icon: "plus", onClick: () => addBlock(p.id) }, "Agregar bloque")),
                 productBlocks.length === 0 ? (React.createElement(Empty, { icon: "cube", title: "Sin bloques a\u00FAn", action: React.createElement(Btn, { variant: "accent", size: "sm", icon: "plus", onClick: () => addBlock(p.id) }, "Crear primer bloque") }, "Empieza con uno. Puedes agregar tantos como necesites.")) : (React.createElement("div", { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 12 } }, productBlocks.map((b, bi) => (React.createElement("div", { key: b.id, className: "block-card" },
-                    needsPhoto && React.createElement("div", { className: `block-photo ${b.photo ? 'has-photo' : ''}`, onClick: () => updBlock(b.id, { photo: !b.photo }) }, b.photo ? (React.createElement(Imgph, { style: { width: '100%', height: '100%', borderRadius: 8 } }, "foto bloque")) : (React.createElement("div", { style: { textAlign: 'center' } },
-                        React.createElement(Icon, { name: "camera", size: 20 }),
-                        React.createElement("div", { style: { fontSize: 10, marginTop: 4, fontWeight: 600 } }, "Subir foto")))),
+                    needsPhoto && React.createElement("label", { className: `block-photo ${b.photo ? 'has-photo' : ''}`, style: { cursor: 'pointer', overflow: 'hidden' }, title: "Subir/Reemplazar foto del bloque" },
+                        React.createElement("input", { type: "file", accept: "image/*", style: { display: 'none' }, onChange: (e) => pickBlockPhoto(b, e.target.files && e.target.files[0]) }),
+                        blockPhotoSrc(b) ? (React.createElement("img", { src: blockPhotoSrc(b), alt: "foto bloque", style: { width: '100%', height: '100%', objectFit: 'cover', borderRadius: 8 } })) : (React.createElement("div", { style: { textAlign: 'center' } },
+                            React.createElement(Icon, { name: "camera", size: 20 }),
+                            React.createElement("div", { style: { fontSize: 10, marginTop: 4, fontWeight: 600 } }, "Subir foto")))),
                     React.createElement("div", { className: "block-fields" },
                         React.createElement(Field, { label: `Nombre del bloque #${bi + 1}`, required: true },
                             React.createElement(Input, { mono: true, placeholder: "Ej. B-2024-117", value: b.name, onChange: (e) => updBlock(b.id, { name: e.target.value }) })),
@@ -2135,13 +2177,33 @@ const Step3Review = ({ proforma, draft }) => {
             })))));
 };
 /* ====================== Step 4: Spreadsheet ====================== */
-const Step4Sheet = ({ proforma, draft, rows, setRows, ship }) => {
+const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => {
     const [filter, setFilter] = React.useState('all');
     const [activeRow, setActiveRow] = React.useState(null);
+    // Solo las placas llevan foto por fila. Piezas/Formatos no llevan foto.
+    const rowIsPlaca = (r) => String(r.tipo || 'Placa').toLowerCase().indexOf('placa') >= 0;
+    const anyPlaca = rows.some(rowIsPlaca);
     const errors = rows.filter(r => r.errors && r.errors.length > 0);
     const completeRows = rows.filter(r => r.h > 0 && r.w > 0 && r.container);
     const filtered = filter === 'all' ? rows : filter === 'errors' ? errors : filter === 'empty' ? rows.filter(r => !r.h || !r.w) : rows;
     const updRow = (id, patch) => setRows(rows.map(r => r.id === id ? { ...r, ...patch } : r));
+    // Captura real de la foto de la fila (solo placas). Guarda el base64 en
+    // pendingImages (se sube al persistir, cuando la fila ya tiene id real).
+    const pickRowPhoto = (r, file) => {
+        if (!file)
+            return;
+        const preview = URL.createObjectURL(file);
+        fileToBase64(file).then(({ data, name }) => {
+            if (pendingImages && pendingImages.current)
+                pendingImages.current.rows[r.id] = { data, name };
+            updRow(r.id, { photo: true, image_preview: preview });
+        });
+    };
+    const rowPhotoSrc = (r) => r.image_preview || (r.photo && portalRowImageId(r) ? `/web/image/supplier.shipment.packing.row/${portalRowImageId(r)}/image` : '');
+    const portalRowImageId = (r) => {
+        const v = r._odoo_id || r.id;
+        return (typeof v === 'number' || (typeof v === 'string' && /^\d+$/.test(v))) ? parseInt(v, 10) : 0;
+    };
     // PROPAGATION — copy the value of `field` from `sourceId` either to the next row
     // in the same block, or to every row below it inside the same block.
     const propagate = (sourceId, field, mode) => {
@@ -2191,6 +2253,15 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship }) => {
                     React.createElement(Icon, { name: "prop_all", size: 13 }))))));
     };
     const containers = ship.containers.map(c => c.number).filter(Boolean);
+    // Agrupación visual por producto: ordenamos las filas según el orden de los
+    // productos de la PO (orden estable: conserva el orden de bloques dentro de
+    // cada producto) y, al renderizar, mostramos un encabezado cuando cambia el
+    // producto para separar visualmente los grupos.
+    const productById = {};
+    (proforma.products || []).forEach((p, pi) => { productById[p.id] = Object.assign({}, p, { _order: pi }); });
+    const productOrder = (r) => { const p = productById[r.product_id]; return p ? p._order : 999; };
+    const visibleRows = filtered.slice().sort((a, b) => productOrder(a) - productOrder(b));
+    const multiProduct = new Set(rows.map(r => r.product_id)).size > 1;
     // ---- Excel-compatible CSV export & paste ----
     const COL_DEFS = [
         { header: '#',          field: null,        type: 'index'  },
@@ -2319,15 +2390,23 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship }) => {
                             React.createElement("th", { style: { width: 110 } }, "Largo m"),
                             React.createElement("th", { style: { width: 80 } }, "\u00C1rea m\u00B2"),
                             React.createElement("th", { style: { minWidth: 180 } }, "Contenedor"),
-                            React.createElement("th", { style: { width: 60 } }, "Foto"),
+                            anyPlaca && React.createElement("th", { style: { width: 60 } }, "Foto"),
                             React.createElement("th", { style: { minWidth: 170 } }, "Notas"))),
-                    React.createElement("tbody", null, filtered.map((r, i) => {
+                    React.createElement("tbody", null, visibleRows.map((r, i) => {
                         const area = (r.h && r.w) ? (r.h * r.w).toFixed(2) : '';
                         const noH = !r.h;
                         const noW = !r.w;
                         const noC = !r.container;
-                        const isBlockStart = i === 0 || filtered[i - 1].block !== r.block;
-                        return (React.createElement("tr", { key: r.id, className: `${isBlockStart ? 'block-start' : ''} ${activeRow === r.id ? 'is-active' : ''}`, onClick: () => setActiveRow(r.id) },
+                        const isProductStart = i === 0 || visibleRows[i - 1].product_id !== r.product_id;
+                        const isBlockStart = isProductStart || visibleRows[i - 1].block !== r.block;
+                        const prod = productById[r.product_id];
+                        const groupHeader = (multiProduct && isProductStart) ? React.createElement("tr", { className: "product-group", "data-noncommentable": "" },
+                            React.createElement("td", { colSpan: anyPlaca ? 11 : 10, style: { background: 'var(--accent-soft)', borderTop: '2px solid var(--accent)', padding: '8px 12px', fontSize: 12.5, letterSpacing: '0.02em', position: 'sticky', left: 0 } },
+                                React.createElement("span", { style: { fontWeight: 700, color: 'var(--accent)' } }, (prod && prod.name) || 'Producto'),
+                                (prod && prod.ref) ? React.createElement("span", { className: "mono", style: { marginLeft: 8, color: 'var(--ink-3)', fontWeight: 600 } }, prod.ref) : null)) : null;
+                        return (React.createElement(React.Fragment, { key: r.id },
+                            groupHeader,
+                            React.createElement("tr", { className: `${isBlockStart ? 'block-start' : ''} ${activeRow === r.id ? 'is-active' : ''}`, onClick: () => setActiveRow(r.id) },
                             React.createElement("td", { style: { textAlign: 'center', color: 'var(--ink-4)', fontSize: 11 } }, rows.indexOf(r) + 1),
                             React.createElement("td", { className: "cell-block" },
                                 React.createElement("input", { value: r.block, onChange: (e) => updRow(r.id, { block: e.target.value }) })),
@@ -2347,11 +2426,15 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship }) => {
                                 React.createElement("select", { value: r.container, onChange: (e) => updRow(r.id, { container: e.target.value }) },
                                     React.createElement("option", { value: "" }, "\u2014 sin asignar \u2014"),
                                     containers.map(c => React.createElement("option", { key: c, value: c }, c)))),
-                            React.createElement("td", { style: { textAlign: 'center' } },
-                                React.createElement("div", { className: `row-mini-photo ${r.photo ? 'has' : ''}`, onClick: (e) => { e.stopPropagation(); updRow(r.id, { photo: !r.photo }); } },
-                                    React.createElement(Icon, { name: r.photo ? 'check' : 'camera', size: 12 }))),
+                            anyPlaca && React.createElement("td", { style: { textAlign: 'center' } }, rowIsPlaca(r)
+                                ? React.createElement("label", { className: `row-mini-photo ${r.photo ? 'has' : ''}`, style: { cursor: 'pointer', overflow: 'hidden' }, title: "Subir/Reemplazar foto de la placa", onClick: (e) => e.stopPropagation() },
+                                    React.createElement("input", { type: "file", accept: "image/*", style: { display: 'none' }, onChange: (e) => pickRowPhoto(r, e.target.files && e.target.files[0]) }),
+                                    rowPhotoSrc(r)
+                                        ? React.createElement("img", { src: rowPhotoSrc(r), alt: "foto", style: { width: '100%', height: '100%', objectFit: 'cover', borderRadius: 4 } })
+                                        : React.createElement(Icon, { name: "camera", size: 12 }))
+                                : React.createElement("span", { className: "text-muted", style: { fontSize: 11 } }, "—")),
                             React.createElement(PropCell, { rowId: r.id, field: "notes" },
-                                React.createElement("input", { placeholder: "\u2014", value: r.notes, onChange: (e) => updRow(r.id, { notes: e.target.value }) }))));
+                                React.createElement("input", { placeholder: "\u2014", value: r.notes, onChange: (e) => updRow(r.id, { notes: e.target.value }) })))));
                     }))))),
         React.createElement(Callout, { tone: "info", icon: "sparkles", title: "Llena m\u00E1s r\u00E1pido con propagaci\u00F3n" },
             "Pasa el cursor sobre cualquier celda y ver\u00E1s ",
@@ -2617,8 +2700,7 @@ const GUIDE_CONTENT = {
         sub: 'Esta sección define identidad y ruta. Si no sabes algo, pregunta a tu agente o déjalo vacío y vuelve después.',
         steps: [
             { num: 1, title: 'Número de Proforma', body: 'Es el ID que tu sistema usa. Suele comenzar con "PI-".' },
-            { num: 2, title: 'Puerto destino', body: 'El puerto donde llegará el embarque.' },
-            { num: 3, title: 'Notas', body: 'Observaciones generales, si aplican.' },
+            { num: 2, title: 'Notas', body: 'Observaciones generales, si aplican.' },
         ],
         illustration: 'mapa de ruta',
     },
@@ -2733,6 +2815,20 @@ async function portalRpc(route, params) {
     }
     return payload.result !== undefined ? payload.result : payload;
 }
+// Lee un File como base64 (sin el prefijo data:...;base64,) para enviarlo a los
+// campos binarios de Odoo. Devuelve también el data URL para previsualizar.
+function fileToBase64(file) {
+    return new Promise(function (resolve, reject) {
+        const reader = new FileReader();
+        reader.onload = function () {
+            const res = String(reader.result || '');
+            const comma = res.indexOf(',');
+            resolve({ data: comma >= 0 ? res.slice(comma + 1) : res, name: file.name || 'foto.jpg', dataUrl: res });
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+}
 function normalizePortalProforma(proforma) {
     const normalizer = window.SupplierReactExactNormalize;
     if (typeof normalizer === 'function') {
@@ -2758,6 +2854,10 @@ function App() {
     const proformaRef = React.useRef(proforma);
     const lastHashRef = React.useRef(JSON.stringify(proforma));
     const idMapRef = React.useRef({ shipments: {}, containers: {}, invoices: {}, packings: {}, rows: {} });
+    // Imágenes capturadas en el asistente que aún no se suben a Odoo. Se suben de
+    // forma diferida en persistSnapshot cuando ya existen el embarque / las filas
+    // (y por tanto sus ids reales). blocks: por b.id · rows: por id de fila.
+    const pendingImagesRef = React.useRef({ blocks: {}, rows: {} });
     React.useEffect(() => { proformaRef.current = proforma; }, [proforma]);
     const realMappedId = React.useCallback((kind, key, value) => {
         if (portalIsRealId(value))
@@ -2918,6 +3018,40 @@ function App() {
                             idMapRef.current.rows[packing.id + ':' + r.client_id] = r.id;
                         }
                     });
+                }
+                // Subir fotos de bloque pendientes (solo placas; necesitan el id real del embarque).
+                for (const block of (packing.blocks || [])) {
+                    const pendB = pendingImagesRef.current.blocks[block.id];
+                    if (pendB && block.name && block.needs_photo !== false) {
+                        try {
+                            const resB = await portalRpc('/supplier/api/v2/upload_block_image', {
+                                token: PORTAL_TOKEN, shipment_id: shipmentId, block_name: block.name,
+                                product_id: portalToInt(block.product), image_data: pendB.data, image_name: pendB.name,
+                            });
+                            if (resB && resB.success)
+                                delete pendingImagesRef.current.blocks[block.id];
+                        }
+                        catch (e) { console.error('[SupplierPortal] Error subiendo foto de bloque:', e); }
+                    }
+                }
+                // Subir fotos por fila pendientes (solo placas; ya con id real de la fila).
+                for (const row of (packing.rows || [])) {
+                    const pendR = pendingImagesRef.current.rows[row.id];
+                    if (!pendR)
+                        continue;
+                    const realRowId = portalIsRealId(row._odoo_id || row.id)
+                        ? parseInt(row._odoo_id || row.id, 10)
+                        : (idMapRef.current.rows[(realPackingId || packing.id) + ':' + row.id] || 0);
+                    if (!realRowId)
+                        continue;
+                    try {
+                        const resR = await portalRpc('/supplier/api/v2/upload_row_image', {
+                            token: PORTAL_TOKEN, row_id: realRowId, image_data: pendR.data, image_name: pendR.name,
+                        });
+                        if (resR && resR.success)
+                            delete pendingImagesRef.current.rows[row.id];
+                    }
+                    catch (e) { console.error('[SupplierPortal] Error subiendo foto de fila:', e); }
                 }
             }
         }
@@ -3089,6 +3223,35 @@ function App() {
             return next;
         });
     };
+    // Eliminar un embarque completo: lo quita del estado y, si ya existe en
+    // Odoo, llama al endpoint de borrado. Vuelve al listado de embarques.
+    const deleteShipment = (shipmentId) => {
+        const realId = realMappedId('shipments', shipmentId, shipmentId);
+        if (realId && PORTAL_TOKEN && !t.show_completed_route) {
+            portalRpc('/supplier/api/v2/delete_shipment', { token: PORTAL_TOKEN, shipment_id: realId })
+                .catch(err => console.error('[SupplierPortal] Error eliminando embarque:', err));
+        }
+        setProforma(prev => ({ ...prev, shipments: prev.shipments.filter(s => s.id !== shipmentId) }));
+        setRoute({ section: 'shipments' });
+    };
+    // Eliminar un packing list: lo quita del embarque y, si ya existe en Odoo,
+    // llama al endpoint de borrado.
+    const deletePacking = (shipmentId, packingId) => {
+        const realShipId = realMappedId('shipments', shipmentId, shipmentId);
+        const realPackingId = portalIsRealId(packingId)
+            ? parseInt(packingId, 10)
+            : (idMapRef.current.packings[realShipId + ':' + packingId] || 0);
+        if (realPackingId && PORTAL_TOKEN && !t.show_completed_route) {
+            portalRpc('/supplier/api/v2/delete_packing', { token: PORTAL_TOKEN, packing_id: realPackingId })
+                .catch(err => console.error('[SupplierPortal] Error eliminando packing:', err));
+        }
+        setProforma(prev => ({
+            ...prev,
+            shipments: prev.shipments.map(s => s.id === shipmentId
+                ? { ...s, packings: s.packings.filter(p => p.id !== packingId) }
+                : s),
+        }));
+    };
     return (React.createElement(LangCtx.Provider, { value: { lang, t: tFn } },
         React.createElement("div", { className: "app" },
             React.createElement("header", { className: "app-header" },
@@ -3125,11 +3288,11 @@ function App() {
                     route.section === 'overview' && React.createElement(Overview, { proforma: proforma, status: status, setRoute: setRoute }),
                     route.section === 'globals' && React.createElement(Globals, { proforma: proforma, setProforma: setProforma, status: status, setRoute: setRoute, validationStyle: t.validation_style }),
                     route.section === 'shipments' && React.createElement(ShipmentsList, { proforma: proforma, setProforma: setProforma, status: status, setRoute: setRoute }),
-                    route.section === 'shipment' && React.createElement(ShipmentDetail, { proforma: proforma, setProforma: setProforma, status: status, setRoute: setRoute, route: route, openPackingWizard: openPackingWizard }),
+                    route.section === 'shipment' && React.createElement(ShipmentDetail, { proforma: proforma, setProforma: setProforma, status: status, setRoute: setRoute, route: route, openPackingWizard: openPackingWizard, onDeleteShipment: deleteShipment, onDeletePacking: deletePacking }),
                     route.section === 'documents' && React.createElement(Documents, { proforma: proforma, setProforma: setProforma, setRoute: setRoute }),
                     route.section === 'review' && React.createElement(Confirm, { proforma: proforma, status: status, setRoute: setRoute, onComplete: completePortal })),
                 guideOpen && React.createElement(GuidePanel, { route: route, onClose: () => setGuideOpen(false) })),
-            packingWiz && (React.createElement(PackingWizard, { proforma: proforma, shipmentId: packingWiz.shipmentId, packingId: packingWiz.packingId, sampleRows: SAMPLE_ROWS, onClose: closePackingWizard, onSave: savePacking })),
+            packingWiz && (React.createElement(PackingWizard, { proforma: proforma, shipmentId: packingWiz.shipmentId, packingId: packingWiz.packingId, sampleRows: SAMPLE_ROWS, onClose: closePackingWizard, onSave: savePacking, pendingImages: pendingImagesRef })),
             showOnboard && React.createElement(Onboarding, { onClose: () => setShowOnboard(false) }),
             React.createElement(TweaksPanel, { title: "Tweaks" },
                 React.createElement(TweakSection, { label: "Idioma & branding" },

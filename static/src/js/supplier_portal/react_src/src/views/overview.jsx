@@ -55,7 +55,7 @@ const Overview = ({ proforma, status, setRoute }) => {
             </div>
             <div className="item">
               <strong>{proforma.products.reduce((a,p) => a + p.requested_qty, 0)}</strong>
-              piezas solicitadas
+              cantidad solicitada
             </div>
           </div>
         </div>

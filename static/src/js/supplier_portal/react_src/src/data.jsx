@@ -136,7 +136,7 @@ const SECTIONS = [
 // Compute per-section completion
 function computeStatus(proforma) {
   const g = proforma.globals;
-  const required = ['proforma_number','port_destination'];
+  const required = ['proforma_number'];
   const filled = required.filter(k => (g[k] || '').toString().trim().length > 0).length;
   const globals_pct = Math.round(filled / required.length * 100);
   const globals_status = globals_pct === 100 ? 'done' : globals_pct > 0 ? 'partial' : 'todo';

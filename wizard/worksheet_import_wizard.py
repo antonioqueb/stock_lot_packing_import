@@ -208,7 +208,7 @@ class WorksheetImportWizard(models.TransientModel):
                         idx.apply_revision_commands(cmds.get('commands', []), sheet.get('id'))
                 except: continue
             
-            product = pl_wizard._identify_product_from_sheet(idx)
+            product = pl_wizard._resolve_product_from_sheet_id(sheet) or pl_wizard._identify_product_from_sheet(idx)
             if not product: continue
             is_placa = self.picking_id._ws_product_is_placa(product)
 

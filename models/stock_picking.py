@@ -58,6 +58,34 @@ class StockPicking(models.Model):
     #  LOGICA DE LECTURA (Server -> Portal)
     # -------------------------------------------------------------------------
 
+    def _resolve_sheet_product(self, sheet):
+        """Resuelve el producto al que pertenece una hoja del spreadsheet.
+
+        Prioriza el id determinista de la hoja (``pl_sheet_<id>`` /
+        ``ws_sheet_<id>``) que se asigna al generar la plantilla. Solo si no
+        se puede resolver por id se recurre a la búsqueda difusa por el nombre
+        impreso en B1.
+
+        Esto es CLAVE cuando hay más de un producto: dos productos con nombres
+        parecidos (p. ej. variantes de un mismo material) resolvían ambos al
+        mismo registro con la búsqueda ``ilike ... limit=1``, colapsando varias
+        hojas en un solo producto y perdiendo las filas de los demás.
+        """
+        sheet_id = str(sheet.get('id') or '')
+        match = re.search(r'_sheet_(\d+)$', sheet_id)
+        if match:
+            product = self.env['product.product'].browse(int(match.group(1)))
+            if product.exists():
+                return product
+
+        b1_val = sheet.get('cells', {}).get("B1", {}).get("content", "")
+        if not b1_val:
+            return self.env['product.product']
+        p_ref = str(b1_val).split('(')[0].strip()
+        return self.env['product.product'].search([
+            '|', ('name', 'ilike', p_ref), ('default_code', 'ilike', p_ref)
+        ], limit=1)
+
     def get_packing_list_data_for_portal(self):
         """
         Lee el Spreadsheet actual.
@@ -78,15 +106,8 @@ class StockPicking(models.Model):
         
         for sheet in sheets:
             cells = sheet.get('cells', {})
-            b1_val = cells.get("B1", {}).get("content", "")
-            
-            if not b1_val: continue
 
-            p_ref = str(b1_val).split('(')[0].strip()
-            product = self.env['product.product'].search([
-                '|', ('name', 'ilike', p_ref), ('default_code', 'ilike', p_ref)
-            ], limit=1)
-            
+            product = self._resolve_sheet_product(sheet)
             if not product: continue
 
             unit_type = product.product_tmpl_id.x_unidad_del_producto or 'Placa'
@@ -314,24 +335,19 @@ class StockPicking(models.Model):
         # Mapear productos a hojas y limpiar datos viejos
         for sheet in sheets:
             cells = sheet.get('cells', {})
-            b1_val = cells.get("B1", {}).get("content", "")
-            if b1_val:
-                p_ref = str(b1_val).split('(')[0].strip()
-                product = self.env['product.product'].search([
-                    '|', ('name', 'ilike', p_ref), ('default_code', 'ilike', p_ref)
-                ], limit=1)
-                
-                if product:
-                    product_sheet_map[product.id] = sheet
-                    keys_to_remove = []
-                    for key in list(cells.keys()):
-                        match = re.match(r'^([A-Z]+)(\d+)$', key)
-                        if match:
-                            row_num = int(match.group(2))
-                            if row_num >= 4:
-                                keys_to_remove.append(key)
-                    for k in keys_to_remove:
-                        del cells[k]
+            product = self._resolve_sheet_product(sheet)
+
+            if product:
+                product_sheet_map[product.id] = sheet
+                keys_to_remove = []
+                for key in list(cells.keys()):
+                    match = re.match(r'^([A-Z]+)(\d+)$', key)
+                    if match:
+                        row_num = int(match.group(2))
+                        if row_num >= 4:
+                            keys_to_remove.append(key)
+                for k in keys_to_remove:
+                    del cells[k]
 
         rows_by_product = {}
         for row in rows:

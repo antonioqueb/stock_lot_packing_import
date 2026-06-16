@@ -8,7 +8,7 @@ const SHIP_TABS = [
   { id: 'documents',  label: 'Documentos',      icon: 'file' },
 ];
 
-const ShipmentDetail = ({ proforma, setProforma, status, setRoute, route, openPackingWizard }) => {
+const ShipmentDetail = ({ proforma, setProforma, status, setRoute, route, openPackingWizard, onDeleteShipment, onDeletePacking }) => {
   const ship = proforma.shipments.find(s => s.id === route.shipmentId);
   const idx = proforma.shipments.findIndex(s => s.id === route.shipmentId);
   const sst = status.shipments_status[idx];
@@ -48,7 +48,10 @@ const ShipmentDetail = ({ proforma, setProforma, status, setRoute, route, openPa
         </div>
         <div className="head-actions">
           <span className="text-muted text-small">{sst.pct}% completo</span>
-          <Btn variant="ghost" icon="trash" className="btn-danger-ghost">Eliminar embarque</Btn>
+          <Btn variant="ghost" icon="trash" className="btn-danger-ghost" onClick={() => {
+            if (typeof onDeleteShipment === 'function' && window.confirm(`¿Eliminar el embarque #${ship.number}? Se borrarán sus invoices, contenedores y packing lists. Esta acción no se puede deshacer.`))
+              onDeleteShipment(ship.id);
+          }}>Eliminar embarque</Btn>
         </div>
       </div>
 
@@ -79,7 +82,7 @@ const ShipmentDetail = ({ proforma, setProforma, status, setRoute, route, openPa
       {tab === 'logistics'  && <TabLogistics ship={ship} updateShip={updateShip}/>}
       {tab === 'invoices'   && <TabInvoices ship={ship} updateShip={updateShip}/>}
       {tab === 'containers' && <TabContainers ship={ship} updateShip={updateShip}/>}
-      {tab === 'packings'   && <TabPackings ship={ship} updateShip={updateShip} openPackingWizard={openPackingWizard} proforma={proforma}/>}
+      {tab === 'packings'   && <TabPackings ship={ship} updateShip={updateShip} openPackingWizard={openPackingWizard} proforma={proforma} onDeletePacking={onDeletePacking}/>}
       {tab === 'documents'  && <TabDocuments ship={ship} updateShip={updateShip}/>}
     </div>
   );
@@ -129,7 +132,7 @@ const TabLogistics = ({ ship, updateShip }) => (
         </Badge>
       </div>
 
-      <div className="fld-row cols-3">
+      <div className="fld-row cols-2">
         <Field label="Número de B/L" required
                help="El número único que asigna la naviera a tu embarque." helpExample="COSU6817042500">
           <Input mono placeholder="Ej. COSU6817042500" value={ship.bl_number}
@@ -137,17 +140,6 @@ const TabLogistics = ({ ship, updateShip }) => (
         </Field>
         <Field label="Fecha de B/L" required help="Fecha que aparece impresa en el documento.">
           <Input type="date" value={ship.bl_date} onChange={(e) => updateShip({ bl_date: e.target.value })}/>
-        </Field>
-        <Field label="Archivo PDF" required help="Sube el PDF original. Aceptamos máximo 10 MB.">
-          {ship.bl_file ? (
-            <div style={{display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0'}}>
-              <Icon name="file" size={14} style={{color: 'var(--accent)'}}/>
-              <span className="mono" style={{fontSize: 13}}>{ship.bl_file}</span>
-              <Btn variant="ghost" size="sm" icon="x" onClick={() => updateShip({ bl_file: '' })}/>
-            </div>
-          ) : (
-            <Btn variant="secondary" icon="upload">Subir PDF</Btn>
-          )}
         </Field>
       </div>
     </div>
@@ -292,7 +284,7 @@ const TabContainers = ({ ship, updateShip }) => {
                   </Field>
                 </div>
                 <div className="fld-row cols-3" style={{marginTop: 14}}>
-                  <Field label="Peso bruto (kg)" required>
+                  <Field label="Peso bruto (kg)">
                     <Input mono type="number" placeholder="27500" value={c.weight || ''}
                            onChange={(e) => updC(c.id, { weight: +e.target.value })}/>
                   </Field>
@@ -317,7 +309,7 @@ const TabContainers = ({ ship, updateShip }) => {
 /* ============================================================
    Packings tab — lists packings, button to open wizard
    ============================================================ */
-const TabPackings = ({ ship, updateShip, openPackingWizard, proforma }) => {
+const TabPackings = ({ ship, updateShip, openPackingWizard, proforma, onDeletePacking }) => {
   return (
     <div>
       <div className="card">
@@ -364,7 +356,13 @@ const TabPackings = ({ ship, updateShip, openPackingWizard, proforma }) => {
                       </span>}
                     </div>
                   </div>
-                  <Btn variant="secondary" icon="pencil" onClick={() => openPackingWizard(ship.id, pk.id)}>Editar</Btn>
+                  <div style={{display: 'flex', gap: 8}}>
+                    <Btn variant="secondary" icon="pencil" onClick={() => openPackingWizard(ship.id, pk.id)}>Editar</Btn>
+                    <Btn variant="ghost" icon="trash" className="btn-danger-ghost" onClick={() => {
+                      if (typeof onDeletePacking === 'function' && window.confirm(`¿Eliminar el packing list ${pk.number}? Se borrarán todas sus filas. Esta acción no se puede deshacer.`))
+                        onDeletePacking(ship.id, pk.id);
+                    }}>Eliminar</Btn>
+                  </div>
                 </div>
               );
             })}
