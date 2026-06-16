@@ -672,25 +672,29 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
               </tr>
             </thead>
             <tbody>
-              {visibleRows.map((r, i) => {
-                const area = (r.h && r.w) ? (r.h * r.w).toFixed(2) : '';
-                const noH = !r.h;
-                const noW = !r.w;
+              {visibleRows.flatMap((r, i) => {
+                const hNum = parseFloat(r.h) || 0;
+                const wNum = parseFloat(r.w) || 0;
+                const area = (hNum && wNum) ? (hNum * wNum).toFixed(2) : '';
+                const noH = !hNum;
+                const noW = !wNum;
                 const noC = !r.container;
                 const isProductStart = i === 0 || prodKey(visibleRows[i-1]) !== prodKey(r);
                 const isBlockStart = isProductStart || visibleRows[i-1].block !== r.block;
                 const prod = productById[prodKey(r)];
-                return (
-                  <React.Fragment key={r.id}>
-                  {multiProduct && isProductStart && (
-                    <tr className="product-group" data-noncommentable="">
+                const els = [];
+                if (multiProduct && isProductStart) {
+                  els.push(
+                    <tr key={'grp-' + r.id} className="product-group" data-noncommentable="">
                       <td colSpan={anyPlaca ? 11 : 10} style={{background: 'var(--accent-soft)', borderTop: '2px solid var(--accent)', padding: '8px 12px', fontSize: 12.5, letterSpacing: '0.02em', position: 'sticky', left: 0}}>
                         <span style={{fontWeight: 700, color: 'var(--accent)'}}>{(prod && prod.name) || 'Producto'}</span>
                         {prod && prod.ref ? <span className="mono" style={{marginLeft: 8, color: 'var(--ink-3)', fontWeight: 600}}>{prod.ref}</span> : null}
                       </td>
                     </tr>
-                  )}
-                  <tr className={`${isBlockStart ? 'block-start' : ''} ${activeRow === r.id ? 'is-active' : ''}`}
+                  );
+                }
+                els.push(
+                  <tr key={r.id} className={`${isBlockStart ? 'block-start' : ''} ${activeRow === r.id ? 'is-active' : ''}`}
                       onClick={() => setActiveRow(r.id)}>
                     <td style={{textAlign: 'center', color: 'var(--ink-4)', fontSize: 11}}>{rows.indexOf(r) + 1}</td>
                     <td className="cell-block"><input value={r.block} onChange={(e) => updRow(r.id, { block: e.target.value })}/></td>
@@ -701,15 +705,15 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                       <input value={r.plate} onChange={(e) => updRow(r.id, { plate: e.target.value })}/>
                     )})}
                     {PropCell({ rowId: r.id, field: "thickness", children: (
-                      <input type="number" step="0.1" value={r.thickness} onChange={(e) => updRow(r.id, { thickness: +e.target.value })}/>
+                      <input type="text" inputMode="decimal" value={r.thickness || ''} onChange={(e) => updRow(r.id, { thickness: e.target.value })}/>
                     )})}
                     {PropCell({ rowId: r.id, field: "h", errClass: noH ? 'is-error' : '', children: (
-                      <input type="number" step="0.01" value={r.h || ''} placeholder="0.00"
-                             onChange={(e) => updRow(r.id, { h: +e.target.value })}/>
+                      <input type="text" inputMode="decimal" value={r.h || ''} placeholder="0.00"
+                             onChange={(e) => updRow(r.id, { h: e.target.value })}/>
                     )})}
                     {PropCell({ rowId: r.id, field: "w", errClass: noW ? 'is-error' : '', children: (
-                      <input type="number" step="0.01" value={r.w || ''} placeholder="0.00"
-                             onChange={(e) => updRow(r.id, { w: +e.target.value })}/>
+                      <input type="text" inputMode="decimal" value={r.w || ''} placeholder="0.00"
+                             onChange={(e) => updRow(r.id, { w: e.target.value })}/>
                     )})}
                     <td className="cell-computed"><input readOnly value={area}/></td>
                     {PropCell({ rowId: r.id, field: "container", errClass: noC ? 'is-error' : '', children: (
@@ -737,8 +741,8 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                       <input placeholder="—" value={r.notes} onChange={(e) => updRow(r.id, { notes: e.target.value })}/>
                     )})}
                   </tr>
-                  </React.Fragment>
                 );
+                return els;
               })}
             </tbody>
           </table>

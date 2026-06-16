@@ -2421,21 +2421,21 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                             React.createElement("th", { style: { minWidth: 180 } }, "Contenedor"),
                             anyPlaca && React.createElement("th", { style: { width: 60 } }, "Foto"),
                             React.createElement("th", { style: { minWidth: 170 } }, "Notas"))),
-                    React.createElement("tbody", null, visibleRows.map((r, i) => {
-                        const area = (r.h && r.w) ? (r.h * r.w).toFixed(2) : '';
-                        const noH = !r.h;
-                        const noW = !r.w;
+                    React.createElement("tbody", null, visibleRows.flatMap((r, i) => {
+                        const hNum = parseFloat(r.h) || 0;
+                        const wNum = parseFloat(r.w) || 0;
+                        const area = (hNum && wNum) ? (hNum * wNum).toFixed(2) : '';
+                        const noH = !hNum;
+                        const noW = !wNum;
                         const noC = !r.container;
                         const isProductStart = i === 0 || prodKey(visibleRows[i - 1]) !== prodKey(r);
                         const isBlockStart = isProductStart || visibleRows[i - 1].block !== r.block;
                         const prod = productById[prodKey(r)];
-                        const groupHeader = (multiProduct && isProductStart) ? React.createElement("tr", { className: "product-group", "data-noncommentable": "" },
+                        const groupHeader = (multiProduct && isProductStart) ? React.createElement("tr", { key: 'grp-' + r.id, className: "product-group", "data-noncommentable": "" },
                             React.createElement("td", { colSpan: anyPlaca ? 11 : 10, style: { background: 'var(--accent-soft)', borderTop: '2px solid var(--accent)', padding: '8px 12px', fontSize: 12.5, letterSpacing: '0.02em', position: 'sticky', left: 0 } },
                                 React.createElement("span", { style: { fontWeight: 700, color: 'var(--accent)' } }, (prod && prod.name) || 'Producto'),
                                 (prod && prod.ref) ? React.createElement("span", { className: "mono", style: { marginLeft: 8, color: 'var(--ink-3)', fontWeight: 600 } }, prod.ref) : null)) : null;
-                        return (React.createElement(React.Fragment, { key: r.id },
-                            groupHeader,
-                            React.createElement("tr", { className: `${isBlockStart ? 'block-start' : ''} ${activeRow === r.id ? 'is-active' : ''}`, onClick: () => setActiveRow(r.id) },
+                        const dataRow = React.createElement("tr", { key: r.id, className: `${isBlockStart ? 'block-start' : ''} ${activeRow === r.id ? 'is-active' : ''}`, onClick: () => setActiveRow(r.id) },
                             React.createElement("td", { style: { textAlign: 'center', color: 'var(--ink-4)', fontSize: 11 } }, rows.indexOf(r) + 1),
                             React.createElement("td", { className: "cell-block" },
                                 React.createElement("input", { value: r.block, onChange: (e) => updRow(r.id, { block: e.target.value }) })),
@@ -2444,11 +2444,11 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                             PropCell({ rowId: r.id, field: "plate" },
                                 React.createElement("input", { value: r.plate, onChange: (e) => updRow(r.id, { plate: e.target.value }) })),
                             PropCell({ rowId: r.id, field: "thickness" },
-                                React.createElement("input", { type: "number", step: "0.1", value: r.thickness, onChange: (e) => updRow(r.id, { thickness: +e.target.value }) })),
+                                React.createElement("input", { type: "text", inputMode: "decimal", value: r.thickness || '', onChange: (e) => updRow(r.id, { thickness: e.target.value }) })),
                             PropCell({ rowId: r.id, field: "h", errClass: noH ? 'is-error' : '' },
-                                React.createElement("input", { type: "number", step: "0.01", value: r.h || '', placeholder: "0.00", onChange: (e) => updRow(r.id, { h: +e.target.value }) })),
+                                React.createElement("input", { type: "text", inputMode: "decimal", value: r.h || '', placeholder: "0.00", onChange: (e) => updRow(r.id, { h: e.target.value }) })),
                             PropCell({ rowId: r.id, field: "w", errClass: noW ? 'is-error' : '' },
-                                React.createElement("input", { type: "number", step: "0.01", value: r.w || '', placeholder: "0.00", onChange: (e) => updRow(r.id, { w: +e.target.value }) })),
+                                React.createElement("input", { type: "text", inputMode: "decimal", value: r.w || '', placeholder: "0.00", onChange: (e) => updRow(r.id, { w: e.target.value }) })),
                             React.createElement("td", { className: "cell-computed" },
                                 React.createElement("input", { readOnly: true, value: area })),
                             PropCell({ rowId: r.id, field: "container", errClass: noC ? 'is-error' : '' },
@@ -2463,7 +2463,8 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                                         : React.createElement(Icon, { name: "camera", size: 12 }))
                                 : React.createElement("span", { className: "text-muted", style: { fontSize: 11 } }, "—")),
                             PropCell({ rowId: r.id, field: "notes" },
-                                React.createElement("input", { placeholder: "\u2014", value: r.notes, onChange: (e) => updRow(r.id, { notes: e.target.value }) })))));
+                                React.createElement("input", { placeholder: "\u2014", value: r.notes, onChange: (e) => updRow(r.id, { notes: e.target.value }) })));
+                        return groupHeader ? [groupHeader, dataRow] : [dataRow];
                     }))))),
         React.createElement(Callout, { tone: "info", icon: "sparkles", title: "Llena m\u00E1s r\u00E1pido con propagaci\u00F3n" },
             "Pasa el cursor sobre cualquier celda y ver\u00E1s ",
