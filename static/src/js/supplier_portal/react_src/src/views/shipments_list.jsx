@@ -52,8 +52,7 @@ const ShipmentsList = ({ proforma, setProforma, status, setRoute }) => {
       </div>
 
       {proforma.shipments.length === 0 ? (
-        <Empty icon="ship" title="No hay embarques registrados todavía"
-               action={<Btn variant="accent" icon="plus">Crear el primer embarque</Btn>}>
+        <Empty icon="ship" title="No hay embarques registrados todavía">
           Cuando sepas la fecha aproximada del envío, agrega un embarque y empieza a capturar logística y packing list.
         </Empty>
       ) : (

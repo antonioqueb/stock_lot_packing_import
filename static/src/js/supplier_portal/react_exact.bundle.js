@@ -1524,7 +1524,7 @@ const ShipmentsList = ({ proforma, setProforma, status, setRoute }) => {
                                 }]
                         });
                     } }, "Agregar embarque"))),
-        proforma.shipments.length === 0 ? (React.createElement(Empty, { icon: "ship", title: "No hay embarques registrados todav\u00EDa", action: React.createElement(Btn, { variant: "accent", icon: "plus" }, "Crear el primer embarque") }, "Cuando sepas la fecha aproximada del env\u00EDo, agrega un embarque y empieza a capturar log\u00EDstica y packing list.")) : (React.createElement("div", { style: { display: 'flex', flexDirection: 'column', gap: 12 } }, proforma.shipments.map((s, idx) => {
+        proforma.shipments.length === 0 ? (React.createElement(Empty, { icon: "ship", title: "No hay embarques registrados todav\u00EDa" }, "Cuando sepas la fecha aproximada del env\u00EDo, agrega un embarque y empieza a capturar log\u00EDstica y packing list.")) : (React.createElement("div", { style: { display: 'flex', flexDirection: 'column', gap: 12 } }, proforma.shipments.map((s, idx) => {
             const sst = status.shipments_status[idx];
             return (React.createElement("div", { key: s.id, className: "ship-card", onClick: () => setRoute({ section: 'shipment', shipmentId: s.id }) },
                 React.createElement("div", { className: "num" },
@@ -1695,7 +1695,7 @@ const TabInvoices = ({ ship, updateShip }) => {
                     React.createElement("h2", null, "Invoices (Facturas comerciales)"),
                     React.createElement("p", { className: "sub" }, "La factura comercial que emites para el embarque. Puede ser una global o varias parciales.")),
                 React.createElement(Btn, { variant: "primary", icon: "plus", size: "sm", onClick: addInvoice }, "Agregar invoice")),
-            ship.invoices.length === 0 ? (React.createElement(Empty, { icon: "invoice", title: "A\u00FAn no hay invoices", action: React.createElement(Btn, { variant: "accent", icon: "plus", onClick: addInvoice }, "Agregar primer invoice") }, "Crea al menos una factura comercial por cada embarque. Puedes asignarla a todo el embarque o solo a contenedores espec\u00EDficos.")) : (React.createElement("div", { style: { display: 'flex', flexDirection: 'column', gap: 14 } },
+            ship.invoices.length === 0 ? (React.createElement(Empty, { icon: "invoice", title: "A\u00FAn no hay invoices" }, "Crea al menos una factura comercial por cada embarque. Puedes asignarla a todo el embarque o solo a contenedores espec\u00EDficos.")) : (React.createElement("div", { style: { display: 'flex', flexDirection: 'column', gap: 14 } },
                 ship.invoices.map((inv, i) => (React.createElement("div", { key: inv.id, style: { border: '1px solid var(--border)', borderRadius: 12, padding: 16, background: 'var(--surface-alt)' } },
                     React.createElement("div", { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 } },
                         React.createElement("strong", { style: { fontSize: 13 } },
@@ -1730,7 +1730,7 @@ const TabContainers = ({ ship, updateShip }) => {
                 React.createElement("h2", null, "Contenedores"),
                 React.createElement("p", { className: "sub" }, "Cada caja f\u00EDsica que viaja en el embarque. Los n\u00FAmeros son los que est\u00E1n pintados en el contenedor (4 letras + 7 d\u00EDgitos).")),
             React.createElement(Btn, { variant: "primary", icon: "plus", size: "sm", onClick: addC }, "Agregar contenedor")),
-        ship.containers.length === 0 ? (React.createElement(Empty, { icon: "container", title: "Sin contenedores", action: React.createElement(Btn, { variant: "accent", icon: "plus", onClick: addC }, "Agregar primer contenedor") }, "Captura los n\u00FAmeros de contenedor en cuanto te los entregue tu agente. Los necesitas antes del packing list.")) : (React.createElement("div", { style: { display: 'flex', flexDirection: 'column', gap: 14 } }, ship.containers.map((c, i) => {
+        ship.containers.length === 0 ? (React.createElement(Empty, { icon: "container", title: "Sin contenedores" }, "Captura los n\u00FAmeros de contenedor en cuanto te los entregue tu agente. Los necesitas antes del packing list.")) : (React.createElement("div", { style: { display: 'flex', flexDirection: 'column', gap: 14 } }, ship.containers.map((c, i) => {
             const isBad = c.number && !/^[A-Z]{4}\d{7}$/.test(c.number);
             return (React.createElement("div", { key: c.id, style: {
                     border: '1px solid var(--border)', borderRadius: 12, padding: 16,
@@ -1788,7 +1788,7 @@ const TabPackings = ({ ship, updateShip, openPackingWizard, proforma, onDeletePa
                         React.createElement("strong", null, "Es la parte m\u00E1s detallada."),
                         " Te guiaremos con un asistente.")),
                 React.createElement(Btn, { variant: "primary", icon: "plus", onClick: () => openPackingWizard(ship.id, null) }, "Nuevo packing")),
-            ship.packings.length === 0 ? (React.createElement(Empty, { icon: "box", title: "Sin packing lists todav\u00EDa", action: React.createElement(Btn, { variant: "accent", icon: "sparkles", onClick: () => openPackingWizard(ship.id, null) }, "Empezar con el asistente") },
+            ship.packings.length === 0 ? (React.createElement(Empty, { icon: "box", title: "Sin packing lists todav\u00EDa" },
                 "El asistente te llevar\u00E1 paso a paso: ",
                 React.createElement("strong", null, "1)"),
                 " Eliges productos \u00B7 ",

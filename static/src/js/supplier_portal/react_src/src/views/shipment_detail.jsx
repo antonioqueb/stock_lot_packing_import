@@ -169,8 +169,7 @@ const TabInvoices = ({ ship, updateShip }) => {
         </div>
 
         {ship.invoices.length === 0 ? (
-          <Empty icon="invoice" title="Aún no hay invoices"
-                 action={<Btn variant="accent" icon="plus" onClick={addInvoice}>Agregar primer invoice</Btn>}>
+          <Empty icon="invoice" title="Aún no hay invoices">
             Crea al menos una factura comercial por cada embarque. Puedes asignarla a todo el embarque o solo a contenedores específicos.
           </Empty>
         ) : (
@@ -236,8 +235,7 @@ const TabContainers = ({ ship, updateShip }) => {
       </div>
 
       {ship.containers.length === 0 ? (
-        <Empty icon="container" title="Sin contenedores"
-               action={<Btn variant="accent" icon="plus" onClick={addC}>Agregar primer contenedor</Btn>}>
+        <Empty icon="container" title="Sin contenedores">
           Captura los números de contenedor en cuanto te los entregue tu agente. Los necesitas antes del packing list.
         </Empty>
       ) : (
@@ -322,8 +320,7 @@ const TabPackings = ({ ship, updateShip, openPackingWizard, proforma, onDeletePa
         </div>
 
         {ship.packings.length === 0 ? (
-          <Empty icon="box" title="Sin packing lists todavía"
-                 action={<Btn variant="accent" icon="sparkles" onClick={() => openPackingWizard(ship.id, null)}>Empezar con el asistente</Btn>}>
+          <Empty icon="box" title="Sin packing lists todavía">
             El asistente te llevará paso a paso: <strong>1)</strong> Eliges productos · <strong>2)</strong> Configuras bloques con foto · <strong>3)</strong> Llenas placa por placa.
           </Empty>
         ) : (
