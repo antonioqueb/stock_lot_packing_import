@@ -1862,21 +1862,107 @@ const TabPackings = ({ ship, updateShip, openPackingWizard, proforma, onDeletePa
 /* ============================================================
    Documents tab (per shipment)
    ============================================================ */
+// Mapea los documentos serializados del backend a la forma del estado del portal.
+const mapServerDocs = (docs) => (docs || []).map(d => ({
+    id: d.id,
+    name: d.name || 'documento',
+    kind: docKind(d.document_type || d.kind),
+    size: d.file_size || d.size || 0,
+    uploaded: d.uploaded || d.create_date || '',
+}));
 const TabDocuments = ({ ship, updateShip }) => {
+    // docType = valor válido en el backend (modelo supplier.shipment.document).
     const DOC_TYPES = [
-        { kind: 'BL', label: 'Bill of Lading (B/L)', desc: 'El PDF del B/L que emite la naviera. Es obligatorio: sin él, aduanas no libera el embarque.', required: true },
-        { kind: 'CO', label: 'Certificate of Origin', desc: 'Certifica el país donde se fabricó la mercancía. Lo emite la Cámara de Comercio local.' },
-        { kind: 'PHYTO', label: 'Certificado fitosanitario', desc: 'Si la mercancía incluye empaque de madera, certifica que está fumigada (HT/MB).' },
-        { kind: 'INSPEC', label: 'Reporte de inspección', desc: 'Reporte de inspección de calidad pre-embarque (SGS, Bureau Veritas, etc).' },
-        { kind: 'OTHER', label: 'Otros documentos', desc: 'Cualquier otro documento relevante para aduanas.' },
+        { kind: 'BL', docType: 'bl', label: 'Bill of Lading (B/L)', desc: 'El PDF del B/L que emite la naviera. Es obligatorio: sin él, aduanas no libera el embarque.', required: true },
+        { kind: 'CO', docType: 'certificate_origin', label: 'Certificate of Origin', desc: 'Certifica el país donde se fabricó la mercancía. Lo emite la Cámara de Comercio local.' },
+        { kind: 'PHYTO', docType: 'fumigation', label: 'Certificado fitosanitario / fumigación', desc: 'Si la mercancía incluye empaque de madera, certifica que está fumigada (HT/MB).' },
+        { kind: 'EUR1', docType: 'eur1', label: 'EUR.1 (certificado de circulación)', desc: 'Certificado de circulación de mercancías, cuando aplica para la Unión Europea.' },
     ];
+    const [busy, setBusy] = React.useState(null);
+    const api = (typeof window !== 'undefined' && window.__supplierPortalApi) || null;
+    const pickDoc = async (dt, file) => {
+        if (!file)
+            return;
+        if (!api || !api.token) {
+            window.alert('No se puede subir el documento: el portal no tiene sesión activa.');
+            return;
+        }
+        const isPdf = file.type === 'application/pdf' || (file.name || '').toLowerCase().endsWith('.pdf');
+        if (!isPdf) {
+            window.alert('Solo se permiten archivos PDF.');
+            return;
+        }
+        if (file.size > 10 * 1024 * 1024) {
+            window.alert('El archivo supera el máximo de 10 MB.');
+            return;
+        }
+        setBusy(dt.kind);
+        try {
+            // El embarque debe existir en el servidor para adjuntarle documentos. Si
+            // es local (id temporal), forzamos el guardado y reintentamos.
+            let shipmentId = api.resolveRealId('shipments', ship.id);
+            if (!shipmentId && typeof api.flush === 'function') {
+                await api.flush();
+                shipmentId = api.resolveRealId('shipments', ship.id);
+            }
+            if (!shipmentId) {
+                window.alert('Primero guarda el embarque (espera unos segundos a que se sincronice) e intenta de nuevo.');
+                return;
+            }
+            const { data } = await fileToBase64(file);
+            const res = await portalRpc('/supplier/api/v2/upload_document', {
+                token: api.token,
+                shipment_id: shipmentId,
+                document_type: dt.docType,
+                file_data: data,
+                file_name: file.name || 'documento.pdf',
+                file_size: file.size || 0,
+                mime_type: file.type || 'application/pdf',
+            });
+            if (!res || !res.success) {
+                window.alert((res && res.message) || 'No se pudo subir el documento.');
+                return;
+            }
+            updateShip({ documents: mapServerDocs(res.documents) });
+        }
+        catch (err) {
+            console.error('[SupplierPortal] Error subiendo documento:', err);
+            window.alert('Ocurrió un error al subir el documento: ' + (err && err.message ? err.message : err));
+        }
+        finally {
+            setBusy(null);
+        }
+    };
+    const deleteDoc = async (dt, doc) => {
+        if (!api || !api.token || !doc)
+            return;
+        if (!window.confirm('¿Eliminar "' + doc.name + '"?'))
+            return;
+        setBusy(dt.kind);
+        try {
+            const res = await portalRpc('/supplier/api/v2/delete_document', { token: api.token, document_id: doc.id });
+            if (!res || !res.success) {
+                window.alert((res && res.message) || 'No se pudo eliminar el documento.');
+                return;
+            }
+            updateShip({ documents: mapServerDocs(res.documents) });
+        }
+        catch (err) {
+            console.error('[SupplierPortal] Error eliminando documento:', err);
+            window.alert('Ocurrió un error al eliminar el documento.');
+        }
+        finally {
+            setBusy(null);
+        }
+    };
     return (React.createElement("div", { className: "card" },
         React.createElement("div", { className: "card-head" },
             React.createElement("div", null,
                 React.createElement("h2", null, "Documentos del embarque"),
-                React.createElement("p", { className: "sub" }, "Sube los documentos legales y de calidad que acompa\u00F1an este embarque."))),
+                React.createElement("p", { className: "sub" }, "Sube los documentos legales y de calidad que acompa\u00F1an este embarque. Solo PDF, m\u00E1ximo 10 MB."))),
         React.createElement("div", { style: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14, marginBottom: 18 } }, DOC_TYPES.map(dt => {
             const doc = ship.documents.find(d => d.kind === dt.kind);
+            const isBusy = busy === dt.kind;
             return (React.createElement("div", { key: dt.kind, style: {
                     border: '1px solid var(--border)', borderRadius: 12, padding: 14, background: 'var(--surface)',
                     display: 'flex', flexDirection: 'column', gap: 10
@@ -1897,8 +1983,10 @@ const TabDocuments = ({ ship, updateShip }) => {
                             (doc.size / 1024).toFixed(0),
                             " KB \u00B7 ",
                             doc.uploaded)),
-                    React.createElement(Btn, { variant: "ghost", size: "sm", icon: "eye" }),
-                    React.createElement(Btn, { variant: "ghost", size: "sm", icon: "trash", className: "btn-danger-ghost" }))) : (React.createElement(Btn, { variant: "secondary", icon: "upload", size: "sm" }, "Subir PDF"))));
+                    React.createElement(Btn, { variant: "ghost", size: "sm", icon: "trash", className: "btn-danger-ghost", disabled: isBusy, onClick: () => deleteDoc(dt, doc) }))) : (React.createElement("label", { className: `btn btn-secondary sm ${isBusy ? 'is-disabled' : ''}`, style: { cursor: isBusy ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, alignSelf: 'flex-start' } },
+                    React.createElement("input", { type: "file", accept: "application/pdf,.pdf", style: { display: 'none' }, disabled: isBusy, onChange: (e) => { const f = e.target.files && e.target.files[0]; e.target.value = ''; pickDoc(dt, f); } }),
+                    React.createElement(Icon, { name: "upload", size: 13 }),
+                    isBusy ? 'Subiendo…' : 'Subir PDF'))));
         }))));
 };
 window.ShipmentDetail = ShipmentDetail;
@@ -3206,6 +3294,16 @@ function App() {
         }
         await persistSnapshot(proformaRef.current);
     }, [persistSnapshot]);
+    // API mínima expuesta para las pestañas (subida de documentos): resolver el id
+    // real del embarque (los locales tienen id temporal hasta persistir) y forzar
+    // el guardado para garantizar que el embarque exista antes de adjuntar el PDF.
+    React.useEffect(() => {
+        window.__supplierPortalApi = {
+            token: PORTAL_TOKEN,
+            resolveRealId: (kind, id) => realMappedId(kind, id, id),
+            flush: flushPersist,
+        };
+    }, [flushPersist, realMappedId]);
     const completePortal = React.useCallback(async () => {
         try {
             await flushPersist();
