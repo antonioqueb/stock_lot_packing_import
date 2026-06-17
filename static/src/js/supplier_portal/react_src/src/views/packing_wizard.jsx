@@ -157,6 +157,16 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
           {step === 4 && <Step4Sheet proforma={proforma} draft={draft} rows={rows} setRows={setRows} ship={ship} pendingImages={pendingImages}/>}
         </div>
 
+        {step === 4 && (
+          <div className="wizard-prop-tip">
+            <Icon name="sparkles" size={14}/>
+            <span>
+              <strong>Llena más rápido con propagación: </strong>
+              pasa el cursor sobre cualquier celda y verás dos íconos a la derecha — <span className="wizard-prop-chip"><Icon name="prop_one" size={11}/> uno</span> copia el valor a la siguiente fila del mismo bloque · <span className="wizard-prop-chip"><Icon name="prop_all" size={11}/> todos</span> copia a todas las filas debajo del mismo bloque. También puedes copiar/pegar desde Excel y usar <kbd className="wizard-prop-kbd">Tab</kbd> entre celdas.
+            </span>
+          </div>
+        )}
+
         <div className="modal-foot">
           <div>
             {step > 1 && step < 4 && <Btn variant="ghost" icon="arrow_left" onClick={() => setStep(step - 1)}>Anterior</Btn>}
@@ -761,14 +771,6 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
           </table>
         </div>
       </div>
-
-      <Callout tone="info" icon="sparkles" title="Llena más rápido con propagación">
-        Pasa el cursor sobre cualquier celda y verás <strong>dos íconos a la derecha</strong>:
-        <span style={{display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 6px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 5, fontFamily: 'var(--font-mono)', fontSize: 11, margin: '0 4px'}}><Icon name="prop_one" size={11}/> uno</span>
-        copia el valor a la siguiente fila del mismo bloque ·
-        <span style={{display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 6px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 5, fontFamily: 'var(--font-mono)', fontSize: 11, margin: '0 4px'}}><Icon name="prop_all" size={11}/> todos</span>
-        copia a todas las filas debajo en el mismo bloque. También puedes copiar/pegar desde Excel y usar <kbd style={{padding: '2px 5px', background: 'var(--surface-alt)', border: '1px solid var(--border)', borderRadius: 4, fontFamily: 'var(--font-mono)', fontSize: 11}}>Tab</kbd> entre celdas.
-      </Callout>
 
       {pasteOpen && (
         <div style={{position: 'fixed', inset: 0, zIndex: 2147483001, background: 'oklch(0.2 0.01 60 / 0.5)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24}}

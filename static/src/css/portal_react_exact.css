@@ -1046,6 +1046,43 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
   background: var(--surface) !important;
 }
 
+/* Tip de propagación fijo, justo encima de la barra de botones del asistente. */
+.modal-scrim > .modal > .wizard-prop-tip {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 24px;
+  border-top: 1px solid var(--border-soft);
+  background: var(--accent-soft);
+  color: var(--ink-2);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.modal-scrim > .modal > .wizard-prop-tip > .icon { color: var(--accent); flex-shrink: 0; }
+.modal-scrim > .modal > .wizard-prop-tip strong { color: var(--ink); }
+.wizard-prop-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  margin: 0 2px;
+  white-space: nowrap;
+}
+.wizard-prop-kbd {
+  padding: 2px 5px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
 /* La tabla scrollea por dentro (horizontal y vertical) para que la cabecera
    pueda quedar fija (sticky) mientras se recorren las filas. */
 .modal-scrim .sheet-scroll {
