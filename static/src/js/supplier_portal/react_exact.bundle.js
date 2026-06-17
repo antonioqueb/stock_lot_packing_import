@@ -2478,8 +2478,8 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
         { header: 'Atado',      field: 'atado',     type: 'string' },
         { header: 'No. Placa',  field: 'plate',     type: 'string' },
         { header: 'Grosor cm',  field: 'thickness', type: 'number' },
-        { header: 'Alto m',     field: 'h',         type: 'number' },
         { header: 'Largo m',    field: 'w',         type: 'number' },
+        { header: 'Alto m',     field: 'h',         type: 'number' },
         { header: 'Contenedor', field: 'container', type: 'string' },
         { header: 'Notas',      field: 'notes',     type: 'string' },
     ];
@@ -2595,8 +2595,8 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                             React.createElement("th", { style: { minWidth: 110 } }, "Atado"),
                             React.createElement("th", { style: { minWidth: 110 } }, "No. Placa"),
                             React.createElement("th", { style: { width: 110 } }, "Grosor cm"),
-                            React.createElement("th", { style: { width: 110 } }, "Alto m"),
                             React.createElement("th", { style: { width: 110 } }, "Largo m"),
+                            React.createElement("th", { style: { width: 110 } }, "Alto m"),
                             React.createElement("th", { style: { width: 80 } }, "\u00C1rea m\u00B2"),
                             React.createElement("th", { style: { minWidth: 180 } }, "Contenedor"),
                             anyPlaca && React.createElement("th", { style: { width: 60 } }, "Foto"),
@@ -2624,11 +2624,11 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                             PropCell({ rowId: r.id, field: "plate" },
                                 React.createElement("input", { value: r.plate, style: { textTransform: 'uppercase' }, onChange: forceUpper((e) => updRow(r.id, { plate: e.target.value })) })),
                             PropCell({ rowId: r.id, field: "thickness" },
-                                React.createElement("input", { type: "text", inputMode: "decimal", value: r.thickness || '', onChange: (e) => updRow(r.id, { thickness: e.target.value }) })),
-                            PropCell({ rowId: r.id, field: "h", errClass: noH ? 'is-error' : '' },
-                                React.createElement("input", { type: "text", inputMode: "decimal", value: r.h || '', placeholder: "0.00", onChange: (e) => updRow(r.id, { h: e.target.value }) })),
+                                React.createElement("input", { type: "text", inputMode: "decimal", value: r.thickness || '', onChange: (e) => updRow(r.id, { thickness: e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.') }) })),
                             PropCell({ rowId: r.id, field: "w", errClass: noW ? 'is-error' : '' },
-                                React.createElement("input", { type: "text", inputMode: "decimal", value: r.w || '', placeholder: "0.00", onChange: (e) => updRow(r.id, { w: e.target.value }) })),
+                                React.createElement("input", { type: "text", inputMode: "decimal", value: r.w || '', placeholder: "0.00", onChange: (e) => updRow(r.id, { w: e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.') }) })),
+                            PropCell({ rowId: r.id, field: "h", errClass: noH ? 'is-error' : '' },
+                                React.createElement("input", { type: "text", inputMode: "decimal", value: r.h || '', placeholder: "0.00", onChange: (e) => updRow(r.id, { h: e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.') }) })),
                             React.createElement("td", { className: "cell-computed" },
                                 React.createElement("input", { readOnly: true, value: area })),
                             PropCell({ rowId: r.id, field: "container", errClass: noC ? 'is-error' : '' },
@@ -2674,7 +2674,7 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                     React.createElement("button", { className: "icon-btn", onClick: () => setPasteOpen(false), "aria-label": "Cerrar" },
                         React.createElement(Icon, { name: "x", size: 16 }))),
                 React.createElement("div", { style: { padding: '16px 22px', display: 'flex', flexDirection: 'column', gap: 10, flex: '1 1 auto', minHeight: 0, overflow: 'auto' } },
-                    React.createElement("textarea", { value: pasteText, onChange: (e) => setPasteText(e.target.value), placeholder: 'Pega aqu\u00ED los datos copiados de Excel...\n\nColumnas esperadas (en este orden si no incluyes headers):\n#  Bloque  Atado  No. Placa  Grosor cm  Alto m  Largo m  Contenedor  Notas', autoFocus: true, spellCheck: false, style: { width: '100%', minHeight: 180, fontFamily: 'var(--font-mono)', fontSize: 12, padding: 12, border: '1px solid var(--border)', borderRadius: 8, resize: 'vertical', background: 'var(--surface-alt)', color: 'var(--ink)', lineHeight: 1.5 } }),
+                    React.createElement("textarea", { value: pasteText, onChange: (e) => setPasteText(e.target.value), placeholder: 'Pega aqu\u00ED los datos copiados de Excel...\n\nColumnas esperadas (en este orden si no incluyes headers):\n#  Bloque  Atado  No. Placa  Grosor cm  Largo m  Alto m  Contenedor  Notas', autoFocus: true, spellCheck: false, style: { width: '100%', minHeight: 180, fontFamily: 'var(--font-mono)', fontSize: 12, padding: 12, border: '1px solid var(--border)', borderRadius: 8, resize: 'vertical', background: 'var(--surface-alt)', color: 'var(--ink)', lineHeight: 1.5 } }),
                     pastePreview && pastePreview.dataRows.length > 0 && React.createElement("div", { style: { fontSize: 12, color: 'var(--ink-2)', padding: '10px 12px', background: 'var(--ok-soft)', border: '1px solid var(--ok)', borderRadius: 8, display: 'flex', flexDirection: 'column', gap: 4 } },
                         React.createElement("div", null,
                             React.createElement("strong", null, pastePreview.dataRows.length),
@@ -3053,6 +3053,37 @@ function portalIsRealId(value) {
 function portalToInt(value) {
     return portalIsRealId(value) ? parseInt(value, 10) : 0;
 }
+// Parser de decimales tolerante a formato internacional. Entiende punto o coma
+// como separador decimal (3,18 → 3.18) y separadores de miles. Number("3,18")
+// daría NaN→0, lo que provocaba que las medidas no se guardaran.
+function portalParseDecimal(value) {
+    if (value === null || value === undefined || value === '')
+        return 0;
+    if (typeof value === 'number')
+        return Number.isFinite(value) ? value : 0;
+    var s = String(value).trim().replace(/[^0-9.,-]/g, '');
+    if (!s)
+        return 0;
+    var neg = s.charAt(0) === '-';
+    s = s.replace(/-/g, '');
+    var hasC = s.indexOf(',') >= 0, hasD = s.indexOf('.') >= 0;
+    if (hasC && hasD) {
+        // El último separador es el decimal; el otro es de miles.
+        if (s.lastIndexOf(',') > s.lastIndexOf('.'))
+            s = s.replace(/\./g, '').replace(',', '.');
+        else
+            s = s.replace(/,/g, '');
+    }
+    else if (hasC) {
+        // Solo comas: decimal salvo que parezca separador de miles (1,234).
+        var p = s.split(',');
+        s = (p.length === 2 && p[1].length !== 3) ? s.replace(',', '.') : s.replace(/,/g, '');
+    }
+    var num = parseFloat(s);
+    if (!Number.isFinite(num))
+        return 0;
+    return neg ? -num : num;
+}
 function portalScope(value) {
     var scope = (value === null || value === undefined) ? '' : String(value).trim().toLowerCase();
     if (scope === 'specific' || scope === 'specific_container' || scope === 'specific_containers' || scope === 'containers' || scope === 'container') {
@@ -3195,9 +3226,9 @@ function App() {
                 container_id: containerIdForRow(shipmentId, ship, row) || false,
                 tipo,
                 grosor: row.thickness !== undefined ? String(row.thickness || '') : String(row.grosor || ''),
-                alto: Number(row.h || row.alto || 0),
-                ancho: Number(row.w || row.ancho || 0),
-                peso: Number(row.weight || row.peso || 0),
+                alto: portalParseDecimal(row.h !== undefined && row.h !== '' ? row.h : row.alto),
+                ancho: portalParseDecimal(row.w !== undefined && row.w !== '' ? row.w : row.ancho),
+                peso: portalParseDecimal(row.weight !== undefined && row.weight !== '' ? row.weight : row.peso),
                 quantity: tipo === 'Placa' ? 0 : Number(row.quantity || row.qty || 1),
                 bloque: row.block || row.bloque || '',
                 numero_placa: row.plate || row.numero_placa || '',

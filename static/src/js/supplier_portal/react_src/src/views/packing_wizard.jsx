@@ -535,8 +535,8 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
     { header: 'Atado',      field: 'atado',     type: 'string' },
     { header: 'No. Placa',  field: 'plate',     type: 'string' },
     { header: 'Grosor cm',  field: 'thickness', type: 'number' },
-    { header: 'Alto m',     field: 'h',         type: 'number' },
     { header: 'Largo m',    field: 'w',         type: 'number' },
+    { header: 'Alto m',     field: 'h',         type: 'number' },
     { header: 'Contenedor', field: 'container', type: 'string' },
     { header: 'Notas',      field: 'notes',     type: 'string' },
   ];
@@ -661,8 +661,8 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                 <th style={{minWidth: 110}}>Atado</th>
                 <th style={{minWidth: 110}}>No. Placa</th>
                 <th style={{width: 110}}>Grosor cm</th>
-                <th style={{width: 110}}>Alto m</th>
                 <th style={{width: 110}}>Largo m</th>
+                <th style={{width: 110}}>Alto m</th>
                 <th style={{width: 80}}>Área m²</th>
                 <th style={{minWidth: 180}}>Contenedor</th>
                 {anyPlaca && <th style={{width: 60}}>Foto</th>}
@@ -703,15 +703,15 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                       <input value={r.plate} style={{textTransform: 'uppercase'}} onChange={forceUpper((e) => updRow(r.id, { plate: e.target.value }))}/>
                     )})}
                     {PropCell({ rowId: r.id, field: "thickness", children: (
-                      <input type="text" inputMode="decimal" value={r.thickness || ''} onChange={(e) => updRow(r.id, { thickness: e.target.value })}/>
-                    )})}
-                    {PropCell({ rowId: r.id, field: "h", errClass: noH ? 'is-error' : '', children: (
-                      <input type="text" inputMode="decimal" value={r.h || ''} placeholder="0.00"
-                             onChange={(e) => updRow(r.id, { h: e.target.value })}/>
+                      <input type="text" inputMode="decimal" value={r.thickness || ''} onChange={(e) => updRow(r.id, { thickness: e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.') })}/>
                     )})}
                     {PropCell({ rowId: r.id, field: "w", errClass: noW ? 'is-error' : '', children: (
                       <input type="text" inputMode="decimal" value={r.w || ''} placeholder="0.00"
-                             onChange={(e) => updRow(r.id, { w: e.target.value })}/>
+                             onChange={(e) => updRow(r.id, { w: e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.') })}/>
+                    )})}
+                    {PropCell({ rowId: r.id, field: "h", errClass: noH ? 'is-error' : '', children: (
+                      <input type="text" inputMode="decimal" value={r.h || ''} placeholder="0.00"
+                             onChange={(e) => updRow(r.id, { h: e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.') })}/>
                     )})}
                     <td className="cell-computed"><input readOnly value={area}/></td>
                     {PropCell({ rowId: r.id, field: "container", errClass: noC ? 'is-error' : '', children: (
@@ -772,7 +772,7 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
               <textarea
                 value={pasteText}
                 onChange={(e) => setPasteText(e.target.value)}
-                placeholder={'Pega aquí los datos copiados de Excel...\n\nColumnas esperadas (en este orden si no incluyes headers):\n#  Bloque  Atado  No. Placa  Grosor cm  Alto m  Largo m  Contenedor  Notas'}
+                placeholder={'Pega aquí los datos copiados de Excel...\n\nColumnas esperadas (en este orden si no incluyes headers):\n#  Bloque  Atado  No. Placa  Grosor cm  Largo m  Alto m  Contenedor  Notas'}
                 autoFocus
                 spellCheck={false}
                 style={{width: '100%', minHeight: 180, fontFamily: 'var(--font-mono)', fontSize: 12, padding: 12, border: '1px solid var(--border)', borderRadius: 8, resize: 'vertical', background: 'var(--surface-alt)', color: 'var(--ink)', lineHeight: 1.5}}
