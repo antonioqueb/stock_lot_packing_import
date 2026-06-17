@@ -2787,7 +2787,7 @@ const Documents = ({ proforma, setProforma, setRoute }) => {
             React.createElement("div", { className: "text" },
                 React.createElement("h1", null, "Documentos generales"),
                 React.createElement("p", { className: "lead" }, "Documentos que aplican a toda la Proforma (no a un embarque específico). Los documentos por embarque están dentro de cada embarque."))),
-        React.createElement("input", { ref: fileRef, type: "file", accept: "application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png", multiple: true, style: { display: 'none' }, onChange: (e) => { const fl = e.target.files; e.target.value = ''; uploadMany(pendingTypeRef.current, fl); } }),
+        React.createElement("input", { ref: fileRef, type: "file", accept: "application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png", multiple: true, style: { display: 'none' }, onChange: (e) => { const files = Array.from(e.target.files || []); e.target.value = ''; uploadMany(pendingTypeRef.current, files); } }),
         React.createElement("div", { className: `dropzone ${drag ? 'is-drag' : ''}`, style: { cursor: 'pointer' }, onClick: () => openPicker('general_other'), onDragEnter: (e) => { e.preventDefault(); setDrag(true); }, onDragLeave: () => setDrag(false), onDragOver: (e) => e.preventDefault(), onDrop: (e) => { e.preventDefault(); setDrag(false); uploadMany('general_other', e.dataTransfer.files); } },
             React.createElement("div", { className: "dz-icon" },
                 React.createElement(Icon, { name: "upload", size: 28 })),

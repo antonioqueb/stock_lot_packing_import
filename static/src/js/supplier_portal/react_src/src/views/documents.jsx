@@ -104,7 +104,7 @@ const Documents = ({ proforma, setProforma, setRoute }) => {
       </div>
 
       <input ref={fileRef} type="file" accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png" multiple style={{display: 'none'}}
-             onChange={(e) => { const fl = e.target.files; e.target.value = ''; uploadMany(pendingTypeRef.current, fl); }}/>
+             onChange={(e) => { const files = Array.from(e.target.files || []); e.target.value = ''; uploadMany(pendingTypeRef.current, files); }}/>
       <div className={`dropzone ${drag ? 'is-drag' : ''}`} style={{cursor: 'pointer'}}
            onClick={() => openPicker('general_other')}
            onDragEnter={(e) => { e.preventDefault(); setDrag(true); }}
