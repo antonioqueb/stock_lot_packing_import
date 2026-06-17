@@ -1157,27 +1157,36 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                             "message": 'El bloque "%s" en el embarque "%s" no tiene fotografía.' % (block_name, shipment.name),
                         }
 
+        # La sobreasignación NO bloquea la finalización: el proveedor puede haber
+        # embarcado de más a propósito. Solo se notifica con detalle por producto.
         balance = self._build_quantity_balance(proforma)
         over_items = [item for item in balance if item["is_over"]]
-        if over_items:
-            first = over_items[0]
-            return {
-                "success": False,
-                "message": (
-                    'Se detectó sobreasignación. El producto "%s" suma %.3f %s en embarques, '
-                    "pero la OC solo pidió %.3f %s."
-                ) % (
-                    first["product_name"],
-                    first["qty_assigned"],
-                    first["uom"],
-                    first["qty_ordered"],
-                    first["uom"],
-                ),
-            }
 
         proforma.write({"status": "complete"})
         self.sync_service.sync_all_shipments(proforma)
-        return {"success": True}
+
+        result = {"success": True}
+        if over_items:
+            detail_lines = []
+            for item in over_items:
+                detail_lines.append(
+                    '• %s: asignado %.3f %s vs. solicitado %.3f %s (excedente %.3f %s).' % (
+                        item["product_name"],
+                        item["qty_assigned"],
+                        item["uom"],
+                        item["qty_ordered"],
+                        item["uom"],
+                        item["qty_excess"],
+                        item["uom"],
+                    )
+                )
+            result["warning"] = (
+                "La operación se finalizó correctamente. Aviso: hay sobreasignación "
+                "(embarcaste más de lo que pidió la OC) en estos productos:\n\n"
+                + "\n".join(detail_lines)
+            )
+            result["over_items"] = over_items
+        return result
 
     def reload_proforma(self, token):
         access = self.validate_token(token)

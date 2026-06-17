@@ -3384,7 +3384,10 @@ function App() {
             if (!result || !result.success)
                 throw new Error((result && result.message) || 'No se pudo completar la proforma.');
             await reloadPortal();
-            alert('Proforma marcada como completa.');
+            if (result.warning)
+                alert(result.warning);
+            else
+                alert('Proforma marcada como completa.');
         } catch (err) {
             console.error('[SupplierPortal] Error completando portal:', err);
             alert(err.message || 'No se pudo completar la proforma.');
