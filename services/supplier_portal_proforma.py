@@ -185,7 +185,7 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
 
             balance.append({
                 "product_id": pid,
-                "product_name": self.origin_name_for_partner(line.product_id, po.partner_id),
+                "product_name": self.portal_product_name(line),
                 "product_code": line.product_id.default_code or "",
                 "uom": line.product_uom_id.name or "",
                 "qty_ordered": qty_ordered,

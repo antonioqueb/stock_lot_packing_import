@@ -161,7 +161,7 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
 
             products.append({
                 "id": product.id,
-                "name": self.origin_name_for_partner(product, po.partner_id),
+                "name": self.portal_product_name(line),
                 "code": product.default_code or "",
                 "uom": line.product_uom_id.name or "",
                 "unit_type": unit_type,

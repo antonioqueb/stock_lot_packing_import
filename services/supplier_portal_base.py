@@ -158,31 +158,67 @@ class SupplierPortalBaseService:
 
         return False
 
-    def origin_name_for_partner(self, product, partner):
-        """Nombre a mostrar en el portal del proveedor.
-
-        Regla: si el producto tiene un "nombre de origen" (módulo
-        product_origin_names) definido PARA ESE PROVEEDOR, se usa ese; si no,
-        se usa nuestro nombre por defecto del producto. Si el módulo no está
-        instalado, devuelve siempre el nombre por defecto (degrada con gracia).
-        """
-        default = (product.display_name or product.name) if product else ""
+    def _partner_origin_name(self, product, partner):
+        """Nombre de origen ligado ESPECÍFICAMENTE a ese proveedor (o su empresa
+        comercial / contacto padre, por si la OC usa un contacto hijo). '' si no hay."""
         tmpl = product.product_tmpl_id if product else None
         if not tmpl or not partner or "origin_name_ids" not in tmpl._fields:
-            return default
-        origin_ids = tmpl.origin_name_ids
-        if not origin_ids:
-            return default
-        partner_matches = origin_ids.filtered(
-            lambda o: o.partner_id and o.partner_id.id == partner.id
+            return ""
+        partner_ids = {partner.id}
+        commercial = getattr(partner, "commercial_partner_id", False)
+        if commercial:
+            partner_ids.add(commercial.id)
+        parent = getattr(partner, "parent_id", False)
+        if parent:
+            partner_ids.add(parent.id)
+        matches = tmpl.origin_name_ids.sorted("sequence").filtered(
+            lambda o: o.partner_id and o.partner_id.id in partner_ids
         )
-        if partner_matches:
-            return partner_matches.sorted("sequence")[0].name or default
+        return (matches[0].name or "") if matches else ""
+
+    def portal_product_name(self, line):
+        """Nombre del producto a mostrar en el portal, a partir de una línea de OC.
+
+        Prioridad:
+        1. Nombre de origen específico de ESE proveedor (lo más preciso).
+        2. `display_name_override` del módulo product_origin_names (lo que el
+           módulo decidió mostrar: nombre elegido en la línea o el prioritario).
+        3. Nombre de origen genérico (sin proveedor) / nuestro nombre por defecto.
+        """
+        product = line.product_id if line else None
+        default = (product.display_name or product.name) if product else ""
+        if not product:
+            return default
+        partner = line.order_id.partner_id if (line and line.order_id) else None
+        # 1. Específico del proveedor.
+        name = self._partner_origin_name(product, partner)
+        if name:
+            return name
+        # 2. Lo que el módulo decidió mostrar (selección por línea / prioritario).
+        if line and "display_name_override" in line._fields and line.display_name_override:
+            return line.display_name_override
+        # 3. Genérico / default.
+        return self.origin_name_for_partner(product, partner)
+
+    def origin_name_for_partner(self, product, partner):
+        """Nombre de origen para el proveedor: específico → genérico → nuestro nombre.
+
+        Degrada con gracia si el módulo product_origin_names no está instalado.
+        """
+        default = (product.display_name or product.name) if product else ""
+        name = self._partner_origin_name(product, partner)
+        if name:
+            return name
+        tmpl = product.product_tmpl_id if product else None
+        if not tmpl or "origin_name_ids" not in tmpl._fields or not tmpl.origin_name_ids:
+            return default
+        generic = tmpl.origin_name_ids.sorted("sequence").filtered(lambda o: not o.partner_id)
+        if generic:
+            return generic[0].name or default
         return default
 
     def build_products_payload_from_purchase(self, purchase):
         bucket = {}
-        partner = purchase.partner_id
 
         for line in purchase.order_line.filtered(lambda l: not l.display_type and l.product_id):
             product = line.product_id
@@ -190,7 +226,7 @@ class SupplierPortalBaseService:
                 unit_type = product.product_tmpl_id.x_unidad_del_producto or "Placa"
                 bucket[product.id] = {
                     "id": product.id,
-                    "name": self.origin_name_for_partner(product, partner),
+                    "name": self.portal_product_name(line),
                     "code": product.default_code or "",
                     "qty_ordered": 0.0,
                     "uom": (line.product_uom_id and line.product_uom_id.name) or "",
