@@ -1230,6 +1230,24 @@ const Textarea = ({ onChange, style, className, ...p }) => React.createElement("
 const Badge = ({ tone = 'draft', children, dot }) => (React.createElement("span", { className: `badge ${tone}` },
     dot && React.createElement("span", { className: "dot" }),
     children));
+// Modal de aviso con estilo propio (reemplaza window.alert). notice = { title, message, tone, cta }.
+const NoticeModal = ({ notice, onClose }) => {
+    if (!notice)
+        return null;
+    const tone = notice.tone || 'info';
+    const iconName = tone === 'warn' ? 'alert' : tone === 'ok' ? 'check' : tone === 'error' ? 'alert' : 'info';
+    return React.createElement("div", { className: "notice-overlay", onClick: onClose },
+        React.createElement("div", { className: `notice-card notice-${tone}`, onClick: (e) => e.stopPropagation(), role: "dialog", "aria-modal": "true" },
+            React.createElement("div", { className: "notice-head" },
+                React.createElement("div", { className: "notice-icon" },
+                    React.createElement(Icon, { name: iconName, size: 18 })),
+                React.createElement("h3", null, notice.title || 'Aviso'),
+                React.createElement("button", { className: "notice-x", onClick: onClose, "aria-label": "Cerrar" },
+                    React.createElement(Icon, { name: "x", size: 16 }))),
+            React.createElement("div", { className: "notice-body" }, notice.message),
+            React.createElement("div", { className: "notice-actions" },
+                React.createElement(Btn, { variant: "primary", onClick: onClose }, notice.cta || 'Entendido'))));
+};
 // Big circular progress (used in hero + sidebar)
 const ProgressRing = ({ pct = 0, size = 140, stroke = 10, label }) => {
     const r = (size - stroke) / 2;
@@ -3385,12 +3403,12 @@ function App() {
                 throw new Error((result && result.message) || 'No se pudo completar la proforma.');
             await reloadPortal();
             if (result.warning)
-                alert(result.warning);
+                setNotice({ title: 'Operación finalizada con avisos', message: result.warning, tone: 'warn', cta: 'Entendido' });
             else
-                alert('Proforma marcada como completa.');
+                setNotice({ title: '¡Listo!', message: 'La proforma se marcó como completa. SOM GROUP recibió la notificación.', tone: 'ok', cta: 'Cerrar' });
         } catch (err) {
             console.error('[SupplierPortal] Error completando portal:', err);
-            alert(err.message || 'No se pudo completar la proforma.');
+            setNotice({ title: 'No se pudo completar', message: err.message || 'No se pudo completar la proforma.', tone: 'error', cta: 'Cerrar' });
         }
     }, [flushPersist, reloadPortal]);
     // El arranque corre UNA sola vez por montaje. Antes se re-ejecutaba y podía
@@ -3486,6 +3504,7 @@ function App() {
     const [packingWiz, setPackingWiz] = React.useState(null);
     const [showOnboard, setShowOnboard] = React.useState(t.show_onboarding);
     const [mobileNav, setMobileNav] = React.useState(false);
+    const [notice, setNotice] = React.useState(null);
     React.useEffect(() => { setShowOnboard(t.show_onboarding); }, [t.show_onboarding]);
     // Inject dynamic accent color
     React.useEffect(() => {
@@ -3623,6 +3642,7 @@ function App() {
                     route.section === 'review' && React.createElement(Confirm, { proforma: proforma, status: status, setRoute: setRoute, onComplete: completePortal }))),
             packingWiz && (React.createElement(PackingWizard, { proforma: proforma, shipmentId: packingWiz.shipmentId, packingId: packingWiz.packingId, sampleRows: SAMPLE_ROWS, onClose: closePackingWizard, onSave: savePacking, pendingImages: pendingImagesRef })),
             showOnboard && React.createElement(Onboarding, { onClose: () => setShowOnboard(false) }),
+            React.createElement(NoticeModal, { notice: notice, onClose: () => setNotice(null) }),
             React.createElement(TweaksPanel, { title: "Tweaks" },
                 React.createElement(TweakSection, { label: "Idioma & branding" },
                     React.createElement(TweakRadio, { label: "Idioma", value: t.lang, onChange: (v) => setTweak({ lang: v }), options: [{ value: 'es', label: 'ES' }, { value: 'en', label: 'EN' }, { value: 'zh', label: '中' }, { value: 'it', label: 'IT' }, { value: 'pt', label: 'PT' }] }),

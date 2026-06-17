@@ -71,6 +71,28 @@ const Badge = ({ tone = 'draft', children, dot }) => (
   </span>
 );
 
+// Modal de aviso con estilo propio (reemplaza window.alert). notice = { title, message, tone, cta }.
+const NoticeModal = ({ notice, onClose }) => {
+  if (!notice) return null;
+  const tone = notice.tone || 'info';
+  const iconName = tone === 'warn' ? 'alert' : tone === 'ok' ? 'check' : tone === 'error' ? 'alert' : 'info';
+  return (
+    <div className="notice-overlay" onClick={onClose}>
+      <div className={`notice-card notice-${tone}`} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+        <div className="notice-head">
+          <div className="notice-icon"><Icon name={iconName} size={18}/></div>
+          <h3>{notice.title || 'Aviso'}</h3>
+          <button className="notice-x" onClick={onClose} aria-label="Cerrar"><Icon name="x" size={16}/></button>
+        </div>
+        <div className="notice-body">{notice.message}</div>
+        <div className="notice-actions">
+          <Btn variant="primary" onClick={onClose}>{notice.cta || 'Entendido'}</Btn>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // Big circular progress (used in hero + sidebar)
 const ProgressRing = ({ pct = 0, size = 140, stroke = 10, label }) => {
   const r = (size - stroke) / 2;
