@@ -2683,6 +2683,12 @@ const Documents = ({ proforma, setProforma, setRoute }) => {
     const [loading, setLoading] = React.useState(true);
     const api = (typeof window !== 'undefined' && window.__supplierPortalApi) || null;
     const token = api && api.token;
+    const fileRef = React.useRef(null);
+    const pendingTypeRef = React.useRef('general_other');
+    const openPicker = (docType) => { pendingTypeRef.current = docType; if (fileRef.current) {
+        fileRef.current.value = '';
+        fileRef.current.click();
+    } };
     const refresh = React.useCallback(async () => {
         if (!token) {
             setLoading(false);
@@ -2781,8 +2787,8 @@ const Documents = ({ proforma, setProforma, setRoute }) => {
             React.createElement("div", { className: "text" },
                 React.createElement("h1", null, "Documentos generales"),
                 React.createElement("p", { className: "lead" }, "Documentos que aplican a toda la Proforma (no a un embarque específico). Los documentos por embarque están dentro de cada embarque."))),
-        React.createElement("label", { className: `dropzone ${drag ? 'is-drag' : ''}`, style: { cursor: 'pointer', display: 'block' }, onDragEnter: (e) => { e.preventDefault(); setDrag(true); }, onDragLeave: () => setDrag(false), onDragOver: (e) => e.preventDefault(), onDrop: (e) => { e.preventDefault(); setDrag(false); uploadMany('general_other', e.dataTransfer.files); } },
-            React.createElement("input", { type: "file", accept: "application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png", multiple: true, style: { display: 'none' }, onChange: (e) => { const fl = e.target.files; e.target.value = ''; uploadMany('general_other', fl); } }),
+        React.createElement("input", { ref: fileRef, type: "file", accept: "application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png", multiple: true, style: { display: 'none' }, onChange: (e) => { const fl = e.target.files; e.target.value = ''; uploadMany(pendingTypeRef.current, fl); } }),
+        React.createElement("div", { className: `dropzone ${drag ? 'is-drag' : ''}`, style: { cursor: 'pointer' }, onClick: () => openPicker('general_other'), onDragEnter: (e) => { e.preventDefault(); setDrag(true); }, onDragLeave: () => setDrag(false), onDragOver: (e) => e.preventDefault(), onDrop: (e) => { e.preventDefault(); setDrag(false); uploadMany('general_other', e.dataTransfer.files); } },
             React.createElement("div", { className: "dz-icon" },
                 React.createElement(Icon, { name: "upload", size: 28 })),
             React.createElement("h4", null, "Arrastra tus archivos aquí"),
@@ -2818,10 +2824,7 @@ const Documents = ({ proforma, setProforma, setRoute }) => {
                                     ((f.file_size || 0) / 1024).toFixed(0),
                                     " KB")),
                             React.createElement(Btn, { variant: "ghost", size: "sm", icon: "trash", className: "btn-danger-ghost", disabled: isBusy, onClick: () => removeDoc(f) }))))))),
-                    React.createElement("label", { className: `btn btn-secondary sm ${isBusy ? 'is-disabled' : ''}`, style: { cursor: isBusy ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0 } },
-                        React.createElement("input", { type: "file", accept: "application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png", multiple: true, style: { display: 'none' }, disabled: isBusy, onChange: (e) => { const fl = e.target.files; e.target.value = ''; uploadMany(cat.docType, fl); } }),
-                        React.createElement(Icon, { name: "upload", size: 13 }),
-                        isBusy ? 'Subiendo…' : 'Subir'))));
+                    React.createElement(Btn, { variant: "secondary", size: "sm", icon: "upload", disabled: isBusy, onClick: () => openPicker(cat.docType) }, isBusy ? 'Subiendo…' : 'Subir'))));
         }))));
 };
 window.Documents = Documents;

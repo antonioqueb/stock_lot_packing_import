@@ -20,6 +20,9 @@ const Documents = ({ proforma, setProforma, setRoute }) => {
   const [loading, setLoading] = React.useState(true);
   const api = (typeof window !== 'undefined' && window.__supplierPortalApi) || null;
   const token = api && api.token;
+  const fileRef = React.useRef(null);
+  const pendingTypeRef = React.useRef('general_other');
+  const openPicker = (docType) => { pendingTypeRef.current = docType; if (fileRef.current) { fileRef.current.value = ''; fileRef.current.click(); } };
 
   const refresh = React.useCallback(async () => {
     if (!token) { setLoading(false); return; }
@@ -100,17 +103,18 @@ const Documents = ({ proforma, setProforma, setRoute }) => {
         </div>
       </div>
 
-      <label className={`dropzone ${drag ? 'is-drag' : ''}`} style={{cursor: 'pointer', display: 'block'}}
-             onDragEnter={(e) => { e.preventDefault(); setDrag(true); }}
-             onDragLeave={() => setDrag(false)}
-             onDragOver={(e) => e.preventDefault()}
-             onDrop={(e) => { e.preventDefault(); setDrag(false); uploadMany('general_other', e.dataTransfer.files); }}>
-        <input type="file" accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png" multiple style={{display: 'none'}}
-               onChange={(e) => { const fl = e.target.files; e.target.value = ''; uploadMany('general_other', fl); }}/>
+      <input ref={fileRef} type="file" accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png" multiple style={{display: 'none'}}
+             onChange={(e) => { const fl = e.target.files; e.target.value = ''; uploadMany(pendingTypeRef.current, fl); }}/>
+      <div className={`dropzone ${drag ? 'is-drag' : ''}`} style={{cursor: 'pointer'}}
+           onClick={() => openPicker('general_other')}
+           onDragEnter={(e) => { e.preventDefault(); setDrag(true); }}
+           onDragLeave={() => setDrag(false)}
+           onDragOver={(e) => e.preventDefault()}
+           onDrop={(e) => { e.preventDefault(); setDrag(false); uploadMany('general_other', e.dataTransfer.files); }}>
         <div className="dz-icon"><Icon name="upload" size={28}/></div>
         <h4>Arrastra tus archivos aquí</h4>
         <p>PDF, JPG, PNG · máximo 10 MB por archivo · o <span style={{color: 'var(--accent)', fontWeight: 600}}>elige desde tu computadora</span> (se guardan en "Otros documentos")</p>
-      </label>
+      </div>
 
       {loading ? (
         <div className="text-muted" style={{marginTop: 24, fontSize: 13}}>Cargando documentos…</div>
@@ -153,12 +157,7 @@ const Documents = ({ proforma, setProforma, setRoute }) => {
                   </div>
                 )}
               </div>
-              <label className={`btn btn-secondary sm ${isBusy ? 'is-disabled' : ''}`} style={{cursor: isBusy ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0}}>
-                <input type="file" accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png" multiple style={{display: 'none'}} disabled={isBusy}
-                       onChange={(e) => { const fl = e.target.files; e.target.value = ''; uploadMany(cat.docType, fl); }}/>
-                <Icon name="upload" size={13}/>
-                {isBusy ? 'Subiendo…' : 'Subir'}
-              </label>
+              <Btn variant="secondary" size="sm" icon="upload" disabled={isBusy} onClick={() => openPicker(cat.docType)}>{isBusy ? 'Subiendo…' : 'Subir'}</Btn>
             </div>
           </div>
           );
