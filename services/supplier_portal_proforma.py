@@ -348,7 +348,7 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
             rows_payload.append({
                 "id": row.id,
                 "product_id": row.product_id.id,
-                "product_name": row.product_id.display_name,
+                "product_name": self.origin_name_for_partner(row.product_id, self.partner_from_shipment(packing.shipment_id)),
                 "container_id": row.container_id.id if row.container_id else False,
                 "container_number": row.container_id.container_number if row.container_id else "",
                 "tipo": row.tipo or "Placa",
@@ -447,7 +447,7 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                     "id": image.id,
                     "block_name": image.block_name or "",
                     "product_id": image.product_id.id,
-                    "product_name": image.product_id.display_name,
+                    "product_name": self.origin_name_for_partner(image.product_id, self.partner_from_shipment(shipment)),
                     "has_image": bool(image.image),
                     "image_filename": image.image_filename or "",
                     "notes": image.notes or "",
@@ -1314,7 +1314,7 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
             "id": image.id,
             "block_name": image.block_name,
             "product_id": image.product_id.id,
-            "product_name": image.product_id.display_name,
+            "product_name": self.origin_name_for_partner(image.product_id, self.partner_from_shipment(shipment)),
             "image_filename": image.image_filename or "",
         } for image in shipment.block_image_ids]
 

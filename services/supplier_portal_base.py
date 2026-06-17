@@ -158,6 +158,13 @@ class SupplierPortalBaseService:
 
         return False
 
+    def partner_from_shipment(self, shipment):
+        """Proveedor (partner) de un embarque vía proforma → OC. None si no se puede."""
+        try:
+            return shipment.proforma_id.purchase_id.partner_id or None
+        except Exception:
+            return None
+
     def _partner_origin_name(self, product, partner):
         """Nombre de origen ligado ESPECÍFICAMENTE a ese proveedor (o su empresa
         comercial / contacto padre, por si la OC usa un contacto hijo). '' si no hay."""
