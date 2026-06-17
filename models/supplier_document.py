@@ -34,6 +34,12 @@ class SupplierShipmentDocument(models.Model):
         ('eur1', 'EUR1'),
         ('certificate_origin', 'Certificado de Origen'),
         ('fumigation', 'Comprobante de Fumigación'),
+        # Documentos generales (alcance Proforma, no embarque específico)
+        ('proforma_signed', 'Proforma firmada'),
+        ('contract', 'Contrato comercial'),
+        ('quality_cert', 'Certificados de calidad'),
+        ('product_photos', 'Fotos del producto'),
+        ('general_other', 'Otros documentos generales'),
         ('advance_payment', 'Anticipo'),
         ('invoice_payment', 'Pago por Invoice'),
         ('other_payment', 'Otro Pago'),
@@ -59,6 +65,7 @@ class SupplierShipmentDocument(models.Model):
     def _check_document_scope(self):
         payment_types = {'advance_payment', 'invoice_payment', 'other_payment'}
         shipment_types = {'bl', 'invoice', 'packing_list', 'eur1', 'certificate_origin', 'fumigation'}
+        proforma_types = {'proforma_signed', 'contract', 'quality_cert', 'product_photos', 'general_other'}
 
         for rec in self:
             if rec.document_type in payment_types:
@@ -69,6 +76,11 @@ class SupplierShipmentDocument(models.Model):
             elif rec.document_type in shipment_types:
                 if rec.purchase_id:
                     raise ValidationError('Los documentos logísticos del portal no deben quedar ligados directamente a la Orden de Compra.')
+            elif rec.document_type in proforma_types:
+                if not rec.proforma_id:
+                    raise ValidationError('Los documentos generales deben quedar ligados a una Proforma.')
+                if rec.purchase_id or rec.shipment_id:
+                    raise ValidationError('Los documentos generales aplican a toda la Proforma, no a un embarque o una Orden de Compra.')
 
     @api.model
     def check_duplicate(self, shipment_id, proforma_id, purchase_id, document_type, upload_token):

@@ -1404,7 +1404,7 @@ const Overview = ({ proforma, status, setRoute }) => {
                 React.createElement("div", null,
                     React.createElement("h2", null, "Lo que te falta para terminar"),
                     React.createElement("p", { className: "sub" }, "Ordenados de lo m\u00E1s f\u00E1cil a lo m\u00E1s detallado. Comienza por el primero.")),
-                React.createElement(Btn, { variant: "accent", icon: "play", onClick: () => { var _a; return (_a = pending[0]) === null || _a === void 0 ? void 0 : _a.action(); } }, "Continuar donde qued\u00E9")),
+                React.createElement(Btn, { variant: "accent", icon: "play", onClick: () => { var _a; return (_a = pending[0]) === null || _a === void 0 ? void 0 : _a.action(); } }, status.overall > 0 ? "Continuar donde qued\u00E9" : "Comenzar")),
             React.createElement("div", { className: "chk-list" }, pending.map(p => (React.createElement("div", { key: p.id, className: "chk-item", onClick: p.action },
                 React.createElement("span", { className: `chk-icon ${p.tone}` },
                     React.createElement(Icon, { name: p.tone === 'done' ? 'check' : p.tone === 'partial' ? 'minus' : 'plus', size: 14 })),
@@ -1590,7 +1590,10 @@ const ShipmentsList = ({ proforma, setProforma, status, setRoute }) => {
                         React.createElement("span", { className: `cdot ${sst.tabs.hasPacking ? 'done' : ''}` })),
                     React.createElement(Icon, { name: "chevron_right", size: 18, style: { color: 'var(--ink-4)' } }))));
         }))),
-        React.createElement(Callout, { tone: "info", icon: "info", title: "\u00BFCu\u00E1ndo divido en varios embarques?" }, "Si tu producci\u00F3n se va a embarcar en fechas distintas o en barcos diferentes, crea un embarque por cada uno. Si todo sale en el mismo barco, un solo embarque est\u00E1 bien.")));
+        React.createElement(Callout, { tone: "info", icon: "info", title: "\u00BFCu\u00E1ndo divido en varios embarques?" }, "Si tu producci\u00F3n se va a embarcar en fechas distintas o en barcos diferentes, crea un embarque por cada uno. Si todo sale en el mismo barco, un solo embarque est\u00E1 bien."),
+        React.createElement("div", { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginTop: 24 } },
+            React.createElement(Btn, { variant: "secondary", icon: "arrow_left", onClick: () => setRoute({ section: 'globals' }) }, "Volver a datos generales"),
+            React.createElement(Btn, { variant: "primary", iconRight: "arrow_right", onClick: () => setRoute({ section: 'documents' }) }, "Continuar a documentos generales"))));
 };
 window.ShipmentsList = ShipmentsList;
 window.STATUS_LABEL = STATUS_LABEL;
@@ -2625,20 +2628,111 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
 window.PackingWizard = PackingWizard;
 // ===== src/views/documents.jsx =====
 /* global React, Icon, Btn, Badge, Callout, Empty */
+// Categorías de documentos generales (alcance Proforma). docType = valor del backend.
+const GENERAL_DOC_CATS = [
+    { docType: 'proforma_signed', icon: 'file', title: 'Proforma firmada', desc: 'La cotización que enviaste a SOM GROUP, firmada.', required: true },
+    { docType: 'contract', icon: 'doc_lines', title: 'Contrato comercial', desc: 'Contrato marco, si aplica.', required: false },
+    { docType: 'quality_cert', icon: 'sparkles', title: 'Certificados de calidad', desc: 'Mineralogía, densidad, absorción, etc.', required: true },
+    { docType: 'product_photos', icon: 'image', title: 'Fotos del producto', desc: 'Catálogo o muestras a granel del proveedor.', required: false },
+    { docType: 'general_other', icon: 'box', title: 'Otros documentos', desc: 'Cualquier otro adjunto general.', required: false },
+];
+const generalDocAllowed = (file) => file.type === 'application/pdf' || file.type === 'image/jpeg' || file.type === 'image/jpg' || file.type === 'image/png' || /\.(pdf|jpe?g|png)$/i.test(file.name || '');
 const Documents = ({ proforma, setProforma, setRoute }) => {
     const [drag, setDrag] = React.useState(false);
-    const CATEGORIES = [
-        { id: 'proforma', icon: 'file', title: 'Proforma Invoice (PI)', desc: 'La cotización que enviaste a SOM GROUP firmada.', required: true, files: [
-                { name: 'PI-9920-A-signed.pdf', size: 412000, uploaded: '2026-05-15' },
-            ] },
-        { id: 'contract', icon: 'doc_lines', title: 'Contrato comercial', desc: 'Contrato marco si aplica.', required: false, files: [] },
-        { id: 'quality', icon: 'sparkles', title: 'Certificados de calidad', desc: 'Mineralogía, densidad, absorción, etc.', required: true, files: [
-                { name: 'Mineralogy-CG.pdf', size: 188000, uploaded: '2026-05-22' },
-                { name: 'Density-test.pdf', size: 92000, uploaded: '2026-05-22' },
-            ] },
-        { id: 'photos', icon: 'image', title: 'Fotografías del producto', desc: 'Catálogo o muestras a granel del proveedor.', required: false, files: [] },
-        { id: 'other', icon: 'box', title: 'Otros documentos', desc: 'Cualquier otro adjunto general.', required: false, files: [] },
-    ];
+    const [docs, setDocs] = React.useState([]);
+    const [busy, setBusy] = React.useState(null);
+    const [loading, setLoading] = React.useState(true);
+    const api = (typeof window !== 'undefined' && window.__supplierPortalApi) || null;
+    const token = api && api.token;
+    const refresh = React.useCallback(async () => {
+        if (!token) {
+            setLoading(false);
+            return;
+        }
+        try {
+            const res = await portalRpc('/supplier/api/v2/list_documents', { token });
+            if (res && res.success)
+                setDocs(res.global_documents || []);
+        }
+        catch (err) {
+            console.error('[SupplierPortal] Error listando documentos:', err);
+        }
+        finally {
+            setLoading(false);
+        }
+    }, [token]);
+    React.useEffect(() => { refresh(); }, [refresh]);
+    const uploadOne = async (docType, file) => {
+        if (!file)
+            return false;
+        if (!generalDocAllowed(file)) {
+            window.alert('"' + file.name + '": solo se permiten archivos PDF, JPG o PNG.');
+            return false;
+        }
+        if (file.size > 10 * 1024 * 1024) {
+            window.alert('"' + file.name + '" supera el máximo de 10 MB.');
+            return false;
+        }
+        const { data } = await fileToBase64(file);
+        const res = await portalRpc('/supplier/api/v2/upload_document', {
+            token,
+            document_type: docType,
+            file_data: data,
+            file_name: file.name || 'documento',
+            file_size: file.size || 0,
+            mime_type: file.type || '',
+        });
+        if (!res || !res.success) {
+            window.alert((res && res.message) || ('No se pudo subir "' + file.name + '".'));
+            return false;
+        }
+        setDocs(res.documents || []);
+        return true;
+    };
+    const uploadMany = async (docType, fileList) => {
+        if (!token) {
+            window.alert('No se puede subir: el portal no tiene sesión activa.');
+            return;
+        }
+        const files = Array.from(fileList || []);
+        if (!files.length)
+            return;
+        setBusy(docType);
+        try {
+            for (const f of files) {
+                await uploadOne(docType, f);
+            }
+        }
+        catch (err) {
+            console.error('[SupplierPortal] Error subiendo documento general:', err);
+            window.alert('Ocurrió un error al subir el documento.');
+        }
+        finally {
+            setBusy(null);
+        }
+    };
+    const removeDoc = async (doc) => {
+        if (!token || !doc)
+            return;
+        if (!window.confirm('¿Eliminar "' + doc.name + '"?'))
+            return;
+        setBusy(doc.document_type);
+        try {
+            const res = await portalRpc('/supplier/api/v2/delete_document', { token, document_id: doc.id });
+            if (!res || !res.success) {
+                window.alert((res && res.message) || 'No se pudo eliminar el documento.');
+                return;
+            }
+            setDocs(res.documents || []);
+        }
+        catch (err) {
+            console.error('[SupplierPortal] Error eliminando documento general:', err);
+            window.alert('Ocurrió un error al eliminar el documento.');
+        }
+        finally {
+            setBusy(null);
+        }
+    };
     return (React.createElement("div", null,
         React.createElement("div", { className: "crumb" },
             React.createElement("a", { onClick: () => setRoute({ section: 'overview' }) }, "Vista general"),
@@ -2647,40 +2741,49 @@ const Documents = ({ proforma, setProforma, setRoute }) => {
         React.createElement("div", { className: "page-head" },
             React.createElement("div", { className: "text" },
                 React.createElement("h1", null, "Documentos generales"),
-                React.createElement("p", { className: "lead" }, "Documentos que aplican a toda la Proforma (no a un embarque espec\u00EDfico). Los documentos por embarque est\u00E1n dentro de cada embarque."))),
-        React.createElement("div", { className: `dropzone ${drag ? 'is-drag' : ''}`, onDragEnter: (e) => { e.preventDefault(); setDrag(true); }, onDragLeave: () => setDrag(false), onDragOver: (e) => e.preventDefault(), onDrop: (e) => { e.preventDefault(); setDrag(false); } },
+                React.createElement("p", { className: "lead" }, "Documentos que aplican a toda la Proforma (no a un embarque específico). Los documentos por embarque están dentro de cada embarque."))),
+        React.createElement("label", { className: `dropzone ${drag ? 'is-drag' : ''}`, style: { cursor: 'pointer', display: 'block' }, onDragEnter: (e) => { e.preventDefault(); setDrag(true); }, onDragLeave: () => setDrag(false), onDragOver: (e) => e.preventDefault(), onDrop: (e) => { e.preventDefault(); setDrag(false); uploadMany('general_other', e.dataTransfer.files); } },
+            React.createElement("input", { type: "file", accept: "application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png", multiple: true, style: { display: 'none' }, onChange: (e) => { const fl = e.target.files; e.target.value = ''; uploadMany('general_other', fl); } }),
             React.createElement("div", { className: "dz-icon" },
                 React.createElement(Icon, { name: "upload", size: 28 })),
-            React.createElement("h4", null, "Arrastra tus archivos aqu\u00ED"),
+            React.createElement("h4", null, "Arrastra tus archivos aquí"),
             React.createElement("p", null,
-                "PDF, JPG, PNG \u00B7 m\u00E1ximo 10 MB por archivo \u00B7 o ",
-                React.createElement("a", { href: "#", onClick: (e) => e.preventDefault(), style: { color: 'var(--accent)', fontWeight: 600 } }, "elige desde tu computadora"))),
-        React.createElement("div", { style: { marginTop: 24, display: 'flex', flexDirection: 'column', gap: 14 } }, CATEGORIES.map(cat => (React.createElement("div", { key: cat.id, className: "card", style: { padding: 16 } },
-            React.createElement("div", { style: { display: 'flex', alignItems: 'flex-start', gap: 14 } },
-                React.createElement("div", { style: { width: 40, height: 40, borderRadius: 10, background: 'var(--accent-soft)', color: 'var(--accent)',
-                        display: 'grid', placeItems: 'center', flexShrink: 0 } },
-                    React.createElement(Icon, { name: cat.icon, size: 16 })),
-                React.createElement("div", { style: { flex: 1 } },
-                    React.createElement("div", { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 } },
-                        React.createElement("strong", null, cat.title),
-                        cat.required && React.createElement(Badge, { tone: cat.files.length > 0 ? 'done' : 'todo' }, cat.files.length > 0 ? React.createElement(React.Fragment, null,
-                            React.createElement(Icon, { name: "check", size: 10 }),
-                            " ",
-                            cat.files.length) : 'Obligatorio'),
-                        !cat.required && React.createElement(Badge, { tone: "draft" }, "Opcional")),
-                    React.createElement("div", { className: "text-muted", style: { fontSize: 12.5, marginBottom: cat.files.length > 0 ? 12 : 0 } }, cat.desc),
-                    cat.files.length > 0 && (React.createElement("div", { style: { display: 'flex', flexDirection: 'column', gap: 8 } }, cat.files.map((f, i) => (React.createElement("div", { key: i, className: "doc-row" },
-                        React.createElement("div", { className: "doc-icon" },
-                            React.createElement(Icon, { name: "file", size: 15 })),
-                        React.createElement("div", { className: "doc-meta" },
-                            React.createElement("div", { className: "name" }, f.name),
-                            React.createElement("div", { className: "meta" },
-                                (f.size / 1024).toFixed(0),
-                                " KB \u00B7 subido ",
-                                f.uploaded)),
-                        React.createElement(Btn, { variant: "ghost", size: "sm", icon: "download" }),
-                        React.createElement(Btn, { variant: "ghost", size: "sm", icon: "trash", className: "btn-danger-ghost" }))))))),
-                React.createElement(Btn, { variant: "secondary", size: "sm", icon: "upload" }, "Subir"))))))));
+                "PDF, JPG, PNG · máximo 10 MB por archivo · o ",
+                React.createElement("span", { style: { color: 'var(--accent)', fontWeight: 600 } }, "elige desde tu computadora"),
+                " (se guardan en \"Otros documentos\")")),
+        loading ? React.createElement("div", { className: "text-muted", style: { marginTop: 24, fontSize: 13 } }, "Cargando documentos…") : React.createElement("div", { style: { marginTop: 24, display: 'flex', flexDirection: 'column', gap: 14 } }, GENERAL_DOC_CATS.map(cat => {
+            const catDocs = docs.filter(d => d.document_type === cat.docType);
+            const isBusy = busy === cat.docType;
+            return (React.createElement("div", { key: cat.docType, className: "card", style: { padding: 16 } },
+                React.createElement("div", { style: { display: 'flex', alignItems: 'flex-start', gap: 14 } },
+                    React.createElement("div", { style: { width: 40, height: 40, borderRadius: 10, background: 'var(--accent-soft)', color: 'var(--accent)',
+                            display: 'grid', placeItems: 'center', flexShrink: 0 } },
+                        React.createElement(Icon, { name: cat.icon, size: 16 })),
+                    React.createElement("div", { style: { flex: 1, minWidth: 0 } },
+                        React.createElement("div", { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 } },
+                            React.createElement("strong", null, cat.title),
+                            cat.required && React.createElement(Badge, { tone: catDocs.length > 0 ? 'done' : 'warn' }, catDocs.length > 0 ? React.createElement(React.Fragment, null,
+                                React.createElement(Icon, { name: "check", size: 10 }),
+                                " ",
+                                catDocs.length) : 'Obligatorio'),
+                            !cat.required && (catDocs.length > 0
+                                ? React.createElement(Badge, { tone: "done" }, React.createElement(Icon, { name: "check", size: 10 }), " ", catDocs.length)
+                                : React.createElement(Badge, { tone: "draft" }, "Opcional"))),
+                        React.createElement("div", { className: "text-muted", style: { fontSize: 12.5, marginBottom: catDocs.length > 0 ? 12 : 0 } }, cat.desc),
+                        catDocs.length > 0 && (React.createElement("div", { style: { display: 'flex', flexDirection: 'column', gap: 8 } }, catDocs.map((f) => (React.createElement("div", { key: f.id, className: "doc-row" },
+                            React.createElement("div", { className: "doc-icon" },
+                                React.createElement(Icon, { name: "file", size: 15 })),
+                            React.createElement("div", { className: "doc-meta" },
+                                React.createElement("div", { className: "name" }, f.name),
+                                React.createElement("div", { className: "meta" },
+                                    ((f.file_size || 0) / 1024).toFixed(0),
+                                    " KB")),
+                            React.createElement(Btn, { variant: "ghost", size: "sm", icon: "trash", className: "btn-danger-ghost", disabled: isBusy, onClick: () => removeDoc(f) }))))))),
+                    React.createElement("label", { className: `btn btn-secondary sm ${isBusy ? 'is-disabled' : ''}`, style: { cursor: isBusy ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0 } },
+                        React.createElement("input", { type: "file", accept: "application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png", multiple: true, style: { display: 'none' }, disabled: isBusy, onChange: (e) => { const fl = e.target.files; e.target.value = ''; uploadMany(cat.docType, fl); } }),
+                        React.createElement(Icon, { name: "upload", size: 13 }),
+                        isBusy ? 'Subiendo…' : 'Subir'))));
+        }))));
 };
 window.Documents = Documents;
 // ===== src/views/confirm.jsx =====

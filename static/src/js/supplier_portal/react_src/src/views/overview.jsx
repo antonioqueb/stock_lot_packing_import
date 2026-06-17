@@ -69,7 +69,7 @@ const Overview = ({ proforma, status, setRoute }) => {
               <h2>Lo que te falta para terminar</h2>
               <p className="sub">Ordenados de lo más fácil a lo más detallado. Comienza por el primero.</p>
             </div>
-            <Btn variant="accent" icon="play" onClick={() => pending[0]?.action()}>Continuar donde quedé</Btn>
+            <Btn variant="accent" icon="play" onClick={() => pending[0]?.action()}>{status.overall > 0 ? 'Continuar donde quedé' : 'Comenzar'}</Btn>
           </div>
 
           <div className="chk-list">

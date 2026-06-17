@@ -100,6 +100,11 @@ const ShipmentsList = ({ proforma, setProforma, status, setRoute }) => {
       <Callout tone="info" icon="info" title="¿Cuándo divido en varios embarques?">
         Si tu producción se va a embarcar en fechas distintas o en barcos diferentes, crea un embarque por cada uno. Si todo sale en el mismo barco, un solo embarque está bien.
       </Callout>
+
+      <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginTop: 24}}>
+        <Btn variant="secondary" icon="arrow_left" onClick={() => setRoute({ section: 'globals' })}>Volver a datos generales</Btn>
+        <Btn variant="primary" iconRight="arrow_right" onClick={() => setRoute({ section: 'documents' })}>Continuar a documentos generales</Btn>
+      </div>
     </div>
   );
 };

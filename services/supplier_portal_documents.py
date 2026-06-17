@@ -33,7 +33,16 @@ class SupplierPortalDocumentsService(SupplierPortalBaseService):
         "fumigation",
     ]
 
-    ALL_VALID_DOC_TYPES = SHIPMENT_DOC_TYPES
+    # Documentos generales: aplican a toda la Proforma, no a un embarque.
+    PROFORMA_DOC_TYPES = [
+        "proforma_signed",
+        "contract",
+        "quality_cert",
+        "product_photos",
+        "general_other",
+    ]
+
+    ALL_VALID_DOC_TYPES = SHIPMENT_DOC_TYPES + PROFORMA_DOC_TYPES
 
     def serialize_document(self, doc):
         return {
@@ -210,16 +219,26 @@ class SupplierPortalDocumentsService(SupplierPortalBaseService):
                 "message": "Este tipo de documento ya no puede gestionarse desde el portal.",
             }
 
+        # Determina el alcance: con shipment_id => documento de embarque; sin él y
+        # con tipo general => documento de la Proforma (documentos generales).
+        is_proforma_doc = document_type in self.PROFORMA_DOC_TYPES
         shipment = None
-        if not shipment_id:
-            return {
-                "success": False,
-                "message": "Se requiere shipment_id para este tipo de documento.",
-            }
 
-        shipment = request.env["supplier.shipment"].sudo().browse(self.safe_int(shipment_id))
-        if not shipment.exists() or not self.belongs_to_proforma(proforma, shipment=shipment):
-            return {"success": False, "message": "Embarque no encontrado o no autorizado."}
+        if is_proforma_doc:
+            if shipment_id:
+                return {
+                    "success": False,
+                    "message": "Los documentos generales no se ligan a un embarque específico.",
+                }
+        else:
+            if not shipment_id:
+                return {
+                    "success": False,
+                    "message": "Se requiere shipment_id para este tipo de documento.",
+                }
+            shipment = request.env["supplier.shipment"].sudo().browse(self.safe_int(shipment_id))
+            if not shipment.exists() or not self.belongs_to_proforma(proforma, shipment=shipment):
+                return {"success": False, "message": "Embarque no encontrado o no autorizado."}
 
         allowed_mime = ["application/pdf"]
         if document_type == "packing_list":
@@ -228,6 +247,9 @@ class SupplierPortalDocumentsService(SupplierPortalBaseService):
                 "application/vnd.ms-excel",
                 "text/csv",
             ])
+        # Los documentos generales aceptan también imágenes (fotos, escaneos).
+        if is_proforma_doc:
+            allowed_mime.extend(["image/jpeg", "image/png", "image/jpg"])
 
         if mime_type and mime_type not in allowed_mime:
             if document_type == "packing_list":
@@ -235,6 +257,8 @@ class SupplierPortalDocumentsService(SupplierPortalBaseService):
                     "success": False,
                     "message": "Solo se permiten archivos PDF u hojas de calculo para Packing List.",
                 }
+            if is_proforma_doc:
+                return {"success": False, "message": "Solo se permiten archivos PDF, JPG o PNG."}
             return {"success": False, "message": "Solo se permiten archivos PDF."}
 
         is_pdf = (
@@ -261,8 +285,8 @@ class SupplierPortalDocumentsService(SupplierPortalBaseService):
 
         doc_model = request.env["supplier.shipment.document"].sudo()
         is_duplicate = doc_model.check_duplicate(
-            shipment_id=shipment.id,
-            proforma_id=None,
+            shipment_id=None if is_proforma_doc else shipment.id,
+            proforma_id=proforma.id if is_proforma_doc else None,
             purchase_id=None,
             document_type=document_type,
             upload_token=content_hash,
@@ -275,7 +299,8 @@ class SupplierPortalDocumentsService(SupplierPortalBaseService):
             }
 
         vals = {
-            "shipment_id": shipment.id,
+            "shipment_id": False if is_proforma_doc else shipment.id,
+            "proforma_id": proforma.id if is_proforma_doc else False,
             "document_type": document_type,
             "name": file_name or "documento",
             "file_data": final_file_data,
@@ -287,11 +312,16 @@ class SupplierPortalDocumentsService(SupplierPortalBaseService):
         }
 
         record = doc_model.create(vals)
+        documents = (
+            self.serialize_documents_for_scope(proforma_id=proforma.id)
+            if is_proforma_doc
+            else self.serialize_documents_for_scope(shipment_id=shipment.id)
+        )
         return {
             "success": True,
             "document_id": record.id,
             "document": self.serialize_document(record),
-            "documents": self.serialize_documents_for_scope(shipment_id=shipment.id),
+            "documents": documents,
         }
 
     def delete_document(self, token, document_id):
@@ -303,6 +333,17 @@ class SupplierPortalDocumentsService(SupplierPortalBaseService):
         record = request.env["supplier.shipment.document"].sudo().browse(self.safe_int(document_id))
         if not record.exists():
             return {"success": False, "message": "Documento no encontrado."}
+
+        # Documento general (alcance Proforma).
+        if record.proforma_id and not record.shipment_id:
+            if not proforma or record.proforma_id != proforma.id:
+                return {"success": False, "message": "No autorizado."}
+            proforma_id = record.proforma_id
+            record.unlink()
+            return {
+                "success": True,
+                "documents": self.serialize_documents_for_scope(proforma_id=proforma_id),
+            }
 
         if not record.shipment_id:
             return {"success": False, "message": "Este documento ya no es gestionable desde el portal."}
@@ -327,7 +368,8 @@ class SupplierPortalDocumentsService(SupplierPortalBaseService):
         if not proforma:
             return {"success": False, "message": "Proforma no encontrada."}
 
-        result = {"global_documents": []}
+        # Documentos generales (alcance Proforma): siempre disponibles.
+        result = {"global_documents": self.serialize_documents_for_scope(proforma_id=proforma.id)}
 
         if shipment_id:
             shipment = request.env["supplier.shipment"].sudo().browse(self.safe_int(shipment_id))
