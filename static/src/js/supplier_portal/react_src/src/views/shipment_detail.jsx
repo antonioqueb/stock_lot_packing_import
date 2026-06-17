@@ -421,10 +421,12 @@ const mapServerDocs = (docs) => (docs || []).map(d => ({
 const TabDocuments = ({ ship, updateShip }) => {
   // docType = valor válido en el backend (modelo supplier.shipment.document).
   const DOC_TYPES = [
-    { kind: 'BL',    docType: 'bl',                 label: 'Bill of Lading (B/L)', desc: 'El PDF del B/L que emite la naviera. Es obligatorio: sin él, aduanas no libera el embarque.', required: true },
-    { kind: 'CO',    docType: 'certificate_origin', label: 'Certificate of Origin', desc: 'Certifica el país donde se fabricó la mercancía. Lo emite la Cámara de Comercio local.' },
-    { kind: 'PHYTO', docType: 'fumigation',         label: 'Certificado fitosanitario / fumigación', desc: 'Si la mercancía incluye empaque de madera, certifica que está fumigada (HT/MB).' },
-    { kind: 'EUR1',  docType: 'eur1',               label: 'EUR.1 (certificado de circulación)', desc: 'Certificado de circulación de mercancías, cuando aplica para la Unión Europea.' },
+    { kind: 'BL',      docType: 'bl',                 label: 'Bill of Lading (B/L)', desc: 'El PDF del B/L que emite la naviera. Es obligatorio: sin él, aduanas no libera el embarque.', required: true },
+    { kind: 'INV',     docType: 'invoice',            label: 'Invoice (factura comercial)', desc: 'El PDF de la factura comercial de este embarque. Obligatorio para poder cerrar el embarque.', required: true },
+    { kind: 'PACKING', docType: 'packing_list',       label: 'Packing List (documento)', desc: 'El PDF u hoja de cálculo (xlsx/csv) del packing list de este embarque. Obligatorio para cerrar el embarque.', required: true, spreadsheet: true },
+    { kind: 'CO',      docType: 'certificate_origin', label: 'Certificate of Origin', desc: 'Certifica el país donde se fabricó la mercancía. Lo emite la Cámara de Comercio local.' },
+    { kind: 'PHYTO',   docType: 'fumigation',         label: 'Certificado fitosanitario / fumigación', desc: 'Si la mercancía incluye empaque de madera, certifica que está fumigada (HT/MB).' },
+    { kind: 'EUR1',    docType: 'eur1',               label: 'EUR.1 (certificado de circulación)', desc: 'Certificado de circulación de mercancías, cuando aplica para la Unión Europea.' },
   ];
 
   const [busy, setBusy] = React.useState(null);
@@ -433,8 +435,10 @@ const TabDocuments = ({ ship, updateShip }) => {
   const pickDoc = async (dt, file) => {
     if (!file) return;
     if (!api || !api.token) { window.alert('No se puede subir el documento: el portal no tiene sesión activa.'); return; }
-    const isPdf = file.type === 'application/pdf' || (file.name || '').toLowerCase().endsWith('.pdf');
-    if (!isPdf) { window.alert('Solo se permiten archivos PDF.'); return; }
+    const fname = (file.name || '').toLowerCase();
+    const isPdf = file.type === 'application/pdf' || fname.endsWith('.pdf');
+    const isSheet = !!dt.spreadsheet && (/(\.xlsx|\.xls|\.csv)$/.test(fname) || file.type === 'text/csv' || file.type === 'application/vnd.ms-excel' || (file.type || '').indexOf('spreadsheet') >= 0);
+    if (!isPdf && !isSheet) { window.alert(dt.spreadsheet ? 'Solo se permiten archivos PDF o una hoja de cálculo (xlsx, xls, csv).' : 'Solo se permiten archivos PDF.'); return; }
     if (file.size > 10 * 1024 * 1024) { window.alert('El archivo supera el máximo de 10 MB.'); return; }
     setBusy(dt.kind);
     try {
@@ -519,10 +523,10 @@ const TabDocuments = ({ ship, updateShip }) => {
                 </div>
               ) : (
                 <label className={`btn btn-secondary sm ${isBusy ? 'is-disabled' : ''}`} style={{cursor: isBusy ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, alignSelf: 'flex-start'}}>
-                  <input type="file" accept="application/pdf,.pdf" style={{display: 'none'}} disabled={isBusy}
+                  <input type="file" accept={dt.spreadsheet ? "application/pdf,.pdf,.xlsx,.xls,.csv" : "application/pdf,.pdf"} style={{display: 'none'}} disabled={isBusy}
                          onChange={(e) => { const f = e.target.files && e.target.files[0]; e.target.value = ''; pickDoc(dt, f); }}/>
                   <Icon name="upload" size={13}/>
-                  {isBusy ? 'Subiendo…' : 'Subir PDF'}
+                  {isBusy ? 'Subiendo…' : 'Subir'}
                 </label>
               )}
             </div>
