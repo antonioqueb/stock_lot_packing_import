@@ -1670,7 +1670,10 @@ const ShipmentDetail = ({ proforma, setProforma, status, setRoute, route, openPa
         tab === 'invoices' && React.createElement(TabInvoices, { ship: ship, updateShip: updateShip }),
         tab === 'containers' && React.createElement(TabContainers, { ship: ship, updateShip: updateShip }),
         tab === 'packings' && React.createElement(TabPackings, { ship: ship, updateShip: updateShip, openPackingWizard: openPackingWizard, proforma: proforma, onDeletePacking: onDeletePacking }),
-        tab === 'documents' && React.createElement(TabDocuments, { ship: ship, updateShip: updateShip })));
+        tab === 'documents' && React.createElement(TabDocuments, { ship: ship, updateShip: updateShip }),
+        React.createElement("div", { style: { display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 24 } },
+            React.createElement(Btn, { variant: "secondary", icon: "arrow_left", onClick: () => { const i = SHIP_TABS.findIndex(x => x.id === tab); if (i > 0) setTab(SHIP_TABS[i - 1].id); else setRoute({ section: 'shipments' }); } }, "Retroceder"),
+            React.createElement(Btn, { variant: "primary", iconRight: "arrow_right", onClick: () => { const i = SHIP_TABS.findIndex(x => x.id === tab); if (i < SHIP_TABS.length - 1) setTab(SHIP_TABS[i + 1].id); else setRoute({ section: 'shipments' }); } }, "Avanzar"))));
 };
 /* ============================================================
    Logistics + B/L tab

@@ -84,6 +84,11 @@ const ShipmentDetail = ({ proforma, setProforma, status, setRoute, route, openPa
       {tab === 'containers' && <TabContainers ship={ship} updateShip={updateShip}/>}
       {tab === 'packings'   && <TabPackings ship={ship} updateShip={updateShip} openPackingWizard={openPackingWizard} proforma={proforma} onDeletePacking={onDeletePacking}/>}
       {tab === 'documents'  && <TabDocuments ship={ship} updateShip={updateShip}/>}
+
+      <div style={{display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 24}}>
+        <Btn variant="secondary" icon="arrow_left" onClick={() => { const i = SHIP_TABS.findIndex(x => x.id === tab); if (i > 0) setTab(SHIP_TABS[i - 1].id); else setRoute({ section: 'shipments' }); }}>Retroceder</Btn>
+        <Btn variant="primary" iconRight="arrow_right" onClick={() => { const i = SHIP_TABS.findIndex(x => x.id === tab); if (i < SHIP_TABS.length - 1) setTab(SHIP_TABS[i + 1].id); else setRoute({ section: 'shipments' }); }}>Avanzar</Btn>
+      </div>
     </div>
   );
 };
