@@ -83,6 +83,9 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
     const KEEP = ['h','w','thickness','container','container_id','notes','photo','quantity','weight','plate','atado','grupo','pedimento','ref'];
     const prevById = {};
     rows.forEach(r => { prevById[r.id] = r; });
+    // Si el embarque tiene EXACTAMENTE un contenedor, se precarga en todas las filas.
+    const shipContainerNumbers = (ship && ship.containers ? ship.containers : []).map(c => c.number).filter(Boolean);
+    const defaultContainer = shipContainerNumbers.length === 1 ? shipContainerNumbers[0] : '';
     const generated = [];
     draft.blocks.forEach((b, bi) => {
       const product = proforma.products.find(p => String(p.id) === String(b.product)) || proforma.products[0] || {};
@@ -93,9 +96,9 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
           id,
           product_id: b.product || product.id,
           tipo,
-          block: b.name, atado: `A-${String(bi+1).padStart(2,'0')}`,
-          plate: `P-${String(generated.length + 1).padStart(3, '0')}`,
-          ref: product.ref || '', thickness: 2, h: 0, w: 0, quantity: tipo === 'Placa' ? 0 : 1, weight: 0, notes: '', grupo: '', pedimento: '', container: '', container_id: false, photo: false, errors: [],
+          block: b.name, atado: '',
+          plate: '',
+          ref: product.ref || '', thickness: 2, h: 0, w: 0, quantity: tipo === 'Placa' ? 0 : 1, weight: 0, notes: '', grupo: '', pedimento: '', container: defaultContainer, container_id: false, photo: false, errors: [],
           blockStart: i === 0,
         };
         const prev = prevById[id];
@@ -109,7 +112,7 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
 
   const canNext = () => {
     if (step === 1) return draft.products.length > 0;
-    if (step === 2) return draft.blocks.length > 0 && draft.blocks.every(b => b.name && b.count > 0);
+    if (step === 2) return !!(draft.number || '').trim() && draft.blocks.length > 0 && draft.blocks.every(b => b.name && b.count > 0);
     return true;
   };
 
@@ -196,7 +199,9 @@ const Step1Products = ({ proforma, draft, setDraft }) => {
   return (
     <div>
       <div className="fld-row" style={{marginBottom: 18}}>
-        <Field label="No. del Packing" required help="Identifica este documento. Suele ser una variante de la invoice." helpExample="PK-2026-088-A">
+        <Field label="No. del Packing" required help="Identifica este documento. Suele ser una variante de la invoice." helpExample="PK-2026-088-A"
+               error={!(draft.number || '').trim() ? 'El folio es obligatorio para continuar.' : undefined}
+               hint="Obligatorio: escribe el folio del packing list.">
           <Input mono placeholder="Agregar folio" value={draft.number} onChange={(e) => setDraft({...draft, number: e.target.value})}/>
         </Field>
         <Field label="Fecha del Packing" required>
@@ -420,6 +425,16 @@ const Step3Review = ({ proforma, draft }) => {
 /* ====================== Step 4: Spreadsheet ====================== */
 const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => {
   const [filter, setFilter] = React.useState('all');
+  // Si el embarque tiene EXACTAMENTE un contenedor, se asigna a las filas sin contenedor.
+  const soleContainer = (() => {
+    const nums = (ship && ship.containers ? ship.containers : []).map(c => c.number).filter(Boolean);
+    return nums.length === 1 ? nums[0] : '';
+  })();
+  React.useEffect(() => {
+    if (!soleContainer) return;
+    if (rows.some(r => !r.container))
+      setRows(prev => prev.map(r => r.container ? r : { ...r, container: soleContainer }));
+  }, [soleContainer, rows, setRows]);
   const [activeRow, setActiveRow] = React.useState(null);
 
   // Solo las placas llevan foto por fila. Piezas/Formatos no llevan foto.
@@ -697,10 +712,10 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                     <td style={{textAlign: 'center', color: 'var(--ink-4)', fontSize: 11}}>{rows.indexOf(r) + 1}</td>
                     <td className="cell-block"><input value={r.block} style={{textTransform: 'uppercase'}} onChange={forceUpper((e) => updRow(r.id, { block: e.target.value }))}/></td>
                     {PropCell({ rowId: r.id, field: "atado", children: (
-                      <input value={r.atado} style={{textTransform: 'uppercase'}} onChange={forceUpper((e) => updRow(r.id, { atado: e.target.value }))}/>
+                      <input value={r.atado} placeholder="rellenar valor" style={{textTransform: 'uppercase'}} onChange={forceUpper((e) => updRow(r.id, { atado: e.target.value }))}/>
                     )})}
                     {PropCell({ rowId: r.id, field: "plate", children: (
-                      <input value={r.plate} style={{textTransform: 'uppercase'}} onChange={forceUpper((e) => updRow(r.id, { plate: e.target.value }))}/>
+                      <input value={r.plate} placeholder="rellenar valor" style={{textTransform: 'uppercase'}} onChange={forceUpper((e) => updRow(r.id, { plate: e.target.value }))}/>
                     )})}
                     {PropCell({ rowId: r.id, field: "thickness", children: (
                       <input type="text" inputMode="decimal" value={r.thickness || ''} onChange={(e) => updRow(r.id, { thickness: e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.') })}/>
