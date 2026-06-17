@@ -41,7 +41,7 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
     products: existing.products,
     blocks: existing.blocks.map(b => ({ ...b })),
   } : {
-    number: 'PK-' + new Date().getFullYear() + '-' + Math.floor(Math.random() * 900 + 100),
+    number: '',
     date: new Date().toISOString().slice(0, 10),
     products: [],
     blocks: [],
@@ -197,7 +197,7 @@ const Step1Products = ({ proforma, draft, setDraft }) => {
     <div>
       <div className="fld-row" style={{marginBottom: 18}}>
         <Field label="No. del Packing" required help="Identifica este documento. Suele ser una variante de la invoice." helpExample="PK-2026-088-A">
-          <Input mono value={draft.number} onChange={(e) => setDraft({...draft, number: e.target.value})}/>
+          <Input mono placeholder="Agregar folio" value={draft.number} onChange={(e) => setDraft({...draft, number: e.target.value})}/>
         </Field>
         <Field label="Fecha del Packing" required>
           <Input type="date" value={draft.date} onChange={(e) => setDraft({...draft, date: e.target.value})}/>

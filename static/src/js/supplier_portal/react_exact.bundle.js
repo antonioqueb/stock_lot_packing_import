@@ -2084,7 +2084,7 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
         products: existing.products,
         blocks: existing.blocks.map(b => ({ ...b })),
     } : {
-        number: 'PK-' + new Date().getFullYear() + '-' + Math.floor(Math.random() * 900 + 100),
+        number: '',
         date: new Date().toISOString().slice(0, 10),
         products: [],
         blocks: [],
@@ -2211,7 +2211,7 @@ const Step1Products = ({ proforma, draft, setDraft }) => {
     return (React.createElement("div", null,
         React.createElement("div", { className: "fld-row", style: { marginBottom: 18 } },
             React.createElement(Field, { label: "No. del Packing", required: true, help: "Identifica este documento. Suele ser una variante de la invoice.", helpExample: "PK-2026-088-A" },
-                React.createElement(Input, { mono: true, value: draft.number, onChange: (e) => setDraft({ ...draft, number: e.target.value }) })),
+                React.createElement(Input, { mono: true, placeholder: "Agregar folio", value: draft.number, onChange: (e) => setDraft({ ...draft, number: e.target.value }) })),
             React.createElement(Field, { label: "Fecha del Packing", required: true },
                 React.createElement(Input, { type: "date", value: draft.date, onChange: (e) => setDraft({ ...draft, date: e.target.value }) }))),
         React.createElement("div", { style: { fontSize: 12.5, fontWeight: 600, color: 'var(--ink-3)', letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 10 } }, "Productos solicitados en esta PO"),
