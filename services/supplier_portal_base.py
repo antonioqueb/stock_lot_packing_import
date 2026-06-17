@@ -158,8 +158,31 @@ class SupplierPortalBaseService:
 
         return False
 
+    def origin_name_for_partner(self, product, partner):
+        """Nombre a mostrar en el portal del proveedor.
+
+        Regla: si el producto tiene un "nombre de origen" (módulo
+        product_origin_names) definido PARA ESE PROVEEDOR, se usa ese; si no,
+        se usa nuestro nombre por defecto del producto. Si el módulo no está
+        instalado, devuelve siempre el nombre por defecto (degrada con gracia).
+        """
+        default = (product.display_name or product.name) if product else ""
+        tmpl = product.product_tmpl_id if product else None
+        if not tmpl or not partner or "origin_name_ids" not in tmpl._fields:
+            return default
+        origin_ids = tmpl.origin_name_ids
+        if not origin_ids:
+            return default
+        partner_matches = origin_ids.filtered(
+            lambda o: o.partner_id and o.partner_id.id == partner.id
+        )
+        if partner_matches:
+            return partner_matches.sorted("sequence")[0].name or default
+        return default
+
     def build_products_payload_from_purchase(self, purchase):
         bucket = {}
+        partner = purchase.partner_id
 
         for line in purchase.order_line.filtered(lambda l: not l.display_type and l.product_id):
             product = line.product_id
@@ -167,7 +190,7 @@ class SupplierPortalBaseService:
                 unit_type = product.product_tmpl_id.x_unidad_del_producto or "Placa"
                 bucket[product.id] = {
                     "id": product.id,
-                    "name": product.display_name or product.name,
+                    "name": self.origin_name_for_partner(product, partner),
                     "code": product.default_code or "",
                     "qty_ordered": 0.0,
                     "uom": (line.product_uom_id and line.product_uom_id.name) or "",
