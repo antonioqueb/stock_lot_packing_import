@@ -24,10 +24,15 @@
                     </div>
                 </sheet>
                 <footer>
+                    <button string="Abrir en pestaña nueva"
+                            type="object"
+                            name="action_open_portal"
+                            icon="fa-external-link"
+                            class="btn-primary"/>
                     <button string="Renovar vigencia"
                             type="object"
                             name="action_refresh"
-                            class="btn-primary"/>
+                            class="btn-secondary"/>
                     <button string="Cerrar" special="cancel" class="btn-secondary"/>
                 </footer>
             </form>

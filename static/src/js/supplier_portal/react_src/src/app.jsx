@@ -62,6 +62,8 @@ function App() {
     window.__setLang(lang);
   }
   const tFn = (k) => (I18N[lang] && I18N[lang][k]) || (I18N.es[k]) || k;
+  // Iniciales del proveedor para el avatar: hasta 2 letras (una por palabra).
+  const vendorInitials = ((proforma.vendor || '').trim().split(/\s+/).filter(Boolean).slice(0, 2).map(w => w.charAt(0).toUpperCase()).join('')) || '—';
 
   const openPackingWizard = (shipmentId, packingId) => setPackingWiz({ shipmentId, packingId });
   const closePackingWizard = () => setPackingWiz(null);
@@ -150,7 +152,7 @@ function App() {
               <span>Tutorial</span>
             </button>
 
-            <div className="user-avatar" title="ZW">ZW</div>
+            <div className="user-avatar" title={proforma.vendor || ''}>{vendorInitials}</div>
           </div>
         </header>
 

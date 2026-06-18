@@ -47,6 +47,17 @@ class PurchaseSupplierPortalLinkWizard(models.TransientModel):
         })
         return res
 
+    def action_open_portal(self):
+        """Abre el portal del proveedor en una pestaña nueva."""
+        self.ensure_one()
+        if not self.portal_url:
+            raise UserError(_("No hay link de portal disponible."))
+        return {
+            'type': 'ir.actions.act_url',
+            'url': self.portal_url,
+            'target': 'new',
+        }
+
     def action_refresh(self):
         self.ensure_one()
 

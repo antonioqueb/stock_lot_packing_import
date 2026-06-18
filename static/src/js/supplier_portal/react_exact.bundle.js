@@ -3579,6 +3579,9 @@ function App() {
         window.__setLang(lang);
     }
     const tFn = (k) => (I18N[lang] && I18N[lang][k]) || (I18N.es[k]) || k;
+    // Iniciales del proveedor para el avatar: hasta 2 letras (una por cada una de
+    // las dos primeras palabras); si solo hay una palabra, una sola letra.
+    const vendorInitials = ((proforma.vendor || '').trim().split(/\s+/).filter(Boolean).slice(0, 2).map(w => w.charAt(0).toUpperCase()).join('')) || '—';
     const openPackingWizard = (shipmentId, packingId) => setPackingWiz({ shipmentId, packingId });
     const closePackingWizard = () => setPackingWiz(null);
     const savePacking = (shipmentId, packingId, draftSnap, rowsSnap) => {
@@ -3685,7 +3688,7 @@ function App() {
                     React.createElement("button", { className: "guide-toggle", onClick: () => setShowOnboard(true), title: "Tutorial inicial" },
                         React.createElement(Icon, { name: "play", size: 12 }),
                         React.createElement("span", null, "Tutorial")),
-                    React.createElement("div", { className: "user-avatar", title: "ZW" }, "ZW"))),
+                    React.createElement("div", { className: "user-avatar", title: proforma.vendor || '' }, vendorInitials))),
             React.createElement("div", { className: "app-body guide-collapsed" },
                 React.createElement(Sidebar, { proforma: proforma, route: route, setRoute: setRoute, status: status, mobileOpen: mobileNav }),
                 React.createElement("main", { className: "main" },
