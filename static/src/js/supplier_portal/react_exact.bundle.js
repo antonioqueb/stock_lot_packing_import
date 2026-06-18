@@ -2712,10 +2712,11 @@ window.PackingWizard = PackingWizard;
 // ===== src/views/documents.jsx =====
 /* global React, Icon, Btn, Badge, Callout, Empty */
 // Categorías de documentos generales (alcance Proforma). docType = valor del backend.
+// Todos los documentos generales son OPCIONALES: el proveedor sube los que tenga.
 const GENERAL_DOC_CATS = [
-    { docType: 'proforma_signed', icon: 'file', title: 'Proforma firmada', desc: 'La cotización que enviaste a SOM GROUP, firmada.', required: true },
+    { docType: 'proforma_signed', icon: 'file', title: 'Proforma firmada', desc: 'La cotización que enviaste a SOM GROUP, firmada.', required: false },
     { docType: 'contract', icon: 'doc_lines', title: 'Contrato comercial', desc: 'Contrato marco, si aplica.', required: false },
-    { docType: 'quality_cert', icon: 'sparkles', title: 'Certificados de calidad', desc: 'Mineralogía, densidad, absorción, etc.', required: true },
+    { docType: 'quality_cert', icon: 'sparkles', title: 'Certificados de calidad', desc: 'Mineralogía, densidad, absorción, etc.', required: false },
     { docType: 'product_photos', icon: 'image', title: 'Fotos del producto', desc: 'Catálogo o muestras a granel del proveedor.', required: false },
     { docType: 'general_other', icon: 'box', title: 'Otros documentos', desc: 'Cualquier otro adjunto general.', required: false },
 ];
@@ -2869,7 +2870,10 @@ const Documents = ({ proforma, setProforma, setRoute }) => {
                                     " KB")),
                             React.createElement(Btn, { variant: "ghost", size: "sm", icon: "trash", className: "btn-danger-ghost", disabled: isBusy, onClick: () => removeDoc(f) }))))))),
                     React.createElement(Btn, { variant: "secondary", size: "sm", icon: "upload", disabled: isBusy, onClick: () => openPicker(cat.docType) }, isBusy ? 'Subiendo…' : 'Subir'))));
-        }))));
+        })),
+        React.createElement("div", { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginTop: 24 } },
+            React.createElement(Btn, { variant: "secondary", icon: "arrow_left", onClick: () => setRoute({ section: 'shipments' }) }, "Volver a embarques"),
+            React.createElement(Btn, { variant: "primary", iconRight: "arrow_right", onClick: () => setRoute({ section: 'review' }) }, "Continuar a revisar y enviar"))));
 };
 window.Documents = Documents;
 // ===== src/views/confirm.jsx =====

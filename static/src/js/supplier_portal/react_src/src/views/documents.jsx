@@ -2,9 +2,9 @@
 
 // Categorías de documentos generales (alcance Proforma). docType = valor del backend.
 const GENERAL_DOC_CATS = [
-  { docType: 'proforma_signed', icon: 'file',      title: 'Proforma firmada',       desc: 'La cotización que enviaste a SOM GROUP, firmada.', required: true },
+  { docType: 'proforma_signed', icon: 'file',      title: 'Proforma firmada',       desc: 'La cotización que enviaste a SOM GROUP, firmada.', required: false },
   { docType: 'contract',        icon: 'doc_lines', title: 'Contrato comercial',     desc: 'Contrato marco, si aplica.', required: false },
-  { docType: 'quality_cert',    icon: 'sparkles',  title: 'Certificados de calidad', desc: 'Mineralogía, densidad, absorción, etc.', required: true },
+  { docType: 'quality_cert',    icon: 'sparkles',  title: 'Certificados de calidad', desc: 'Mineralogía, densidad, absorción, etc.', required: false },
   { docType: 'product_photos',  icon: 'image',     title: 'Fotos del producto',     desc: 'Catálogo o muestras a granel del proveedor.', required: false },
   { docType: 'general_other',   icon: 'box',       title: 'Otros documentos',       desc: 'Cualquier otro adjunto general.', required: false },
 ];
@@ -164,6 +164,11 @@ const Documents = ({ proforma, setProforma, setRoute }) => {
         })}
       </div>
       )}
+
+      <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginTop: 24}}>
+        <Btn variant="secondary" icon="arrow_left" onClick={() => setRoute({ section: 'shipments' })}>Volver a embarques</Btn>
+        <Btn variant="primary" iconRight="arrow_right" onClick={() => setRoute({ section: 'review' })}>Continuar a revisar y enviar</Btn>
+      </div>
     </div>
   );
 };
