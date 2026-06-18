@@ -1158,9 +1158,19 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                         }
 
         # La sobreasignación NO bloquea la finalización: el proveedor puede haber
-        # embarcado de más a propósito. Solo se notifica con detalle por producto.
+        # embarcado de más a propósito. Solo se AVISA cuando el excedente supera el
+        # 3% de lo solicitado (variaciones menores —p. ej. por corte de placas— son
+        # normales y no se mencionan). Que asignado == solicitado nunca es aviso.
+        OVER_THRESHOLD = 0.03
         balance = self._build_quantity_balance(proforma)
-        over_items = [item for item in balance if item["is_over"]]
+        over_items = []
+        for item in balance:
+            ordered = item.get("qty_ordered") or 0.0
+            excess = item.get("qty_excess") or 0.0
+            if ordered <= 0:
+                continue
+            if (excess / ordered) > OVER_THRESHOLD:
+                over_items.append(item)
 
         proforma.write({"status": "complete"})
         self.sync_service.sync_all_shipments(proforma)
@@ -1169,8 +1179,11 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
         if over_items:
             detail_lines = []
             for item in over_items:
+                ordered = item.get("qty_ordered") or 0.0
+                excess = item.get("qty_excess") or 0.0
+                pct = (excess / ordered * 100.0) if ordered else 0.0
                 detail_lines.append(
-                    '• %s: asignado %.3f %s vs. solicitado %.3f %s (excedente %.3f %s).' % (
+                    '• %s: asignado %.3f %s vs. solicitado %.3f %s (excedente %.3f %s, +%.1f%%).' % (
                         item["product_name"],
                         item["qty_assigned"],
                         item["uom"],
@@ -1178,11 +1191,12 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                         item["uom"],
                         item["qty_excess"],
                         item["uom"],
+                        pct,
                     )
                 )
             result["warning"] = (
                 "La operación se finalizó correctamente. Aviso: hay sobreasignación "
-                "(embarcaste más de lo que pidió la OC) en estos productos:\n\n"
+                "mayor al 3% (embarcaste más de lo que pidió la OC) en estos productos:\n\n"
                 + "\n".join(detail_lines)
             )
             result["over_items"] = over_items

@@ -54,7 +54,7 @@ const Overview = ({ proforma, status, setRoute }) => {
               invoices
             </div>
             <div className="item">
-              <strong>{proforma.products.reduce((a,p) => a + p.requested_qty, 0)}</strong>
+              <strong>{proforma.products.reduce((a,p) => a + p.requested_qty, 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
               cantidad solicitada
             </div>
           </div>
@@ -99,7 +99,6 @@ const Overview = ({ proforma, status, setRoute }) => {
         <table className="tbl">
           <thead>
             <tr>
-              <th>Referencia</th>
               <th>Producto</th>
               <th>Tipo</th>
               <th>Dimensión</th>
@@ -109,7 +108,6 @@ const Overview = ({ proforma, status, setRoute }) => {
           <tbody>
             {proforma.products.map(p => (
               <tr key={p.id}>
-                <td className="mono">{p.ref}</td>
                 <td><strong>{p.name}</strong></td>
                 <td className="ink-3">{p.kind === 'placa' ? 'Placa / Slab' : p.kind === 'formato' ? 'Formato / Tile' : 'Pieza'}</td>
                 <td className="mono ink-3">{p.dim_text}</td>
