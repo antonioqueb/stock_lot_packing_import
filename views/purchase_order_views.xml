@@ -41,6 +41,9 @@
                             <field name="expiration_date"/>
                             <field name="is_expired" widget="boolean_toggle"/>
                             <field name="portal_url" widget="CopyClipboardChar" readonly="1"/>
+                            <button name="action_open_portal" type="object"
+                                    string="Abrir" icon="fa-external-link"
+                                    class="btn-link" title="Abrir el portal en una pestaña nueva"/>
                         </list>
                     </field>
 

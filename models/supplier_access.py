@@ -59,3 +59,12 @@ class SupplierAccess(models.Model):
         base_url = self.env['ir.config_parameter'].sudo().get_param('web.base.url')
         for rec in self:
             rec.portal_url = f"{base_url}/supplier/pl/{rec.access_token}"
+
+    def action_open_portal(self):
+        """Abre el portal del proveedor en una pestaña nueva."""
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_url',
+            'url': self.portal_url,
+            'target': 'new',
+        }
