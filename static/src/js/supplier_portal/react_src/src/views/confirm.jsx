@@ -52,7 +52,7 @@ const Confirm = ({ proforma, status, setRoute }) => {
         <div style={{display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 16}}>
           <StatCard label="Proforma" value={proforma.globals.proforma_number || '—'} mono/>
           <StatCard label="Orden de compra" value={proforma.po_name} mono/>
-          <StatCard label="Destino" value={proforma.globals.port_destination || '—'}/>
+          <StatCard label="Destino" value={proforma.globals.port_destination || 'SOM GROUP'}/>
           <StatCard label="Embarques" value={proforma.shipments.length}/>
           <StatCard label="Total invoices" value={`${proforma.shipments.reduce((a,s) => a + s.invoices.reduce((b,i) => b + (i.amount || 0), 0), 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD`} mono/>
         </div>

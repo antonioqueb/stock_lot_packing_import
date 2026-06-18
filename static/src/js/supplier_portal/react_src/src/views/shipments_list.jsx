@@ -73,7 +73,7 @@ const ShipmentsList = ({ proforma, setProforma, status, setRoute }) => {
                     {sst.status === 'todo' && <Badge tone="todo">Sin datos</Badge>}
                   </div>
                   <div className="route">
-                    <span><Icon name="anchor" size={11}/> Destino <span className="mono">{proforma.globals.port_destination || '—'}</span></span>
+                    <span><Icon name="anchor" size={11}/> Destino <span className="mono">{proforma.globals.port_destination || 'SOM GROUP'}</span></span>
                     <span className="arrow">·</span>
                     <span>ETD <span className="mono">{s.etd || '—'}</span></span>
                   </div>
