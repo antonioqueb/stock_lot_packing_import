@@ -93,7 +93,7 @@ const Overview = ({ proforma, status, setRoute }) => {
         <div className="card-head no-divider">
           <div>
             <h3>Productos solicitados en esta Proforma</h3>
-            <p className="sub">Esto es lo que SOM GROUP te pidió. Tendrás que registrar packing list para cada uno.</p>
+            <p className="sub">Esto es lo que SOM GROUP te pidió. Tendrás que registrar packing list que los incluya a todos.</p>
           </div>
         </div>
         <table className="tbl">
