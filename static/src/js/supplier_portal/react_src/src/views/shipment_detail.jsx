@@ -434,12 +434,12 @@ const TabDocuments = ({ ship, updateShip }) => {
 
   const pickDoc = async (dt, file) => {
     if (!file) return;
-    if (!api || !api.token) { window.alert('No se puede subir el documento: el portal no tiene sesión activa.'); return; }
+    if (!api || !api.token) { window.alert(tr('No se puede subir el documento: el portal no tiene sesión activa.')); return; }
     const fname = (file.name || '').toLowerCase();
     const isPdf = file.type === 'application/pdf' || fname.endsWith('.pdf');
     const isSheet = !!dt.spreadsheet && (/(\.xlsx|\.xls|\.csv)$/.test(fname) || file.type === 'text/csv' || file.type === 'application/vnd.ms-excel' || (file.type || '').indexOf('spreadsheet') >= 0);
-    if (!isPdf && !isSheet) { window.alert(dt.spreadsheet ? 'Solo se permiten archivos PDF o una hoja de cálculo (xlsx, xls, csv).' : 'Solo se permiten archivos PDF.'); return; }
-    if (file.size > 10 * 1024 * 1024) { window.alert('El archivo supera el máximo de 10 MB.'); return; }
+    if (!isPdf && !isSheet) { window.alert(tr(dt.spreadsheet ? 'Solo se permiten archivos PDF o una hoja de cálculo (xlsx, xls, csv).' : 'Solo se permiten archivos PDF.')); return; }
+    if (file.size > 10 * 1024 * 1024) { window.alert(tr('El archivo supera el máximo de 10 MB.')); return; }
     setBusy(dt.kind);
     try {
       // El embarque debe existir en el servidor para adjuntarle documentos. Si es
@@ -449,7 +449,7 @@ const TabDocuments = ({ ship, updateShip }) => {
         await api.flush();
         shipmentId = api.resolveRealId('shipments', ship.id);
       }
-      if (!shipmentId) { window.alert('Primero guarda el embarque (espera unos segundos a que se sincronice) e intenta de nuevo.'); return; }
+      if (!shipmentId) { window.alert(tr('Primero guarda el embarque (espera unos segundos a que se sincronice) e intenta de nuevo.')); return; }
       const { data } = await fileToBase64(file);
       const res = await portalRpc('/supplier/api/v2/upload_document', {
         token: api.token,
@@ -460,11 +460,11 @@ const TabDocuments = ({ ship, updateShip }) => {
         file_size: file.size || 0,
         mime_type: file.type || 'application/pdf',
       });
-      if (!res || !res.success) { window.alert((res && res.message) || 'No se pudo subir el documento.'); return; }
+      if (!res || !res.success) { window.alert((res && res.message) || tr('No se pudo subir el documento.')); return; }
       updateShip({ documents: mapServerDocs(res.documents) });
     } catch (err) {
       console.error('[SupplierPortal] Error subiendo documento:', err);
-      window.alert('Ocurrió un error al subir el documento: ' + (err && err.message ? err.message : err));
+      window.alert(tr('Ocurrió un error al subir el documento: ') + (err && err.message ? err.message : err));
     } finally {
       setBusy(null);
     }
@@ -472,15 +472,15 @@ const TabDocuments = ({ ship, updateShip }) => {
 
   const deleteDoc = async (dt, doc) => {
     if (!api || !api.token || !doc) return;
-    if (!window.confirm('¿Eliminar "' + doc.name + '"?')) return;
+    if (!window.confirm(tr('¿Eliminar') + ' "' + doc.name + '"?')) return;
     setBusy(dt.kind);
     try {
       const res = await portalRpc('/supplier/api/v2/delete_document', { token: api.token, document_id: doc.id });
-      if (!res || !res.success) { window.alert((res && res.message) || 'No se pudo eliminar el documento.'); return; }
+      if (!res || !res.success) { window.alert((res && res.message) || tr('No se pudo eliminar el documento.')); return; }
       updateShip({ documents: mapServerDocs(res.documents) });
     } catch (err) {
       console.error('[SupplierPortal] Error eliminando documento:', err);
-      window.alert('Ocurrió un error al eliminar el documento.');
+      window.alert(tr('Ocurrió un error al eliminar el documento.'));
     } finally {
       setBusy(null);
     }

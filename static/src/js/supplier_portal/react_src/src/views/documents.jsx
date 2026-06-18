@@ -39,8 +39,8 @@ const Documents = ({ proforma, setProforma, setRoute }) => {
 
   const uploadOne = async (docType, file) => {
     if (!file) return false;
-    if (!generalDocAllowed(file)) { window.alert('"' + file.name + '": solo se permiten archivos PDF, JPG o PNG.'); return false; }
-    if (file.size > 10 * 1024 * 1024) { window.alert('"' + file.name + '" supera el máximo de 10 MB.'); return false; }
+    if (!generalDocAllowed(file)) { window.alert('"' + file.name + '": ' + tr('solo se permiten archivos PDF, JPG o PNG.')); return false; }
+    if (file.size > 10 * 1024 * 1024) { window.alert('"' + file.name + '" ' + tr('supera el máximo de 10 MB.')); return false; }
     const { data } = await fileToBase64(file);
     const res = await portalRpc('/supplier/api/v2/upload_document', {
       token,
@@ -50,13 +50,13 @@ const Documents = ({ proforma, setProforma, setRoute }) => {
       file_size: file.size || 0,
       mime_type: file.type || '',
     });
-    if (!res || !res.success) { window.alert((res && res.message) || ('No se pudo subir "' + file.name + '".')); return false; }
+    if (!res || !res.success) { window.alert((res && res.message) || (tr('No se pudo subir') + ' "' + file.name + '".')); return false; }
     setDocs(res.documents || []);
     return true;
   };
 
   const uploadMany = async (docType, fileList) => {
-    if (!token) { window.alert('No se puede subir: el portal no tiene sesión activa.'); return; }
+    if (!token) { window.alert(tr('No se puede subir: el portal no tiene sesión activa.')); return; }
     const files = Array.from(fileList || []);
     if (!files.length) return;
     setBusy(docType);
@@ -64,7 +64,7 @@ const Documents = ({ proforma, setProforma, setRoute }) => {
       for (const f of files) { await uploadOne(docType, f); }
     } catch (err) {
       console.error('[SupplierPortal] Error subiendo documento general:', err);
-      window.alert('Ocurrió un error al subir el documento.');
+      window.alert(tr('Ocurrió un error al subir el documento.'));
     } finally {
       setBusy(null);
     }
@@ -72,15 +72,15 @@ const Documents = ({ proforma, setProforma, setRoute }) => {
 
   const removeDoc = async (doc) => {
     if (!token || !doc) return;
-    if (!window.confirm('¿Eliminar "' + doc.name + '"?')) return;
+    if (!window.confirm(tr('¿Eliminar') + ' "' + doc.name + '"?')) return;
     setBusy(doc.document_type);
     try {
       const res = await portalRpc('/supplier/api/v2/delete_document', { token, document_id: doc.id });
-      if (!res || !res.success) { window.alert((res && res.message) || 'No se pudo eliminar el documento.'); return; }
+      if (!res || !res.success) { window.alert((res && res.message) || tr('No se pudo eliminar el documento.')); return; }
       setDocs(res.documents || []);
     } catch (err) {
       console.error('[SupplierPortal] Error eliminando documento general:', err);
-      window.alert('Ocurrió un error al eliminar el documento.');
+      window.alert(tr('Ocurrió un error al eliminar el documento.'));
     } finally {
       setBusy(null);
     }
