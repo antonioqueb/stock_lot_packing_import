@@ -47,6 +47,8 @@ const ShipmentsList = ({ proforma, setProforma, status, setRoute }) => {
                 invoices: [], containers: [], packings: [], documents: [],
               }]
             });
+            // Abrir automáticamente el embarque recién creado.
+            setRoute({ section: 'shipment', shipmentId: newId, tab: 'logistics' });
           }}>Agregar embarque</Btn>
         </div>
       </div>
@@ -89,7 +91,7 @@ const ShipmentsList = ({ proforma, setProforma, status, setRoute }) => {
                     <span className={`cdot ${sst.tabs.hasContainers ? 'done' : ''}`}/>
                     <span className={`cdot ${sst.tabs.hasPacking ? 'done' : ''}`}/>
                   </div>
-                  <Icon name="chevron_right" size={18} style={{color: 'var(--ink-4)'}}/>
+                  <Btn variant="secondary" size="sm" iconRight="arrow_right" onClick={(e) => { e.stopPropagation(); setRoute({ section: 'shipment', shipmentId: s.id, tab: 'logistics' }); }}>Abrir / editar</Btn>
                 </div>
               </div>
             );

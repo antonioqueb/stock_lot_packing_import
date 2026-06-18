@@ -1565,6 +1565,9 @@ const ShipmentsList = ({ proforma, setProforma, status, setRoute }) => {
                                     invoices: [], containers: [], packings: [], documents: [],
                                 }]
                         });
+                        // Abrir automáticamente el embarque recién creado para no dejar
+                        // al usuario en el listado sin saber qué sigue.
+                        setRoute({ section: 'shipment', shipmentId: newId, tab: 'logistics' });
                     } }, "Agregar embarque"))),
         proforma.shipments.length === 0 ? (React.createElement(Empty, { icon: "ship", title: "No hay embarques registrados todav\u00EDa" }, "Cuando sepas la fecha aproximada del env\u00EDo, agrega un embarque y empieza a capturar log\u00EDstica y packing list.")) : (React.createElement("div", { style: { display: 'flex', flexDirection: 'column', gap: 12 } }, proforma.shipments.map((s, idx) => {
             const sst = status.shipments_status[idx];
@@ -1606,7 +1609,7 @@ const ShipmentsList = ({ proforma, setProforma, status, setRoute }) => {
                         React.createElement("span", { className: `cdot ${sst.tabs.hasInv ? 'done' : ''}` }),
                         React.createElement("span", { className: `cdot ${sst.tabs.hasContainers ? 'done' : ''}` }),
                         React.createElement("span", { className: `cdot ${sst.tabs.hasPacking ? 'done' : ''}` })),
-                    React.createElement(Icon, { name: "chevron_right", size: 18, style: { color: 'var(--ink-4)' } }))));
+                    React.createElement(Btn, { variant: "secondary", size: "sm", iconRight: "arrow_right", onClick: (e) => { e.stopPropagation(); setRoute({ section: 'shipment', shipmentId: s.id, tab: 'logistics' }); } }, "Abrir / editar"))));
         }))),
         React.createElement(Callout, { tone: "info", icon: "info", title: "\u00BFCu\u00E1ndo divido en varios embarques?" }, "Si tu producci\u00F3n se va a embarcar en fechas distintas o en barcos diferentes, crea un embarque por cada uno. Si todo sale en el mismo barco, un solo embarque est\u00E1 bien."),
         React.createElement("div", { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginTop: 24 } },
