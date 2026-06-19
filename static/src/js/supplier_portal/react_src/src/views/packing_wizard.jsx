@@ -294,6 +294,8 @@ const Step2Blocks = ({ proforma, draft, setDraft, pendingImages }) => {
           const productBlocks = draft.blocks.filter(b => b.product === p.id);
           // Compra nacional: las placas no exigen foto de bloque (se comportan como formatos).
           const needsPhoto = !window.PORTAL_NATIONAL && (p.kind || 'placa') === 'placa';
+          // Etiqueta de agrupación según el tipo: Formato→Bloque/Tono, Pieza→Agrupador.
+          const blockWord = p.kind === 'formato' ? 'Bloque/Tono' : (p.kind === 'pieza' ? 'Agrupador' : 'Bloque');
           return (
             <div key={p.id}>
               <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10}}>
@@ -301,7 +303,7 @@ const Step2Blocks = ({ proforma, draft, setDraft, pendingImages }) => {
                   <strong style={{fontSize: 14}}>{p.name}</strong>
                   <span className="text-muted text-small" style={{marginLeft: 8}}>· {productBlocks.reduce((a,b) => a + (+b.count || 0), 0)} de {p.requested_qty} {p.unit} configurados</span>
                 </div>
-                <Btn variant="secondary" size="sm" icon="plus" onClick={() => addBlock(p.id)}>Agregar bloque</Btn>
+                <Btn variant="secondary" size="sm" icon="plus" onClick={() => addBlock(p.id)}>Agregar {blockWord}</Btn>
               </div>
 
               {productBlocks.length === 0 ? (
@@ -327,7 +329,7 @@ const Step2Blocks = ({ proforma, draft, setDraft, pendingImages }) => {
                         </label>
                       )}
                       <div className="block-fields">
-                        <Field label={`Nombre del bloque #${bi + 1}`} required>
+                        <Field label={`Nombre del ${blockWord} #${bi + 1}`} required>
                           <Input mono placeholder="Ej. 3024117 " value={b.name}
                                  onChange={(e) => updBlock(b.id, { name: e.target.value })}/>
                         </Field>
@@ -453,18 +455,28 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
   // Solo las placas llevan foto por fila. Piezas/Formatos no llevan foto.
   const rowIsPlaca = (r) => String(r.tipo || 'Placa').toLowerCase().indexOf('placa') >= 0;
   const rowIsPieza = (r) => String(r.tipo || '').toLowerCase().indexOf('pieza') >= 0;
+  const rowIsFormato = (r) => String(r.tipo || '').toLowerCase().indexOf('formato') >= 0;
   const anyPlaca = rows.some(rowIsPlaca);
   // Formatos/Piezas se capturan por CANTIDAD (no por Largo×Alto, que es de placas).
   const anyFormato = rows.some(r => !rowIsPlaca(r));
   // El Grosor aplica a placas y formatos; las PIEZAS no llevan grosor.
   const anyThickness = rows.some(r => !rowIsPieza(r));
+  // El "Atado" no aplica a Formatos. Se muestra si hay filas no-formato (placa/pieza).
+  const anyNonFormato = rows.some(r => !rowIsFormato(r));
+  // Etiqueta de la columna de agrupación según el tipo: Placa→Bloque,
+  // Formato→Bloque/Tono, Pieza→Agrupador.
+  const blockLabel = anyPlaca ? 'Bloque'
+    : rows.some(rowIsFormato) ? 'Bloque/Tono'
+    : rows.some(rowIsPieza) ? 'Agrupador'
+    : 'Bloque';
   // Columnas visibles para el colSpan del encabezado de producto:
   // base = # + No. Placa + Contenedor + Notas (4)
   const colCount = 4
-    + (window.PORTAL_NATIONAL ? 0 : 2)   // Bloque + Atado
-    + (anyThickness ? 1 : 0)             // Grosor
-    + (anyPlaca ? 4 : 0)                  // Largo + Alto + Área + Foto
-    + (anyFormato ? 1 : 0);              // Cantidad
+    + (window.PORTAL_NATIONAL ? 0 : 1)                          // Bloque/Tono/Agrupador
+    + ((!window.PORTAL_NATIONAL && anyNonFormato) ? 1 : 0)      // Atado (no en formato)
+    + (anyThickness ? 1 : 0)                                     // Grosor
+    + (anyPlaca ? 4 : 0)                                         // Largo + Alto + Área + Foto
+    + (anyFormato ? 1 : 0);                                     // Cantidad
 
   const errors = rows.filter(r => r.errors && r.errors.length > 0);
   const completeRows = rows.filter(r => r.h > 0 && r.w > 0 && r.container);
@@ -697,8 +709,8 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
             <thead>
               <tr>
                 <th style={{width: 30}}>#</th>
-                {!window.PORTAL_NATIONAL && <th style={{minWidth: 130}}>Bloque</th>}
-                {!window.PORTAL_NATIONAL && <th style={{minWidth: 110}}>Atado</th>}
+                {!window.PORTAL_NATIONAL && <th style={{minWidth: 130}}>{blockLabel}</th>}
+                {!window.PORTAL_NATIONAL && anyNonFormato && <th style={{minWidth: 110}}>Atado</th>}
                 <th style={{minWidth: 110}}>No. Placa</th>
                 {anyThickness && <th style={{width: 110}}>Grosor cm</th>}
                 {anyPlaca && <th style={{width: 110}}>Largo m</th>}
@@ -738,9 +750,11 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                       onClick={() => setActiveRow(r.id)}>
                     <td style={{textAlign: 'center', color: 'var(--ink-4)', fontSize: 11}}>{rows.indexOf(r) + 1}</td>
                     {!window.PORTAL_NATIONAL && <td className="cell-block"><input value={r.block} style={{textTransform: 'uppercase'}} onChange={forceUpper((e) => updRow(r.id, { block: e.target.value }))}/></td>}
-                    {!window.PORTAL_NATIONAL && PropCell({ rowId: r.id, field: "atado", children: (
-                      <input value={r.atado} placeholder="rellenar valor" style={{textTransform: 'uppercase'}} onChange={forceUpper((e) => updRow(r.id, { atado: e.target.value }))}/>
-                    )})}
+                    {!window.PORTAL_NATIONAL && anyNonFormato && (rowIsFormato(r)
+                      ? <td className="text-muted" style={{textAlign: 'center'}}>—</td>
+                      : PropCell({ rowId: r.id, field: "atado", children: (
+                          <input value={r.atado} placeholder="rellenar valor" style={{textTransform: 'uppercase'}} onChange={forceUpper((e) => updRow(r.id, { atado: e.target.value }))}/>
+                        )}))}
                     {PropCell({ rowId: r.id, field: "plate", children: (
                       <input value={r.plate} placeholder="rellenar valor" style={{textTransform: 'uppercase'}} onChange={forceUpper((e) => updRow(r.id, { plate: e.target.value }))}/>
                     )})}

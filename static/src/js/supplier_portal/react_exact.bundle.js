@@ -2347,6 +2347,8 @@ const Step2Blocks = ({ proforma, draft, setDraft, pendingImages }) => {
             const productBlocks = draft.blocks.filter(b => b.product === p.id);
             // Compra nacional: las placas no exigen foto de bloque (se comportan como formatos).
             const needsPhoto = !window.PORTAL_NATIONAL && (p.kind || 'placa') === 'placa';
+            // Etiqueta de agrupación según el tipo: Formato→Bloque/Tono, Pieza→Agrupador.
+            const blockWord = p.kind === 'formato' ? 'Bloque/Tono' : (p.kind === 'pieza' ? 'Agrupador' : 'Bloque');
             return (React.createElement("div", { key: p.id },
                 React.createElement("div", { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 } },
                     React.createElement("div", null,
@@ -2359,7 +2361,7 @@ const Step2Blocks = ({ proforma, draft, setDraft, pendingImages }) => {
                             " ",
                             p.unit,
                             " configurados")),
-                    React.createElement(Btn, { variant: "secondary", size: "sm", icon: "plus", onClick: () => addBlock(p.id) }, "Agregar bloque")),
+                    React.createElement(Btn, { variant: "secondary", size: "sm", icon: "plus", onClick: () => addBlock(p.id) }, "Agregar " + blockWord)),
                 productBlocks.length === 0 ? (React.createElement(Empty, { icon: "cube", title: "Sin bloques a\u00FAn" }, "Empieza con uno. Puedes agregar tantos como necesites.")) : (React.createElement("div", { style: { display: 'flex', flexDirection: 'column', gap: 12 } }, productBlocks.map((b, bi) => (React.createElement("div", { key: b.id, className: "block-card" },
                     needsPhoto && React.createElement("label", { className: `block-photo ${b.photo ? 'has-photo' : ''}`, style: { cursor: 'pointer', overflow: 'hidden' }, title: "Subir/Reemplazar foto del bloque" },
                         React.createElement("input", { type: "file", accept: "image/*", style: { display: 'none' }, onChange: (e) => pickBlockPhoto(b, e.target.files && e.target.files[0]) }),
@@ -2367,7 +2369,7 @@ const Step2Blocks = ({ proforma, draft, setDraft, pendingImages }) => {
                             React.createElement(Icon, { name: "camera", size: 20 }),
                             React.createElement("div", { style: { fontSize: 10, marginTop: 4, fontWeight: 600 } }, "Subir foto")))),
                     React.createElement("div", { className: "block-fields" },
-                        React.createElement(Field, { label: `Nombre del bloque #${bi + 1}`, required: true },
+                        React.createElement(Field, { label: `Nombre del ${blockWord} #${bi + 1}`, required: true },
                             React.createElement(Input, { mono: true, placeholder: "Ej. 3024117 ", value: b.name, onChange: (e) => updBlock(b.id, { name: e.target.value }) })),
                         React.createElement("div", { className: "block-fields-row" },
                             React.createElement(Field, { label: "Placas / piezas", required: true },
@@ -2454,13 +2456,22 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
     // Solo las placas llevan foto por fila. Piezas/Formatos no llevan foto.
     const rowIsPlaca = (r) => String(r.tipo || 'Placa').toLowerCase().indexOf('placa') >= 0;
     const rowIsPieza = (r) => String(r.tipo || '').toLowerCase().indexOf('pieza') >= 0;
+    const rowIsFormato = (r) => String(r.tipo || '').toLowerCase().indexOf('formato') >= 0;
     const anyPlaca = rows.some(rowIsPlaca);
     // Formatos/Piezas se capturan por CANTIDAD (no por Largo×Alto, que es de placas).
     const anyFormato = rows.some(r => !rowIsPlaca(r));
     // El Grosor aplica a placas y formatos; las PIEZAS no llevan grosor.
     const anyThickness = rows.some(r => !rowIsPieza(r));
+    // El "Atado" no aplica a Formatos. Se muestra si hay filas no-formato (placa/pieza).
+    const anyNonFormato = rows.some(r => !rowIsFormato(r));
+    // Etiqueta de la columna de agrupación: Placa→Bloque, Formato→Bloque/Tono, Pieza→Agrupador.
+    const blockLabel = anyPlaca ? 'Bloque'
+        : rows.some(rowIsFormato) ? 'Bloque/Tono'
+        : rows.some(rowIsPieza) ? 'Agrupador'
+        : 'Bloque';
     const colCount = 4
-        + (window.PORTAL_NATIONAL ? 0 : 2)   // Bloque + Atado
+        + (window.PORTAL_NATIONAL ? 0 : 1)                          // Bloque/Tono/Agrupador
+        + ((!window.PORTAL_NATIONAL && anyNonFormato) ? 1 : 0)      // Atado (no en formato)
         + (anyThickness ? 1 : 0)             // Grosor
         + (anyPlaca ? 4 : 0)                  // Largo + Alto + Área + Foto
         + (anyFormato ? 1 : 0);              // Cantidad
@@ -2692,8 +2703,8 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                     React.createElement("thead", null,
                         React.createElement("tr", null,
                             React.createElement("th", { style: { width: 30 } }, "#"),
-                            (!window.PORTAL_NATIONAL && React.createElement("th", { style: { minWidth: 130 } }, "Bloque")),
-                            (!window.PORTAL_NATIONAL && React.createElement("th", { style: { minWidth: 110 } }, "Atado")),
+                            (!window.PORTAL_NATIONAL && React.createElement("th", { style: { minWidth: 130 } }, blockLabel)),
+                            (!window.PORTAL_NATIONAL && anyNonFormato && React.createElement("th", { style: { minWidth: 110 } }, "Atado")),
                             React.createElement("th", { style: { minWidth: 110 } }, "No. Placa"),
                             (anyThickness && React.createElement("th", { style: { width: 110 } }, "Grosor cm")),
                             (anyPlaca && React.createElement("th", { style: { width: 110 } }, "Largo m")),
@@ -2722,8 +2733,10 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                             React.createElement("td", { style: { textAlign: 'center', color: 'var(--ink-4)', fontSize: 11 } }, rows.indexOf(r) + 1),
                             (!window.PORTAL_NATIONAL && React.createElement("td", { className: "cell-block" },
                                 React.createElement("input", { value: r.block, style: { textTransform: 'uppercase' }, onChange: forceUpper((e) => updRow(r.id, { block: e.target.value })) }))),
-                            (!window.PORTAL_NATIONAL && PropCell({ rowId: r.id, field: "atado" },
-                                React.createElement("input", { value: r.atado, placeholder: "rellenar valor", style: { textTransform: 'uppercase' }, onChange: forceUpper((e) => updRow(r.id, { atado: e.target.value })) }))),
+                            (!window.PORTAL_NATIONAL && anyNonFormato && (rowIsFormato(r)
+                                ? React.createElement("td", { className: "text-muted", style: { textAlign: 'center' } }, "—")
+                                : PropCell({ rowId: r.id, field: "atado" },
+                                    React.createElement("input", { value: r.atado, placeholder: "rellenar valor", style: { textTransform: 'uppercase' }, onChange: forceUpper((e) => updRow(r.id, { atado: e.target.value })) })))),
                             PropCell({ rowId: r.id, field: "plate" },
                                 React.createElement("input", { value: r.plate, placeholder: "rellenar valor", style: { textTransform: 'uppercase' }, onChange: forceUpper((e) => updRow(r.id, { plate: e.target.value })) })),
                             (anyThickness && (!rowIsPieza(r)

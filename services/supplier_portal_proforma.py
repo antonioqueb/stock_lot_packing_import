@@ -174,6 +174,8 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
 
         product_line_map = {}
         for line in po.order_line.filtered(lambda l: not l.display_type and l.product_id):
+            if self._is_service_product(line.product_id):
+                continue
             if line.product_id.id not in product_line_map:
                 product_line_map[line.product_id.id] = line
 

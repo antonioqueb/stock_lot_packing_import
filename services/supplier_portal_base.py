@@ -224,11 +224,31 @@ class SupplierPortalBaseService:
             return generic[0].name or default
         return default
 
+    def _is_service_product(self, product):
+        """Los productos de Servicio no se muestran en el portal del proveedor:
+        se descartan por completo. Detección defensiva (tipo de producto,
+        'Unidad del Producto' o la unidad de medida marcada como Servicio)."""
+        if not product:
+            return False
+        # Tipo de producto = Servicio (estándar Odoo).
+        if getattr(product, "type", False) == "service":
+            return True
+        tmpl = product.product_tmpl_id
+        unidad = (getattr(tmpl, "x_unidad_del_producto", "") or "").strip().lower()
+        if unidad == "servicio":
+            return True
+        uom = (product.uom_id.name or "").strip().lower() if product.uom_id else ""
+        if uom == "servicio":
+            return True
+        return False
+
     def build_products_payload_from_purchase(self, purchase):
         bucket = {}
 
         for line in purchase.order_line.filtered(lambda l: not l.display_type and l.product_id):
             product = line.product_id
+            if self._is_service_product(product):
+                continue
             if product.id not in bucket:
                 unit_type = product.product_tmpl_id.x_unidad_del_producto or "Placa"
                 bucket[product.id] = {
