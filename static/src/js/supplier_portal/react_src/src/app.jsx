@@ -1,7 +1,7 @@
 /* global React, ReactDOM, Icon, Btn, Badge,
    MOCK_PROFORMA, SAMPLE_ROWS, computeStatus, LangCtx, I18N,
    Sidebar, Overview, Globals, ShipmentsList, ShipmentDetail,
-   PackingWizard, Documents, Confirm, Onboarding,
+   PackingWizard, Confirm, Onboarding,
    useTweaks, TweaksPanel, TweakSection, TweakRadio, TweakToggle, TweakColor, TweakSelect */
 
 const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
@@ -164,7 +164,6 @@ function App() {
             {route.section === 'globals'   && <Globals proforma={proforma} setProforma={setProforma} status={status} setRoute={setRoute} validationStyle={t.validation_style}/>}
             {route.section === 'shipments' && <ShipmentsList proforma={proforma} setProforma={setProforma} status={status} setRoute={setRoute}/>}
             {route.section === 'shipment'  && <ShipmentDetail proforma={proforma} setProforma={setProforma} status={status} setRoute={setRoute} route={route} openPackingWizard={openPackingWizard} onDeleteShipment={deleteShipment} onDeletePacking={deletePacking}/>}
-            {route.section === 'documents' && <Documents proforma={proforma} setProforma={setProforma} setRoute={setRoute}/>}
             {route.section === 'review'    && <Confirm proforma={proforma} status={status} setRoute={setRoute}/>}
           </main>
         </div>

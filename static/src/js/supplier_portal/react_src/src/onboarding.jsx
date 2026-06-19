@@ -14,7 +14,7 @@ const ONBOARD_STEPS = [
     title: 'Tu progreso siempre visible',
     text: 'En el lado izquierdo verás el avance de cada sección con marcas visuales: verde = listo, ámbar = en progreso, gris = pendiente.',
     art: <div style={{display: 'flex', flexDirection: 'column', gap: 8, width: 280}}>
-      {['Datos generales','Embarque #1','Embarque #2','Documentos'].map((l,i) => (
+      {['Datos generales','Embarque #1','Embarque #2','Revisar y enviar'].map((l,i) => (
         <div key={l} style={{display: 'flex', alignItems: 'center', gap: 10, padding: 10, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8}}>
           <span style={{width: 16, height: 16, borderRadius: 8, background: i < 2 ? 'var(--ok)' : i === 2 ? 'var(--warn)' : 'var(--border-strong)', display: 'grid', placeItems: 'center', color: 'white', fontSize: 9}}>
             {i < 2 ? '✓' : i === 2 ? '–' : ''}

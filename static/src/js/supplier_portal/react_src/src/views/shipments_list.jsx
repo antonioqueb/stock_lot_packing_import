@@ -105,7 +105,7 @@ const ShipmentsList = ({ proforma, setProforma, status, setRoute }) => {
 
       <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginTop: 24}}>
         <Btn variant="secondary" icon="arrow_left" onClick={() => setRoute({ section: 'globals' })}>Volver a datos generales</Btn>
-        <Btn variant="primary" iconRight="arrow_right" onClick={() => setRoute({ section: 'documents' })}>Continuar a documentos generales</Btn>
+        <Btn variant="primary" iconRight="arrow_right" onClick={() => setRoute({ section: 'review' })}>Continuar a revisar y enviar</Btn>
       </div>
     </div>
   );

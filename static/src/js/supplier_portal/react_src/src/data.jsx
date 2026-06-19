@@ -129,7 +129,6 @@ const SECTIONS = [
   { id: 'overview',  label: 'Vista general',          icon: 'home' },
   { id: 'globals',   label: 'Datos de la Proforma',   icon: 'globe' },
   { id: 'shipments', label: 'Embarques',              icon: 'ship', children: true },
-  { id: 'documents', label: 'Documentos generales',   icon: 'doc_lines' },
   { id: 'review',    label: 'Revisar y enviar',       icon: 'flag' },
 ];
 

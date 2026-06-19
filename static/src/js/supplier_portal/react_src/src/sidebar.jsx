@@ -9,7 +9,6 @@ const Sidebar = ({ proforma, route, setRoute, status, mobileOpen }) => {
     if (id === 'overview') return null;
     if (id === 'globals') return status.globals_status;
     if (id === 'shipments') return status.ship_overall;
-    if (id === 'documents') return 'partial';
     if (id === 'review') return status.overall >= 100 ? 'todo' : 'todo';
     return 'todo';
   };

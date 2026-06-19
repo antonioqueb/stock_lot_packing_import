@@ -87,7 +87,7 @@ const ShipmentDetail = ({ proforma, setProforma, status, setRoute, route, openPa
 
       <div style={{display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 24}}>
         <Btn variant="secondary" icon="arrow_left" onClick={() => { const i = SHIP_TABS.findIndex(x => x.id === tab); if (i > 0) setTab(SHIP_TABS[i - 1].id); else setRoute({ section: 'shipments' }); }}>Retroceder</Btn>
-        <Btn variant="primary" iconRight="arrow_right" onClick={() => { const i = SHIP_TABS.findIndex(x => x.id === tab); if (i < SHIP_TABS.length - 1) setTab(SHIP_TABS[i + 1].id); else setRoute({ section: 'shipments' }); }}>Avanzar</Btn>
+        <Btn variant="primary" iconRight="arrow_right" onClick={() => { const i = SHIP_TABS.findIndex(x => x.id === tab); if (i < SHIP_TABS.length - 1) setTab(SHIP_TABS[i + 1].id); else setRoute({ section: 'review' }); }}>Avanzar</Btn>
       </div>
     </div>
   );
@@ -154,7 +154,7 @@ const TabLogistics = ({ ship, updateShip }) => (
 /* ============================================================
    Invoices tab
    ============================================================ */
-// Convierte un texto monetario a número, entendiendo formato anglosajón
+// Convierte un texto monetario a número, entendiendo formato internacional
 // (coma=miles, punto=decimal → 1,234.56) Y europeo (punto=miles, coma=decimal →
 // 1.234,56). Heurística: si hay ambos separadores, el ÚLTIMO es el decimal; si hay
 // uno solo, es decimal salvo que tenga exactamente 3 dígitos detrás (entonces miles).
@@ -174,7 +174,7 @@ const parseMoney = (raw) => {
   const num = parseFloat((intp || '0') + (decp ? '.' + decp : '')) || 0;
   return neg ? -num : num;
 };
-// Formatea un número al estándar anglosajón con 2 decimales (1,234.56).
+// Formatea un número al estándar internacional con 2 decimales (1,234.56).
 const formatMoneyEN = (num) => (Number(num) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const TabInvoices = ({ ship, updateShip }) => {
   const addInvoice = () => {
@@ -216,18 +216,24 @@ const TabInvoices = ({ ship, updateShip }) => {
                     <Input type="date" value={inv.date}
                            onChange={(e) => updInv(inv.id, { date: e.target.value })}/>
                   </Field>
-                  <Field label="Monto + moneda" required hint="Formato anglosajón: coma para miles y punto para decimales (ej. 1,234.56). Si lo escribes en formato europeo (1.234,56) lo convertimos automáticamente al salir del campo.">
-                    <div style={{display: 'flex', gap: 8}}>
-                      <Input mono inputMode="decimal" style={{flex: 1}} placeholder="1,234.56"
-                             value={inv.amountText !== undefined ? inv.amountText : (inv.amount ? formatMoneyEN(inv.amount) : '')}
-                             onChange={(e) => { const raw = e.target.value.replace(/[^0-9.,\s-]/g, ''); updInv(inv.id, { amount: parseMoney(raw), amountText: raw }); }}
-                             onBlur={() => { const t = (inv.amountText !== undefined ? inv.amountText : '').trim(); if (!t) { updInv(inv.id, { amount: 0, amountText: '' }); return; } const num = parseMoney(t); updInv(inv.id, { amount: num, amountText: formatMoneyEN(num) }); }}/>
-                      <Select style={{width: 90}} value={inv.currency}
-                              onChange={(e) => updInv(inv.id, { currency: e.target.value })}>
-                        {['USD','EUR','CNY','MXN'].map(c => <option key={c}>{c}</option>)}
-                      </Select>
+                  <div style={{display: 'flex', gap: 8, alignItems: 'flex-start'}}>
+                    <div style={{flex: 1}}>
+                      <Field label="Monto" required hint="Formato internacional: coma para miles y punto para decimales (ej. 1,234.56). Si lo escribes en formato europeo (1.234,56) lo convertimos automáticamente al salir del campo.">
+                        <Input mono inputMode="decimal" style={{width: '100%'}} placeholder="1,234.56"
+                               value={inv.amountText !== undefined ? inv.amountText : (inv.amount ? formatMoneyEN(inv.amount) : '')}
+                               onChange={(e) => { const raw = e.target.value.replace(/[^0-9.,\s-]/g, ''); updInv(inv.id, { amount: parseMoney(raw), amountText: raw }); }}
+                               onBlur={() => { const t = (inv.amountText !== undefined ? inv.amountText : '').trim(); if (!t) { updInv(inv.id, { amount: 0, amountText: '' }); return; } const num = parseMoney(t); updInv(inv.id, { amount: num, amountText: formatMoneyEN(num) }); }}/>
+                      </Field>
                     </div>
-                  </Field>
+                    <div style={{width: 90}}>
+                      <Field label="Divisa" required>
+                        <Select style={{width: '100%'}} value={inv.currency}
+                                onChange={(e) => updInv(inv.id, { currency: e.target.value })}>
+                          {['USD','EUR','CNY','MXN'].map(c => <option key={c}>{c}</option>)}
+                        </Select>
+                      </Field>
+                    </div>
+                  </div>
                 </div>
               </div>
             ))}
