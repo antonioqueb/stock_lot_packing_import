@@ -10,10 +10,27 @@
 
 const WIZARD_STEPS = [
   { id: 1, label: 'Productos' },
-  { id: 2, label: 'Bloques + fotos' },
+  { id: 2, label: 'Organización + fotos' },
   { id: 3, label: 'Revisión' },
   { id: 4, label: 'Llenar placas' },
 ];
+
+// Término para productos tipo formato (lote de color). Configurable: 'Tono' | 'Lote'.
+const FORMATO_TERM = 'Tono';
+
+// Configuración de agrupación POR TIPO de producto. Un embarque es combinado:
+// cada línea se organiza distinto (placa = bloque con fotos y filas; formato =
+// tono solo cantidad; pieza = conteo simple).
+const GROUP_MODES = {
+  placa:   { term: 'Bloque',     icon: 'cube',  color: 'var(--accent)', photo: 'required', generatesRows: true,  explainer: 'full',  countLabel: 'Placas' },
+  formato: { term: FORMATO_TERM, icon: 'image', color: '#7c5cff',       photo: 'optional', generatesRows: false, explainer: 'brief', countLabel: 'Cantidad (m² o cajas)' },
+  pieza:   { term: 'Grupo',      icon: 'box',   color: '#0ea5a0',       photo: 'hidden',   generatesRows: false, explainer: 'none',  countLabel: 'Cantidad total' },
+};
+const groupMode = (draft, p) => (draft.typeOverride && draft.typeOverride[p.id]) || (p && p.kind) || 'placa';
+const groupModeById = (draft, products, pid) => {
+  const p = products.find(pp => String(pp.id) === String(pid));
+  return groupMode(draft, p || { id: pid });
+};
 
 // Lee un File como base64 (sin el prefijo data:...;base64,) para Odoo.
 const wizFileToBase64 = (typeof fileToBase64 === 'function') ? fileToBase64 : (file) => new Promise((resolve, reject) => {
@@ -69,7 +86,7 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
   };
   // Firma de la estructura de bloques. Si cambia (el usuario corrigió la
   // selección de productos o ajustó bloques), hay que REGENERAR las filas.
-  const blocksSig = draft.blocks.map(b => `${b.id}:${b.product}:${b.count}:${b.name}`).join('|');
+  const blocksSig = draft.blocks.map(b => `${b.id}:${b.product}:${b.count}:${b.name}:${(b.packaging && b.packaging.kind) || ''}:${(b.packaging && b.packaging.qty) || ''}`).join('|');
   const genSigRef = React.useRef(null);
   // Genera (o regenera) las filas a partir de los bloques. Conserva los datos
   // ya capturados de los bloques que no cambiaron (match por id de fila).
@@ -87,22 +104,43 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
     const shipContainerNumbers = (ship && ship.containers ? ship.containers : []).map(c => c.number).filter(Boolean);
     const defaultContainer = shipContainerNumbers.length === 1 ? shipContainerNumbers[0] : '';
     const generated = [];
-    draft.blocks.forEach((b, bi) => {
+    draft.blocks.forEach((b) => {
       const product = proforma.products.find(p => String(p.id) === String(b.product)) || proforma.products[0] || {};
-      const tipo = product.kind === 'placa' ? 'Placa' : (product.kind === 'formato' ? 'Formato' : 'Pieza');
-      for (let i = 0; i < b.count; i++) {
-        const id = `r-${b.id}-${i}`;
+      const mode = groupModeById(draft, proforma.products, b.product);
+      const tipo = mode === 'placa' ? 'Placa' : (mode === 'formato' ? 'Formato' : 'Pieza');
+      // El empaque (opcional) se persiste en el campo `grupo` (grupo_name) sin
+      // tocar el modelo de Odoo: "pallet x5", "caja", etc.
+      const pkg = (b.packaging && b.packaging.kind) ? (b.packaging.kind + (b.packaging.qty ? ' x' + b.packaging.qty : '')) : '';
+      if (mode === 'placa') {
+        // Placa: 1 fila por placa para "Llenar placas".
+        for (let i = 0; i < (+b.count || 0); i++) {
+          const id = `r-${b.id}-${i}`;
+          const base = {
+            id, product_id: b.product || product.id, tipo,
+            block: b.name, atado: '', plate: '',
+            ref: product.ref || '', thickness: 2, h: 0, w: 0, quantity: 0, weight: 0, notes: '', grupo: pkg, pedimento: '', container: defaultContainer, container_id: false, photo: false, errors: [],
+            blockStart: i === 0,
+          };
+          const prev = prevById[id];
+          if (prev) KEEP.forEach(k => { if (prev[k] !== undefined) base[k] = prev[k]; });
+          generated.push(base);
+        }
+      } else {
+        // Formato/Pieza: NO genera filas individuales. 1 fila que carga la
+        // cantidad del grupo (no aparece en "Llenar placas").
+        const id = `r-${b.id}-q`;
         const base = {
-          id,
-          product_id: b.product || product.id,
-          tipo,
-          block: b.name, atado: '',
-          plate: '',
-          ref: product.ref || '', thickness: 2, h: 0, w: 0, quantity: tipo === 'Placa' ? 0 : 1, weight: 0, notes: '', grupo: '', pedimento: '', container: defaultContainer, container_id: false, photo: false, errors: [],
-          blockStart: i === 0,
+          id, product_id: b.product || product.id, tipo,
+          block: b.name || (product.ref || product.name || ''), atado: '', plate: '',
+          ref: product.ref || '', thickness: 0, h: 0, w: 0, quantity: +b.count || 0, weight: 0, notes: '', grupo: pkg, pedimento: '', container: defaultContainer, container_id: false, photo: false, errors: [],
+          blockStart: true,
         };
         const prev = prevById[id];
         if (prev) KEEP.forEach(k => { if (prev[k] !== undefined) base[k] = prev[k]; });
+        // La cantidad/etiqueta del grupo es la fuente de verdad (definida en el paso 2).
+        base.quantity = +b.count || 0;
+        base.block = b.name || (product.ref || product.name || '');
+        base.grupo = pkg;
         generated.push(base);
       }
     });
@@ -112,7 +150,15 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
 
   const canNext = () => {
     if (step === 1) return !!(draft.number || '').trim() && draft.products.length > 0;
-    if (step === 2) return !!(draft.number || '').trim() && draft.blocks.length > 0 && draft.blocks.every(b => b.name && b.count > 0);
+    if (step === 2) {
+      if (draft.blocks.length === 0) return false;
+      return draft.blocks.every(b => {
+        const mode = groupModeById(draft, proforma.products, b.product);
+        if ((+b.count || 0) <= 0) return false;
+        if (mode === 'placa' && !(b.name || '').trim()) return false;  // el bloque necesita nombre
+        return true;
+      });
+    }
     return true;
   };
 
@@ -125,12 +171,12 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
               Embarque #{ship.number} · {existing ? 'Editar' : 'Nuevo'} packing list
             </div>
             <h2>{step === 1 ? 'Para empezar, ¿qué producto vas a empacar?' :
-                 step === 2 ? 'Configura los bloques' :
+                 step === 2 ? 'Organiza el contenido del embarque' :
                  step === 3 ? 'Revisa la estructura antes de capturar' :
                  'Captura placa por placa'}</h2>
             <p className="sub">
               {step === 1 && 'Selecciona uno o más productos de la PO. Cada packing list puede incluir varios productos.'}
-              {step === 2 && 'Un bloque agrupa placas que vienen del mismo bloque de cantera. Define cuántas placas hay en cada uno.'}
+              {step === 2 && 'Cada línea se organiza según su tipo: bloques con fotos para placas, tonos por cantidad para formatos, conteo simple para piezas. El detalle aparece en cada tarjeta.'}
               {step === 3 && 'Confirmamos cuántas filas vamos a generar. Si algo no cuadra, regresa al paso anterior.'}
               {step === 4 && 'Las filas ya están creadas. Solo llena las dimensiones de cada placa y asigna su contenedor.'}
             </p>
@@ -186,7 +232,7 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
               <React.Fragment>
                 <Btn variant="ghost" onClick={() => setStep(2)}>Ajustar bloques</Btn>
                 <Btn variant="accent" icon="sparkles" onClick={() => setStep(4)}>
-                  Generar {draft.blocks.reduce((a,b) => a + b.count, 0)} filas
+                  Generar {draft.blocks.reduce((a,b) => a + (groupModeById(draft, proforma.products, b.product) === 'placa' ? (+b.count || 0) : 0), 0)} filas
                 </Btn>
               </React.Fragment>
             )}
@@ -263,16 +309,31 @@ const Step1Products = ({ proforma, draft, setDraft }) => {
 const Step2Blocks = ({ proforma, draft, setDraft, pendingImages }) => {
   const products = proforma.products.filter(p => draft.products.includes(p.id));
 
-  const addBlock = (productId) => {
-    const newBlock = {
-      id: 'b' + Date.now() + Math.random().toString(36).slice(2,6),
-      name: '', count: 0, photo: false, product: productId,
-    };
-    setDraft({ ...draft, blocks: [...draft.blocks, newBlock] });
-  };
+  // Default inteligente: al entrar, cada línea ya tiene 1 grupo creado. Las
+  // PIEZAS vienen pre-llenadas al 100% (cantidad total), así no aparece "0 de N".
+  React.useEffect(() => {
+    const selected = new Set((draft.products || []).map(String));
+    const pruned = draft.blocks.filter(b => selected.has(String(b.product)));
+    const missing = products.filter(p => !pruned.some(b => String(b.product) === String(p.id)));
+    if (missing.length === 0 && pruned.length === draft.blocks.length) return;
+    const adds = missing.map(p => ({
+      id: 'b' + Date.now() + Math.random().toString(36).slice(2, 6) + String(p.id),
+      product: p.id, name: '',
+      count: groupMode(draft, p) === 'pieza' ? (+p.requested_qty || 0) : 0,
+      photo: false, packaging: { kind: '', qty: '' },
+    }));
+    setDraft({ ...draft, blocks: [...pruned, ...adds] });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft.products]);
+
+  const setOverride = (pid, kind) => setDraft({ ...draft, typeOverride: { ...(draft.typeOverride || {}), [pid]: kind } });
+  const addGroup = (pid, mode) => setDraft({ ...draft, blocks: [...draft.blocks, {
+    id: 'b' + Date.now() + Math.random().toString(36).slice(2, 6), product: pid, name: '',
+    count: 0, photo: false, packaging: { kind: '', qty: '' },
+  }] });
   const updBlock = (id, patch) => setDraft({ ...draft, blocks: draft.blocks.map(b => b.id === id ? { ...b, ...patch } : b) });
+  const updPack = (id, patch) => setDraft({ ...draft, blocks: draft.blocks.map(b => b.id === id ? { ...b, packaging: { ...(b.packaging || {}), ...patch } } : b) });
   const delBlock = (id) => setDraft({ ...draft, blocks: draft.blocks.filter(b => b.id !== id) });
-  // Captura real de la foto del bloque (se sube al persistir).
   const pickBlockPhoto = (b, file) => {
     if (!file) return;
     const preview = URL.createObjectURL(file);
@@ -284,93 +345,124 @@ const Step2Blocks = ({ proforma, draft, setDraft, pendingImages }) => {
   const blockPhotoSrc = (b) => b.image_preview || (b.block_image_id ? `/web/image/supplier.shipment.block.image/${b.block_image_id}/image` : '');
 
   return (
-    <div>
-      <Callout tone="info" icon="info" title="¿Qué es un bloque?">
-        Un bloque es la piedra original de cantera, antes de cortarse. De cada bloque salen varias placas. Si tienes 3 bloques con 18, 16 y 14 placas, este paso generará automáticamente 48 filas para llenar.
-      </Callout>
-
-      <div style={{marginTop: 20, display: 'flex', flexDirection: 'column', gap: 24}}>
-        {products.map(p => {
-          const productBlocks = draft.blocks.filter(b => b.product === p.id);
-          // Compra nacional: las placas no exigen foto de bloque (se comportan como formatos).
-          const needsPhoto = !window.PORTAL_NATIONAL && (p.kind || 'placa') === 'placa';
-          // Etiqueta de agrupación según el tipo: Formato→Bloque/Tono, Pieza→Agrupador.
-          const blockWord = p.kind === 'formato' ? 'Bloque/Tono' : (p.kind === 'pieza' ? 'Agrupador' : 'Bloque');
-          return (
-            <div key={p.id}>
-              <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10}}>
-                <div>
+    <div style={{display: 'flex', flexDirection: 'column', gap: 16}}>
+      {products.map(p => {
+        const mode = groupMode(draft, p);
+        const cfg = GROUP_MODES[mode] || GROUP_MODES.placa;
+        const groups = draft.blocks.filter(b => String(b.product) === String(p.id));
+        const showPhoto = cfg.photo !== 'hidden' && !window.PORTAL_NATIONAL;
+        const needsPhoto = cfg.photo === 'required' && !window.PORTAL_NATIONAL;
+        const total = groups.reduce((a, b) => a + (+b.count || 0), 0);
+        const req = +p.requested_qty || 0;
+        let badge;
+        if (needsPhoto && groups.some(g => (+g.count || 0) > 0 && !g.photo)) badge = { tone: 'partial', icon: 'camera', text: 'Falta foto' };
+        else if (req && total >= req) badge = { tone: 'done', icon: 'check', text: 'Completo' };
+        else if (total > 0) badge = { tone: 'partial', icon: null, text: `Parcial (${total} de ${req})` };
+        else badge = { tone: 'todo', icon: null, text: `0 de ${req}` };
+        const term = cfg.term.toLowerCase();
+        return (
+          <div key={p.id} className="pl-product" style={{border: '1px solid var(--border)', borderLeft: `3px solid ${cfg.color}`, borderRadius: 12, padding: 14, background: 'var(--surface)'}}>
+            <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap'}}>
+              <div style={{display: 'flex', alignItems: 'center', gap: 10, minWidth: 0}}>
+                <span style={{display: 'grid', placeItems: 'center', width: 28, height: 28, borderRadius: 8, background: cfg.color, color: 'white', flex: '0 0 auto'}}><Icon name={cfg.icon} size={15}/></span>
+                <div style={{minWidth: 0}}>
                   <strong style={{fontSize: 14}}>{p.name}</strong>
-                  <span className="text-muted text-small" style={{marginLeft: 8}}>· {productBlocks.reduce((a,b) => a + (+b.count || 0), 0)} de {p.requested_qty} {p.unit} configurados</span>
+                  <div className="text-muted text-small">{cfg.term}{p.ref ? ' · ' + p.ref : ''}</div>
                 </div>
-                <Btn variant="secondary" size="sm" icon="plus" onClick={() => addBlock(p.id)}>Agregar {blockWord}</Btn>
               </div>
-
-              {productBlocks.length === 0 ? (
-                <Empty icon="cube" title="Sin bloques aún">
-                  Empieza con uno. Puedes agregar tantos como necesites.
-                </Empty>
-              ) : (
-                <div style={{display: 'flex', flexDirection: 'column', gap: 12}}>
-                  {productBlocks.map((b, bi) => (
-                    <div key={b.id} className="block-card">
-                      {needsPhoto && (
-                        <label className={`block-photo ${b.photo ? 'has-photo' : ''}`} style={{cursor: 'pointer', overflow: 'hidden'}} title="Subir/Reemplazar foto del bloque">
-                          <input type="file" accept="image/*" style={{display: 'none'}}
-                                 onChange={(e) => pickBlockPhoto(b, e.target.files && e.target.files[0])}/>
-                          {blockPhotoSrc(b) ? (
-                            <img src={blockPhotoSrc(b)} alt="foto bloque" style={{width: '100%', height: '100%', objectFit: 'cover', borderRadius: 8}}/>
-                          ) : (
-                            <div style={{textAlign: 'center'}}>
-                              <Icon name="camera" size={20}/>
-                              <div style={{fontSize: 10, marginTop: 4, fontWeight: 600}}>Subir foto</div>
-                            </div>
-                          )}
-                        </label>
-                      )}
-                      <div className="block-fields">
-                        <Field label={`Nombre del ${blockWord} #${bi + 1}`} required>
-                          <Input mono placeholder="Ej. 3024117 " value={b.name}
-                                 onChange={(e) => updBlock(b.id, { name: e.target.value })}/>
-                        </Field>
-                        <div className="block-fields-row">
-                          <Field label="Placas / piezas" required>
-                            <Input mono type="number" min={1} value={b.count || ''} placeholder="18"
-                                   onChange={(e) => updBlock(b.id, { count: +e.target.value })}/>
-                          </Field>
-                          <Field label="Estado">
-                            <div style={{display: 'flex', gap: 6, alignItems: 'center', padding: '8px 0'}}>
-                              {!needsPhoto
-                                ? <span className="text-muted text-small">No requiere foto</span>
-                                : b.photo
-                                  ? <Badge tone="done"><Icon name="check" size={10}/> Foto OK</Badge>
-                                  : <Badge tone="partial"><Icon name="camera" size={10}/> Falta foto</Badge>}
-                              <Btn variant="ghost" size="sm" icon="trash" className="btn-danger-ghost" onClick={() => delBlock(b.id)}/>
-                            </div>
-                          </Field>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <div style={{display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap'}}>
+                <Badge tone={badge.tone}>{badge.icon ? <Icon name={badge.icon} size={10}/> : null} {badge.text}</Badge>
+                <Select value={mode} onChange={(e) => setOverride(p.id, e.target.value)} style={{width: 116}} title="Tipo de organización">
+                  <option value="placa">Placa</option>
+                  <option value="formato">Formato</option>
+                  <option value="pieza">Pieza</option>
+                </Select>
+                <Btn variant="secondary" size="sm" icon="plus" onClick={() => addGroup(p.id, mode)}>Agregar {cfg.term}</Btn>
+              </div>
             </div>
-          );
-        })}
-      </div>
+
+            {cfg.explainer === 'full' && (
+              <Callout tone="info" icon="info" title="¿Qué es un bloque?">
+                Un bloque es la piedra original de cantera, antes de cortarse. De cada bloque salen varias placas; cada una se captura individualmente en el siguiente paso.
+              </Callout>
+            )}
+            {cfg.explainer === 'brief' && (
+              <Callout tone="info" icon="info" title={`¿Qué es un ${term}?`}>
+                Un {term} agrupa material del mismo lote de color. Solo necesitas la cantidad total — no hace falta detallar pieza por pieza.
+              </Callout>
+            )}
+
+            <div style={{display: 'flex', flexDirection: 'column', gap: 10, marginTop: 10}}>
+              {groups.map((b, bi) => (
+                <div key={b.id} className="block-card" style={{borderColor: 'var(--border)'}}>
+                  {showPhoto && (
+                    <label className={`block-photo ${b.photo ? 'has-photo' : ''}`} style={{cursor: 'pointer', overflow: 'hidden'}} title="Subir/Reemplazar foto">
+                      <input type="file" accept="image/*" style={{display: 'none'}}
+                             onChange={(e) => pickBlockPhoto(b, e.target.files && e.target.files[0])}/>
+                      {blockPhotoSrc(b) ? (
+                        <img src={blockPhotoSrc(b)} alt="foto" style={{width: '100%', height: '100%', objectFit: 'cover', borderRadius: 8}}/>
+                      ) : (
+                        <div style={{textAlign: 'center'}}>
+                          <Icon name="camera" size={20}/>
+                          <div style={{fontSize: 10, marginTop: 4, fontWeight: 600}}>{needsPhoto ? 'Subir foto' : 'Foto (opc.)'}</div>
+                        </div>
+                      )}
+                    </label>
+                  )}
+                  <div className="block-fields">
+                    {mode !== 'pieza' && (
+                      <Field label={`Nombre del ${term} #${bi + 1}`} required={mode === 'placa'}>
+                        <Input mono placeholder={mode === 'placa' ? 'Ej. 3024117' : `Ej. ${cfg.term} A`} value={b.name}
+                               onChange={(e) => updBlock(b.id, { name: e.target.value })}/>
+                      </Field>
+                    )}
+                    <div className="block-fields-row">
+                      <Field label={cfg.countLabel} required>
+                        <Input mono type="number" min={mode === 'placa' ? 1 : 0} value={b.count || ''} placeholder={mode === 'placa' ? '18' : '0'}
+                               onChange={(e) => updBlock(b.id, { count: +e.target.value })}/>
+                      </Field>
+                      <Field label="Estado">
+                        <div style={{display: 'flex', gap: 6, alignItems: 'center', padding: '8px 0'}}>
+                          {cfg.photo === 'required'
+                            ? (b.photo ? <Badge tone="done"><Icon name="check" size={10}/> Foto OK</Badge> : <Badge tone="partial"><Icon name="camera" size={10}/> Falta foto</Badge>)
+                            : <span className="text-muted text-small">{cfg.photo === 'optional' ? 'Foto opcional' : 'Sin foto'}</span>}
+                          {groups.length > 1 && <Btn variant="ghost" size="sm" icon="trash" className="btn-danger-ghost" onClick={() => delBlock(b.id)}/>}
+                        </div>
+                      </Field>
+                    </div>
+                    <details className="pl-packaging" style={{marginTop: 2}}>
+                      <summary style={{cursor: 'pointer', fontSize: 12, color: 'var(--ink-3)'}}>¿Cómo viene empacado? (opcional)</summary>
+                      <div style={{display: 'flex', gap: 8, marginTop: 6}}>
+                        <Select value={(b.packaging && b.packaging.kind) || ''} onChange={(e) => updPack(b.id, { kind: e.target.value })} style={{width: 140}}>
+                          <option value="">— sin definir —</option>
+                          <option value="pallet">Pallet</option>
+                          <option value="caja">Caja</option>
+                          <option value="suelto">Suelto</option>
+                        </Select>
+                        <Input mono type="number" min={0} placeholder="Cantidad" value={(b.packaging && b.packaging.qty) || ''}
+                               onChange={(e) => updPack(b.id, { qty: e.target.value })} style={{width: 120}}/>
+                      </div>
+                    </details>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 };
 
 /* ====================== Step 3 ====================== */
 const Step3Review = ({ proforma, draft }) => {
-  const totalPlates = draft.blocks.reduce((a, b) => a + (+b.count || 0), 0);
   const products = proforma.products.filter(p => draft.products.includes(p.id));
+  // Filas a generar = solo placas (formato/pieza no generan filas individuales).
+  const totalPlates = draft.blocks.reduce((a, b) => a + (groupModeById(draft, proforma.products, b.product) === 'placa' ? (+b.count || 0) : 0), 0);
   const needsBlockPhoto = (b) => {
     // Compra nacional: nunca se exige foto de bloque (placas como formatos).
     if (window.PORTAL_NATIONAL) return false;
-    const pr = proforma.products.find(p => p.id === b.product);
-    return ((pr && pr.kind) || 'placa') === 'placa';
+    return groupModeById(draft, proforma.products, b.product) === 'placa';
   };
   const blockOk = (b) => !needsBlockPhoto(b) || b.photo;
   const photosMissing = draft.blocks.filter(b => needsBlockPhoto(b) && !b.photo).length;
@@ -383,7 +475,7 @@ const Step3Review = ({ proforma, draft }) => {
           <div className="mono" style={{fontSize: 28, fontWeight: 700, letterSpacing: '-0.02em'}}>{products.length}</div>
         </div>
         <div style={{padding: 18, border: '1px solid var(--border)', borderRadius: 12, background: 'var(--surface)'}}>
-          <div className="text-muted" style={{fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase', fontWeight: 600, marginBottom: 6}}>Bloques configurados</div>
+          <div className="text-muted" style={{fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase', fontWeight: 600, marginBottom: 6}}>Grupos configurados</div>
           <div className="mono" style={{fontSize: 28, fontWeight: 700, letterSpacing: '-0.02em'}}>{draft.blocks.length}</div>
         </div>
         <div style={{padding: 18, border: '1.5px solid var(--accent)', borderRadius: 12, background: 'var(--accent-soft)'}}>
@@ -405,12 +497,14 @@ const Step3Review = ({ proforma, draft }) => {
         <div style={{display: 'flex', flexDirection: 'column', gap: 12}}>
           {products.map(p => {
             const pblocks = draft.blocks.filter(b => b.product === p.id);
+            const pmode = groupMode(draft, p);
+            const punit = pmode === 'placa' ? 'placas' : (pmode === 'formato' ? 'cant.' : 'piezas');
             return (
               <div key={p.id} style={{border: '1px solid var(--border)', borderRadius: 12, padding: 16, background: 'var(--surface)'}}>
                 <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12}}>
                   <strong>{p.name}</strong>
                   <span className="mono text-small text-muted">
-                    {pblocks.reduce((a,b) => a + (+b.count || 0), 0)} placas
+                    {pblocks.reduce((a,b) => a + (+b.count || 0), 0)} {punit}
                   </span>
                 </div>
                 <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
@@ -461,10 +555,14 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
   // que estás, renderizamos UNA tabla por producto (más abajo), y cada una
   // calcula estas banderas sobre SUS filas.
 
-  const errors = rows.filter(r => r.errors && r.errors.length > 0);
-  const completeRows = rows.filter(r => r.h > 0 && r.w > 0 && r.container);
+  // "Llenar placas" SOLO muestra filas tipo placa. Las filas de formato/pieza
+  // (1 por grupo, con su cantidad) viven en `rows` para guardarse, pero no se
+  // capturan aquí: su cantidad ya se definió en el paso de organización.
+  const placaRows = rows.filter(rowIsPlaca);
+  const errors = placaRows.filter(r => r.errors && r.errors.length > 0);
+  const completeRows = placaRows.filter(r => r.h > 0 && r.w > 0 && r.container);
 
-  const filtered = filter === 'all' ? rows : filter === 'errors' ? errors : filter === 'empty' ? rows.filter(r => !r.h || !r.w) : rows;
+  const filtered = filter === 'all' ? placaRows : filter === 'errors' ? errors : filter === 'empty' ? placaRows.filter(r => !r.h || !r.w) : placaRows;
 
   const updRow = (id, patch) => setRows(prev => prev.map(r => r.id === id ? { ...r, ...patch } : r));
   const portalRowImageId = (r) => {
@@ -678,7 +776,7 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
         </div>
 
         <div className="seg">
-          <button className={filter === 'all' ? 'active' : ''} onClick={() => setFilter('all')}>Todas ({rows.length})</button>
+          <button className={filter === 'all' ? 'active' : ''} onClick={() => setFilter('all')}>Todas ({placaRows.length})</button>
           <button className={filter === 'errors' ? 'active' : ''} onClick={() => setFilter('errors')}>Errores ({errors.length})</button>
           <button className={filter === 'empty' ? 'active' : ''} onClick={() => setFilter('empty')}>Sin dimensiones</button>
         </div>
@@ -741,7 +839,7 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                       return (
                   <tr key={r.id} className={`${isBlockStart ? 'block-start' : ''} ${activeRow === r.id ? 'is-active' : ''}`}
                       onClick={() => setActiveRow(r.id)}>
-                    <td style={{textAlign: 'center', color: 'var(--ink-4)', fontSize: 11}}>{rows.indexOf(r) + 1}</td>
+                    <td style={{textAlign: 'center', color: 'var(--ink-4)', fontSize: 11}}>{placaRows.indexOf(r) + 1}</td>
                     {!window.PORTAL_NATIONAL && <td className="cell-block"><input value={r.block} style={{textTransform: 'uppercase'}} onChange={forceUpper((e) => updRow(r.id, { block: e.target.value }))}/></td>}
                     {!window.PORTAL_NATIONAL && anyPlaca && PropCell({ rowId: r.id, field: "atado", children: (
                       <input value={r.atado} placeholder="rellenar valor" style={{textTransform: 'uppercase'}} onChange={forceUpper((e) => updRow(r.id, { atado: e.target.value }))}/>
