@@ -456,27 +456,10 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
   const rowIsPlaca = (r) => String(r.tipo || 'Placa').toLowerCase().indexOf('placa') >= 0;
   const rowIsPieza = (r) => String(r.tipo || '').toLowerCase().indexOf('pieza') >= 0;
   const rowIsFormato = (r) => String(r.tipo || '').toLowerCase().indexOf('formato') >= 0;
-  const anyPlaca = rows.some(rowIsPlaca);
-  // Formatos/Piezas se capturan por CANTIDAD (no por Largo×Alto, que es de placas).
-  const anyFormato = rows.some(r => !rowIsPlaca(r));
-  // El Grosor aplica a placas y formatos; las PIEZAS no llevan grosor.
-  const anyThickness = rows.some(r => !rowIsPieza(r));
-  // El "Atado" no aplica a Formatos. Se muestra si hay filas no-formato (placa/pieza).
-  const anyNonFormato = rows.some(r => !rowIsFormato(r));
-  // Etiqueta de la columna de agrupación según el tipo: Placa→Bloque,
-  // Formato→Bloque/Tono, Pieza→Agrupador.
-  const blockLabel = anyPlaca ? 'Bloque'
-    : rows.some(rowIsFormato) ? 'Bloque/Tono'
-    : rows.some(rowIsPieza) ? 'Agrupador'
-    : 'Bloque';
-  // Columnas visibles para el colSpan del encabezado de producto:
-  // base = # + No. Placa + Contenedor + Notas (4)
-  const colCount = 4
-    + (window.PORTAL_NATIONAL ? 0 : 1)                          // Bloque/Tono/Agrupador
-    + ((!window.PORTAL_NATIONAL && anyNonFormato) ? 1 : 0)      // Atado (no en formato)
-    + (anyThickness ? 1 : 0)                                     // Grosor
-    + (anyPlaca ? 4 : 0)                                         // Largo + Alto + Área + Foto
-    + (anyFormato ? 1 : 0);                                     // Cantidad
+  // Las columnas/etiquetas dependen del TIPO de cada producto. Para que la
+  // cabecera fija (sticky) muestre las columnas correctas del producto sobre el
+  // que estás, renderizamos UNA tabla por producto (más abajo), y cada una
+  // calcula estas banderas sobre SUS filas.
 
   const errors = rows.filter(r => r.errors && r.errors.length > 0);
   const completeRows = rows.filter(r => r.h > 0 && r.w > 0 && r.container);
@@ -579,6 +562,9 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
   filtered.forEach(r => { const k = prodKey(r); if (prodOrder.indexOf(k) < 0) prodOrder.push(k); });
   const visibleRows = filtered.slice().sort((a, b) => prodOrder.indexOf(prodKey(a)) - prodOrder.indexOf(prodKey(b)));
   const multiProduct = prodOrder.length > 1;
+  // Una tabla por producto: así la cabecera fija (sticky) cambia de columnas al
+  // pasar de un producto a otro (placa ↔ formato ↔ pieza).
+  const productGroups = prodOrder.map(k => ({ key: k, rows: visibleRows.filter(r => prodKey(r) === k) }));
 
   // ---- Excel-compatible CSV export & paste ----
   const COL_DEFS = [
@@ -705,47 +691,53 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
 
       <div className="sheet">
         <div className="sheet-scroll">
-          <table className="sheet-table">
-            <thead>
-              <tr>
-                <th style={{width: 30}}>#</th>
-                {!window.PORTAL_NATIONAL && <th style={{minWidth: 130}}>{blockLabel}</th>}
-                {!window.PORTAL_NATIONAL && anyNonFormato && <th style={{minWidth: 110}}>Atado</th>}
-                <th style={{minWidth: 110}}>No. Placa</th>
-                {anyThickness && <th style={{width: 110}}>Grosor cm</th>}
-                {anyPlaca && <th style={{width: 110}}>Largo m</th>}
-                {anyPlaca && <th style={{width: 110}}>Alto m</th>}
-                {anyPlaca && <th style={{width: 80}}>Área m²</th>}
-                {anyFormato && <th style={{width: 110}}>Cantidad</th>}
-                <th style={{minWidth: 180}}>{window.PORTAL_NATIONAL ? 'Plataforma' : 'Contenedor'}</th>
-                {anyPlaca && <th style={{width: 60}}>Foto</th>}
-                <th style={{minWidth: 170}}>Notas</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visibleRows.flatMap((r, i) => {
-                const hNum = parseFloat(r.h) || 0;
-                const wNum = parseFloat(r.w) || 0;
-                const area = (hNum && wNum) ? (hNum * wNum).toFixed(2) : '';
-                const noH = !hNum;
-                const noW = !wNum;
-                const noQ = !(parseFloat(r.quantity) > 0);
-                const noC = !r.container;
-                const isProductStart = i === 0 || prodKey(visibleRows[i-1]) !== prodKey(r);
-                const isBlockStart = isProductStart || visibleRows[i-1].block !== r.block;
-                const prod = productById[prodKey(r)];
-                const els = [];
-                if (multiProduct && isProductStart) {
-                  els.push(
-                    <tr key={'grp-' + r.id} className="product-group" data-noncommentable="">
-                      <td colSpan={colCount} style={{background: 'var(--accent-soft)', borderTop: '2px solid var(--accent)', padding: '8px 12px', fontSize: 12.5, letterSpacing: '0.02em', position: 'sticky', left: 0}}>
-                        <span style={{fontWeight: 700, color: 'var(--accent)'}}>{(prod && prod.name) || 'Producto'}</span>
-                        {prod && prod.ref ? <span className="mono" style={{marginLeft: 8, color: 'var(--ink-3)', fontWeight: 600}}>{prod.ref}</span> : null}
-                      </td>
+          {productGroups.map(group => {
+            const gRows = group.rows;
+            const prod = productById[group.key];
+            const anyPlaca = gRows.some(rowIsPlaca);
+            const anyFormato = gRows.some(r => !rowIsPlaca(r));
+            const anyThickness = gRows.some(r => !rowIsPieza(r));
+            const anyNonFormato = gRows.some(r => !rowIsFormato(r));
+            const blockLabel = anyPlaca ? 'Bloque'
+              : gRows.some(rowIsFormato) ? 'Bloque/Tono'
+              : gRows.some(rowIsPieza) ? 'Agrupador'
+              : 'Bloque';
+            return (
+              <div key={group.key}>
+                {multiProduct && (
+                  <div className="pg-title" style={{display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'var(--accent-soft)', borderTop: '2px solid var(--accent)'}}>
+                    <span style={{fontWeight: 700, color: 'var(--accent)', fontSize: 12.5}}>{(prod && prod.name) || 'Producto'}</span>
+                    {prod && prod.ref ? <span className="mono" style={{color: 'var(--ink-3)', fontWeight: 600, fontSize: 12}}>{prod.ref}</span> : null}
+                  </div>
+                )}
+                <table className="sheet-table">
+                  <thead>
+                    <tr>
+                      <th style={{width: 30}}>#</th>
+                      {!window.PORTAL_NATIONAL && <th style={{minWidth: 130}}>{blockLabel}</th>}
+                      {!window.PORTAL_NATIONAL && anyNonFormato && <th style={{minWidth: 110}}>Atado</th>}
+                      <th style={{minWidth: 110}}>No. Placa</th>
+                      {anyThickness && <th style={{width: 110}}>Grosor cm</th>}
+                      {anyPlaca && <th style={{width: 110}}>Largo m</th>}
+                      {anyPlaca && <th style={{width: 110}}>Alto m</th>}
+                      {anyPlaca && <th style={{width: 80}}>Área m²</th>}
+                      {anyFormato && <th style={{width: 110}}>Cantidad</th>}
+                      <th style={{minWidth: 180}}>{window.PORTAL_NATIONAL ? 'Plataforma' : 'Contenedor'}</th>
+                      {anyPlaca && <th style={{width: 60}}>Foto</th>}
+                      <th style={{minWidth: 170}}>Notas</th>
                     </tr>
-                  );
-                }
-                els.push(
+                  </thead>
+                  <tbody>
+                    {gRows.map((r, gi) => {
+                      const hNum = parseFloat(r.h) || 0;
+                      const wNum = parseFloat(r.w) || 0;
+                      const area = (hNum && wNum) ? (hNum * wNum).toFixed(2) : '';
+                      const noH = !hNum;
+                      const noW = !wNum;
+                      const noQ = !(parseFloat(r.quantity) > 0);
+                      const noC = !r.container;
+                      const isBlockStart = gi === 0 || gRows[gi-1].block !== r.block;
+                      return (
                   <tr key={r.id} className={`${isBlockStart ? 'block-start' : ''} ${activeRow === r.id ? 'is-active' : ''}`}
                       onClick={() => setActiveRow(r.id)}>
                     <td style={{textAlign: 'center', color: 'var(--ink-4)', fontSize: 11}}>{rows.indexOf(r) + 1}</td>
@@ -813,11 +805,13 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                       <input placeholder="—" value={r.notes} style={{textTransform: 'uppercase'}} onChange={forceUpper((e) => updRow(r.id, { notes: e.target.value }))}/>
                     )})}
                   </tr>
-                );
-                return els;
-              })}
-            </tbody>
-          </table>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })}
         </div>
       </div>
 

@@ -2457,24 +2457,9 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
     const rowIsPlaca = (r) => String(r.tipo || 'Placa').toLowerCase().indexOf('placa') >= 0;
     const rowIsPieza = (r) => String(r.tipo || '').toLowerCase().indexOf('pieza') >= 0;
     const rowIsFormato = (r) => String(r.tipo || '').toLowerCase().indexOf('formato') >= 0;
-    const anyPlaca = rows.some(rowIsPlaca);
-    // Formatos/Piezas se capturan por CANTIDAD (no por Largo×Alto, que es de placas).
-    const anyFormato = rows.some(r => !rowIsPlaca(r));
-    // El Grosor aplica a placas y formatos; las PIEZAS no llevan grosor.
-    const anyThickness = rows.some(r => !rowIsPieza(r));
-    // El "Atado" no aplica a Formatos. Se muestra si hay filas no-formato (placa/pieza).
-    const anyNonFormato = rows.some(r => !rowIsFormato(r));
-    // Etiqueta de la columna de agrupación: Placa→Bloque, Formato→Bloque/Tono, Pieza→Agrupador.
-    const blockLabel = anyPlaca ? 'Bloque'
-        : rows.some(rowIsFormato) ? 'Bloque/Tono'
-        : rows.some(rowIsPieza) ? 'Agrupador'
-        : 'Bloque';
-    const colCount = 4
-        + (window.PORTAL_NATIONAL ? 0 : 1)                          // Bloque/Tono/Agrupador
-        + ((!window.PORTAL_NATIONAL && anyNonFormato) ? 1 : 0)      // Atado (no en formato)
-        + (anyThickness ? 1 : 0)             // Grosor
-        + (anyPlaca ? 4 : 0)                  // Largo + Alto + Área + Foto
-        + (anyFormato ? 1 : 0);              // Cantidad
+    // Las columnas/etiquetas dependen del TIPO de cada producto. Para que la
+    // cabecera fija (sticky) muestre las columnas del producto sobre el que estás,
+    // renderizamos UNA tabla por producto (más abajo), cada una con sus banderas.
     const errors = rows.filter(r => r.errors && r.errors.length > 0);
     const completeRows = rows.filter(r => r.h > 0 && r.w > 0 && r.container);
     const filtered = filter === 'all' ? rows : filter === 'errors' ? errors : filter === 'empty' ? rows.filter(r => !r.h || !r.w) : rows;
@@ -2583,6 +2568,9 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
     filtered.forEach(r => { const k = prodKey(r); if (prodOrder.indexOf(k) < 0) prodOrder.push(k); });
     const visibleRows = filtered.slice().sort((a, b) => prodOrder.indexOf(prodKey(a)) - prodOrder.indexOf(prodKey(b)));
     const multiProduct = prodOrder.length > 1;
+    // Una tabla por producto: la cabecera fija cambia de columnas al pasar de un
+    // producto a otro (placa ↔ formato ↔ pieza).
+    const productGroups = prodOrder.map(k => ({ key: k, rows: visibleRows.filter(r => prodKey(r) === k) }));
     // ---- Excel-compatible CSV export & paste ----
     const COL_DEFS = [
         { header: '#',          field: null,        type: 'index'  },
@@ -2699,7 +2687,19 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                 React.createElement(Btn, { variant: "secondary", icon: "upload", size: "sm", onClick: () => { setPasteText(''); setPasteOpen(true); } }, "Pegar de Excel"))),
         React.createElement("div", { className: "sheet" },
             React.createElement("div", { className: "sheet-scroll" },
-                React.createElement("table", { className: "sheet-table" },
+                productGroups.map(group => {
+                    const gRows = group.rows;
+                    const prod = productById[group.key];
+                    const anyPlaca = gRows.some(rowIsPlaca);
+                    const anyFormato = gRows.some(r => !rowIsPlaca(r));
+                    const anyThickness = gRows.some(r => !rowIsPieza(r));
+                    const anyNonFormato = gRows.some(r => !rowIsFormato(r));
+                    const blockLabel = anyPlaca ? 'Bloque' : gRows.some(rowIsFormato) ? 'Bloque/Tono' : gRows.some(rowIsPieza) ? 'Agrupador' : 'Bloque';
+                    return React.createElement("div", { key: group.key },
+                        (multiProduct && React.createElement("div", { className: "pg-title", style: { display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'var(--accent-soft)', borderTop: '2px solid var(--accent)' } },
+                            React.createElement("span", { style: { fontWeight: 700, color: 'var(--accent)', fontSize: 12.5 } }, (prod && prod.name) || 'Producto'),
+                            (prod && prod.ref) ? React.createElement("span", { className: "mono", style: { color: 'var(--ink-3)', fontWeight: 600, fontSize: 12 } }, prod.ref) : null)),
+                        React.createElement("table", { className: "sheet-table" },
                     React.createElement("thead", null,
                         React.createElement("tr", null,
                             React.createElement("th", { style: { width: 30 } }, "#"),
@@ -2714,7 +2714,7 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                             React.createElement("th", { style: { minWidth: 180 } }, window.PORTAL_NATIONAL ? 'Plataforma' : 'Contenedor'),
                             anyPlaca && React.createElement("th", { style: { width: 60 } }, "Foto"),
                             React.createElement("th", { style: { minWidth: 170 } }, "Notas"))),
-                    React.createElement("tbody", null, visibleRows.flatMap((r, i) => {
+                    React.createElement("tbody", null, gRows.map((r, gi) => {
                         const hNum = parseFloat(r.h) || 0;
                         const wNum = parseFloat(r.w) || 0;
                         const area = (hNum && wNum) ? (hNum * wNum).toFixed(2) : '';
@@ -2722,13 +2722,7 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                         const noW = !wNum;
                         const noQ = !(parseFloat(r.quantity) > 0);
                         const noC = !r.container;
-                        const isProductStart = i === 0 || prodKey(visibleRows[i - 1]) !== prodKey(r);
-                        const isBlockStart = isProductStart || visibleRows[i - 1].block !== r.block;
-                        const prod = productById[prodKey(r)];
-                        const groupHeader = (multiProduct && isProductStart) ? React.createElement("tr", { key: 'grp-' + r.id, className: "product-group", "data-noncommentable": "" },
-                            React.createElement("td", { colSpan: colCount, style: { background: 'var(--accent-soft)', borderTop: '2px solid var(--accent)', padding: '8px 12px', fontSize: 12.5, letterSpacing: '0.02em', position: 'sticky', left: 0 } },
-                                React.createElement("span", { style: { fontWeight: 700, color: 'var(--accent)' } }, (prod && prod.name) || 'Producto'),
-                                (prod && prod.ref) ? React.createElement("span", { className: "mono", style: { marginLeft: 8, color: 'var(--ink-3)', fontWeight: 600 } }, prod.ref) : null)) : null;
+                        const isBlockStart = gi === 0 || gRows[gi - 1].block !== r.block;
                         const dataRow = React.createElement("tr", { key: r.id, className: `${isBlockStart ? 'block-start' : ''} ${activeRow === r.id ? 'is-active' : ''}`, onClick: () => setActiveRow(r.id) },
                             React.createElement("td", { style: { textAlign: 'center', color: 'var(--ink-4)', fontSize: 11 } }, rows.indexOf(r) + 1),
                             (!window.PORTAL_NATIONAL && React.createElement("td", { className: "cell-block" },
@@ -2774,8 +2768,8 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                                 : React.createElement("span", { className: "text-muted", style: { fontSize: 11 } }, "—")),
                             PropCell({ rowId: r.id, field: "notes" },
                                 React.createElement("input", { placeholder: "\u2014", value: r.notes, style: { textTransform: 'uppercase' }, onChange: forceUpper((e) => updRow(r.id, { notes: e.target.value })) })));
-                        return groupHeader ? [groupHeader, dataRow] : [dataRow];
-                    }))))),
+                        return dataRow;
+                    }))))}))),
         pasteOpen && React.createElement("div", { style: { position: 'fixed', inset: 0, zIndex: 2147483001, background: 'oklch(0.2 0.01 60 / 0.5)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }, onClick: (e) => e.target === e.currentTarget && setPasteOpen(false) },
             React.createElement("div", { style: { background: 'var(--surface)', borderRadius: 14, border: '1px solid var(--border)', boxShadow: 'var(--shadow-lg)', width: 'min(680px, calc(100vw - 48px))', maxHeight: 'calc(100dvh - 48px)', display: 'flex', flexDirection: 'column' } },
                 React.createElement("div", { style: { padding: '18px 22px 14px', borderBottom: '1px solid var(--border-soft)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flex: '0 0 auto' } },
