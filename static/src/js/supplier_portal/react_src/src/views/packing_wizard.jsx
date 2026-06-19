@@ -702,6 +702,8 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
               : gRows.some(rowIsFormato) ? 'Bloque/Tono'
               : gRows.some(rowIsPieza) ? 'Agrupador'
               : 'Bloque';
+            // En Formatos y Piezas la columna "No. Placa" se llama "Caja" (mismo campo interno).
+            const plateLabel = anyPlaca ? 'No. Placa' : 'Caja';
             return (
               <div key={group.key}>
                 {multiProduct && (
@@ -716,7 +718,7 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                       <th style={{width: 30}}>#</th>
                       {!window.PORTAL_NATIONAL && <th style={{minWidth: 130}}>{blockLabel}</th>}
                       {!window.PORTAL_NATIONAL && anyNonFormato && <th style={{minWidth: 110}}>Atado</th>}
-                      <th style={{minWidth: 110}}>No. Placa</th>
+                      <th style={{minWidth: 110}}>{plateLabel}</th>
                       {anyThickness && <th style={{width: 110}}>Grosor cm</th>}
                       {anyPlaca && <th style={{width: 110}}>Largo m</th>}
                       {anyPlaca && <th style={{width: 110}}>Alto m</th>}

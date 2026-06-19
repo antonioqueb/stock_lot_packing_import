@@ -2695,6 +2695,8 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                     const anyThickness = gRows.some(r => !rowIsPieza(r));
                     const anyNonFormato = gRows.some(r => !rowIsFormato(r));
                     const blockLabel = anyPlaca ? 'Bloque' : gRows.some(rowIsFormato) ? 'Bloque/Tono' : gRows.some(rowIsPieza) ? 'Agrupador' : 'Bloque';
+                    // En Formatos y Piezas la columna "No. Placa" se llama "Caja" (mismo campo interno).
+                    const plateLabel = anyPlaca ? 'No. Placa' : 'Caja';
                     return React.createElement("div", { key: group.key },
                         (multiProduct && React.createElement("div", { className: "pg-title", style: { display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'var(--accent-soft)', borderTop: '2px solid var(--accent)' } },
                             React.createElement("span", { style: { fontWeight: 700, color: 'var(--accent)', fontSize: 12.5 } }, (prod && prod.name) || 'Producto'),
@@ -2705,7 +2707,7 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                             React.createElement("th", { style: { width: 30 } }, "#"),
                             (!window.PORTAL_NATIONAL && React.createElement("th", { style: { minWidth: 130 } }, blockLabel)),
                             (!window.PORTAL_NATIONAL && anyNonFormato && React.createElement("th", { style: { minWidth: 110 } }, "Atado")),
-                            React.createElement("th", { style: { minWidth: 110 } }, "No. Placa"),
+                            React.createElement("th", { style: { minWidth: 110 } }, plateLabel),
                             (anyThickness && React.createElement("th", { style: { width: 110 } }, "Grosor cm")),
                             (anyPlaca && React.createElement("th", { style: { width: 110 } }, "Largo m")),
                             (anyPlaca && React.createElement("th", { style: { width: 110 } }, "Alto m")),
