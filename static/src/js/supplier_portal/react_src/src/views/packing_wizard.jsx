@@ -697,7 +697,6 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
             const anyPlaca = gRows.some(rowIsPlaca);
             const anyFormato = gRows.some(r => !rowIsPlaca(r));
             const anyThickness = gRows.some(r => !rowIsPieza(r));
-            const anyNonFormato = gRows.some(r => !rowIsFormato(r));
             const blockLabel = anyPlaca ? 'Bloque'
               : gRows.some(rowIsFormato) ? 'Bloque/Tono'
               : gRows.some(rowIsPieza) ? 'Agrupador'
@@ -717,7 +716,7 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                     <tr>
                       <th style={{width: 30}}>#</th>
                       {!window.PORTAL_NATIONAL && <th style={{minWidth: 130}}>{blockLabel}</th>}
-                      {!window.PORTAL_NATIONAL && anyNonFormato && <th style={{minWidth: 110}}>Atado</th>}
+                      {!window.PORTAL_NATIONAL && anyPlaca && <th style={{minWidth: 110}}>Atado</th>}
                       <th style={{minWidth: 110}}>{plateLabel}</th>
                       {anyThickness && <th style={{width: 110}}>Grosor cm</th>}
                       {anyPlaca && <th style={{width: 110}}>Largo m</th>}
@@ -744,11 +743,9 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                       onClick={() => setActiveRow(r.id)}>
                     <td style={{textAlign: 'center', color: 'var(--ink-4)', fontSize: 11}}>{rows.indexOf(r) + 1}</td>
                     {!window.PORTAL_NATIONAL && <td className="cell-block"><input value={r.block} style={{textTransform: 'uppercase'}} onChange={forceUpper((e) => updRow(r.id, { block: e.target.value }))}/></td>}
-                    {!window.PORTAL_NATIONAL && anyNonFormato && (rowIsFormato(r)
-                      ? <td className="text-muted" style={{textAlign: 'center'}}>—</td>
-                      : PropCell({ rowId: r.id, field: "atado", children: (
-                          <input value={r.atado} placeholder="rellenar valor" style={{textTransform: 'uppercase'}} onChange={forceUpper((e) => updRow(r.id, { atado: e.target.value }))}/>
-                        )}))}
+                    {!window.PORTAL_NATIONAL && anyPlaca && PropCell({ rowId: r.id, field: "atado", children: (
+                      <input value={r.atado} placeholder="rellenar valor" style={{textTransform: 'uppercase'}} onChange={forceUpper((e) => updRow(r.id, { atado: e.target.value }))}/>
+                    )})}
                     {PropCell({ rowId: r.id, field: "plate", children: (
                       <input value={r.plate} placeholder="rellenar valor" style={{textTransform: 'uppercase'}} onChange={forceUpper((e) => updRow(r.id, { plate: e.target.value }))}/>
                     )})}

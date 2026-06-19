@@ -2693,7 +2693,6 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                     const anyPlaca = gRows.some(rowIsPlaca);
                     const anyFormato = gRows.some(r => !rowIsPlaca(r));
                     const anyThickness = gRows.some(r => !rowIsPieza(r));
-                    const anyNonFormato = gRows.some(r => !rowIsFormato(r));
                     const blockLabel = anyPlaca ? 'Bloque' : gRows.some(rowIsFormato) ? 'Bloque/Tono' : gRows.some(rowIsPieza) ? 'Agrupador' : 'Bloque';
                     // En Formatos y Piezas la columna "No. Placa" se llama "Caja" (mismo campo interno).
                     const plateLabel = anyPlaca ? 'No. Placa' : 'Caja';
@@ -2706,7 +2705,7 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                         React.createElement("tr", null,
                             React.createElement("th", { style: { width: 30 } }, "#"),
                             (!window.PORTAL_NATIONAL && React.createElement("th", { style: { minWidth: 130 } }, blockLabel)),
-                            (!window.PORTAL_NATIONAL && anyNonFormato && React.createElement("th", { style: { minWidth: 110 } }, "Atado")),
+                            (!window.PORTAL_NATIONAL && anyPlaca && React.createElement("th", { style: { minWidth: 110 } }, "Atado")),
                             React.createElement("th", { style: { minWidth: 110 } }, plateLabel),
                             (anyThickness && React.createElement("th", { style: { width: 110 } }, "Grosor cm")),
                             (anyPlaca && React.createElement("th", { style: { width: 110 } }, "Largo m")),
@@ -2729,10 +2728,8 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                             React.createElement("td", { style: { textAlign: 'center', color: 'var(--ink-4)', fontSize: 11 } }, rows.indexOf(r) + 1),
                             (!window.PORTAL_NATIONAL && React.createElement("td", { className: "cell-block" },
                                 React.createElement("input", { value: r.block, style: { textTransform: 'uppercase' }, onChange: forceUpper((e) => updRow(r.id, { block: e.target.value })) }))),
-                            (!window.PORTAL_NATIONAL && anyNonFormato && (rowIsFormato(r)
-                                ? React.createElement("td", { className: "text-muted", style: { textAlign: 'center' } }, "—")
-                                : PropCell({ rowId: r.id, field: "atado" },
-                                    React.createElement("input", { value: r.atado, placeholder: "rellenar valor", style: { textTransform: 'uppercase' }, onChange: forceUpper((e) => updRow(r.id, { atado: e.target.value })) })))),
+                            (!window.PORTAL_NATIONAL && anyPlaca && PropCell({ rowId: r.id, field: "atado" },
+                                React.createElement("input", { value: r.atado, placeholder: "rellenar valor", style: { textTransform: 'uppercase' }, onChange: forceUpper((e) => updRow(r.id, { atado: e.target.value })) }))),
                             PropCell({ rowId: r.id, field: "plate" },
                                 React.createElement("input", { value: r.plate, placeholder: "rellenar valor", style: { textTransform: 'uppercase' }, onChange: forceUpper((e) => updRow(r.id, { plate: e.target.value })) })),
                             (anyThickness && (!rowIsPieza(r)
