@@ -165,6 +165,7 @@
             };
         });
         return {
+            is_national: !!payload.is_national,
             vendor: s(payload.vendor_name || payload.partner_name || p.vendor || '', ''),
             vendor_country: s(payload.vendor_country || '', ''),
             po_name: s(payload.poName || payload.po_name || p.po_name || '', ''),
@@ -187,6 +188,9 @@
     var rawPayload = parsePayload();
     window.SupplierReactExactNormalize = normalize;
     window.SupplierReactExactData = { raw: rawPayload, proforma: normalize(rawPayload) };
+    // Flag global de "compra nacional": ajusta SOLO la vista del proveedor
+    // (nombres, pasos y columnas). Lo leen el sistema i18n y las vistas.
+    window.PORTAL_NATIONAL = !!(window.SupplierReactExactData.proforma && window.SupplierReactExactData.proforma.is_national);
 })();
 // ===== tweaks-panel.jsx =====
 // tweaks-panel.jsx
@@ -936,17 +940,23 @@ function computeStatus(proforma) {
     const filled = required.filter(k => (g[k] || '').toString().trim().length > 0).length;
     const globals_pct = Math.round(filled / required.length * 100);
     const globals_status = globals_pct === 100 ? 'done' : globals_pct > 0 ? 'partial' : 'todo';
+    // Compra nacional: solo cuentan los pasos visibles (invoices + packing).
+    // Logística, B/L y contenedores están ocultos, así que no deben bloquear
+    // el 100% ni la posibilidad de marcar como completa.
+    const isNational = !!(typeof window !== 'undefined' && window.PORTAL_NATIONAL);
     const shipments_status = proforma.shipments.map(s => {
         const hasLog = s.type && s.shipping_line && s.etd;
         const hasBL = !!s.bl_number;
         const hasInv = s.invoices.length > 0 && s.invoices.every(i => i.number && i.amount);
         const hasContainers = s.containers.length > 0 && s.containers.every(c => c.number);
         const hasPacking = s.packings.length > 0 && s.packings.every(p => p.rows_filled >= p.rows_total);
-        const score = [hasLog, hasBL, hasInv, hasContainers, hasPacking].filter(Boolean).length;
+        const checks = isNational ? [hasInv, hasPacking] : [hasLog, hasBL, hasInv, hasContainers, hasPacking];
+        const score = checks.filter(Boolean).length;
+        const total = checks.length;
         return {
             id: s.id,
-            pct: Math.round(score / 5 * 100),
-            status: score === 5 ? 'done' : score > 0 ? 'partial' : 'todo',
+            pct: Math.round(score / total * 100),
+            status: score === total ? 'done' : score > 0 ? 'partial' : 'todo',
             tabs: { hasLog, hasBL, hasInv, hasContainers, hasPacking },
         };
     });
@@ -1127,12 +1137,29 @@ const TR = {
 // monkey-patch can read it without going through React context (which would
 // require components to subscribe).
 let __currentLang = 'es';
+// Modo "compra nacional": el proveedor nacional ve los mismos datos pero con
+// otros nombres. Aquí solo cambiamos el vocabulario de "embarque" → "viaje";
+// el resto de ajustes (pasos/columnas ocultas) viven en las vistas.
+let __national = !!(typeof window !== 'undefined' && window.PORTAL_NATIONAL);
+function applyNational(str) {
+  if (!__national || typeof str !== 'string' || !str) return str;
+  return str
+    .replace(/\bEmbarques\b/g, 'Viajes')
+    .replace(/\bEmbarque\b/g, 'Viaje')
+    .replace(/\bembarques\b/g, 'viajes')
+    .replace(/\bembarque\b/g, 'viaje');
+}
 function tr(s) {
-  if (__currentLang === 'es' || typeof s !== 'string' || !s) return s;
-  const dict = TR[__currentLang];
-  return (dict && dict[s]) || s;
+  if (typeof s !== 'string' || !s) return s;
+  let out = s;
+  if (__currentLang !== 'es') {
+    const dict = TR[__currentLang];
+    out = (dict && dict[s]) || s;
+  }
+  return applyNational(out);
 }
 function __setLang(l) { __currentLang = l; }
+function __setNational(v) { __national = !!v; }
 
 // ---- Monkey-patch React.createElement -----------------------------------
 // All hard-coded literal strings passed as children get auto-translated.
@@ -1144,7 +1171,7 @@ function __setLang(l) { __currentLang = l; }
   const orig = React.createElement;
   const PROPS_TO_TRANSLATE = ['title', 'placeholder', 'alt', 'aria-label'];
   React.createElement = function(type, props, ...children) {
-    if (__currentLang !== 'es') {
+    if (__currentLang !== 'es' || __national) {
       if (children && children.length) {
         children = children.map(c => typeof c === 'string' ? tr(c) : c);
       }
@@ -1175,6 +1202,7 @@ window.I18N = I18N;
 window.TR = TR;
 window.tr = tr;
 window.__setLang = __setLang;
+window.__setNational = __setNational;
 window.LangCtx = LangCtx;
 window.useT = useT;
 // ===== src/ui.jsx =====
@@ -1642,9 +1670,14 @@ const ShipmentDetail = ({ proforma, setProforma, status, setRoute, route, openPa
     const ship = proforma.shipments.find(s => s.id === route.shipmentId);
     const idx = proforma.shipments.findIndex(s => s.id === route.shipmentId);
     const sst = status.shipments_status[idx];
-    const [tab, setTab] = React.useState(route.tab || 'logistics');
+    // Modo compra nacional: se ocultan los pasos de importación (logística y
+    // contenedores). El backend no cambia; solo se filtra la vista.
+    const isNational = !!(typeof window !== 'undefined' && window.PORTAL_NATIONAL);
+    const tabs = SHIP_TABS.filter(t => !(isNational && (t.id === 'logistics' || t.id === 'containers')));
+    const pickTab = (id) => (id && tabs.some(t => t.id === id)) ? id : tabs[0].id;
+    const [tab, setTab] = React.useState(pickTab(route.tab));
     React.useEffect(() => { if (route.tab)
-        setTab(route.tab); }, [route.tab]);
+        setTab(pickTab(route.tab)); }, [route.tab]);
     if (!ship)
         return React.createElement(Empty, { title: "Embarque no encontrado" });
     const updateShip = (patch) => {
@@ -1667,11 +1700,13 @@ const ShipmentDetail = ({ proforma, setProforma, status, setRoute, route, openPa
                     "Embarque #",
                     ship.number,
                     React.createElement(Badge, { tone: STATUS_TONE[ship.status], dot: true }, STATUS_LABEL[ship.status] || 'Borrador')),
-                React.createElement("p", { className: "lead" }, ship.shipping_line ? React.createElement("span", null,
-                    "Naviera ",
-                    React.createElement("strong", null, ship.shipping_line),
-                    ".") :
-                    React.createElement("span", null, "A\u00FAn sin naviera. Empieza por la pesta\u00F1a de Log\u00EDstica."))),
+                React.createElement("p", { className: "lead" }, isNational
+                    ? React.createElement("span", null, "Captura las facturas y el packing list de este viaje.")
+                    : (ship.shipping_line ? React.createElement("span", null,
+                        "Naviera ",
+                        React.createElement("strong", null, ship.shipping_line),
+                        ".") :
+                        React.createElement("span", null, "A\u00FAn sin naviera. Empieza por la pesta\u00F1a de Log\u00EDstica.")))),
             React.createElement("div", { className: "head-actions" },
                 React.createElement("span", { className: "text-muted text-small" },
                     sst.pct,
@@ -1680,7 +1715,7 @@ const ShipmentDetail = ({ proforma, setProforma, status, setRoute, route, openPa
                         if (typeof onDeleteShipment === 'function' && window.confirm(`¿Eliminar el embarque #${ship.number}? Se borrarán sus invoices, contenedores y packing lists. Esta acción no se puede deshacer.`))
                             onDeleteShipment(ship.id);
                     } }, "Eliminar embarque"))),
-        React.createElement("div", { className: "tabs" }, SHIP_TABS.map(t => {
+        React.createElement("div", { className: "tabs" }, tabs.map(t => {
             const done = t.id === 'logistics' ? sst.tabs.hasLog && sst.tabs.hasBL :
                 t.id === 'invoices' ? sst.tabs.hasInv :
                     t.id === 'containers' ? sst.tabs.hasContainers :
@@ -1703,8 +1738,8 @@ const ShipmentDetail = ({ proforma, setProforma, status, setRoute, route, openPa
         tab === 'packings' && React.createElement(TabPackings, { ship: ship, updateShip: updateShip, openPackingWizard: openPackingWizard, proforma: proforma, onDeletePacking: onDeletePacking }),
         tab === 'documents' && React.createElement(TabDocuments, { ship: ship, updateShip: updateShip }),
         React.createElement("div", { style: { display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 24 } },
-            React.createElement(Btn, { variant: "secondary", icon: "arrow_left", onClick: () => { const i = SHIP_TABS.findIndex(x => x.id === tab); if (i > 0) setTab(SHIP_TABS[i - 1].id); else setRoute({ section: 'shipments' }); } }, "Retroceder"),
-            React.createElement(Btn, { variant: "primary", iconRight: "arrow_right", onClick: () => { const i = SHIP_TABS.findIndex(x => x.id === tab); if (i < SHIP_TABS.length - 1) setTab(SHIP_TABS[i + 1].id); else setRoute({ section: 'review' }); } }, "Avanzar"))));
+            React.createElement(Btn, { variant: "secondary", icon: "arrow_left", onClick: () => { const i = tabs.findIndex(x => x.id === tab); if (i > 0) setTab(tabs[i - 1].id); else setRoute({ section: 'shipments' }); } }, "Retroceder"),
+            React.createElement(Btn, { variant: "primary", iconRight: "arrow_right", onClick: () => { const i = tabs.findIndex(x => x.id === tab); if (i < tabs.length - 1) setTab(tabs[i + 1].id); else setRoute({ section: 'review' }); } }, "Avanzar"))));
 };
 /* ============================================================
    Logistics + B/L tab
@@ -2043,7 +2078,7 @@ const TabDocuments = ({ ship, updateShip }) => {
             React.createElement("div", null,
                 React.createElement("h2", null, "Documentos del embarque"),
                 React.createElement("p", { className: "sub" }, "Sube los documentos legales y de calidad que acompa\u00F1an este embarque. Solo PDF, m\u00E1ximo 10 MB."))),
-        React.createElement("div", { style: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14, marginBottom: 18 } }, DOC_TYPES.map(dt => {
+        React.createElement("div", { style: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14, marginBottom: 18 } }, (window.PORTAL_NATIONAL ? DOC_TYPES.filter(d => d.kind === 'INV' || d.kind === 'PACKING') : DOC_TYPES).map(dt => {
             const doc = ship.documents.find(d => d.kind === dt.kind);
             const isBusy = busy === dt.kind;
             return (React.createElement("div", { key: dt.kind, style: {
@@ -2640,14 +2675,14 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                     React.createElement("thead", null,
                         React.createElement("tr", null,
                             React.createElement("th", { style: { width: 30 } }, "#"),
-                            React.createElement("th", { style: { minWidth: 130 } }, "Bloque"),
-                            React.createElement("th", { style: { minWidth: 110 } }, "Atado"),
+                            (!window.PORTAL_NATIONAL && React.createElement("th", { style: { minWidth: 130 } }, "Bloque")),
+                            (!window.PORTAL_NATIONAL && React.createElement("th", { style: { minWidth: 110 } }, "Atado")),
                             React.createElement("th", { style: { minWidth: 110 } }, "No. Placa"),
                             React.createElement("th", { style: { width: 110 } }, "Grosor cm"),
                             React.createElement("th", { style: { width: 110 } }, "Largo m"),
                             React.createElement("th", { style: { width: 110 } }, "Alto m"),
                             React.createElement("th", { style: { width: 80 } }, "\u00C1rea m\u00B2"),
-                            React.createElement("th", { style: { minWidth: 180 } }, "Contenedor"),
+                            React.createElement("th", { style: { minWidth: 180 } }, window.PORTAL_NATIONAL ? 'Plataforma' : 'Contenedor'),
                             anyPlaca && React.createElement("th", { style: { width: 60 } }, "Foto"),
                             React.createElement("th", { style: { minWidth: 170 } }, "Notas"))),
                     React.createElement("tbody", null, visibleRows.flatMap((r, i) => {
@@ -2661,15 +2696,15 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                         const isBlockStart = isProductStart || visibleRows[i - 1].block !== r.block;
                         const prod = productById[prodKey(r)];
                         const groupHeader = (multiProduct && isProductStart) ? React.createElement("tr", { key: 'grp-' + r.id, className: "product-group", "data-noncommentable": "" },
-                            React.createElement("td", { colSpan: anyPlaca ? 11 : 10, style: { background: 'var(--accent-soft)', borderTop: '2px solid var(--accent)', padding: '8px 12px', fontSize: 12.5, letterSpacing: '0.02em', position: 'sticky', left: 0 } },
+                            React.createElement("td", { colSpan: window.PORTAL_NATIONAL ? (anyPlaca ? 9 : 8) : (anyPlaca ? 11 : 10), style: { background: 'var(--accent-soft)', borderTop: '2px solid var(--accent)', padding: '8px 12px', fontSize: 12.5, letterSpacing: '0.02em', position: 'sticky', left: 0 } },
                                 React.createElement("span", { style: { fontWeight: 700, color: 'var(--accent)' } }, (prod && prod.name) || 'Producto'),
                                 (prod && prod.ref) ? React.createElement("span", { className: "mono", style: { marginLeft: 8, color: 'var(--ink-3)', fontWeight: 600 } }, prod.ref) : null)) : null;
                         const dataRow = React.createElement("tr", { key: r.id, className: `${isBlockStart ? 'block-start' : ''} ${activeRow === r.id ? 'is-active' : ''}`, onClick: () => setActiveRow(r.id) },
                             React.createElement("td", { style: { textAlign: 'center', color: 'var(--ink-4)', fontSize: 11 } }, rows.indexOf(r) + 1),
-                            React.createElement("td", { className: "cell-block" },
-                                React.createElement("input", { value: r.block, style: { textTransform: 'uppercase' }, onChange: forceUpper((e) => updRow(r.id, { block: e.target.value })) })),
-                            PropCell({ rowId: r.id, field: "atado" },
-                                React.createElement("input", { value: r.atado, placeholder: "rellenar valor", style: { textTransform: 'uppercase' }, onChange: forceUpper((e) => updRow(r.id, { atado: e.target.value })) })),
+                            (!window.PORTAL_NATIONAL && React.createElement("td", { className: "cell-block" },
+                                React.createElement("input", { value: r.block, style: { textTransform: 'uppercase' }, onChange: forceUpper((e) => updRow(r.id, { block: e.target.value })) }))),
+                            (!window.PORTAL_NATIONAL && PropCell({ rowId: r.id, field: "atado" },
+                                React.createElement("input", { value: r.atado, placeholder: "rellenar valor", style: { textTransform: 'uppercase' }, onChange: forceUpper((e) => updRow(r.id, { atado: e.target.value })) }))),
                             PropCell({ rowId: r.id, field: "plate" },
                                 React.createElement("input", { value: r.plate, placeholder: "rellenar valor", style: { textTransform: 'uppercase' }, onChange: forceUpper((e) => updRow(r.id, { plate: e.target.value })) })),
                             PropCell({ rowId: r.id, field: "thickness" },
@@ -2680,10 +2715,12 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                                 React.createElement("input", { type: "text", inputMode: "decimal", value: r.h || '', placeholder: "0.00", onChange: (e) => updRow(r.id, { h: e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.') }) })),
                             React.createElement("td", { className: "cell-computed" },
                                 React.createElement("input", { readOnly: true, value: area })),
-                            PropCell({ rowId: r.id, field: "container", errClass: noC ? 'is-error' : '' },
-                                React.createElement("select", { value: r.container, onChange: (e) => updRow(r.id, { container: e.target.value }) },
-                                    React.createElement("option", { value: "" }, "\u2014 sin asignar \u2014"),
-                                    containers.map(c => React.createElement("option", { key: c, value: c }, c)))),
+                            PropCell({ rowId: r.id, field: "container", errClass: (!window.PORTAL_NATIONAL && noC) ? 'is-error' : '' },
+                                window.PORTAL_NATIONAL
+                                    ? React.createElement("input", { value: r.container, placeholder: "plataforma / cami\u00f3n", style: { textTransform: 'uppercase' }, onChange: forceUpper((e) => updRow(r.id, { container: e.target.value })) })
+                                    : React.createElement("select", { value: r.container, onChange: (e) => updRow(r.id, { container: e.target.value }) },
+                                        React.createElement("option", { value: "" }, "\u2014 sin asignar \u2014"),
+                                        containers.map(c => React.createElement("option", { key: c, value: c }, c)))),
                             anyPlaca && React.createElement("td", { style: { textAlign: 'center' } }, rowIsPlaca(r)
                                 ? React.createElement("label", { className: `row-mini-photo ${r.photo ? 'has' : ''}`, style: { cursor: 'pointer', overflow: 'hidden' }, title: "Subir/Reemplazar foto de la placa", onClick: (e) => e.stopPropagation() },
                                     React.createElement("input", { type: "file", accept: "image/*", style: { display: 'none' }, onChange: (e) => pickRowPhoto(r, e.target.files && e.target.files[0]) }),

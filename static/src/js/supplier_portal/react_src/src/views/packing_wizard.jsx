@@ -682,14 +682,14 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
             <thead>
               <tr>
                 <th style={{width: 30}}>#</th>
-                <th style={{minWidth: 130}}>Bloque</th>
-                <th style={{minWidth: 110}}>Atado</th>
+                {!window.PORTAL_NATIONAL && <th style={{minWidth: 130}}>Bloque</th>}
+                {!window.PORTAL_NATIONAL && <th style={{minWidth: 110}}>Atado</th>}
                 <th style={{minWidth: 110}}>No. Placa</th>
                 <th style={{width: 110}}>Grosor cm</th>
                 <th style={{width: 110}}>Largo m</th>
                 <th style={{width: 110}}>Alto m</th>
                 <th style={{width: 80}}>Área m²</th>
-                <th style={{minWidth: 180}}>Contenedor</th>
+                <th style={{minWidth: 180}}>{window.PORTAL_NATIONAL ? 'Plataforma' : 'Contenedor'}</th>
                 {anyPlaca && <th style={{width: 60}}>Foto</th>}
                 <th style={{minWidth: 170}}>Notas</th>
               </tr>
@@ -709,7 +709,7 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                 if (multiProduct && isProductStart) {
                   els.push(
                     <tr key={'grp-' + r.id} className="product-group" data-noncommentable="">
-                      <td colSpan={anyPlaca ? 11 : 10} style={{background: 'var(--accent-soft)', borderTop: '2px solid var(--accent)', padding: '8px 12px', fontSize: 12.5, letterSpacing: '0.02em', position: 'sticky', left: 0}}>
+                      <td colSpan={window.PORTAL_NATIONAL ? (anyPlaca ? 9 : 8) : (anyPlaca ? 11 : 10)} style={{background: 'var(--accent-soft)', borderTop: '2px solid var(--accent)', padding: '8px 12px', fontSize: 12.5, letterSpacing: '0.02em', position: 'sticky', left: 0}}>
                         <span style={{fontWeight: 700, color: 'var(--accent)'}}>{(prod && prod.name) || 'Producto'}</span>
                         {prod && prod.ref ? <span className="mono" style={{marginLeft: 8, color: 'var(--ink-3)', fontWeight: 600}}>{prod.ref}</span> : null}
                       </td>
@@ -720,8 +720,8 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                   <tr key={r.id} className={`${isBlockStart ? 'block-start' : ''} ${activeRow === r.id ? 'is-active' : ''}`}
                       onClick={() => setActiveRow(r.id)}>
                     <td style={{textAlign: 'center', color: 'var(--ink-4)', fontSize: 11}}>{rows.indexOf(r) + 1}</td>
-                    <td className="cell-block"><input value={r.block} style={{textTransform: 'uppercase'}} onChange={forceUpper((e) => updRow(r.id, { block: e.target.value }))}/></td>
-                    {PropCell({ rowId: r.id, field: "atado", children: (
+                    {!window.PORTAL_NATIONAL && <td className="cell-block"><input value={r.block} style={{textTransform: 'uppercase'}} onChange={forceUpper((e) => updRow(r.id, { block: e.target.value }))}/></td>}
+                    {!window.PORTAL_NATIONAL && PropCell({ rowId: r.id, field: "atado", children: (
                       <input value={r.atado} placeholder="rellenar valor" style={{textTransform: 'uppercase'}} onChange={forceUpper((e) => updRow(r.id, { atado: e.target.value }))}/>
                     )})}
                     {PropCell({ rowId: r.id, field: "plate", children: (
@@ -739,11 +739,15 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                              onChange={(e) => updRow(r.id, { h: e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.') })}/>
                     )})}
                     <td className="cell-computed"><input readOnly value={area}/></td>
-                    {PropCell({ rowId: r.id, field: "container", errClass: noC ? 'is-error' : '', children: (
-                      <select value={r.container} onChange={(e) => updRow(r.id, { container: e.target.value })}>
-                        <option value="">— sin asignar —</option>
-                        {containers.map(c => <option key={c} value={c}>{c}</option>)}
-                      </select>
+                    {PropCell({ rowId: r.id, field: "container", errClass: (!window.PORTAL_NATIONAL && noC) ? 'is-error' : '', children: (
+                      window.PORTAL_NATIONAL ? (
+                        <input value={r.container} placeholder="plataforma / camión" style={{textTransform: 'uppercase'}} onChange={forceUpper((e) => updRow(r.id, { container: e.target.value }))}/>
+                      ) : (
+                        <select value={r.container} onChange={(e) => updRow(r.id, { container: e.target.value })}>
+                          <option value="">— sin asignar —</option>
+                          {containers.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      )
                     )})}
                     {anyPlaca && (
                       <td style={{textAlign: 'center'}}>

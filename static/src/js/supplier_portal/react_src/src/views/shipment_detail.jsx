@@ -12,9 +12,14 @@ const ShipmentDetail = ({ proforma, setProforma, status, setRoute, route, openPa
   const ship = proforma.shipments.find(s => s.id === route.shipmentId);
   const idx = proforma.shipments.findIndex(s => s.id === route.shipmentId);
   const sst = status.shipments_status[idx];
-  const [tab, setTab] = React.useState(route.tab || 'logistics');
+  // Modo compra nacional: se ocultan los pasos de importación (logística y
+  // contenedores). El backend no cambia; solo se filtra la vista.
+  const isNational = !!(typeof window !== 'undefined' && window.PORTAL_NATIONAL);
+  const tabs = SHIP_TABS.filter(t => !(isNational && (t.id === 'logistics' || t.id === 'containers')));
+  const pickTab = (id) => (id && tabs.some(t => t.id === id)) ? id : tabs[0].id;
+  const [tab, setTab] = React.useState(pickTab(route.tab));
 
-  React.useEffect(() => { if (route.tab) setTab(route.tab); }, [route.tab]);
+  React.useEffect(() => { if (route.tab) setTab(pickTab(route.tab)); }, [route.tab]);
 
   if (!ship) return <Empty title="Embarque no encontrado"/>;
 
@@ -42,8 +47,10 @@ const ShipmentDetail = ({ proforma, setProforma, status, setRoute, route, openPa
             <Badge tone={STATUS_TONE[ship.status]} dot>{STATUS_LABEL[ship.status] || 'Borrador'}</Badge>
           </h1>
           <p className="lead">
-            {ship.shipping_line ? <span>Naviera <strong>{ship.shipping_line}</strong>.</span> :
-            <span>Aún sin naviera. Empieza por la pestaña de Logística.</span>}
+            {isNational
+              ? <span>Captura las facturas y el packing list de este viaje.</span>
+              : (ship.shipping_line ? <span>Naviera <strong>{ship.shipping_line}</strong>.</span> :
+                 <span>Aún sin naviera. Empieza por la pestaña de Logística.</span>)}
           </p>
         </div>
         <div className="head-actions">
@@ -56,7 +63,7 @@ const ShipmentDetail = ({ proforma, setProforma, status, setRoute, route, openPa
       </div>
 
       <div className="tabs">
-        {SHIP_TABS.map(t => {
+        {tabs.map(t => {
           const done =
             t.id === 'logistics'  ? sst.tabs.hasLog && sst.tabs.hasBL :
             t.id === 'invoices'   ? sst.tabs.hasInv :
@@ -86,8 +93,8 @@ const ShipmentDetail = ({ proforma, setProforma, status, setRoute, route, openPa
       {tab === 'documents'  && <TabDocuments ship={ship} updateShip={updateShip}/>}
 
       <div style={{display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 24}}>
-        <Btn variant="secondary" icon="arrow_left" onClick={() => { const i = SHIP_TABS.findIndex(x => x.id === tab); if (i > 0) setTab(SHIP_TABS[i - 1].id); else setRoute({ section: 'shipments' }); }}>Retroceder</Btn>
-        <Btn variant="primary" iconRight="arrow_right" onClick={() => { const i = SHIP_TABS.findIndex(x => x.id === tab); if (i < SHIP_TABS.length - 1) setTab(SHIP_TABS[i + 1].id); else setRoute({ section: 'review' }); }}>Avanzar</Btn>
+        <Btn variant="secondary" icon="arrow_left" onClick={() => { const i = tabs.findIndex(x => x.id === tab); if (i > 0) setTab(tabs[i - 1].id); else setRoute({ section: 'shipments' }); }}>Retroceder</Btn>
+        <Btn variant="primary" iconRight="arrow_right" onClick={() => { const i = tabs.findIndex(x => x.id === tab); if (i < tabs.length - 1) setTab(tabs[i + 1].id); else setRoute({ section: 'review' }); }}>Avanzar</Btn>
       </div>
     </div>
   );
@@ -502,7 +509,7 @@ const TabDocuments = ({ ship, updateShip }) => {
       </div>
 
       <div style={{display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14, marginBottom: 18}}>
-        {DOC_TYPES.map(dt => {
+        {(window.PORTAL_NATIONAL ? DOC_TYPES.filter(d => d.kind === 'INV' || d.kind === 'PACKING') : DOC_TYPES).map(dt => {
           const doc = ship.documents.find(d => d.kind === dt.kind);
           const isBusy = busy === dt.kind;
           return (

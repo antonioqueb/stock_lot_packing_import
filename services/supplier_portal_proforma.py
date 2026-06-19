@@ -549,6 +549,15 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
             "vendor_name": po.partner_id.name or "",
             "companyName": po.company_id.name or "",
             "apiVersion": 2,
+            # Solo lectura: indica si la OC es compra nacional (campo del módulo
+            # somgroup_purchase_payment_terms). El backend no cambia su lógica;
+            # el portal usa este flag únicamente para ajustar la vista del
+            # proveedor (nombres, pasos y columnas). Si el campo no existe
+            # (módulo no instalado), el portal se comporta como internacional.
+            "is_national": bool(
+                "purchase_payment_scope" in po._fields
+                and po.purchase_payment_scope == "national"
+            ),
         }
 
         values = {

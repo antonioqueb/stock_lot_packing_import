@@ -140,17 +140,23 @@ function computeStatus(proforma) {
   const globals_pct = Math.round(filled / required.length * 100);
   const globals_status = globals_pct === 100 ? 'done' : globals_pct > 0 ? 'partial' : 'todo';
 
+  // Compra nacional: solo cuentan los pasos visibles (invoices + packing).
+  // Logística, B/L y contenedores están ocultos, así que no deben bloquear
+  // el 100% ni la posibilidad de marcar como completa.
+  const isNational = !!(typeof window !== 'undefined' && window.PORTAL_NATIONAL);
   const shipments_status = proforma.shipments.map(s => {
     const hasLog = s.type && s.shipping_line && s.etd;
     const hasBL  = !!s.bl_number;
     const hasInv = s.invoices.length > 0 && s.invoices.every(i => i.number && i.amount);
     const hasContainers = s.containers.length > 0 && s.containers.every(c => c.number);
     const hasPacking    = s.packings.length > 0 && s.packings.every(p => p.rows_filled >= p.rows_total);
-    const score = [hasLog, hasBL, hasInv, hasContainers, hasPacking].filter(Boolean).length;
+    const checks = isNational ? [hasInv, hasPacking] : [hasLog, hasBL, hasInv, hasContainers, hasPacking];
+    const score = checks.filter(Boolean).length;
+    const total = checks.length;
     return {
       id: s.id,
-      pct: Math.round(score / 5 * 100),
-      status: score === 5 ? 'done' : score > 0 ? 'partial' : 'todo',
+      pct: Math.round(score / total * 100),
+      status: score === total ? 'done' : score > 0 ? 'partial' : 'todo',
       tabs: { hasLog, hasBL, hasInv, hasContainers, hasPacking },
     };
   });

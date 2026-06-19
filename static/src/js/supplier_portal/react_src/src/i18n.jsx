@@ -163,12 +163,29 @@ const TR = {
 // monkey-patch can read it without going through React context (which would
 // require components to subscribe).
 let __currentLang = 'es';
+// Modo "compra nacional": el proveedor nacional ve los mismos datos pero con
+// otros nombres. Aquí solo cambiamos el vocabulario de "embarque" → "viaje";
+// el resto de ajustes (pasos/columnas ocultas) viven en las vistas.
+let __national = !!(typeof window !== 'undefined' && window.PORTAL_NATIONAL);
+function applyNational(str) {
+  if (!__national || typeof str !== 'string' || !str) return str;
+  return str
+    .replace(/\bEmbarques\b/g, 'Viajes')
+    .replace(/\bEmbarque\b/g, 'Viaje')
+    .replace(/\bembarques\b/g, 'viajes')
+    .replace(/\bembarque\b/g, 'viaje');
+}
 function tr(s) {
-  if (__currentLang === 'es' || typeof s !== 'string' || !s) return s;
-  const dict = TR[__currentLang];
-  return (dict && dict[s]) || s;
+  if (typeof s !== 'string' || !s) return s;
+  let out = s;
+  if (__currentLang !== 'es') {
+    const dict = TR[__currentLang];
+    out = (dict && dict[s]) || s;
+  }
+  return applyNational(out);
 }
 function __setLang(l) { __currentLang = l; }
+function __setNational(v) { __national = !!v; }
 
 // ---- Monkey-patch React.createElement -----------------------------------
 // All hard-coded literal strings passed as children get auto-translated.
@@ -180,7 +197,7 @@ function __setLang(l) { __currentLang = l; }
   const orig = React.createElement;
   const PROPS_TO_TRANSLATE = ['title', 'placeholder', 'alt', 'aria-label'];
   React.createElement = function(type, props, ...children) {
-    if (__currentLang !== 'es') {
+    if (__currentLang !== 'es' || __national) {
       if (children && children.length) {
         children = children.map(c => typeof c === 'string' ? tr(c) : c);
       }
@@ -211,5 +228,6 @@ window.I18N = I18N;
 window.TR = TR;
 window.tr = tr;
 window.__setLang = __setLang;
+window.__setNational = __setNational;
 window.LangCtx = LangCtx;
 window.useT = useT;
