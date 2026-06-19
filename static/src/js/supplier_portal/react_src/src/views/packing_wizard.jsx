@@ -79,8 +79,17 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
   // close path (the Listo button, the X button, and the scrim click) so the
   // user never loses what they entered.
   const commitAndClose = () => {
+    // PROPAGACIÓN (fix): siempre persistimos filas reales. Si aún no se
+    // generaron (p. ej. formato/pieza que nunca entró a "Llenar placas") o
+    // cambió la configuración después de generar, las construimos ahora para
+    // no guardar el packing vacío.
+    let finalRows = rows;
+    if (draft.blocks.length > 0 && (rows.length === 0 || genSigRef.current !== blocksSig)) {
+      finalRows = buildRows();
+      genSigRef.current = blocksSig;
+    }
     if (typeof onSave === 'function') {
-      onSave(shipmentId, packingId, draft, rows);
+      onSave(shipmentId, packingId, draft, finalRows);
     }
     onClose();
   };
@@ -88,15 +97,11 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
   // selección de productos o ajustó bloques), hay que REGENERAR las filas.
   const blocksSig = draft.blocks.map(b => `${b.id}:${b.product}:${b.count}:${b.name}:${(b.packaging && b.packaging.kind) || ''}:${(b.packaging && b.packaging.qty) || ''}`).join('|');
   const genSigRef = React.useRef(null);
-  // Genera (o regenera) las filas a partir de los bloques. Conserva los datos
-  // ya capturados de los bloques que no cambiaron (match por id de fila).
-  React.useEffect(() => {
-    if (step !== 4 || draft.blocks.length === 0) return;
-    const needGen = rows.length === 0 || (genSigRef.current !== null && genSigRef.current !== blocksSig);
-    if (!needGen) {
-      genSigRef.current = blocksSig;
-      return;
-    }
+  // Construye el set COMPLETO de filas a partir de la configuración:
+  //  · Camino A (placa): N stubs (1 por placa) para "Llenar placas".
+  //  · Camino B (formato/pieza): 1 fila COMPLETA con la cantidad total.
+  // Conserva lo ya capturado (match por id de fila).
+  const buildRows = () => {
     const KEEP = ['h','w','thickness','container','container_id','notes','photo','quantity','weight','plate','atado','grupo','pedimento','ref'];
     const prevById = {};
     rows.forEach(r => { prevById[r.id] = r; });
@@ -104,10 +109,13 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
     const shipContainerNumbers = (ship && ship.containers ? ship.containers : []).map(c => c.number).filter(Boolean);
     const defaultContainer = shipContainerNumbers.length === 1 ? shipContainerNumbers[0] : '';
     const generated = [];
-    draft.blocks.forEach((b) => {
+    draft.blocks.forEach((b, bIdx) => {
       const product = proforma.products.find(p => String(p.id) === String(b.product)) || proforma.products[0] || {};
       const mode = groupModeById(draft, proforma.products, b.product);
       const tipo = mode === 'placa' ? 'Placa' : (mode === 'formato' ? 'Formato' : 'Pieza');
+      // Nombre de lote estable para Camino B sin nombre (no bloquea la creación
+      // del lote en Odoo y evita colisiones entre grupos del mismo producto).
+      const autoLot = (product.ref || product.name || (proforma && proforma.po_name) || draft.number || 'LOTE') + '-' + (bIdx + 1);
       // El empaque (opcional) se persiste en el campo `grupo` (grupo_name) sin
       // tocar el modelo de Odoo: "pallet x5", "caja", etc.
       const pkg = (b.packaging && b.packaging.kind) ? (b.packaging.kind + (b.packaging.qty ? ' x' + b.packaging.qty : '')) : '';
@@ -129,9 +137,10 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
         // Formato/Pieza: NO genera filas individuales. 1 fila que carga la
         // cantidad del grupo (no aparece en "Llenar placas").
         const id = `r-${b.id}-q`;
+        const lotName = (b.name || '').trim() || autoLot;
         const base = {
           id, product_id: b.product || product.id, tipo,
-          block: b.name || (product.ref || product.name || ''), atado: '', plate: '',
+          block: lotName, atado: '', plate: '',
           ref: product.ref || '', thickness: 0, h: 0, w: 0, quantity: +b.count || 0, weight: 0, notes: '', grupo: pkg, pedimento: '', container: defaultContainer, container_id: false, photo: false, errors: [],
           blockStart: true,
         };
@@ -139,13 +148,24 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
         if (prev) KEEP.forEach(k => { if (prev[k] !== undefined) base[k] = prev[k]; });
         // La cantidad/etiqueta del grupo es la fuente de verdad (definida en el paso 2).
         base.quantity = +b.count || 0;
-        base.block = b.name || (product.ref || product.name || '');
+        base.block = lotName;
         base.grupo = pkg;
         generated.push(base);
       }
     });
+    return generated;
+  };
+  // Regenera las filas al entrar a "Llenar placas" (Camino A) o si cambió la
+  // estructura. Conserva lo ya capturado.
+  React.useEffect(() => {
+    if (step !== 4 || draft.blocks.length === 0) return;
+    const needGen = rows.length === 0 || (genSigRef.current !== null && genSigRef.current !== blocksSig);
+    if (!needGen) {
+      genSigRef.current = blocksSig;
+      return;
+    }
     genSigRef.current = blocksSig;
-    setRows(generated);
+    setRows(buildRows());
   }, [step, blocksSig]);
 
   const canNext = () => {
@@ -360,6 +380,12 @@ const Step2Blocks = ({ proforma, draft, setDraft, pendingImages }) => {
         else if (total > 0) badge = { tone: 'partial', icon: null, text: `Parcial (${total} de ${req})` };
         else badge = { tone: 'todo', icon: null, text: `0 de ${req}` };
         const term = cfg.term.toLowerCase();
+        // Camino B (formato/pieza): por defecto 1 grupo = solo cantidad total,
+        // SIN nombre/tono ni explainer. "Tono/lote" es una división OPCIONAL.
+        const caminoB = mode !== 'placa';
+        const divided = groups.length > 1;
+        const showName = !caminoB || divided;
+        const typeLabel = mode === 'placa' ? 'Bloque' : (mode === 'formato' ? 'Formato' : 'Pieza');
         return (
           <div key={p.id} className="pl-product" style={{border: '1px solid var(--border)', borderLeft: `3px solid ${cfg.color}`, borderRadius: 12, padding: 14, background: 'var(--surface)'}}>
             <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap'}}>
@@ -367,7 +393,7 @@ const Step2Blocks = ({ proforma, draft, setDraft, pendingImages }) => {
                 <span style={{display: 'grid', placeItems: 'center', width: 28, height: 28, borderRadius: 8, background: cfg.color, color: 'white', flex: '0 0 auto'}}><Icon name={cfg.icon} size={15}/></span>
                 <div style={{minWidth: 0}}>
                   <strong style={{fontSize: 14}}>{p.name}</strong>
-                  <div className="text-muted text-small">{cfg.term}{p.ref ? ' · ' + p.ref : ''}</div>
+                  <div className="text-muted text-small">{typeLabel}{p.ref ? ' · ' + p.ref : ''}</div>
                 </div>
               </div>
               <div style={{display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap'}}>
@@ -377,7 +403,9 @@ const Step2Blocks = ({ proforma, draft, setDraft, pendingImages }) => {
                   <option value="formato">Formato</option>
                   <option value="pieza">Pieza</option>
                 </Select>
-                <Btn variant="secondary" size="sm" icon="plus" onClick={() => addGroup(p.id, mode)}>Agregar {cfg.term}</Btn>
+                {showName
+                  ? <Btn variant="secondary" size="sm" icon="plus" onClick={() => addGroup(p.id, mode)}>Agregar {cfg.term}</Btn>
+                  : <Btn variant="ghost" size="sm" icon="plus" onClick={() => addGroup(p.id, mode)}>Dividir en varios (tono/lote)</Btn>}
               </div>
             </div>
 
@@ -386,9 +414,9 @@ const Step2Blocks = ({ proforma, draft, setDraft, pendingImages }) => {
                 Un bloque es la piedra original de cantera, antes de cortarse. De cada bloque salen varias placas; cada una se captura individualmente en el siguiente paso.
               </Callout>
             )}
-            {cfg.explainer === 'brief' && (
-              <Callout tone="info" icon="info" title={`¿Qué es un ${term}?`}>
-                Un {term} agrupa material del mismo lote de color. Solo necesitas la cantidad total — no hace falta detallar pieza por pieza.
+            {caminoB && divided && (
+              <Callout tone="info" icon="info" title={`Dividido por ${term}/lote`}>
+                Cada {term}/lote es una fila con su cantidad. La suma de todos debe igualar el total del producto.
               </Callout>
             )}
 
@@ -410,8 +438,8 @@ const Step2Blocks = ({ proforma, draft, setDraft, pendingImages }) => {
                     </label>
                   )}
                   <div className="block-fields">
-                    {mode !== 'pieza' && (
-                      <Field label={`Nombre del ${term} #${bi + 1}`} required={mode === 'placa'}>
+                    {showName && (
+                      <Field label={mode === 'placa' ? `Nombre del bloque #${bi + 1}` : `Nombre del ${term}/lote #${bi + 1}`} required={mode === 'placa'}>
                         <Input mono placeholder={mode === 'placa' ? 'Ej. 3024117' : `Ej. ${cfg.term} A`} value={b.name}
                                onChange={(e) => updBlock(b.id, { name: e.target.value })}/>
                       </Field>

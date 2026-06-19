@@ -369,7 +369,15 @@ const TabPackings = ({ ship, updateShip, openPackingWizard, proforma, onDeletePa
           <div style={{display: 'flex', flexDirection: 'column', gap: 10}}>
             {ship.packings.map(pk => {
               const product = proforma.products.find(p => pk.products.includes(p.id));
-              const photosOk = pk.blocks.every(b => b.photo);
+              // Solo los bloques de PLACA requieren foto (Camino A). Formato/Pieza
+              // (Camino B) no llevan foto, así que no cuentan como "sin foto".
+              const isPlacaBlock = (b) => {
+                if (window.PORTAL_NATIONAL) return false;
+                const pp = proforma.products.find(p => String(p.id) === String(b.product));
+                return ((pp && pp.kind) || 'placa') === 'placa';
+              };
+              const placaBlocks = (pk.blocks || []).filter(isPlacaBlock);
+              const photosOk = placaBlocks.every(b => b.photo);
               const rowsOk = pk.rows_filled === pk.rows_total;
               const fullyOk = photosOk && rowsOk;
               return (
@@ -389,9 +397,9 @@ const TabPackings = ({ ship, updateShip, openPackingWizard, proforma, onDeletePa
                       </Badge>
                     </div>
                     <div className="text-muted" style={{fontSize: 12.5}}>
-                      {product?.name} · {pk.blocks.length} bloques
+                      {product?.name} · {pk.blocks.length} {pk.blocks.length === 1 ? 'grupo' : 'grupos'}
                       {!photosOk && <span style={{color: 'var(--warn)', marginLeft: 8}}>
-                        <Icon name="alert" size={10}/> {pk.blocks.filter(b => !b.photo).length} bloques sin foto
+                        <Icon name="alert" size={10}/> {placaBlocks.filter(b => !b.photo).length} bloques sin foto
                       </span>}
                     </div>
                   </div>

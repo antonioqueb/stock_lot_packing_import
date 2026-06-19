@@ -1936,7 +1936,14 @@ const TabPackings = ({ ship, updateShip, openPackingWizard, proforma, onDeletePa
                 React.createElement("strong", null, "3)"),
                 " Llenas placa por placa.")) : (React.createElement("div", { style: { display: 'flex', flexDirection: 'column', gap: 10 } }, ship.packings.map(pk => {
                 const product = proforma.products.find(p => pk.products.includes(p.id));
-                const photosOk = pk.blocks.every(b => b.photo);
+                // Solo los bloques de PLACA (Camino A) requieren foto. Formato/Pieza no.
+                const isPlacaBlock = (b) => {
+                    if (window.PORTAL_NATIONAL) return false;
+                    const pp = proforma.products.find(p => String(p.id) === String(b.product));
+                    return ((pp && pp.kind) || 'placa') === 'placa';
+                };
+                const placaBlocks = (pk.blocks || []).filter(isPlacaBlock);
+                const photosOk = placaBlocks.every(b => b.photo);
                 const rowsOk = pk.rows_filled === pk.rows_total;
                 const fullyOk = photosOk && rowsOk;
                 return (React.createElement("div", { key: pk.id, style: {
@@ -1956,11 +1963,11 @@ const TabPackings = ({ ship, updateShip, openPackingWizard, proforma, onDeletePa
                             product.name,
                             " \u00B7 ",
                             pk.blocks.length,
-                            " bloques",
+                            pk.blocks.length === 1 ? " grupo" : " grupos",
                             !photosOk && React.createElement("span", { style: { color: 'var(--warn)', marginLeft: 8 } },
                                 React.createElement(Icon, { name: "alert", size: 10 }),
                                 " ",
-                                pk.blocks.filter(b => !b.photo).length,
+                                placaBlocks.filter(b => !b.photo).length,
                                 " bloques sin foto"))),
                     React.createElement("div", { style: { display: 'flex', gap: 8 } },
                         React.createElement(Btn, { variant: "secondary", icon: "pencil", onClick: () => openPackingWizard(ship.id, pk.id) }, "Editar"),
@@ -2166,8 +2173,16 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
         return [];
     });
     const commitAndClose = () => {
+        // PROPAGACIÓN (fix): siempre persistimos filas reales. Si aún no se
+        // generaron (formato/pieza que nunca entró a "Llenar placas") o cambió la
+        // configuración, las construimos ahora para no guardar el packing vacío.
+        let finalRows = rows;
+        if (draft.blocks.length > 0 && (rows.length === 0 || genSigRef.current !== blocksSig)) {
+            finalRows = buildRows();
+            genSigRef.current = blocksSig;
+        }
         if (typeof onSave === 'function') {
-            onSave(shipmentId, packingId, draft, rows);
+            onSave(shipmentId, packingId, draft, finalRows);
         }
         onClose();
     };
@@ -2176,31 +2191,21 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
     const blocksSig = draft.blocks.map(b => `${b.id}:${b.product}:${b.count}:${b.name}:${(b.packaging && b.packaging.kind) || ''}:${(b.packaging && b.packaging.qty) || ''}`).join('|');
     // Firma con la que se generaron las filas actuales. null = aún no generado.
     const genSigRef = React.useRef(null);
-    // Genera (o regenera) las filas a partir de los bloques. Conserva los datos
-    // ya capturados de los bloques que no cambiaron (match por id de fila).
-    React.useEffect(() => {
-        if (step !== 4 || draft.blocks.length === 0)
-            return;
-        const needGen = rows.length === 0 || (genSigRef.current !== null && genSigRef.current !== blocksSig);
-        if (!needGen) {
-            // p. ej. al abrir un packing existente: registramos la base para
-            // detectar cambios futuros, sin sobreescribir lo ya capturado.
-            genSigRef.current = blocksSig;
-            return;
-        }
+    // Construye el set COMPLETO de filas (Camino A: N stubs por placa; Camino B
+    // formato/pieza: 1 fila COMPLETA con la cantidad total). Conserva lo capturado.
+    const buildRows = () => {
         const KEEP = ['h', 'w', 'thickness', 'container', 'container_id', 'notes', 'photo', 'quantity', 'weight', 'plate', 'atado', 'grupo', 'pedimento', 'ref'];
         const prevById = {};
         rows.forEach(r => { prevById[r.id] = r; });
-        // Si el embarque tiene EXACTAMENTE un contenedor, se precarga en todas las
-        // filas (no hay otra opción posible). Con 0 o más de uno, se dejan vacías
-        // para que el proveedor asigne cada fila.
         const shipContainerNumbers = (ship && ship.containers ? ship.containers : []).map(c => c.number).filter(Boolean);
         const defaultContainer = shipContainerNumbers.length === 1 ? shipContainerNumbers[0] : '';
         const generated = [];
-        draft.blocks.forEach((b) => {
+        draft.blocks.forEach((b, bIdx) => {
             const product = proforma.products.find(p => String(p.id) === String(b.product)) || proforma.products[0] || {};
             const mode = groupModeById(draft, proforma.products, b.product);
             const tipo = mode === 'placa' ? 'Placa' : (mode === 'formato' ? 'Formato' : 'Pieza');
+            // Nombre de lote estable para Camino B sin nombre (no bloquea la creación).
+            const autoLot = (product.ref || product.name || (proforma && proforma.po_name) || draft.number || 'LOTE') + '-' + (bIdx + 1);
             // El empaque (opcional) se persiste en `grupo` (grupo_name) sin tocar el modelo de Odoo.
             const pkg = (b.packaging && b.packaging.kind) ? (b.packaging.kind + (b.packaging.qty ? ' x' + b.packaging.qty : '')) : '';
             if (mode === 'placa') {
@@ -2220,9 +2225,10 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
             } else {
                 // Formato/Pieza: NO genera filas individuales. 1 fila que carga la cantidad del grupo.
                 const id = `r-${b.id}-q`;
+                const lotName = (b.name || '').trim() || autoLot;
                 const base = {
                     id, product_id: b.product || product.id, tipo,
-                    block: b.name || (product.ref || product.name || ''), atado: '', plate: '',
+                    block: lotName, atado: '', plate: '',
                     ref: product.ref || '', thickness: 0, h: 0, w: 0, quantity: +b.count || 0, weight: 0, notes: '', grupo: pkg, pedimento: '', container: defaultContainer, container_id: false, photo: false, errors: [],
                     blockStart: true,
                 };
@@ -2230,13 +2236,23 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
                 if (prev)
                     KEEP.forEach(k => { if (prev[k] !== undefined) base[k] = prev[k]; });
                 base.quantity = +b.count || 0;
-                base.block = b.name || (product.ref || product.name || '');
+                base.block = lotName;
                 base.grupo = pkg;
                 generated.push(base);
             }
         });
+        return generated;
+    };
+    React.useEffect(() => {
+        if (step !== 4 || draft.blocks.length === 0)
+            return;
+        const needGen = rows.length === 0 || (genSigRef.current !== null && genSigRef.current !== blocksSig);
+        if (!needGen) {
+            genSigRef.current = blocksSig;
+            return;
+        }
         genSigRef.current = blocksSig;
-        setRows(generated);
+        setRows(buildRows());
     }, [step, blocksSig]);
     const canNext = () => {
         if (step === 1)
@@ -2410,22 +2426,30 @@ const Step2Blocks = ({ proforma, draft, setDraft, pendingImages }) => {
         else if (total > 0) badge = { tone: 'partial', icon: null, text: `Parcial (${total} de ${req})` };
         else badge = { tone: 'todo', icon: null, text: `0 de ${req}` };
         const term = cfg.term.toLowerCase();
+        // Camino B (formato/pieza): por defecto 1 grupo = solo cantidad total, sin
+        // nombre/tono ni explainer. "Tono/lote" es una división OPCIONAL.
+        const caminoB = mode !== 'placa';
+        const divided = groups.length > 1;
+        const showName = !caminoB || divided;
+        const typeLabel = mode === 'placa' ? 'Bloque' : (mode === 'formato' ? 'Formato' : 'Pieza');
         return React.createElement("div", { key: p.id, className: "pl-product", style: { border: '1px solid var(--border)', borderLeft: `3px solid ${cfg.color}`, borderRadius: 12, padding: 14, background: 'var(--surface)' } },
             React.createElement("div", { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' } },
                 React.createElement("div", { style: { display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 } },
                     React.createElement("span", { style: { display: 'grid', placeItems: 'center', width: 28, height: 28, borderRadius: 8, background: cfg.color, color: 'white', flex: '0 0 auto' } }, React.createElement(Icon, { name: cfg.icon, size: 15 })),
                     React.createElement("div", { style: { minWidth: 0 } },
                         React.createElement("strong", { style: { fontSize: 14 } }, p.name),
-                        React.createElement("div", { className: "text-muted text-small" }, cfg.term + (p.ref ? ' · ' + p.ref : '')))),
+                        React.createElement("div", { className: "text-muted text-small" }, typeLabel + (p.ref ? ' · ' + p.ref : '')))),
                 React.createElement("div", { style: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' } },
                     React.createElement(Badge, { tone: badge.tone }, badge.icon ? React.createElement(Icon, { name: badge.icon, size: 10 }) : null, " " + badge.text),
                     React.createElement(Select, { value: mode, onChange: (e) => setOverride(p.id, e.target.value), style: { width: 116 }, title: "Tipo de organización" },
                         React.createElement("option", { value: "placa" }, "Placa"),
                         React.createElement("option", { value: "formato" }, "Formato"),
                         React.createElement("option", { value: "pieza" }, "Pieza")),
-                    React.createElement(Btn, { variant: "secondary", size: "sm", icon: "plus", onClick: () => addGroup(p.id) }, "Agregar " + cfg.term))),
+                    (showName
+                        ? React.createElement(Btn, { variant: "secondary", size: "sm", icon: "plus", onClick: () => addGroup(p.id) }, "Agregar " + cfg.term)
+                        : React.createElement(Btn, { variant: "ghost", size: "sm", icon: "plus", onClick: () => addGroup(p.id) }, "Dividir en varios (tono/lote)")))),
             (cfg.explainer === 'full' && React.createElement(Callout, { tone: "info", icon: "info", title: "¿Qué es un bloque?" }, "Un bloque es la piedra original de cantera, antes de cortarse. De cada bloque salen varias placas; cada una se captura individualmente en el siguiente paso.")),
-            (cfg.explainer === 'brief' && React.createElement(Callout, { tone: "info", icon: "info", title: `¿Qué es un ${term}?` }, "Un " + term + " agrupa material del mismo lote de color. Solo necesitas la cantidad total — no hace falta detallar pieza por pieza.")),
+            (caminoB && divided && React.createElement(Callout, { tone: "info", icon: "info", title: `Dividido por ${term}/lote` }, "Cada " + term + "/lote es una fila con su cantidad. La suma de todos debe igualar el total del producto.")),
             React.createElement("div", { style: { display: 'flex', flexDirection: 'column', gap: 10, marginTop: 10 } }, groups.map((b, bi) => React.createElement("div", { key: b.id, className: "block-card", style: { borderColor: 'var(--border)' } },
                 (showPhoto && React.createElement("label", { className: `block-photo ${b.photo ? 'has-photo' : ''}`, style: { cursor: 'pointer', overflow: 'hidden' }, title: "Subir/Reemplazar foto" },
                     React.createElement("input", { type: "file", accept: "image/*", style: { display: 'none' }, onChange: (e) => pickBlockPhoto(b, e.target.files && e.target.files[0]) }),
@@ -2433,7 +2457,7 @@ const Step2Blocks = ({ proforma, draft, setDraft, pendingImages }) => {
                         React.createElement(Icon, { name: "camera", size: 20 }),
                         React.createElement("div", { style: { fontSize: 10, marginTop: 4, fontWeight: 600 } }, needsPhoto ? 'Subir foto' : 'Foto (opc.)')))),
                 React.createElement("div", { className: "block-fields" },
-                    (mode !== 'pieza' && React.createElement(Field, { label: `Nombre del ${term} #${bi + 1}`, required: mode === 'placa' },
+                    (showName && React.createElement(Field, { label: mode === 'placa' ? `Nombre del bloque #${bi + 1}` : `Nombre del ${term}/lote #${bi + 1}`, required: mode === 'placa' },
                         React.createElement(Input, { mono: true, placeholder: mode === 'placa' ? 'Ej. 3024117' : `Ej. ${cfg.term} A`, value: b.name, onChange: (e) => updBlock(b.id, { name: e.target.value }) }))),
                     React.createElement("div", { className: "block-fields-row" },
                         React.createElement(Field, { label: cfg.countLabel, required: true },
@@ -3588,7 +3612,12 @@ function App() {
                 shipments: prev.shipments.map(s => {
                     if (s.id !== shipmentId)
                         return s;
-                    const filled = rowsSnap.filter(r => r.h > 0 && r.w > 0 && r.container).length;
+                    // Camino A (placa) = completa con dimensiones + contenedor; Camino B
+                    // (formato/pieza) = completa con solo tener cantidad > 0.
+                    const filled = rowsSnap.filter(r => {
+                        const isPlaca = String(r.tipo || 'Placa').toLowerCase().indexOf('placa') >= 0;
+                        return isPlaca ? (r.h > 0 && r.w > 0 && r.container) : (Number(r.quantity || 0) > 0);
+                    }).length;
                     const updated = {
                         number: draftSnap.number,
                         date: draftSnap.date,

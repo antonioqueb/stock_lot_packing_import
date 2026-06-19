@@ -80,7 +80,12 @@ function App() {
       ...prev,
       shipments: prev.shipments.map(s => {
         if (s.id !== shipmentId) return s;
-        const filled = rowsSnap.filter(r => r.h > 0 && r.w > 0 && r.container).length;
+        // Camino A (placa) = completa con dimensiones + contenedor; Camino B
+        // (formato/pieza) = completa con solo tener cantidad > 0.
+        const filled = rowsSnap.filter(r => {
+          const isPlaca = String(r.tipo || 'Placa').toLowerCase().indexOf('placa') >= 0;
+          return isPlaca ? (r.h > 0 && r.w > 0 && r.container) : (Number(r.quantity || 0) > 0);
+        }).length;
         const updated = {
           number: draftSnap.number,
           date: draftSnap.date,
