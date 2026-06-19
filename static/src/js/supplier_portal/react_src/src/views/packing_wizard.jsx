@@ -452,13 +452,17 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
 
   // Solo las placas llevan foto por fila. Piezas/Formatos no llevan foto.
   const rowIsPlaca = (r) => String(r.tipo || 'Placa').toLowerCase().indexOf('placa') >= 0;
+  const rowIsPieza = (r) => String(r.tipo || '').toLowerCase().indexOf('pieza') >= 0;
   const anyPlaca = rows.some(rowIsPlaca);
   // Formatos/Piezas se capturan por CANTIDAD (no por Largo×Alto, que es de placas).
   const anyFormato = rows.some(r => !rowIsPlaca(r));
+  // El Grosor aplica a placas y formatos; las PIEZAS no llevan grosor.
+  const anyThickness = rows.some(r => !rowIsPieza(r));
   // Columnas visibles para el colSpan del encabezado de producto:
-  // base = # + No. Placa + Grosor + Contenedor + Notas (5)
-  const colCount = 5
+  // base = # + No. Placa + Contenedor + Notas (4)
+  const colCount = 4
     + (window.PORTAL_NATIONAL ? 0 : 2)   // Bloque + Atado
+    + (anyThickness ? 1 : 0)             // Grosor
     + (anyPlaca ? 4 : 0)                  // Largo + Alto + Área + Foto
     + (anyFormato ? 1 : 0);              // Cantidad
 
@@ -696,7 +700,7 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                 {!window.PORTAL_NATIONAL && <th style={{minWidth: 130}}>Bloque</th>}
                 {!window.PORTAL_NATIONAL && <th style={{minWidth: 110}}>Atado</th>}
                 <th style={{minWidth: 110}}>No. Placa</th>
-                <th style={{width: 110}}>Grosor cm</th>
+                {anyThickness && <th style={{width: 110}}>Grosor cm</th>}
                 {anyPlaca && <th style={{width: 110}}>Largo m</th>}
                 {anyPlaca && <th style={{width: 110}}>Alto m</th>}
                 {anyPlaca && <th style={{width: 80}}>Área m²</th>}
@@ -740,9 +744,11 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                     {PropCell({ rowId: r.id, field: "plate", children: (
                       <input value={r.plate} placeholder="rellenar valor" style={{textTransform: 'uppercase'}} onChange={forceUpper((e) => updRow(r.id, { plate: e.target.value }))}/>
                     )})}
-                    {PropCell({ rowId: r.id, field: "thickness", children: (
-                      <input type="text" inputMode="decimal" value={r.thickness || ''} onChange={(e) => updRow(r.id, { thickness: e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.') })}/>
-                    )})}
+                    {anyThickness && (!rowIsPieza(r)
+                      ? PropCell({ rowId: r.id, field: "thickness", children: (
+                          <input type="text" inputMode="decimal" value={r.thickness || ''} onChange={(e) => updRow(r.id, { thickness: e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.') })}/>
+                        )})
+                      : <td className="text-muted" style={{textAlign: 'center'}}>—</td>)}
                     {anyPlaca && (rowIsPlaca(r)
                       ? PropCell({ rowId: r.id, field: "w", errClass: noW ? 'is-error' : '', children: (
                           <input type="text" inputMode="decimal" value={r.w || ''} placeholder="0.00"

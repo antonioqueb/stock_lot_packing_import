@@ -2453,11 +2453,15 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
     }, [soleContainer, rows, setRows]);
     // Solo las placas llevan foto por fila. Piezas/Formatos no llevan foto.
     const rowIsPlaca = (r) => String(r.tipo || 'Placa').toLowerCase().indexOf('placa') >= 0;
+    const rowIsPieza = (r) => String(r.tipo || '').toLowerCase().indexOf('pieza') >= 0;
     const anyPlaca = rows.some(rowIsPlaca);
     // Formatos/Piezas se capturan por CANTIDAD (no por Largo×Alto, que es de placas).
     const anyFormato = rows.some(r => !rowIsPlaca(r));
-    const colCount = 5
+    // El Grosor aplica a placas y formatos; las PIEZAS no llevan grosor.
+    const anyThickness = rows.some(r => !rowIsPieza(r));
+    const colCount = 4
         + (window.PORTAL_NATIONAL ? 0 : 2)   // Bloque + Atado
+        + (anyThickness ? 1 : 0)             // Grosor
         + (anyPlaca ? 4 : 0)                  // Largo + Alto + Área + Foto
         + (anyFormato ? 1 : 0);              // Cantidad
     const errors = rows.filter(r => r.errors && r.errors.length > 0);
@@ -2691,7 +2695,7 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                             (!window.PORTAL_NATIONAL && React.createElement("th", { style: { minWidth: 130 } }, "Bloque")),
                             (!window.PORTAL_NATIONAL && React.createElement("th", { style: { minWidth: 110 } }, "Atado")),
                             React.createElement("th", { style: { minWidth: 110 } }, "No. Placa"),
-                            React.createElement("th", { style: { width: 110 } }, "Grosor cm"),
+                            (anyThickness && React.createElement("th", { style: { width: 110 } }, "Grosor cm")),
                             (anyPlaca && React.createElement("th", { style: { width: 110 } }, "Largo m")),
                             (anyPlaca && React.createElement("th", { style: { width: 110 } }, "Alto m")),
                             (anyPlaca && React.createElement("th", { style: { width: 80 } }, "\u00C1rea m\u00B2")),
@@ -2722,8 +2726,10 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                                 React.createElement("input", { value: r.atado, placeholder: "rellenar valor", style: { textTransform: 'uppercase' }, onChange: forceUpper((e) => updRow(r.id, { atado: e.target.value })) }))),
                             PropCell({ rowId: r.id, field: "plate" },
                                 React.createElement("input", { value: r.plate, placeholder: "rellenar valor", style: { textTransform: 'uppercase' }, onChange: forceUpper((e) => updRow(r.id, { plate: e.target.value })) })),
-                            PropCell({ rowId: r.id, field: "thickness" },
-                                React.createElement("input", { type: "text", inputMode: "decimal", value: r.thickness || '', onChange: (e) => updRow(r.id, { thickness: e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.') }) })),
+                            (anyThickness && (!rowIsPieza(r)
+                                ? PropCell({ rowId: r.id, field: "thickness" },
+                                    React.createElement("input", { type: "text", inputMode: "decimal", value: r.thickness || '', onChange: (e) => updRow(r.id, { thickness: e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.') }) }))
+                                : React.createElement("td", { className: "text-muted", style: { textAlign: 'center' } }, "—"))),
                             (anyPlaca && (rowIsPlaca(r)
                                 ? PropCell({ rowId: r.id, field: "w", errClass: noW ? 'is-error' : '' },
                                     React.createElement("input", { type: "text", inputMode: "decimal", value: r.w || '', placeholder: "0.00", onChange: (e) => updRow(r.id, { w: e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.') }) }))
