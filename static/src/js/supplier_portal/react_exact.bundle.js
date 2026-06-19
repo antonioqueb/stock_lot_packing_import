@@ -2209,7 +2209,7 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
     }, [step, blocksSig]);
     const canNext = () => {
         if (step === 1)
-            return draft.products.length > 0;
+            return !!(draft.number || '').trim() && draft.products.length > 0;
         if (step === 2)
             return !!(draft.number || '').trim() && draft.blocks.length > 0 && draft.blocks.every(b => b.name && b.count > 0);
         return true;
