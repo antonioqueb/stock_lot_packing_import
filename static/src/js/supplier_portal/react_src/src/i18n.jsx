@@ -184,7 +184,9 @@ function tr(s) {
   }
   return applyNational(out);
 }
-function __setLang(l) { __currentLang = l; }
+// En compra nacional el portal va siempre en español: ignoramos cualquier
+// intento de cambiar de idioma.
+function __setLang(l) { __currentLang = __national ? 'es' : l; }
 function __setNational(v) { __national = !!v; }
 
 // ---- Monkey-patch React.createElement -----------------------------------

@@ -54,7 +54,8 @@ function App() {
     document.documentElement.style.setProperty('--header-h', t.density === 'compact' ? '56px' : '64px');
   }, [t.density]);
 
-  const lang = t.lang || 'es';
+  // Compra nacional: idioma forzado a español (se ignora la preferencia/switcher).
+  const lang = (typeof window !== 'undefined' && window.PORTAL_NATIONAL) ? 'es' : (t.lang || 'es');
   // Sync the module-level language used by the React.createElement monkey-patch
   // (defined in i18n.jsx) so every literal Spanish child string and props
   // (title/placeholder/alt/aria-label) gets auto-translated on each render.
@@ -139,6 +140,7 @@ function App() {
               <strong>{proforma.po_name}</strong>
             </span>
 
+            {!(typeof window !== 'undefined' && window.PORTAL_NATIONAL) && (
             <div className="lang-pill" role="tablist" aria-label="Idioma">
               {['es','en','zh','it','pt'].map(l => (
                 <button key={l} className={lang === l ? 'active' : ''} onClick={() => setTweak({ lang: l })}>
@@ -146,6 +148,7 @@ function App() {
                 </button>
               ))}
             </div>
+            )}
 
             <button className="guide-toggle" onClick={() => setShowOnboard(true)} title="Tutorial inicial">
               <Icon name="play" size={12}/>

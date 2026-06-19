@@ -185,7 +185,7 @@ const parseMoney = (raw) => {
 const formatMoneyEN = (num) => (Number(num) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const TabInvoices = ({ ship, updateShip }) => {
   const addInvoice = () => {
-    const newInv = { id: 'inv' + Date.now(), number: '', date: '', amount: 0, currency: 'USD', scope: 'full', containers: [] };
+    const newInv = { id: 'inv' + Date.now(), number: '', date: '', amount: 0, currency: window.PORTAL_NATIONAL ? 'MXN' : 'USD', scope: 'full', containers: [] };
     updateShip({ invoices: [...ship.invoices, newInv] });
   };
   const updInv = (id, patch) => updateShip({ invoices: ship.invoices.map(i => i.id === id ? { ...i, ...patch } : i) });
@@ -234,9 +234,9 @@ const TabInvoices = ({ ship, updateShip }) => {
                     </div>
                     <div style={{width: 90}}>
                       <Field label="Divisa" required>
-                        <Select style={{width: '100%'}} value={inv.currency}
+                        <Select style={{width: '100%'}} value={window.PORTAL_NATIONAL ? 'MXN' : inv.currency} disabled={!!window.PORTAL_NATIONAL}
                                 onChange={(e) => updInv(inv.id, { currency: e.target.value })}>
-                          {['USD','EUR','CNY','MXN'].map(c => <option key={c}>{c}</option>)}
+                          {(window.PORTAL_NATIONAL ? ['MXN'] : ['USD','EUR','CNY','MXN']).map(c => <option key={c}>{c}</option>)}
                         </Select>
                       </Field>
                     </div>
@@ -248,7 +248,7 @@ const TabInvoices = ({ ship, updateShip }) => {
             <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 8, borderTop: '1px solid var(--border-soft)'}}>
               <span className="text-muted text-small">Total facturado en este embarque</span>
               <strong className="mono" style={{fontSize: 18}}>
-                {ship.invoices.reduce((a,i) => a + (i.amount || 0), 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
+                {ship.invoices.reduce((a,i) => a + (i.amount || 0), 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {window.PORTAL_NATIONAL ? 'MXN' : 'USD'}
               </strong>
             </div>
           </div>

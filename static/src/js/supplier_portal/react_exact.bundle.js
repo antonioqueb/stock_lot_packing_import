@@ -132,6 +132,8 @@
     function normalize(payload) {
         payload = payload || {};
         var p = payload.proforma || {};
+        // Compra nacional: el portal opera todo en español y en MXN.
+        var isNational = !!payload.is_national;
         var sourceProducts = arr(payload.products).length ? arr(payload.products) : arr(p.products);
         var products = sourceProducts.map(productFromOdoo);
         var firstShipment = arr(p.shipments)[0] || {};
@@ -155,7 +157,7 @@
                 bl_date: s(sh.bl_date, ''),
                 bl_file: '',
                 invoices: arr(sh.invoices).map(function (inv, i) {
-                    return { id: inv.id || ('inv' + i), number: s(inv.invoice_number || inv.number, ''), date: s(inv.invoice_date || inv.date, ''), amount: n(inv.amount, 0), currency: s(inv.currency_name || inv.currency || 'USD', 'USD'), scope: inv.scope || 'full', containers: arr(inv.container_ids || inv.containers) };
+                    return { id: inv.id || ('inv' + i), number: s(inv.invoice_number || inv.number, ''), date: s(inv.invoice_date || inv.date, ''), amount: n(inv.amount, 0), currency: isNational ? 'MXN' : s(inv.currency_name || inv.currency || 'USD', 'USD'), scope: inv.scope || 'full', containers: arr(inv.container_ids || inv.containers) };
                 }),
                 containers: arr(sh.containers).map(function (c, i) {
                     return { id: c.id || ('c' + i), number: s(c.container_number || c.number, ''), seal: s(c.seal_number || c.seal, ''), type: s(c.container_type || c.type || '40HQ', '40HQ'), weight: n(c.weight, 0), volume: n(c.volume, 0), packages: n(c.packages, 0) };
@@ -1158,7 +1160,9 @@ function tr(s) {
   }
   return applyNational(out);
 }
-function __setLang(l) { __currentLang = l; }
+// En compra nacional el portal va siempre en español: ignoramos cualquier
+// intento de cambiar de idioma.
+function __setLang(l) { __currentLang = __national ? 'es' : l; }
 function __setNational(v) { __national = !!v; }
 
 // ---- Monkey-patch React.createElement -----------------------------------
@@ -1815,7 +1819,7 @@ const parseMoney = (raw) => {
 const formatMoneyEN = (num) => (Number(num) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const TabInvoices = ({ ship, updateShip }) => {
     const addInvoice = () => {
-        const newInv = { id: 'inv' + Date.now(), number: '', date: '', amount: 0, currency: 'USD', scope: 'full', containers: [] };
+        const newInv = { id: 'inv' + Date.now(), number: '', date: '', amount: 0, currency: window.PORTAL_NATIONAL ? 'MXN' : 'USD', scope: 'full', containers: [] };
         updateShip({ invoices: [...ship.invoices, newInv] });
     };
     const updInv = (id, patch) => updateShip({ invoices: ship.invoices.map(i => i.id === id ? { ...i, ...patch } : i) });
@@ -1845,12 +1849,12 @@ const TabInvoices = ({ ship, updateShip }) => {
                                 React.createElement(Input, { mono: true, inputMode: "decimal", style: { width: '100%' }, placeholder: "1,234.56", value: (inv.amountText !== undefined ? inv.amountText : (inv.amount ? formatMoneyEN(inv.amount) : '')), onChange: (e) => { const raw = e.target.value.replace(/[^0-9.,\s-]/g, ''); updInv(inv.id, { amount: parseMoney(raw), amountText: raw }); }, onBlur: () => { const t = (inv.amountText !== undefined ? inv.amountText : '').trim(); if (!t) { updInv(inv.id, { amount: 0, amountText: '' }); return; } const num = parseMoney(t); updInv(inv.id, { amount: num, amountText: formatMoneyEN(num) }); } }))),
                             React.createElement("div", { style: { width: 90 } },
                                 React.createElement(Field, { label: "Divisa", required: true },
-                                    React.createElement(Select, { style: { width: '100%' }, value: inv.currency, onChange: (e) => updInv(inv.id, { currency: e.target.value }) }, ['USD', 'EUR', 'CNY', 'MXN'].map(c => React.createElement("option", { key: c }, c)))))))))),
+                                    React.createElement(Select, { style: { width: '100%' }, value: window.PORTAL_NATIONAL ? 'MXN' : inv.currency, disabled: !!window.PORTAL_NATIONAL, onChange: (e) => updInv(inv.id, { currency: e.target.value }) }, (window.PORTAL_NATIONAL ? ['MXN'] : ['USD', 'EUR', 'CNY', 'MXN']).map(c => React.createElement("option", { key: c }, c)))))))))),
                 React.createElement("div", { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 8, borderTop: '1px solid var(--border-soft)' } },
                     React.createElement("span", { className: "text-muted text-small" }, "Total facturado en este embarque"),
                     React.createElement("strong", { className: "mono", style: { fontSize: 18 } },
                         ship.invoices.reduce((a, i) => a + (i.amount || 0), 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-                        " USD")))))));
+                        " " + (window.PORTAL_NATIONAL ? 'MXN' : 'USD'))))))));
 };
 /* ============================================================
    Containers tab
@@ -2806,7 +2810,7 @@ const Confirm = ({ proforma, status, setRoute, onComplete }) => {
                 React.createElement(StatCard, { label: "Orden de compra", value: proforma.po_name, mono: true }),
                 React.createElement(StatCard, { label: "Destino", value: proforma.globals.port_destination || 'SOM GROUP' }),
                 React.createElement(StatCard, { label: "Embarques", value: proforma.shipments.length }),
-                React.createElement(StatCard, { label: "Total invoices", value: `${proforma.shipments.reduce((a, s) => a + s.invoices.reduce((b, i) => b + (i.amount || 0), 0), 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD`, mono: true }))),
+                React.createElement(StatCard, { label: "Total invoices", value: `${proforma.shipments.reduce((a, s) => a + s.invoices.reduce((b, i) => b + (i.amount || 0), 0), 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${window.PORTAL_NATIONAL ? 'MXN' : 'USD'}`, mono: true }))),
         React.createElement("div", { className: "card" },
             React.createElement("div", { className: "card-head" },
                 React.createElement("div", null,
@@ -3459,7 +3463,8 @@ function App() {
     React.useEffect(() => {
         document.documentElement.style.setProperty('--header-h', t.density === 'compact' ? '56px' : '64px');
     }, [t.density]);
-    const lang = t.lang || 'es';
+    // Compra nacional: idioma forzado a español (se ignora la preferencia/switcher).
+    const lang = (typeof window !== 'undefined' && window.PORTAL_NATIONAL) ? 'es' : (t.lang || 'es');
     if (typeof window !== 'undefined' && typeof window.__setLang === 'function') {
         window.__setLang(lang);
     }
@@ -3569,7 +3574,7 @@ function App() {
                             tFn('purchase_order'),
                             ":"),
                         React.createElement("strong", null, proforma.po_name)),
-                    React.createElement("div", { className: "lang-pill", role: "tablist", "aria-label": "Idioma" }, ['es', 'en', 'zh', 'it', 'pt'].map(l => (React.createElement("button", { key: l, className: lang === l ? 'active' : '', onClick: () => setTweak({ lang: l }) }, l === 'zh' ? '中' : l.toUpperCase())))),
+                    (!(typeof window !== 'undefined' && window.PORTAL_NATIONAL) && React.createElement("div", { className: "lang-pill", role: "tablist", "aria-label": "Idioma" }, ['es', 'en', 'zh', 'it', 'pt'].map(l => (React.createElement("button", { key: l, className: lang === l ? 'active' : '', onClick: () => setTweak({ lang: l }) }, l === 'zh' ? '中' : l.toUpperCase()))))),
                     React.createElement("button", { className: "guide-toggle", onClick: () => setShowOnboard(true), title: "Tutorial inicial" },
                         React.createElement(Icon, { name: "play", size: 12 }),
                         React.createElement("span", null, "Tutorial")),
