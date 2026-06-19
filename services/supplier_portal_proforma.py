@@ -303,8 +303,19 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
         if not proforma or not proforma.shipment_ids:
             return False, "Debe existir al menos un embarque."
 
+        # Compra nacional: el portal solo pide Invoice y Packing List (sin B/L),
+        # así que la validación de documentos obligatorios se ajusta igual.
+        po = proforma.purchase_id
+        is_national = bool(
+            po and "purchase_payment_scope" in po._fields
+            and po.purchase_payment_scope == "national"
+        )
+
         doc_model = request.env["supplier.shipment.document"].sudo()
-        required_per_shipment = ["bl", "invoice", "packing_list"]
+        required_per_shipment = (
+            ["invoice", "packing_list"] if is_national
+            else ["bl", "invoice", "packing_list"]
+        )
 
         all_docs = doc_model.search([
             ("shipment_id", "in", proforma.shipment_ids.ids),
@@ -1114,6 +1125,15 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
         if not proforma:
             return {"success": False, "message": "Proforma no encontrada."}
 
+        # Compra nacional: las placas no exigen foto de bloque (se comportan como
+        # formatos). Lectura defensiva del campo del módulo de pagos; si no existe
+        # se trata como internacional. El resto de validaciones no cambia.
+        po = access.purchase_id
+        is_national = bool(
+            po and "purchase_payment_scope" in po._fields
+            and po.purchase_payment_scope == "national"
+        )
+
         if not proforma.shipment_ids:
             return {
                 "success": False,
@@ -1142,6 +1162,9 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                             "message": "Existe un packing con filas usando contenedores fuera de su alcance.",
                         }
 
+            # Compra nacional: no se exige fotografía por bloque.
+            if is_national:
+                continue
             block_image_model = request.env["supplier.shipment.block.image"].sudo()
             for packing in self.sorted_packings(shipment.packing_ids):
                 blocks_in_packing = set()

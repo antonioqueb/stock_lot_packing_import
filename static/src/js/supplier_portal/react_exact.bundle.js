@@ -2345,7 +2345,8 @@ const Step2Blocks = ({ proforma, draft, setDraft, pendingImages }) => {
         React.createElement(Callout, { tone: "info", icon: "info", title: "\u00BFQu\u00E9 es un bloque?" }, "Un bloque es la piedra original de cantera, antes de cortarse. De cada bloque salen varias placas. Si tienes 3 bloques con 18, 16 y 14 placas, este paso generar\u00E1 autom\u00E1ticamente 48 filas para llenar."),
         React.createElement("div", { style: { marginTop: 20, display: 'flex', flexDirection: 'column', gap: 24 } }, products.map(p => {
             const productBlocks = draft.blocks.filter(b => b.product === p.id);
-            const needsPhoto = (p.kind || 'placa') === 'placa';
+            // Compra nacional: las placas no exigen foto de bloque (se comportan como formatos).
+            const needsPhoto = !window.PORTAL_NATIONAL && (p.kind || 'placa') === 'placa';
             return (React.createElement("div", { key: p.id },
                 React.createElement("div", { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 } },
                     React.createElement("div", null,
@@ -2390,6 +2391,8 @@ const Step3Review = ({ proforma, draft }) => {
     const totalPlates = draft.blocks.reduce((a, b) => a + (+b.count || 0), 0);
     const products = proforma.products.filter(p => draft.products.includes(p.id));
     const needsBlockPhoto = (b) => {
+        // Compra nacional: nunca se exige foto de bloque (placas como formatos).
+        if (window.PORTAL_NATIONAL) return false;
         const pr = proforma.products.find(p => p.id === b.product);
         return ((pr && pr.kind) || 'placa') === 'placa';
     };
@@ -2451,6 +2454,12 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
     // Solo las placas llevan foto por fila. Piezas/Formatos no llevan foto.
     const rowIsPlaca = (r) => String(r.tipo || 'Placa').toLowerCase().indexOf('placa') >= 0;
     const anyPlaca = rows.some(rowIsPlaca);
+    // Formatos/Piezas se capturan por CANTIDAD (no por Largo×Alto, que es de placas).
+    const anyFormato = rows.some(r => !rowIsPlaca(r));
+    const colCount = 5
+        + (window.PORTAL_NATIONAL ? 0 : 2)   // Bloque + Atado
+        + (anyPlaca ? 4 : 0)                  // Largo + Alto + Área + Foto
+        + (anyFormato ? 1 : 0);              // Cantidad
     const errors = rows.filter(r => r.errors && r.errors.length > 0);
     const completeRows = rows.filter(r => r.h > 0 && r.w > 0 && r.container);
     const filtered = filter === 'all' ? rows : filter === 'errors' ? errors : filter === 'empty' ? rows.filter(r => !r.h || !r.w) : rows;
@@ -2683,9 +2692,10 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                             (!window.PORTAL_NATIONAL && React.createElement("th", { style: { minWidth: 110 } }, "Atado")),
                             React.createElement("th", { style: { minWidth: 110 } }, "No. Placa"),
                             React.createElement("th", { style: { width: 110 } }, "Grosor cm"),
-                            React.createElement("th", { style: { width: 110 } }, "Largo m"),
-                            React.createElement("th", { style: { width: 110 } }, "Alto m"),
-                            React.createElement("th", { style: { width: 80 } }, "\u00C1rea m\u00B2"),
+                            (anyPlaca && React.createElement("th", { style: { width: 110 } }, "Largo m")),
+                            (anyPlaca && React.createElement("th", { style: { width: 110 } }, "Alto m")),
+                            (anyPlaca && React.createElement("th", { style: { width: 80 } }, "\u00C1rea m\u00B2")),
+                            (anyFormato && React.createElement("th", { style: { width: 110 } }, "Cantidad")),
                             React.createElement("th", { style: { minWidth: 180 } }, window.PORTAL_NATIONAL ? 'Plataforma' : 'Contenedor'),
                             anyPlaca && React.createElement("th", { style: { width: 60 } }, "Foto"),
                             React.createElement("th", { style: { minWidth: 170 } }, "Notas"))),
@@ -2695,12 +2705,13 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                         const area = (hNum && wNum) ? (hNum * wNum).toFixed(2) : '';
                         const noH = !hNum;
                         const noW = !wNum;
+                        const noQ = !(parseFloat(r.quantity) > 0);
                         const noC = !r.container;
                         const isProductStart = i === 0 || prodKey(visibleRows[i - 1]) !== prodKey(r);
                         const isBlockStart = isProductStart || visibleRows[i - 1].block !== r.block;
                         const prod = productById[prodKey(r)];
                         const groupHeader = (multiProduct && isProductStart) ? React.createElement("tr", { key: 'grp-' + r.id, className: "product-group", "data-noncommentable": "" },
-                            React.createElement("td", { colSpan: window.PORTAL_NATIONAL ? (anyPlaca ? 9 : 8) : (anyPlaca ? 11 : 10), style: { background: 'var(--accent-soft)', borderTop: '2px solid var(--accent)', padding: '8px 12px', fontSize: 12.5, letterSpacing: '0.02em', position: 'sticky', left: 0 } },
+                            React.createElement("td", { colSpan: colCount, style: { background: 'var(--accent-soft)', borderTop: '2px solid var(--accent)', padding: '8px 12px', fontSize: 12.5, letterSpacing: '0.02em', position: 'sticky', left: 0 } },
                                 React.createElement("span", { style: { fontWeight: 700, color: 'var(--accent)' } }, (prod && prod.name) || 'Producto'),
                                 (prod && prod.ref) ? React.createElement("span", { className: "mono", style: { marginLeft: 8, color: 'var(--ink-3)', fontWeight: 600 } }, prod.ref) : null)) : null;
                         const dataRow = React.createElement("tr", { key: r.id, className: `${isBlockStart ? 'block-start' : ''} ${activeRow === r.id ? 'is-active' : ''}`, onClick: () => setActiveRow(r.id) },
@@ -2713,12 +2724,22 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                                 React.createElement("input", { value: r.plate, placeholder: "rellenar valor", style: { textTransform: 'uppercase' }, onChange: forceUpper((e) => updRow(r.id, { plate: e.target.value })) })),
                             PropCell({ rowId: r.id, field: "thickness" },
                                 React.createElement("input", { type: "text", inputMode: "decimal", value: r.thickness || '', onChange: (e) => updRow(r.id, { thickness: e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.') }) })),
-                            PropCell({ rowId: r.id, field: "w", errClass: noW ? 'is-error' : '' },
-                                React.createElement("input", { type: "text", inputMode: "decimal", value: r.w || '', placeholder: "0.00", onChange: (e) => updRow(r.id, { w: e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.') }) })),
-                            PropCell({ rowId: r.id, field: "h", errClass: noH ? 'is-error' : '' },
-                                React.createElement("input", { type: "text", inputMode: "decimal", value: r.h || '', placeholder: "0.00", onChange: (e) => updRow(r.id, { h: e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.') }) })),
-                            React.createElement("td", { className: "cell-computed" },
-                                React.createElement("input", { readOnly: true, value: area })),
+                            (anyPlaca && (rowIsPlaca(r)
+                                ? PropCell({ rowId: r.id, field: "w", errClass: noW ? 'is-error' : '' },
+                                    React.createElement("input", { type: "text", inputMode: "decimal", value: r.w || '', placeholder: "0.00", onChange: (e) => updRow(r.id, { w: e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.') }) }))
+                                : React.createElement("td", { className: "text-muted", style: { textAlign: 'center' } }, "—"))),
+                            (anyPlaca && (rowIsPlaca(r)
+                                ? PropCell({ rowId: r.id, field: "h", errClass: noH ? 'is-error' : '' },
+                                    React.createElement("input", { type: "text", inputMode: "decimal", value: r.h || '', placeholder: "0.00", onChange: (e) => updRow(r.id, { h: e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.') }) }))
+                                : React.createElement("td", { className: "text-muted", style: { textAlign: 'center' } }, "—"))),
+                            (anyPlaca && (rowIsPlaca(r)
+                                ? React.createElement("td", { className: "cell-computed" },
+                                    React.createElement("input", { readOnly: true, value: area }))
+                                : React.createElement("td", { className: "text-muted", style: { textAlign: 'center' } }, "—"))),
+                            (anyFormato && (!rowIsPlaca(r)
+                                ? PropCell({ rowId: r.id, field: "quantity", errClass: noQ ? 'is-error' : '' },
+                                    React.createElement("input", { type: "text", inputMode: "decimal", value: r.quantity || '', placeholder: "0", onChange: (e) => updRow(r.id, { quantity: e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.') }) }))
+                                : React.createElement("td", { className: "text-muted", style: { textAlign: 'center' } }, "—"))),
                             PropCell({ rowId: r.id, field: "container", errClass: (!window.PORTAL_NATIONAL && noC) ? 'is-error' : '' },
                                 window.PORTAL_NATIONAL
                                     ? React.createElement("input", { value: r.container, placeholder: "plataforma / cami\u00f3n", style: { textTransform: 'uppercase' }, onChange: forceUpper((e) => updRow(r.id, { container: e.target.value })) })

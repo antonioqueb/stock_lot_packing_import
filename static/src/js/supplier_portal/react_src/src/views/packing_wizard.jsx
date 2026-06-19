@@ -292,7 +292,8 @@ const Step2Blocks = ({ proforma, draft, setDraft, pendingImages }) => {
       <div style={{marginTop: 20, display: 'flex', flexDirection: 'column', gap: 24}}>
         {products.map(p => {
           const productBlocks = draft.blocks.filter(b => b.product === p.id);
-          const needsPhoto = (p.kind || 'placa') === 'placa';
+          // Compra nacional: las placas no exigen foto de bloque (se comportan como formatos).
+          const needsPhoto = !window.PORTAL_NATIONAL && (p.kind || 'placa') === 'placa';
           return (
             <div key={p.id}>
               <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10}}>
@@ -364,6 +365,8 @@ const Step3Review = ({ proforma, draft }) => {
   const totalPlates = draft.blocks.reduce((a, b) => a + (+b.count || 0), 0);
   const products = proforma.products.filter(p => draft.products.includes(p.id));
   const needsBlockPhoto = (b) => {
+    // Compra nacional: nunca se exige foto de bloque (placas como formatos).
+    if (window.PORTAL_NATIONAL) return false;
     const pr = proforma.products.find(p => p.id === b.product);
     return ((pr && pr.kind) || 'placa') === 'placa';
   };
@@ -450,6 +453,14 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
   // Solo las placas llevan foto por fila. Piezas/Formatos no llevan foto.
   const rowIsPlaca = (r) => String(r.tipo || 'Placa').toLowerCase().indexOf('placa') >= 0;
   const anyPlaca = rows.some(rowIsPlaca);
+  // Formatos/Piezas se capturan por CANTIDAD (no por Largo×Alto, que es de placas).
+  const anyFormato = rows.some(r => !rowIsPlaca(r));
+  // Columnas visibles para el colSpan del encabezado de producto:
+  // base = # + No. Placa + Grosor + Contenedor + Notas (5)
+  const colCount = 5
+    + (window.PORTAL_NATIONAL ? 0 : 2)   // Bloque + Atado
+    + (anyPlaca ? 4 : 0)                  // Largo + Alto + Área + Foto
+    + (anyFormato ? 1 : 0);              // Cantidad
 
   const errors = rows.filter(r => r.errors && r.errors.length > 0);
   const completeRows = rows.filter(r => r.h > 0 && r.w > 0 && r.container);
@@ -686,9 +697,10 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                 {!window.PORTAL_NATIONAL && <th style={{minWidth: 110}}>Atado</th>}
                 <th style={{minWidth: 110}}>No. Placa</th>
                 <th style={{width: 110}}>Grosor cm</th>
-                <th style={{width: 110}}>Largo m</th>
-                <th style={{width: 110}}>Alto m</th>
-                <th style={{width: 80}}>Área m²</th>
+                {anyPlaca && <th style={{width: 110}}>Largo m</th>}
+                {anyPlaca && <th style={{width: 110}}>Alto m</th>}
+                {anyPlaca && <th style={{width: 80}}>Área m²</th>}
+                {anyFormato && <th style={{width: 110}}>Cantidad</th>}
                 <th style={{minWidth: 180}}>{window.PORTAL_NATIONAL ? 'Plataforma' : 'Contenedor'}</th>
                 {anyPlaca && <th style={{width: 60}}>Foto</th>}
                 <th style={{minWidth: 170}}>Notas</th>
@@ -701,6 +713,7 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                 const area = (hNum && wNum) ? (hNum * wNum).toFixed(2) : '';
                 const noH = !hNum;
                 const noW = !wNum;
+                const noQ = !(parseFloat(r.quantity) > 0);
                 const noC = !r.container;
                 const isProductStart = i === 0 || prodKey(visibleRows[i-1]) !== prodKey(r);
                 const isBlockStart = isProductStart || visibleRows[i-1].block !== r.block;
@@ -709,7 +722,7 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                 if (multiProduct && isProductStart) {
                   els.push(
                     <tr key={'grp-' + r.id} className="product-group" data-noncommentable="">
-                      <td colSpan={window.PORTAL_NATIONAL ? (anyPlaca ? 9 : 8) : (anyPlaca ? 11 : 10)} style={{background: 'var(--accent-soft)', borderTop: '2px solid var(--accent)', padding: '8px 12px', fontSize: 12.5, letterSpacing: '0.02em', position: 'sticky', left: 0}}>
+                      <td colSpan={colCount} style={{background: 'var(--accent-soft)', borderTop: '2px solid var(--accent)', padding: '8px 12px', fontSize: 12.5, letterSpacing: '0.02em', position: 'sticky', left: 0}}>
                         <span style={{fontWeight: 700, color: 'var(--accent)'}}>{(prod && prod.name) || 'Producto'}</span>
                         {prod && prod.ref ? <span className="mono" style={{marginLeft: 8, color: 'var(--ink-3)', fontWeight: 600}}>{prod.ref}</span> : null}
                       </td>
@@ -730,15 +743,27 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                     {PropCell({ rowId: r.id, field: "thickness", children: (
                       <input type="text" inputMode="decimal" value={r.thickness || ''} onChange={(e) => updRow(r.id, { thickness: e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.') })}/>
                     )})}
-                    {PropCell({ rowId: r.id, field: "w", errClass: noW ? 'is-error' : '', children: (
-                      <input type="text" inputMode="decimal" value={r.w || ''} placeholder="0.00"
-                             onChange={(e) => updRow(r.id, { w: e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.') })}/>
-                    )})}
-                    {PropCell({ rowId: r.id, field: "h", errClass: noH ? 'is-error' : '', children: (
-                      <input type="text" inputMode="decimal" value={r.h || ''} placeholder="0.00"
-                             onChange={(e) => updRow(r.id, { h: e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.') })}/>
-                    )})}
-                    <td className="cell-computed"><input readOnly value={area}/></td>
+                    {anyPlaca && (rowIsPlaca(r)
+                      ? PropCell({ rowId: r.id, field: "w", errClass: noW ? 'is-error' : '', children: (
+                          <input type="text" inputMode="decimal" value={r.w || ''} placeholder="0.00"
+                                 onChange={(e) => updRow(r.id, { w: e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.') })}/>
+                        )})
+                      : <td className="text-muted" style={{textAlign: 'center'}}>—</td>)}
+                    {anyPlaca && (rowIsPlaca(r)
+                      ? PropCell({ rowId: r.id, field: "h", errClass: noH ? 'is-error' : '', children: (
+                          <input type="text" inputMode="decimal" value={r.h || ''} placeholder="0.00"
+                                 onChange={(e) => updRow(r.id, { h: e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.') })}/>
+                        )})
+                      : <td className="text-muted" style={{textAlign: 'center'}}>—</td>)}
+                    {anyPlaca && (rowIsPlaca(r)
+                      ? <td className="cell-computed"><input readOnly value={area}/></td>
+                      : <td className="text-muted" style={{textAlign: 'center'}}>—</td>)}
+                    {anyFormato && (!rowIsPlaca(r)
+                      ? PropCell({ rowId: r.id, field: "quantity", errClass: noQ ? 'is-error' : '', children: (
+                          <input type="text" inputMode="decimal" value={r.quantity || ''} placeholder="0"
+                                 onChange={(e) => updRow(r.id, { quantity: e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.') })}/>
+                        )})
+                      : <td className="text-muted" style={{textAlign: 'center'}}>—</td>)}
                     {PropCell({ rowId: r.id, field: "container", errClass: (!window.PORTAL_NATIONAL && noC) ? 'is-error' : '', children: (
                       window.PORTAL_NATIONAL ? (
                         <input value={r.container} placeholder="plataforma / camión" style={{textTransform: 'uppercase'}} onChange={forceUpper((e) => updRow(r.id, { container: e.target.value }))}/>
