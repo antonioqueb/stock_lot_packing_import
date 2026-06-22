@@ -1914,9 +1914,164 @@ const TabContainers = ({ ship, updateShip }) => {
         })))));
 };
 /* ============================================================
+   Packing list render — agrupado por producto, columnas por tipo
+   ============================================================ */
+// Tipo de la fila (lo define la categoría del producto, vía r.tipo).
+const PL_KIND = (r) => {
+    const t = String((r && r.tipo) || 'Placa').toLowerCase();
+    return t.indexOf('placa') >= 0 ? 'placa' : (t.indexOf('formato') >= 0 ? 'formato' : 'pieza');
+};
+// El empaque se guarda como string en `grupo` (p.ej. "caja x10", "palet x5",
+// "suelto"). Lo parseamos para mostrar etiqueta y # de empaques.
+const PL_PKG = (grupo) => {
+    const raw = String(grupo || '').trim();
+    if (!raw) return { kind: '', qty: 0, label: '—' };
+    const m = raw.match(/^([a-záéíóúñ]+)\s*(?:x\s*(\d+))?/i);
+    const kind = (m && m[1] || '').toLowerCase();
+    const qty = (m && m[2]) ? parseInt(m[2], 10) : 0;
+    const nice = kind === 'suelto' ? 'Suelto' : kind === 'caja' ? 'Caja' : (kind === 'palet' || kind === 'pallet') ? 'Palet' : (kind ? kind[0].toUpperCase() + kind.slice(1) : '—');
+    const label = kind === 'suelto' ? 'Suelto' : (qty ? `${nice} ×${qty}` : nice);
+    return { kind, qty, label };
+};
+const PL_LOOSE = (pkg) => !pkg.kind || pkg.kind === 'suelto';
+// Estado de la fila según su tipo: Completo / Pendiente / Falta foto.
+const PL_STATE = (r) => {
+    const kind = PL_KIND(r);
+    const pkg = PL_PKG(r.grupo);
+    const needsPhoto = !window.PORTAL_NATIONAL;
+    if (kind === 'placa') {
+        if (needsPhoto && !r.photo) return { tone: 'partial', text: 'Falta foto', icon: 'camera' };
+        const ok = (parseFloat(r.h) > 0) && (parseFloat(r.w) > 0) && !!r.container;
+        return ok ? { tone: 'done', text: 'Completo', icon: 'check' } : { tone: 'todo', text: 'Pendiente' };
+    }
+    if (kind === 'formato' && !PL_LOOSE(pkg)) {
+        // Formato empacado: los m² quedan pendientes hasta capturarse.
+        return (parseFloat(r.quantity) > 0) ? { tone: 'done', text: 'Completo', icon: 'check' } : { tone: 'partial', text: 'Pendiente m²' };
+    }
+    // Formato suelto / Pieza: completo en cuanto hay cantidad.
+    return (parseFloat(r.quantity) > 0) ? { tone: 'done', text: 'Completo', icon: 'check' } : { tone: 'todo', text: 'Pendiente' };
+};
+// Render de SOLO LECTURA del packing list ya generado: una sección por producto,
+// cada una con el juego de columnas que corresponde a su tipo. No es el editor
+// "Llenar placas" (ese sigue siendo el grid de captura de Step4Sheet).
+const PackingListView = ({ pk, proforma }) => {
+    const rows = (pk && pk.rows) || [];
+    if (rows.length === 0)
+        return React.createElement("div", { className: "text-muted text-small", style: { padding: '10px 2px' } }, "Aún no se han generado filas para este packing.");
+    const productById = {};
+    (proforma.products || []).forEach(p => { productById[String(p.id)] = p; });
+    // Agrupa por producto conservando el orden de aparición (nunca se mezclan).
+    const prodKey = (r) => String((r && r.product_id != null && r.product_id !== false) ? r.product_id : '');
+    const order = [];
+    rows.forEach(r => { const k = prodKey(r); if (order.indexOf(k) < 0) order.push(k); });
+    const groups = order.map(k => ({ key: k, rows: rows.filter(r => prodKey(r) === k) }));
+    return React.createElement("div", { style: { display: 'flex', flexDirection: 'column', gap: 14 } }, groups.map(g => {
+        const prod = productById[g.key] || {};
+        const kind = PL_KIND(g.rows[0]);
+        const typeLabel = kind === 'placa' ? 'Placa' : (kind === 'formato' ? 'Formato' : 'Pieza');
+        const total = g.rows.length;
+        const done = g.rows.filter(r => PL_STATE(r).tone === 'done').length;
+        // Tono/Lote solo se muestra si el formato se dividió en varios.
+        const divided = new Set(g.rows.map(r => (r.block || '').toLowerCase())).size > 1;
+        // Subtotal real de la sección (suma de m² / unidades / empaques).
+        let subtotal = '—';
+        if (kind === 'placa') {
+            const m2 = g.rows.reduce((a, r) => a + ((parseFloat(r.h) || 0) * (parseFloat(r.w) || 0)), 0);
+            subtotal = `${total} placa${total === 1 ? '' : 's'}` + (m2 > 0 ? ` · ${m2.toFixed(2)} m²` : '');
+        } else if (kind === 'formato') {
+            const m2 = g.rows.reduce((a, r) => a + (PL_LOOSE(PL_PKG(r.grupo)) ? (parseFloat(r.quantity) || 0) : 0), 0);
+            const emp = g.rows.reduce((a, r) => { const pk2 = PL_PKG(r.grupo); return a + (PL_LOOSE(pk2) ? 0 : (pk2.qty || 0)); }, 0);
+            subtotal = [m2 > 0 ? `${m2.toFixed(2)} m²` : '', emp > 0 ? `${emp} empaque${emp === 1 ? '' : 's'}` : ''].filter(Boolean).join(' · ') || '—';
+        } else {
+            const anyPkg = g.rows.some(r => !PL_LOOSE(PL_PKG(r.grupo)));
+            const un = g.rows.reduce((a, r) => { const pk2 = PL_PKG(r.grupo); return a + (PL_LOOSE(pk2) ? (parseFloat(r.quantity) || 0) : (pk2.qty || 0)); }, 0);
+            subtotal = `${un} ${anyPkg ? (un === 1 ? 'empaque' : 'empaques') : (un === 1 ? 'unidad' : 'unidades')}`;
+        }
+        const header = React.createElement("div", { style: { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '8px 12px', background: 'var(--accent-soft)', borderBottom: '1px solid var(--border)' } },
+            React.createElement("strong", { style: { fontSize: 13 } }, prod.name || 'Producto'),
+            prod.ref ? React.createElement("span", { className: "mono text-small text-muted" }, prod.ref) : null,
+            React.createElement(Badge, { tone: "draft" }, typeLabel),
+            React.createElement("span", { className: "text-muted text-small", style: { marginLeft: 'auto' } }, `${done} de ${total} configurado`),
+            React.createElement("span", { className: "mono text-small", style: { fontWeight: 600 } }, subtotal));
+        let table;
+        if (kind === 'placa') {
+            table = React.createElement("table", { className: "sheet-table" },
+                React.createElement("thead", null, React.createElement("tr", null,
+                    React.createElement("th", { style: { width: 28 } }, "#"),
+                    React.createElement("th", null, "Bloque"),
+                    React.createElement("th", null, "Placa #"),
+                    React.createElement("th", { style: { width: 80 } }, "Largo"),
+                    React.createElement("th", { style: { width: 80 } }, "Ancho"),
+                    React.createElement("th", { style: { width: 80 } }, "m²"),
+                    React.createElement("th", null, "Lote"),
+                    (!window.PORTAL_NATIONAL && React.createElement("th", { style: { width: 56 } }, "Foto")),
+                    React.createElement("th", { style: { width: 120 } }, "Estado"))),
+                React.createElement("tbody", null, g.rows.map((r, i) => {
+                    const m2 = ((parseFloat(r.h) || 0) * (parseFloat(r.w) || 0));
+                    const st = PL_STATE(r);
+                    return React.createElement("tr", { key: r.id },
+                        React.createElement("td", { style: { textAlign: 'center', color: 'var(--ink-4)', fontSize: 11 } }, i + 1),
+                        React.createElement("td", { className: "mono" }, r.block || '—'),
+                        React.createElement("td", { className: "mono" }, r.plate || '—'),
+                        React.createElement("td", { className: "mono" }, (parseFloat(r.w) > 0) ? r.w : '—'),
+                        React.createElement("td", { className: "mono" }, (parseFloat(r.h) > 0) ? r.h : '—'),
+                        React.createElement("td", { className: "mono" }, m2 > 0 ? m2.toFixed(2) : '—'),
+                        React.createElement("td", { className: "mono" }, r.notes || '—'),
+                        (!window.PORTAL_NATIONAL && React.createElement("td", { style: { textAlign: 'center' } }, r.photo ? React.createElement(Icon, { name: "check", size: 12 }) : React.createElement(Icon, { name: "camera", size: 12 }))),
+                        React.createElement("td", null, React.createElement(Badge, { tone: st.tone }, st.icon ? React.createElement(Icon, { name: st.icon, size: 10 }) : null, " " + st.text)));
+                })));
+        } else if (kind === 'formato') {
+            table = React.createElement("table", { className: "sheet-table" },
+                React.createElement("thead", null, React.createElement("tr", null,
+                    React.createElement("th", { style: { width: 28 } }, "#"),
+                    (divided && React.createElement("th", null, "Tono/Lote")),
+                    React.createElement("th", { style: { width: 140 } }, "Empaque"),
+                    React.createElement("th", null, "Cantidad"),
+                    (!window.PORTAL_NATIONAL && React.createElement("th", { style: { width: 56 } }, "Foto")),
+                    React.createElement("th", { style: { width: 130 } }, "Estado"))),
+                React.createElement("tbody", null, g.rows.map((r, i) => {
+                    const pkg = PL_PKG(r.grupo);
+                    const st = PL_STATE(r);
+                    const qtyText = PL_LOOSE(pkg)
+                        ? ((parseFloat(r.quantity) > 0) ? `${r.quantity} m²` : '— m² (pendiente)')
+                        : `${pkg.qty || 0} ${pkg.qty === 1 ? 'empaque' : 'empaques'}`;
+                    return React.createElement("tr", { key: r.id },
+                        React.createElement("td", { style: { textAlign: 'center', color: 'var(--ink-4)', fontSize: 11 } }, i + 1),
+                        (divided && React.createElement("td", { className: "mono" }, r.block || '—')),
+                        React.createElement("td", null, pkg.label),
+                        React.createElement("td", { className: "mono" }, qtyText),
+                        (!window.PORTAL_NATIONAL && React.createElement("td", { style: { textAlign: 'center' } }, r.photo ? React.createElement(Icon, { name: "check", size: 12 }) : React.createElement("span", { className: "text-muted text-small" }, "—"))),
+                        React.createElement("td", null, React.createElement(Badge, { tone: st.tone }, st.icon ? React.createElement(Icon, { name: st.icon, size: 10 }) : null, " " + st.text)));
+                })));
+        } else {
+            table = React.createElement("table", { className: "sheet-table" },
+                React.createElement("thead", null, React.createElement("tr", null,
+                    React.createElement("th", { style: { width: 28 } }, "#"),
+                    React.createElement("th", { style: { width: 150 } }, "Empaque"),
+                    React.createElement("th", null, "Cantidad"),
+                    React.createElement("th", { style: { width: 130 } }, "Estado"))),
+                React.createElement("tbody", null, g.rows.map((r, i) => {
+                    const pkg = PL_PKG(r.grupo);
+                    const st = PL_STATE(r);
+                    const qNum = parseFloat(r.quantity) || 0;
+                    const qtyText = PL_LOOSE(pkg)
+                        ? `${qNum} ${qNum === 1 ? 'unidad' : 'unidades'}`
+                        : `${pkg.qty || 0} ${pkg.qty === 1 ? 'empaque' : 'empaques'}`;
+                    return React.createElement("tr", { key: r.id },
+                        React.createElement("td", { style: { textAlign: 'center', color: 'var(--ink-4)', fontSize: 11 } }, i + 1),
+                        React.createElement("td", null, pkg.label),
+                        React.createElement("td", { className: "mono" }, qtyText),
+                        React.createElement("td", null, React.createElement(Badge, { tone: st.tone }, st.icon ? React.createElement(Icon, { name: st.icon, size: 10 }) : null, " " + st.text)));
+                })));
+        }
+        return React.createElement("div", { key: g.key, style: { border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' } }, header, table);
+    }));
+};
+/* ============================================================
    Packings tab — lists packings, button to open wizard
    ============================================================ */
 const TabPackings = ({ ship, updateShip, openPackingWizard, proforma, onDeletePacking }) => {
+    const [openId, setOpenId] = React.useState(null);
     return (React.createElement("div", null,
         React.createElement("div", { className: "card" },
             React.createElement("div", { className: "card-head" },
@@ -1946,8 +2101,10 @@ const TabPackings = ({ ship, updateShip, openPackingWizard, proforma, onDeletePa
                 const photosOk = placaBlocks.every(b => b.photo);
                 const rowsOk = pk.rows_filled === pk.rows_total;
                 const fullyOk = photosOk && rowsOk;
-                return (React.createElement("div", { key: pk.id, style: {
-                        border: '1px solid var(--border)', borderRadius: 12, padding: 16,
+                const isOpen = openId === pk.id;
+                return (React.createElement("div", { key: pk.id, style: { display: 'flex', flexDirection: 'column' } },
+                    React.createElement("div", { style: {
+                        border: '1px solid var(--border)', borderRadius: isOpen ? '12px 12px 0 0' : 12, padding: 16,
                         display: 'flex', alignItems: 'center', gap: 16, background: 'var(--surface)'
                     } },
                     React.createElement("div", { style: { width: 48, height: 48, borderRadius: 12, background: 'var(--accent-soft)', color: 'var(--accent)',
@@ -1970,11 +2127,14 @@ const TabPackings = ({ ship, updateShip, openPackingWizard, proforma, onDeletePa
                                 placaBlocks.filter(b => !b.photo).length,
                                 " bloques sin foto"))),
                     React.createElement("div", { style: { display: 'flex', gap: 8 } },
+                        React.createElement(Btn, { variant: isOpen ? 'primary' : 'ghost', icon: isOpen ? 'chevron_down' : 'chevron_right', onClick: () => setOpenId(isOpen ? null : pk.id) }, isOpen ? "Ocultar" : "Ver detalle"),
                         React.createElement(Btn, { variant: "secondary", icon: "pencil", onClick: () => openPackingWizard(ship.id, pk.id) }, "Editar"),
                         React.createElement(Btn, { variant: "ghost", icon: "trash", className: "btn-danger-ghost", onClick: () => {
                                 if (typeof onDeletePacking === 'function' && window.confirm(`¿Eliminar el packing list ${pk.number}? Se borrarán todas sus filas. Esta acción no se puede deshacer.`))
                                     onDeletePacking(ship.id, pk.id);
-                            } }, "Eliminar"))));
+                            } }, "Eliminar"))),
+                    isOpen && React.createElement("div", { style: { border: '1px solid var(--border)', borderTop: 'none', borderRadius: '0 0 12px 12px', padding: 14, background: 'var(--bg)' } },
+                        React.createElement(PackingListView, { pk: pk, proforma: proforma }))));
             })))),
         React.createElement(Callout, { tone: "info", icon: "sparkles", title: "C\u00F3mo funciona el asistente" },
             "En lugar de que escribas mil l\u00EDneas a mano, el asistente ",
