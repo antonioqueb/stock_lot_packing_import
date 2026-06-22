@@ -2328,7 +2328,25 @@ const groupModeById = (draft, products, pid) => {
 const PL_ROW_KEEP = ['h', 'w', 'thickness', 'container', 'container_id', 'notes', 'photo', 'image_preview', 'quantity', 'weight', 'plate', 'atado', 'pedimento', 'ref', '_odoo_id', '_client_id'];
 const genPackingRows = (draft, proforma, ship, prevRows) => {
     const prevById = {};
-    (prevRows || []).forEach(r => { prevById[r.id] = r; });
+    // Cubeta por (producto|bloque|empaque) para reconciliar filas conservando lo
+    // capturado AUNQUE cambien los ids (p.ej. al recargar, los ids son de Odoo y
+    // ya no coinciden con `r-<bloque>-i`). Se reasigna por orden dentro de la cubeta.
+    const prevBuckets = {};
+    const bucketCursor = {};
+    (prevRows || []).forEach(r => {
+        prevById[r.id] = r;
+        const bk = `${r.product_id}|${r.block || ''}|${r.grupo || ''}`;
+        (prevBuckets[bk] = prevBuckets[bk] || []).push(r);
+    });
+    const takePrev = (id, pid, block, grupo) => {
+        if (prevById[id]) return prevById[id];
+        const bk = `${pid}|${block || ''}|${grupo || ''}`;
+        const arr = prevBuckets[bk];
+        if (!arr) return null;
+        const i = bucketCursor[bk] || 0;
+        if (i < arr.length) { bucketCursor[bk] = i + 1; return arr[i]; }
+        return null;
+    };
     const shipContainerNumbers = (ship && ship.containers ? ship.containers : []).map(c => c.number).filter(Boolean);
     const defaultContainer = shipContainerNumbers.length === 1 ? shipContainerNumbers[0] : '';
     const generated = [];
@@ -2344,7 +2362,7 @@ const genPackingRows = (draft, proforma, ship, prevRows) => {
             for (let i = 0; i < (+b.count || 0); i++) {
                 const id = `r-${b.id}-${i}`;
                 const base = { id, product_id: b.product || product.id, tipo, block: b.name, atado: '', plate: '', ref: product.ref || '', thickness: 2, h: 0, w: 0, quantity: 0, weight: 0, notes: '', grupo: pkg, pedimento: '', container: defaultContainer, container_id: false, photo: false, errors: [], blockStart: i === 0 };
-                const prev = prevById[id];
+                const prev = takePrev(id, base.product_id, base.block, base.grupo);
                 if (prev) PL_ROW_KEEP.forEach(k => { if (prev[k] !== undefined) base[k] = prev[k]; });
                 // El bloque y el empaque SIEMPRE reflejan la config actual (prellenado).
                 base.block = b.name;
@@ -2362,7 +2380,7 @@ const genPackingRows = (draft, proforma, ship, prevRows) => {
                 const id = `r-${b.id}-q`;
                 const grupo = pk.kind === 'suelto' ? 'suelto' : '';
                 const base = { id, product_id: b.product || product.id, tipo, block: lotName, atado: '', plate: '', ref: product.ref || '', thickness: 0, h: 0, w: 0, quantity: +b.count || 0, weight: 0, notes: '', grupo, pedimento: '', container: defaultContainer, container_id: false, photo: false, errors: [], blockStart: true };
-                const prev = prevById[id];
+                const prev = takePrev(id, base.product_id, base.block, base.grupo);
                 if (prev) PL_ROW_KEEP.forEach(k => { if (prev[k] !== undefined) base[k] = prev[k]; });
                 base.block = lotName;
                 base.grupo = grupo;
@@ -2377,7 +2395,7 @@ const genPackingRows = (draft, proforma, ship, prevRows) => {
                 for (let i = 0; i < n; i++) {
                     const id = `r-${b.id}-e${i}`;
                     const base = { id, product_id: b.product || product.id, tipo, block: lotName, atado: '', plate: '', ref: product.ref || '', thickness: 0, h: 0, w: 0, quantity: 0, weight: 0, notes: '', grupo, pedimento: '', container: defaultContainer, container_id: false, photo: false, errors: [], blockStart: i === 0 };
-                    const prev = prevById[id];
+                    const prev = takePrev(id, base.product_id, base.block, base.grupo);
                     if (prev) PL_ROW_KEEP.forEach(k => { if (prev[k] !== undefined) base[k] = prev[k]; });
                     base.block = lotName;
                     base.grupo = grupo;
@@ -2476,13 +2494,14 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
     React.useEffect(() => {
         if (step !== 4 || draft.blocks.length === 0)
             return;
-        const needGen = rows.length === 0 || (genSigRef.current !== null && genSigRef.current !== blocksSig);
-        if (!needGen) {
-            genSigRef.current = blocksSig;
+        // Reconcilia SIEMPRE las filas con la config actual al entrar al paso 4 (una
+        // vez por firma de bloques). genPackingRows conserva lo capturado por id y,
+        // si no coincide, por cubeta (producto|bloque|empaque). Así, al editar un
+        // packing viejo, el grid refleja la estructura nueva y cuadra con Revisión.
+        if (genSigRef.current === blocksSig && rows.length > 0)
             return;
-        }
         genSigRef.current = blocksSig;
-        setRows(buildRows());
+        setRows(prev => genPackingRows(draft, proforma, ship, prev));
     }, [step, blocksSig]);
     // Filas reales que se generarán (fuente de verdad común). De aquí salen TODOS
     // los conteos del wizard, así cuadran con Revisión y con el paso 4.
@@ -2803,7 +2822,7 @@ const Step3Review = ({ proforma, draft, ship }) => {
                 const prows = rows.filter(r => String(r.product_id) === String(p.id));
                 const sum = PL_PRODUCT_SUMMARY(prows);
                 const typeLabel = sum.kind === 'placa' ? 'Placa' : (sum.kind === 'formato' ? 'Formato' : 'Pieza');
-                const stateText = sum.tone === 'done' ? 'Completo' : (sum.kind === 'placa' ? 'Pendiente de detalle' : 'm\u00B2 pendiente');
+                const stateText = sum.tone === 'done' ? 'Completo' : (sum.kind === 'placa' ? 'Pendiente de detalle' : (sum.kind === 'formato' ? 'm\u00B2 pendiente' : 'cantidad pendiente'));
                 // "X bloque(s) sin foto" SOLO aplica al producto placa.
                 const blocksNoPhoto = (!window.PORTAL_NATIONAL && sum.kind === 'placa') ? draft.blocks.filter(b => String(b.product) === String(p.id) && !b.photo).length : 0;
                 return (React.createElement("div", { key: p.id, style: { border: '1px solid var(--border)', borderRadius: 12, padding: 16, background: 'var(--surface)' } },
