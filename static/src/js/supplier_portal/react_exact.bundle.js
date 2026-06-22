@@ -2292,7 +2292,7 @@ const WIZARD_STEPS = [
     { id: 1, label: 'Productos' },
     { id: 2, label: 'Organización + fotos' },
     { id: 3, label: 'Revisión' },
-    { id: 4, label: 'Llenar placas' },
+    { id: 4, label: 'Llenar detalle pendiente' },
 ];
 // Término para productos tipo formato (lote de color). Configurable: 'Tono' | 'Lote'.
 const FORMATO_TERM = 'Tono';
@@ -2306,6 +2306,89 @@ const groupMode = (draft, p) => (draft.typeOverride && draft.typeOverride[p.id])
 const groupModeById = (draft, products, pid) => {
     const p = products.find(pp => String(pp.id) === String(pid));
     return groupMode(draft, p || { id: pid });
+};
+// ── Fuente de verdad de las filas ───────────────────────────────────────────
+// Genera el set COMPLETO de filas reales del packing a partir del draft. TODOS
+// los conteos (Revisión, lista por producto y paso 4) se derivan de aquí, así
+// que siempre cuadran entre sí. `prevRows` conserva lo ya capturado (por id).
+const PL_ROW_KEEP = ['h', 'w', 'thickness', 'container', 'container_id', 'notes', 'photo', 'image_preview', 'quantity', 'weight', 'plate', 'atado', 'pedimento', 'ref', '_odoo_id', '_client_id'];
+const genPackingRows = (draft, proforma, ship, prevRows) => {
+    const prevById = {};
+    (prevRows || []).forEach(r => { prevById[r.id] = r; });
+    const shipContainerNumbers = (ship && ship.containers ? ship.containers : []).map(c => c.number).filter(Boolean);
+    const defaultContainer = shipContainerNumbers.length === 1 ? shipContainerNumbers[0] : '';
+    const generated = [];
+    (draft.blocks || []).forEach((b, bIdx) => {
+        const product = proforma.products.find(p => String(p.id) === String(b.product)) || proforma.products[0] || {};
+        const mode = groupModeById(draft, proforma.products, b.product);
+        const tipo = mode === 'placa' ? 'Placa' : (mode === 'formato' ? 'Formato' : 'Pieza');
+        // Nombre de lote estable para formato/pieza sin nombre (no bloquea).
+        const autoLot = (product.ref || product.name || (proforma && proforma.po_name) || draft.number || 'LOTE') + '-' + (bIdx + 1);
+        // El empaque se persiste como string en `grupo` (grupo_name).
+        const pkg = (b.packaging && b.packaging.kind) ? (b.packaging.kind + (b.packaging.qty ? ' x' + b.packaging.qty : '')) : '';
+        if (mode === 'placa') {
+            for (let i = 0; i < (+b.count || 0); i++) {
+                const id = `r-${b.id}-${i}`;
+                const base = { id, product_id: b.product || product.id, tipo, block: b.name, atado: '', plate: '', ref: product.ref || '', thickness: 2, h: 0, w: 0, quantity: 0, weight: 0, notes: '', grupo: pkg, pedimento: '', container: defaultContainer, container_id: false, photo: false, errors: [], blockStart: i === 0 };
+                const prev = prevById[id];
+                if (prev) PL_ROW_KEEP.forEach(k => { if (prev[k] !== undefined) base[k] = prev[k]; });
+                // El bloque y el empaque SIEMPRE reflejan la config actual (prellenado).
+                base.block = b.name;
+                base.grupo = pkg;
+                generated.push(base);
+            }
+        } else {
+            const pk = b.packaging || {};
+            const loose = pk.kind === 'suelto' || !pk.kind;
+            const qty = loose ? (+b.count || 0) : (mode === 'formato' ? 0 : (+pk.qty || 0));
+            const id = `r-${b.id}-q`;
+            const lotName = (b.name || '').trim() || autoLot;
+            const base = { id, product_id: b.product || product.id, tipo, block: lotName, atado: '', plate: '', ref: product.ref || '', thickness: 0, h: 0, w: 0, quantity: qty, weight: 0, notes: '', grupo: pkg, pedimento: '', container: defaultContainer, container_id: false, photo: false, errors: [], blockStart: true };
+            const prev = prevById[id];
+            if (prev) PL_ROW_KEEP.forEach(k => { if (prev[k] !== undefined) base[k] = prev[k]; });
+            base.block = lotName;
+            base.grupo = pkg;
+            // Formato empacado: los m² (quantity) se capturan en el paso 4 →
+            // conservamos lo capturado. El resto sigue la config.
+            base.quantity = (mode === 'formato' && !loose) ? ((prev && parseFloat(prev.quantity) > 0) ? prev.quantity : 0) : qty;
+            generated.push(base);
+        }
+    });
+    return generated;
+};
+// Una fila está PENDIENTE de detalle si es placa (dimensiones por placa) o
+// formato empacado (m² por capturar). Pieza y formato suelto ya están completas.
+const PL_IS_PENDING = (r) => {
+    const kind = PL_KIND(r);
+    if (kind === 'placa') return true;
+    if (kind === 'formato') return !PL_LOOSE(PL_PKG(r.grupo));
+    return false;
+};
+// Resumen legible de UN producto a partir de SUS filas: cantidad real + estado,
+// con el lenguaje correcto por tipo (sin bloque/foto en formato/pieza).
+const PL_EMP_UNIT = (kind, n) => (kind === 'caja') ? (n === 1 ? 'caja' : 'cajas') : (n === 1 ? 'palet' : 'palets');
+const PL_PRODUCT_SUMMARY = (prows) => {
+    if (!prows.length) return { kind: 'placa', parts: [], tone: 'todo' };
+    const kind = PL_KIND(prows[0]);
+    if (kind === 'placa') {
+        const placas = prows.length;
+        return { kind, parts: [`${placas} placa${placas === 1 ? '' : 's'}`, 'pendientes de detalle'], tone: 'partial' };
+    }
+    const loose = prows.filter(r => PL_LOOSE(PL_PKG(r.grupo)));
+    const packed = prows.filter(r => !PL_LOOSE(PL_PKG(r.grupo)));
+    const parts = [];
+    let tone = 'done';
+    if (loose.length) {
+        const sum = loose.reduce((a, r) => a + (parseFloat(r.quantity) || 0), 0);
+        parts.push(kind === 'formato' ? `${sum} m²` : `${sum} unidad${sum === 1 ? '' : 'es'}`, 'suelto', 'completo');
+    }
+    if (packed.length) {
+        const emp = packed.reduce((a, r) => a + (PL_PKG(r.grupo).qty || 0), 0);
+        const unit = PL_EMP_UNIT(PL_PKG(packed[0].grupo).kind, emp);
+        if (kind === 'formato') { parts.push(`${emp} ${unit}`, 'm² pendiente'); tone = 'partial'; }
+        else { parts.push(`${emp} ${unit}`, 'completo'); }
+    }
+    return { kind, parts, tone };
 };
 const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampleRows, pendingImages }) => {
     const ship = proforma.shipments.find(s => s.id === shipmentId);
@@ -2351,66 +2434,9 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
     const blocksSig = draft.blocks.map(b => `${b.id}:${b.product}:${b.count}:${b.name}:${(b.packaging && b.packaging.kind) || ''}:${(b.packaging && b.packaging.qty) || ''}`).join('|');
     // Firma con la que se generaron las filas actuales. null = aún no generado.
     const genSigRef = React.useRef(null);
-    // Construye el set COMPLETO de filas (Camino A: N stubs por placa; Camino B
-    // formato/pieza: 1 fila COMPLETA con la cantidad total). Conserva lo capturado.
-    const buildRows = () => {
-        const KEEP = ['h', 'w', 'thickness', 'container', 'container_id', 'notes', 'photo', 'quantity', 'weight', 'plate', 'atado', 'grupo', 'pedimento', 'ref'];
-        const prevById = {};
-        rows.forEach(r => { prevById[r.id] = r; });
-        const shipContainerNumbers = (ship && ship.containers ? ship.containers : []).map(c => c.number).filter(Boolean);
-        const defaultContainer = shipContainerNumbers.length === 1 ? shipContainerNumbers[0] : '';
-        const generated = [];
-        draft.blocks.forEach((b, bIdx) => {
-            const product = proforma.products.find(p => String(p.id) === String(b.product)) || proforma.products[0] || {};
-            const mode = groupModeById(draft, proforma.products, b.product);
-            const tipo = mode === 'placa' ? 'Placa' : (mode === 'formato' ? 'Formato' : 'Pieza');
-            // Nombre de lote estable para Camino B sin nombre (no bloquea la creación).
-            const autoLot = (product.ref || product.name || (proforma && proforma.po_name) || draft.number || 'LOTE') + '-' + (bIdx + 1);
-            // El empaque (opcional) se persiste en `grupo` (grupo_name) sin tocar el modelo de Odoo.
-            const pkg = (b.packaging && b.packaging.kind) ? (b.packaging.kind + (b.packaging.qty ? ' x' + b.packaging.qty : '')) : '';
-            if (mode === 'placa') {
-                for (let i = 0; i < (+b.count || 0); i++) {
-                    const id = `r-${b.id}-${i}`;
-                    const base = {
-                        id, product_id: b.product || product.id, tipo,
-                        block: b.name, atado: '', plate: '',
-                        ref: product.ref || '', thickness: 2, h: 0, w: 0, quantity: 0, weight: 0, notes: '', grupo: pkg, pedimento: '', container: defaultContainer, container_id: false, photo: false, errors: [],
-                        blockStart: i === 0,
-                    };
-                    const prev = prevById[id];
-                    if (prev)
-                        KEEP.forEach(k => { if (prev[k] !== undefined) base[k] = prev[k]; });
-                    generated.push(base);
-                }
-            } else {
-                // Formato/Pieza: NO genera filas individuales. 1 fila que carga la
-                // cantidad del grupo. La cantidad depende del EMPAQUE (matriz):
-                //  · suelto      → cantidad total tecleada (m² en formato, unidades en pieza)
-                //  · caja/palet  → pieza: nº de empaques · formato: pendiente (m² después → 0)
-                const pk = b.packaging || {};
-                const loose = pk.kind === 'suelto' || !pk.kind;
-                const qty = loose
-                    ? (+b.count || 0)
-                    : (mode === 'formato' ? 0 : (+pk.qty || 0));
-                const id = `r-${b.id}-q`;
-                const lotName = (b.name || '').trim() || autoLot;
-                const base = {
-                    id, product_id: b.product || product.id, tipo,
-                    block: lotName, atado: '', plate: '',
-                    ref: product.ref || '', thickness: 0, h: 0, w: 0, quantity: qty, weight: 0, notes: '', grupo: pkg, pedimento: '', container: defaultContainer, container_id: false, photo: false, errors: [],
-                    blockStart: true,
-                };
-                const prev = prevById[id];
-                if (prev)
-                    KEEP.forEach(k => { if (prev[k] !== undefined) base[k] = prev[k]; });
-                base.quantity = qty;
-                base.block = lotName;
-                base.grupo = pkg;
-                generated.push(base);
-            }
-        });
-        return generated;
-    };
+    // Construye el set COMPLETO de filas reales (placa = N stubs; formato/pieza =
+    // 1 fila). Delegado al helper de módulo para que TODOS los conteos cuadren.
+    const buildRows = () => genPackingRows(draft, proforma, ship, rows);
     React.useEffect(() => {
         if (step !== 4 || draft.blocks.length === 0)
             return;
@@ -2422,11 +2448,13 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
         genSigRef.current = blocksSig;
         setRows(buildRows());
     }, [step, blocksSig]);
-    // Nº de filas placa que se generarán (las únicas que se capturan en "Llenar
-    // placas"). Si es 0, el packing es solo formato/pieza y se cierra desde el paso 3.
-    const placaCount = draft.blocks.reduce((a, b) => a + (groupModeById(draft, proforma.products, b.product) === 'placa' ? (+b.count || 0) : 0), 0);
-    // Total de filas reales a generar (placa = 1 por placa; formato/pieza = 1 por grupo).
-    const totalRowsToGen = draft.blocks.reduce((a, b) => a + (groupModeById(draft, proforma.products, b.product) === 'placa' ? (+b.count || 0) : 1), 0);
+    // Filas reales que se generarán (fuente de verdad común). De aquí salen TODOS
+    // los conteos del wizard, así cuadran con Revisión y con el paso 4.
+    const previewRows = genPackingRows(draft, proforma, ship, rows);
+    const totalRowsToGen = previewRows.length;
+    // Pendientes de detalle = placa + formato empacado. Son las únicas que se
+    // capturan en el paso 4. Si no hay, el packing se cierra desde el paso 3.
+    const pendingCount = previewRows.filter(PL_IS_PENDING).length;
     const canNext = () => {
         if (step === 1)
             return !!(draft.number || '').trim() && draft.products.length > 0;
@@ -2461,12 +2489,12 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
                     React.createElement("h2", null, step === 1 ? 'Para empezar, ¿qué producto vas a empacar?' :
                         step === 2 ? 'Organiza el contenido del embarque' :
                             step === 3 ? 'Revisa la estructura antes de capturar' :
-                                'Captura placa por placa'),
+                                'Llena el detalle pendiente'),
                     React.createElement("p", { className: "sub" },
                         step === 1 && 'Selecciona uno o más productos de la PO. Cada packing list puede incluir varios productos.',
                         step === 2 && 'El tipo lo define la categoría del producto. En placas, arma los bloques y sube una foto de cada uno. En formatos y piezas, primero indica cómo viene empacado (suelto, caja o palet) y luego la cantidad.',
                         step === 3 && 'Confirmamos cuántas filas vamos a generar. Si algo no cuadra, regresa al paso anterior.',
-                        step === 4 && 'Las filas ya están creadas. Solo llena las dimensiones de cada placa y asigna su contenedor.')),
+                        step === 4 && 'Solo lo que falta por detallar: dimensiones de cada placa y m² de cada empaque de formato. Las piezas y los formatos sueltos ya quedaron completos.')),
                 React.createElement("button", { className: "icon-btn", onClick: commitAndClose, "aria-label": "Cerrar" },
                     React.createElement(Icon, { name: "x", size: 16 }))),
             React.createElement("div", { className: "modal-body", style: { background: step === 4 ? 'var(--bg)' : 'var(--surface)' } },
@@ -2477,7 +2505,7 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
                     i < WIZARD_STEPS.length - 1 && React.createElement("span", { className: "step-sep" }))))),
                 step === 1 && React.createElement(Step1Products, { proforma: proforma, draft: draft, setDraft: setDraft }),
                 step === 2 && React.createElement(Step2Blocks, { proforma: proforma, draft: draft, setDraft: setDraft, pendingImages: pendingImages }),
-                step === 3 && React.createElement(Step3Review, { proforma: proforma, draft: draft }),
+                step === 3 && React.createElement(Step3Review, { proforma: proforma, draft: draft, ship: ship }),
                 step === 4 && React.createElement(Step4Sheet, { proforma: proforma, draft: draft, rows: rows, setRows: setRows, ship: ship, pendingImages: pendingImages })),
             step === 4 && React.createElement("div", { className: "wizard-prop-tip" },
                 React.createElement(Icon, { name: "sparkles", size: 14 }),
@@ -2505,13 +2533,13 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
                         WIZARD_STEPS[step].label)),
                     step === 3 && (React.createElement(React.Fragment, null,
                         React.createElement(Btn, { variant: "ghost", onClick: () => setStep(2) }, "Ajustar bloques"),
-                        // Si hay placas, vamos a "Llenar placas". Si el packing es solo
-                        // formato/pieza, esas filas ya están completas: creamos y cerramos.
-                        (placaCount > 0
+                        // Si hay pendientes de detalle (placa o formato empacado), vamos al
+                        // paso 4. Si todo está completo (pieza / formato suelto), cerramos.
+                        (pendingCount > 0
                             ? React.createElement(Btn, { variant: "accent", icon: "sparkles", onClick: () => setStep(4) },
-                                "Generar ",
-                                placaCount,
-                                " placas")
+                                "Llenar detalle (",
+                                pendingCount,
+                                pendingCount === 1 ? " pendiente)" : " pendientes)")
                             : React.createElement(Btn, { variant: "accent", icon: "check", onClick: commitAndClose },
                                 "Crear ",
                                 totalRowsToGen,
@@ -2717,93 +2745,80 @@ const Step2Blocks = ({ proforma, draft, setDraft, pendingImages }) => {
     }));
 };
 /* ====================== Step 3 ====================== */
-const Step3Review = ({ proforma, draft }) => {
+const Step3Review = ({ proforma, draft, ship }) => {
     const products = proforma.products.filter(p => draft.products.includes(p.id));
     // Filas a generar = 1 por placa + 1 por grupo de formato/pieza. TODAS se crean
     // como registros reales; las de formato/pieza ya quedan completas (o pendientes
     // de m² en el caso de formato empacado).
-    const totalPlates = draft.blocks.reduce((a, b) => a + (groupModeById(draft, proforma.products, b.product) === 'placa' ? (+b.count || 0) : 1), 0);
-    const needsBlockPhoto = (b) => {
-        // Compra nacional: nunca se exige foto de bloque (placas como formatos).
-        if (window.PORTAL_NATIONAL) return false;
-        return groupModeById(draft, proforma.products, b.product) === 'placa';
-    };
-    const blockOk = (b) => !needsBlockPhoto(b) || b.photo;
-    const photosMissing = draft.blocks.filter(b => needsBlockPhoto(b) && !b.photo).length;
+    // FUENTE DE VERDAD: las filas reales que se generarán. De aquí salen todos los
+    // conteos, así cuadran con el contador del paso 4 y la lista por producto.
+    const rows = genPackingRows(draft, proforma, ship, []);
+    const totalRows = rows.length;
+    const pendingRows = rows.filter(PL_IS_PENDING).length;
+    // Fotos faltantes: SOLO bloques de placa (formato/pieza no llevan foto).
+    const photosMissing = window.PORTAL_NATIONAL ? 0 : draft.blocks.filter(b => groupModeById(draft, proforma.products, b.product) === 'placa' && !b.photo).length;
+    const statCard = (label, value, accent) => React.createElement("div", { style: { padding: 18, border: accent ? '1.5px solid var(--accent)' : '1px solid var(--border)', borderRadius: 12, background: accent ? 'var(--accent-soft)' : 'var(--surface)' } },
+        React.createElement("div", { className: accent ? '' : 'text-muted', style: { fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase', fontWeight: 600, marginBottom: 6, color: accent ? 'var(--accent)' : undefined } }, label),
+        React.createElement("div", { className: "mono", style: { fontSize: 28, fontWeight: 700, letterSpacing: '-0.02em', color: accent ? 'var(--accent)' : undefined } }, value));
     return (React.createElement("div", null,
         React.createElement("div", { style: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 24 } },
-            React.createElement("div", { style: { padding: 18, border: '1px solid var(--border)', borderRadius: 12, background: 'var(--surface)' } },
-                React.createElement("div", { className: "text-muted", style: { fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase', fontWeight: 600, marginBottom: 6 } }, "Productos"),
-                React.createElement("div", { className: "mono", style: { fontSize: 28, fontWeight: 700, letterSpacing: '-0.02em' } }, products.length)),
-            React.createElement("div", { style: { padding: 18, border: '1px solid var(--border)', borderRadius: 12, background: 'var(--surface)' } },
-                React.createElement("div", { className: "text-muted", style: { fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase', fontWeight: 600, marginBottom: 6 } }, "Grupos configurados"),
-                React.createElement("div", { className: "mono", style: { fontSize: 28, fontWeight: 700, letterSpacing: '-0.02em' } }, draft.blocks.length)),
-            React.createElement("div", { style: { padding: 18, border: '1.5px solid var(--accent)', borderRadius: 12, background: 'var(--accent-soft)' } },
-                React.createElement("div", { style: { fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase', fontWeight: 600, marginBottom: 6, color: 'var(--accent)' } }, "Filas a generar"),
-                React.createElement("div", { className: "mono", style: { fontSize: 28, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--accent)' } }, totalPlates))),
+            statCard("Productos", products.length, false),
+            statCard("Filas a generar", totalRows, true),
+            statCard("Pendientes de detalle", pendingRows, false)),
         photosMissing > 0 && (React.createElement(Callout, { tone: "warn", icon: "alert", title: `${photosMissing} ${photosMissing === 1 ? 'bloque' : 'bloques'} sin foto` }, "Puedes continuar y subirlas despu\u00E9s, pero el packing list no se considerar\u00E1 completo hasta que cada bloque tenga al menos una foto.")),
         React.createElement("div", { style: { marginTop: 18 } },
             React.createElement("div", { style: { fontSize: 12.5, fontWeight: 600, color: 'var(--ink-3)', letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 10 } }, "Estructura del packing"),
             React.createElement("div", { style: { display: 'flex', flexDirection: 'column', gap: 12 } }, products.map(p => {
-                const pblocks = draft.blocks.filter(b => b.product === p.id);
-                const pmode = groupMode(draft, p);
-                const punit = pmode === 'placa' ? 'placas' : (pmode === 'formato' ? 'cant.' : 'piezas');
+                // Resumen derivado de LAS FILAS DE ESTE PRODUCTO (cantidad + estado por tipo).
+                const prows = rows.filter(r => String(r.product_id) === String(p.id));
+                const sum = PL_PRODUCT_SUMMARY(prows);
+                const typeLabel = sum.kind === 'placa' ? 'Placa' : (sum.kind === 'formato' ? 'Formato' : 'Pieza');
+                const stateText = sum.tone === 'done' ? 'Completo' : (sum.kind === 'placa' ? 'Pendiente de detalle' : 'm\u00B2 pendiente');
+                // "X bloque(s) sin foto" SOLO aplica al producto placa.
+                const blocksNoPhoto = (!window.PORTAL_NATIONAL && sum.kind === 'placa') ? draft.blocks.filter(b => String(b.product) === String(p.id) && !b.photo).length : 0;
                 return (React.createElement("div", { key: p.id, style: { border: '1px solid var(--border)', borderRadius: 12, padding: 16, background: 'var(--surface)' } },
-                    React.createElement("div", { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 } },
-                        React.createElement("strong", null, p.name),
-                        React.createElement("span", { className: "mono text-small text-muted" },
-                            pblocks.reduce((a, b) => a + (+b.count || 0), 0),
-                            " " + punit)),
-                    React.createElement("div", { style: { display: 'flex', gap: 8, flexWrap: 'wrap' } }, pblocks.map(b => (React.createElement("div", { key: b.id, style: {
-                            display: 'flex', alignItems: 'center', gap: 8,
-                            padding: '6px 10px', borderRadius: 8,
-                            background: blockOk(b) ? 'var(--ok-soft)' : 'var(--warn-soft)',
-                            border: `1px solid ${blockOk(b) ? 'var(--ok-border)' : 'var(--warn-border)'}`,
-                            fontSize: 12.5,
-                        } },
-                        React.createElement(Icon, { name: blockOk(b) ? 'check' : 'camera', size: 11 }),
-                        React.createElement("span", { className: "mono", style: { fontWeight: 600 } }, b.name),
-                        React.createElement("span", { className: "text-muted", style: { fontSize: 11 } },
-                            "\u00D7 ",
-                            b.count)))))));
+                    React.createElement("div", { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' } },
+                        React.createElement("div", { style: { display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 } },
+                            React.createElement("strong", null, p.name),
+                            React.createElement(Badge, { tone: "draft" }, typeLabel)),
+                        React.createElement("div", { style: { display: 'flex', alignItems: 'center', gap: 8 } },
+                            React.createElement("span", { className: "mono text-small", style: { fontWeight: 600 } }, sum.parts.join(' \u00B7 ')),
+                            React.createElement(Badge, { tone: sum.tone }, stateText))),
+                    (blocksNoPhoto > 0 && React.createElement("div", { className: "text-small", style: { color: 'var(--warn)', marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 } },
+                        React.createElement(Icon, { name: "camera", size: 11 }),
+                        `${blocksNoPhoto} ${blocksNoPhoto === 1 ? 'bloque sin foto' : 'bloques sin foto'}`))));
             })))));
 };
 /* ====================== Step 4: Spreadsheet ====================== */
 const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => {
-    const [filter, setFilter] = React.useState('all');
     const [activeRow, setActiveRow] = React.useState(null);
-    // Si el embarque tiene EXACTAMENTE un contenedor, se asigna a las filas que
-    // estén sin contenedor (no hay otra opción). Cubre packings reabiertos o
-    // contenedores dados de alta después de generar las filas.
+    // Si el embarque tiene EXACTAMENTE un contenedor, se asigna a las filas sin él.
     const soleContainer = (() => {
         const nums = (ship && ship.containers ? ship.containers : []).map(c => c.number).filter(Boolean);
         return nums.length === 1 ? nums[0] : '';
     })();
     React.useEffect(() => {
-        if (!soleContainer)
-            return;
+        if (!soleContainer) return;
         if (rows.some(r => !r.container))
             setRows(prev => prev.map(r => r.container ? r : { ...r, container: soleContainer }));
     }, [soleContainer, rows, setRows]);
-    // Solo las placas llevan foto por fila. Piezas/Formatos no llevan foto.
-    const rowIsPlaca = (r) => String(r.tipo || 'Placa').toLowerCase().indexOf('placa') >= 0;
-    const rowIsPieza = (r) => String(r.tipo || '').toLowerCase().indexOf('pieza') >= 0;
-    const rowIsFormato = (r) => String(r.tipo || '').toLowerCase().indexOf('formato') >= 0;
-    // Las columnas/etiquetas dependen del TIPO de cada producto. Para que la
-    // cabecera fija (sticky) muestre las columnas del producto sobre el que estás,
-    // renderizamos UNA tabla por producto (más abajo), cada una con sus banderas.
-    // "Llenar placas" SOLO muestra filas tipo placa. Las de formato/pieza (1 por
-    // grupo, con su cantidad) viven en `rows` para guardarse, pero no se capturan aquí.
-    const placaRows = rows.filter(rowIsPlaca);
-    const errors = placaRows.filter(r => r.errors && r.errors.length > 0);
-    const completeRows = placaRows.filter(r => r.h > 0 && r.w > 0 && r.container);
-    const filtered = filter === 'all' ? placaRows : filter === 'errors' ? errors : filter === 'empty' ? placaRows.filter(r => !r.h || !r.w) : placaRows;
+    const rowIsPlaca = (r) => PL_KIND(r) === 'placa';
+    // Este paso administra SOLO los pendientes de detalle: placa (dimensiones por
+    // placa) y formato empacado (m² por empaque). Las completas (pieza y formato
+    // suelto) NO se renderizan ni cuentan aquí. El contador refleja solo esto.
+    const pendingRows = rows.filter(PL_IS_PENDING);
+    const placaPending = pendingRows.filter(rowIsPlaca);
+    const doneCount = pendingRows.filter(r => PL_STATE(r).tone === 'done').length;
     const updRow = (id, patch) => setRows(prev => prev.map(r => r.id === id ? { ...r, ...patch } : r));
-    // Captura real de la foto de la fila (solo placas). Guarda el base64 en
-    // pendingImages (se sube al persistir, cuando la fila ya tiene id real).
+    const portalRowImageId = (r) => {
+        const v = r._odoo_id || r.id;
+        return (typeof v === 'number' || (typeof v === 'string' && /^\d+$/.test(v))) ? parseInt(v, 10) : 0;
+    };
+    const rowPhotoSrc = (r) => r.image_preview || (r.photo && portalRowImageId(r) ? `/web/image/supplier.shipment.packing.row/${portalRowImageId(r)}/image` : '');
+    // Captura real de la foto de la fila. Guarda el base64 en pendingImages (se
+    // sube al persistir, cuando la fila ya tiene id real).
     const pickRowPhoto = (r, file) => {
-        if (!file)
-            return;
+        if (!file) return;
         const preview = URL.createObjectURL(file);
         fileToBase64(file).then(({ data, name }) => {
             if (pendingImages && pendingImages.current)
@@ -2811,28 +2826,19 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
             updRow(r.id, { photo: true, image_preview: preview });
         });
     };
-    const rowPhotoSrc = (r) => r.image_preview || (r.photo && portalRowImageId(r) ? `/web/image/supplier.shipment.packing.row/${portalRowImageId(r)}/image` : '');
-    const portalRowImageId = (r) => {
-        const v = r._odoo_id || r.id;
-        return (typeof v === 'number' || (typeof v === 'string' && /^\d+$/.test(v))) ? parseInt(v, 10) : 0;
-    };
-    // Para "No. Placa" la propagación es CONSECUTIVA: incrementa la parte
-    // numérica conservando prefijo y ceros (P-001 → P-002 → P-003…). Para el
-    // resto de columnas se copia el valor tal cual.
+    // Para "No. Placa" la propagación es CONSECUTIVA (P-001 → P-002…). El resto se copia tal cual.
     const incPlate = (value, step) => {
         const sval = String(value == null ? '' : value);
         const m = sval.match(/^(.*?)(\d+)(\D*)$/);
-        if (!m)
-            return sval;
+        if (!m) return sval;
         const n = parseInt(m[2], 10) + step;
         return m[1] + String(n).padStart(m[2].length, '0') + m[3];
     };
-    // PROPAGATION — copia el valor de `field` desde `sourceId` a la siguiente fila
+    // PROPAGACIÓN — copia el valor de `field` desde `sourceId` a la siguiente fila
     // del mismo bloque, o a todas las de abajo dentro del mismo bloque.
     const propagate = (sourceId, field, mode) => {
         const idx = rows.findIndex(r => r.id === sourceId);
-        if (idx < 0)
-            return;
+        if (idx < 0) return;
         const src = rows[idx];
         const block = src.block;
         const isPlate = field === 'plate';
@@ -2845,8 +2851,7 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                     return;
                 }
             }
-        }
-        else {
+        } else {
             const valById = {};
             let k = 0;
             for (let i = idx + 1; i < rows.length; i++) {
@@ -2858,22 +2863,15 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
             setRows(prev => prev.map(r => Object.prototype.hasOwnProperty.call(valById, r.id) ? { ...r, [field]: valById[r.id] } : r));
         }
     };
-    // Helper that decides if propagation is available — needs a value and at least one row below in the same block
     const canPropagate = (rowId) => {
         const idx = rows.findIndex(r => r.id === rowId);
-        if (idx < 0)
-            return false;
+        if (idx < 0) return false;
         const block = rows[idx].block;
         for (let i = idx + 1; i < rows.length; i++)
-            if (rows[i].block === block)
-                return true;
+            if (rows[i].block === block) return true;
         return false;
     };
-    // Cell wrapper that injects the two propagation buttons
-    // OJO: PropCell se INVOCA como función (PropCell(props, children)), NO como
-    // componente vía React.createElement. Un componente definido dentro de
-    // Step4Sheet tendría identidad nueva en cada render (cada tecla dispara
-    // setRows) y React desmontaría/remontaría la celda, haciendo que el input
+    // PropCell se INVOCA como función (no como componente) para que el input no
     // pierda el foco en cada pulsación.
     const PropCell = (props, children) => {
         const { rowId, field, extra, errClass } = props;
@@ -2887,26 +2885,15 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                     React.createElement(Icon, { name: "prop_all", size: 13 }))))));
     };
     const containers = ship.containers.map(c => c.number).filter(Boolean);
-    // Agrupación visual por producto: ordenamos las filas según el orden de los
-    // productos de la PO (orden estable: conserva el orden de bloques dentro de
-    // cada producto) y, al renderizar, mostramos un encabezado cuando cambia el
-    // producto para separar visualmente los grupos.
-    // Clave de producto normalizada a string (los ids de Odoo a veces llegan
-    // como número y otras como string; comparar sin normalizar fragmentaba los
-    // grupos y mostraba encabezados a media tabla).
-    const prodKey = (r) => String((r && r.product_id != null && r.product_id !== false) ? r.product_id : '');
     const productById = {};
     (proforma.products || []).forEach((p) => { productById[String(p.id)] = p; });
-    // Orden de aparición de cada producto en las filas → agrupa contiguo y
-    // conserva el orden de bloques dentro de cada producto (sort estable).
+    // Agrupa los PENDIENTES por producto, conservando el orden de aparición. Nunca
+    // se mezclan tipos en una misma tabla: una sección por producto.
+    const prodKey = (r) => String((r && r.product_id != null && r.product_id !== false) ? r.product_id : '');
     const prodOrder = [];
-    filtered.forEach(r => { const k = prodKey(r); if (prodOrder.indexOf(k) < 0) prodOrder.push(k); });
-    const visibleRows = filtered.slice().sort((a, b) => prodOrder.indexOf(prodKey(a)) - prodOrder.indexOf(prodKey(b)));
-    const multiProduct = prodOrder.length > 1;
-    // Una tabla por producto: la cabecera fija cambia de columnas al pasar de un
-    // producto a otro (placa ↔ formato ↔ pieza).
-    const productGroups = prodOrder.map(k => ({ key: k, rows: visibleRows.filter(r => prodKey(r) === k) }));
-    // ---- Excel-compatible CSV export & paste ----
+    pendingRows.forEach(r => { const k = prodKey(r); if (prodOrder.indexOf(k) < 0) prodOrder.push(k); });
+    const productGroups = prodOrder.map(k => ({ key: k, rows: pendingRows.filter(r => prodKey(r) === k) }));
+    // ---- Exportar / Pegar (Excel) — columnas de placa ----
     const COL_DEFS = [
         { header: '#',          field: null,        type: 'index'  },
         { header: 'Bloque',     field: 'block',     type: 'string' },
@@ -2919,13 +2906,13 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
         { header: 'Notas',      field: 'notes',     type: 'string' },
     ];
     const exportCSV = () => {
-        if (rows.length === 0) return;
+        if (placaPending.length === 0) return;
         const escape = (v) => {
             const s = v === null || v === undefined ? '' : String(v);
             return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
         };
         const lines = [COL_DEFS.map(c => escape(c.header)).join(',')];
-        rows.forEach((r, i) => {
+        placaPending.forEach((r, i) => {
             lines.push(COL_DEFS.map(c => escape(c.type === 'index' ? i + 1 : r[c.field])).join(','));
         });
         const csv = '﻿' + lines.join('\n');
@@ -2965,6 +2952,8 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
     const applyPaste = () => {
         const p = parsePaste(pasteText);
         if (p.dataRows.length === 0) return;
+        // El pegado mapea por la columna # a la lista de placas pendientes (lo que
+        // se ve en pantalla). Sin #, se aplica por orden.
         const updates = new Map();
         p.dataRows.forEach((cells, ri) => {
             let targetIdx;
@@ -2973,7 +2962,7 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                 if (!isNaN(n)) targetIdx = n - 1;
             }
             if (targetIdx === undefined) targetIdx = ri;
-            if (targetIdx < 0 || targetIdx >= rows.length) return;
+            if (targetIdx < 0 || targetIdx >= placaPending.length) return;
             const patch = {};
             p.mapping.forEach((def, ci) => {
                 if (!def || def.type === 'index') return;
@@ -2986,124 +2975,120 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                     patch[def.field] = raw;
                 }
             });
-            if (Object.keys(patch).length > 0) updates.set(targetIdx, patch);
+            if (Object.keys(patch).length > 0) updates.set(placaPending[targetIdx].id, patch);
         });
         if (updates.size === 0) return;
-        setRows(rows.map((r, i) => updates.has(i) ? { ...r, ...updates.get(i) } : r));
+        setRows(rows.map(r => updates.has(r.id) ? { ...r, ...updates.get(r.id) } : r));
         setPasteOpen(false);
         setPasteText('');
     };
+    const NATIONAL = !!window.PORTAL_NATIONAL;
     return (React.createElement("div", null,
         React.createElement("div", { style: { display: 'flex', alignItems: 'center', gap: 18, marginBottom: 14, flexWrap: 'wrap' } },
             React.createElement("div", { style: { display: 'flex', alignItems: 'center', gap: 14, padding: '10px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10 } },
                 React.createElement("div", { style: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 } },
-                    React.createElement("span", { className: "mono", style: { fontWeight: 700, fontSize: 18 } }, completeRows.length),
-                    React.createElement("span", { className: "text-muted" },
-                        "/ ",
-                        rows.length,
-                        " completas")),
+                    React.createElement("span", { className: "mono", style: { fontWeight: 700, fontSize: 18 } }, doneCount),
+                    React.createElement("span", { className: "text-muted" }, "/ ", pendingRows.length, " pendientes completas")),
                 React.createElement("div", { style: { width: 1, height: 16, background: 'var(--border)' } }),
-                React.createElement("div", { style: { display: 'flex', alignItems: 'center', gap: 6, color: errors.length > 0 ? 'var(--danger)' : 'var(--ink-3)', fontSize: 13 } },
-                    React.createElement(Icon, { name: "alert", size: 12 }),
-                    React.createElement("span", { className: "mono", style: { fontWeight: 700 } }, errors.length),
-                    React.createElement("span", null, "con errores"))),
-            React.createElement("div", { className: "seg" },
-                React.createElement("button", { className: filter === 'all' ? 'active' : '', onClick: () => setFilter('all') },
-                    "Todas (",
-                    placaRows.length,
-                    ")"),
-                React.createElement("button", { className: filter === 'errors' ? 'active' : '', onClick: () => setFilter('errors') },
-                    "Errores (",
-                    errors.length,
-                    ")"),
-                React.createElement("button", { className: filter === 'empty' ? 'active' : '', onClick: () => setFilter('empty') }, "Sin dimensiones")),
+                React.createElement("span", { className: "text-muted text-small" }, "Solo se muestran las filas por detallar (placa y formato empacado).")),
             React.createElement("div", { style: { marginLeft: 'auto', display: 'flex', gap: 8 } },
-                React.createElement(Btn, { variant: "secondary", icon: "download", size: "sm", onClick: exportCSV, disabled: rows.length === 0 }, "Exportar CSV"),
-                React.createElement(Btn, { variant: "secondary", icon: "upload", size: "sm", onClick: () => { setPasteText(''); setPasteOpen(true); } }, "Pegar de Excel"))),
+                React.createElement(Btn, { variant: "secondary", icon: "download", size: "sm", onClick: exportCSV, disabled: placaPending.length === 0 }, "Exportar CSV"),
+                React.createElement(Btn, { variant: "secondary", icon: "upload", size: "sm", disabled: placaPending.length === 0, onClick: () => { setPasteText(''); setPasteOpen(true); } }, "Pegar de Excel"))),
+        pendingRows.length === 0 && React.createElement("div", { className: "text-muted", style: { padding: '24px 4px', textAlign: 'center' } }, "No hay nada pendiente por detallar. Las piezas y los formatos sueltos ya quedaron completos."),
         React.createElement("div", { className: "sheet" },
-            React.createElement("div", { className: "sheet-scroll" },
+            React.createElement("div", { className: "sheet-scroll", style: { display: 'flex', flexDirection: 'column', gap: 18 } },
                 productGroups.map(group => {
                     const gRows = group.rows;
-                    const prod = productById[group.key];
-                    const anyPlaca = gRows.some(rowIsPlaca);
-                    const anyFormato = gRows.some(r => !rowIsPlaca(r));
-                    const anyThickness = gRows.some(r => !rowIsPieza(r));
-                    const blockLabel = anyPlaca ? 'Bloque' : gRows.some(rowIsFormato) ? 'Bloque/Tono' : gRows.some(rowIsPieza) ? 'Agrupador' : 'Bloque';
-                    // En Formatos y Piezas la columna "No. Placa" se llama "Caja" (mismo campo interno).
-                    const plateLabel = anyPlaca ? 'No. Placa' : 'Caja';
-                    return React.createElement("div", { key: group.key },
-                        (multiProduct && React.createElement("div", { className: "pg-title", style: { display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'var(--accent-soft)', borderTop: '2px solid var(--accent)' } },
-                            React.createElement("span", { style: { fontWeight: 700, color: 'var(--accent)', fontSize: 12.5 } }, (prod && prod.name) || 'Producto'),
-                            (prod && prod.ref) ? React.createElement("span", { className: "mono", style: { color: 'var(--ink-3)', fontWeight: 600, fontSize: 12 } }, prod.ref) : null)),
-                        React.createElement("table", { className: "sheet-table" },
-                    React.createElement("thead", null,
-                        React.createElement("tr", null,
-                            React.createElement("th", { style: { width: 30 } }, "#"),
-                            (!window.PORTAL_NATIONAL && React.createElement("th", { style: { minWidth: 130 } }, blockLabel)),
-                            (!window.PORTAL_NATIONAL && anyPlaca && React.createElement("th", { style: { minWidth: 110 } }, "Atado")),
-                            React.createElement("th", { style: { minWidth: 110 } }, plateLabel),
-                            (anyThickness && React.createElement("th", { style: { width: 110 } }, "Grosor cm")),
-                            (anyPlaca && React.createElement("th", { style: { width: 110 } }, "Largo m")),
-                            (anyPlaca && React.createElement("th", { style: { width: 110 } }, "Alto m")),
-                            (anyPlaca && React.createElement("th", { style: { width: 80 } }, "\u00C1rea m\u00B2")),
-                            (anyFormato && React.createElement("th", { style: { width: 110 } }, "Cantidad")),
-                            React.createElement("th", { style: { minWidth: 180 } }, window.PORTAL_NATIONAL ? 'Plataforma' : 'Contenedor'),
-                            anyPlaca && React.createElement("th", { style: { width: 60 } }, "Foto"),
-                            React.createElement("th", { style: { minWidth: 170 } }, "Notas"))),
-                    React.createElement("tbody", null, gRows.map((r, gi) => {
-                        const hNum = parseFloat(r.h) || 0;
-                        const wNum = parseFloat(r.w) || 0;
-                        const area = (hNum && wNum) ? (hNum * wNum).toFixed(2) : '';
-                        const noH = !hNum;
-                        const noW = !wNum;
-                        const noQ = !(parseFloat(r.quantity) > 0);
-                        const noC = !r.container;
-                        const isBlockStart = gi === 0 || gRows[gi - 1].block !== r.block;
-                        const dataRow = React.createElement("tr", { key: r.id, className: `${isBlockStart ? 'block-start' : ''} ${activeRow === r.id ? 'is-active' : ''}`, onClick: () => setActiveRow(r.id) },
-                            React.createElement("td", { style: { textAlign: 'center', color: 'var(--ink-4)', fontSize: 11 } }, placaRows.indexOf(r) + 1),
-                            (!window.PORTAL_NATIONAL && React.createElement("td", { className: "cell-block" },
-                                React.createElement("input", { value: r.block, style: { textTransform: 'uppercase' }, onChange: forceUpper((e) => updRow(r.id, { block: e.target.value })) }))),
-                            (!window.PORTAL_NATIONAL && anyPlaca && PropCell({ rowId: r.id, field: "atado" },
-                                React.createElement("input", { value: r.atado, placeholder: "rellenar valor", style: { textTransform: 'uppercase' }, onChange: forceUpper((e) => updRow(r.id, { atado: e.target.value })) }))),
-                            PropCell({ rowId: r.id, field: "plate" },
-                                React.createElement("input", { value: r.plate, placeholder: "rellenar valor", style: { textTransform: 'uppercase' }, onChange: forceUpper((e) => updRow(r.id, { plate: e.target.value })) })),
-                            (anyThickness && (!rowIsPieza(r)
-                                ? PropCell({ rowId: r.id, field: "thickness" },
-                                    React.createElement("input", { type: "text", inputMode: "decimal", value: r.thickness || '', onChange: (e) => updRow(r.id, { thickness: e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.') }) }))
-                                : React.createElement("td", { className: "text-muted", style: { textAlign: 'center' } }, "—"))),
-                            (anyPlaca && (rowIsPlaca(r)
-                                ? PropCell({ rowId: r.id, field: "w", errClass: noW ? 'is-error' : '' },
-                                    React.createElement("input", { type: "text", inputMode: "decimal", value: r.w || '', placeholder: "0.00", onChange: (e) => updRow(r.id, { w: e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.') }) }))
-                                : React.createElement("td", { className: "text-muted", style: { textAlign: 'center' } }, "—"))),
-                            (anyPlaca && (rowIsPlaca(r)
-                                ? PropCell({ rowId: r.id, field: "h", errClass: noH ? 'is-error' : '' },
-                                    React.createElement("input", { type: "text", inputMode: "decimal", value: r.h || '', placeholder: "0.00", onChange: (e) => updRow(r.id, { h: e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.') }) }))
-                                : React.createElement("td", { className: "text-muted", style: { textAlign: 'center' } }, "—"))),
-                            (anyPlaca && (rowIsPlaca(r)
-                                ? React.createElement("td", { className: "cell-computed" },
-                                    React.createElement("input", { readOnly: true, value: area }))
-                                : React.createElement("td", { className: "text-muted", style: { textAlign: 'center' } }, "—"))),
-                            (anyFormato && (!rowIsPlaca(r)
-                                ? PropCell({ rowId: r.id, field: "quantity", errClass: noQ ? 'is-error' : '' },
-                                    React.createElement("input", { type: "text", inputMode: "decimal", value: r.quantity || '', placeholder: "0", onChange: (e) => updRow(r.id, { quantity: e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.') }) }))
-                                : React.createElement("td", { className: "text-muted", style: { textAlign: 'center' } }, "—"))),
-                            PropCell({ rowId: r.id, field: "container", errClass: (!window.PORTAL_NATIONAL && noC) ? 'is-error' : '' },
-                                window.PORTAL_NATIONAL
-                                    ? React.createElement("input", { value: r.container, placeholder: "plataforma / cami\u00f3n", style: { textTransform: 'uppercase' }, onChange: forceUpper((e) => updRow(r.id, { container: e.target.value })) })
-                                    : React.createElement("select", { value: r.container, onChange: (e) => updRow(r.id, { container: e.target.value }) },
-                                        React.createElement("option", { value: "" }, "\u2014 sin asignar \u2014"),
-                                        containers.map(c => React.createElement("option", { key: c, value: c }, c)))),
-                            anyPlaca && React.createElement("td", { style: { textAlign: 'center' } }, rowIsPlaca(r)
-                                ? React.createElement("label", { className: `row-mini-photo ${r.photo ? 'has' : ''}`, style: { cursor: 'pointer', overflow: 'hidden' }, title: "Subir/Reemplazar foto de la placa", onClick: (e) => e.stopPropagation() },
-                                    React.createElement("input", { type: "file", accept: "image/*", style: { display: 'none' }, onChange: (e) => pickRowPhoto(r, e.target.files && e.target.files[0]) }),
-                                    rowPhotoSrc(r)
-                                        ? React.createElement("img", { src: rowPhotoSrc(r), alt: "foto", style: { width: '100%', height: '100%', objectFit: 'cover', borderRadius: 4 } })
-                                        : React.createElement(Icon, { name: "camera", size: 12 }))
-                                : React.createElement("span", { className: "text-muted", style: { fontSize: 11 } }, "—")),
-                            PropCell({ rowId: r.id, field: "notes" },
-                                React.createElement("input", { placeholder: "\u2014", value: r.notes, style: { textTransform: 'uppercase' }, onChange: forceUpper((e) => updRow(r.id, { notes: e.target.value })) })));
-                        return dataRow;
-                    }))))}))),
+                    const prod = productById[group.key] || {};
+                    const kind = PL_KIND(gRows[0]);
+                    const typeLabel = kind === 'placa' ? 'Placa' : 'Formato';
+                    const gDone = gRows.filter(r => PL_STATE(r).tone === 'done').length;
+                    const header = React.createElement("div", { style: { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '8px 12px', background: 'var(--accent-soft)', borderBottom: '1px solid var(--border)' } },
+                        React.createElement("strong", { style: { fontSize: 13 } }, prod.name || 'Producto'),
+                        prod.ref ? React.createElement("span", { className: "mono text-small text-muted" }, prod.ref) : null,
+                        React.createElement(Badge, { tone: "draft" }, typeLabel),
+                        React.createElement("span", { className: "text-muted text-small", style: { marginLeft: 'auto' } }, `${gDone} de ${gRows.length} completas`));
+                    let table;
+                    if (kind === 'placa') {
+                        table = React.createElement("table", { className: "sheet-table" },
+                            React.createElement("thead", null, React.createElement("tr", null,
+                                React.createElement("th", { style: { width: 30 } }, "#"),
+                                (!NATIONAL && React.createElement("th", { style: { minWidth: 130 } }, "Bloque")),
+                                (!NATIONAL && React.createElement("th", { style: { minWidth: 110 } }, "Atado")),
+                                React.createElement("th", { style: { minWidth: 110 } }, "No. Placa"),
+                                React.createElement("th", { style: { width: 110 } }, "Grosor cm"),
+                                React.createElement("th", { style: { width: 110 } }, "Largo m"),
+                                React.createElement("th", { style: { width: 110 } }, "Alto m"),
+                                React.createElement("th", { style: { width: 80 } }, "Área m²"),
+                                React.createElement("th", { style: { minWidth: 180 } }, NATIONAL ? 'Plataforma' : 'Contenedor'),
+                                (!NATIONAL && React.createElement("th", { style: { width: 60 } }, "Foto")),
+                                React.createElement("th", { style: { minWidth: 170 } }, "Notas"))),
+                            React.createElement("tbody", null, gRows.map((r, gi) => {
+                                const hNum = parseFloat(r.h) || 0;
+                                const wNum = parseFloat(r.w) || 0;
+                                const area = (hNum && wNum) ? (hNum * wNum).toFixed(2) : '';
+                                const noC = !r.container;
+                                const isBlockStart = gi === 0 || gRows[gi - 1].block !== r.block;
+                                return React.createElement("tr", { key: r.id, className: `${isBlockStart ? 'block-start' : ''} ${activeRow === r.id ? 'is-active' : ''}`, onClick: () => setActiveRow(r.id) },
+                                    React.createElement("td", { style: { textAlign: 'center', color: 'var(--ink-4)', fontSize: 11 } }, gi + 1),
+                                    (!NATIONAL && React.createElement("td", { className: "cell-block" },
+                                        React.createElement("input", { value: r.block || '', style: { textTransform: 'uppercase' }, onChange: forceUpper((e) => updRow(r.id, { block: e.target.value })) }))),
+                                    (!NATIONAL && PropCell({ rowId: r.id, field: "atado" },
+                                        React.createElement("input", { value: r.atado || '', placeholder: "rellenar valor", style: { textTransform: 'uppercase' }, onChange: forceUpper((e) => updRow(r.id, { atado: e.target.value })) }))),
+                                    PropCell({ rowId: r.id, field: "plate" },
+                                        React.createElement("input", { value: r.plate || '', placeholder: "rellenar valor", style: { textTransform: 'uppercase' }, onChange: forceUpper((e) => updRow(r.id, { plate: e.target.value })) })),
+                                    PropCell({ rowId: r.id, field: "thickness" },
+                                        React.createElement("input", { type: "text", inputMode: "decimal", value: r.thickness || '', onChange: (e) => updRow(r.id, { thickness: e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.') }) })),
+                                    PropCell({ rowId: r.id, field: "w", errClass: !wNum ? 'is-error' : '' },
+                                        React.createElement("input", { type: "text", inputMode: "decimal", value: r.w || '', placeholder: "0.00", onChange: (e) => updRow(r.id, { w: e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.') }) })),
+                                    PropCell({ rowId: r.id, field: "h", errClass: !hNum ? 'is-error' : '' },
+                                        React.createElement("input", { type: "text", inputMode: "decimal", value: r.h || '', placeholder: "0.00", onChange: (e) => updRow(r.id, { h: e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.') }) })),
+                                    React.createElement("td", { className: "cell-computed" },
+                                        React.createElement("input", { readOnly: true, value: area })),
+                                    PropCell({ rowId: r.id, field: "container", errClass: (!NATIONAL && noC) ? 'is-error' : '' },
+                                        NATIONAL
+                                            ? React.createElement("input", { value: r.container || '', placeholder: "plataforma / camión", style: { textTransform: 'uppercase' }, onChange: forceUpper((e) => updRow(r.id, { container: e.target.value })) })
+                                            : React.createElement("select", { value: r.container || '', onChange: (e) => updRow(r.id, { container: e.target.value }) },
+                                                React.createElement("option", { value: "" }, "— sin asignar —"),
+                                                containers.map(c => React.createElement("option", { key: c, value: c }, c)))),
+                                    (!NATIONAL && React.createElement("td", { style: { textAlign: 'center' } },
+                                        React.createElement("label", { className: `row-mini-photo ${r.photo ? 'has' : ''}`, style: { cursor: 'pointer', overflow: 'hidden' }, title: "Subir/Reemplazar foto de la placa", onClick: (e) => e.stopPropagation() },
+                                            React.createElement("input", { type: "file", accept: "image/*", style: { display: 'none' }, onChange: (e) => pickRowPhoto(r, e.target.files && e.target.files[0]) }),
+                                            rowPhotoSrc(r)
+                                                ? React.createElement("img", { src: rowPhotoSrc(r), alt: "foto", style: { width: '100%', height: '100%', objectFit: 'cover', borderRadius: 4 } })
+                                                : React.createElement(Icon, { name: "camera", size: 12 })))),
+                                    PropCell({ rowId: r.id, field: "notes" },
+                                        React.createElement("input", { placeholder: "—", value: r.notes || '', style: { textTransform: 'uppercase' }, onChange: forceUpper((e) => updRow(r.id, { notes: e.target.value })) })));
+                            })));
+                    } else {
+                        // Formato empacado: se captura m² por palet/caja. El empaque es de solo lectura.
+                        table = React.createElement("table", { className: "sheet-table" },
+                            React.createElement("thead", null, React.createElement("tr", null,
+                                React.createElement("th", { style: { width: 30 } }, "#"),
+                                React.createElement("th", { style: { minWidth: 140 } }, "Empaque"),
+                                React.createElement("th", { style: { width: 170 } }, "m² (por capturar)"),
+                                (!NATIONAL && React.createElement("th", { style: { width: 60 } }, "Foto")),
+                                React.createElement("th", { style: { minWidth: 170 } }, "Notas"))),
+                            React.createElement("tbody", null, gRows.map((r, gi) => {
+                                const pkg = PL_PKG(r.grupo);
+                                const noQ = !(parseFloat(r.quantity) > 0);
+                                return React.createElement("tr", { key: r.id, className: activeRow === r.id ? 'is-active' : '', onClick: () => setActiveRow(r.id) },
+                                    React.createElement("td", { style: { textAlign: 'center', color: 'var(--ink-4)', fontSize: 11 } }, gi + 1),
+                                    React.createElement("td", null, pkg.label),
+                                    PropCell({ rowId: r.id, field: "quantity", errClass: noQ ? 'is-error' : '' },
+                                        React.createElement("input", { type: "text", inputMode: "decimal", value: r.quantity || '', placeholder: "0.00", onChange: (e) => updRow(r.id, { quantity: e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.') }) })),
+                                    (!NATIONAL && React.createElement("td", { style: { textAlign: 'center' } },
+                                        React.createElement("label", { className: `row-mini-photo ${r.photo ? 'has' : ''}`, style: { cursor: 'pointer', overflow: 'hidden' }, title: "Subir/Reemplazar foto", onClick: (e) => e.stopPropagation() },
+                                            React.createElement("input", { type: "file", accept: "image/*", style: { display: 'none' }, onChange: (e) => pickRowPhoto(r, e.target.files && e.target.files[0]) }),
+                                            rowPhotoSrc(r)
+                                                ? React.createElement("img", { src: rowPhotoSrc(r), alt: "foto", style: { width: '100%', height: '100%', objectFit: 'cover', borderRadius: 4 } })
+                                                : React.createElement(Icon, { name: "camera", size: 12 })))),
+                                    PropCell({ rowId: r.id, field: "notes" },
+                                        React.createElement("input", { placeholder: "—", value: r.notes || '', style: { textTransform: 'uppercase' }, onChange: forceUpper((e) => updRow(r.id, { notes: e.target.value })) })));
+                            })));
+                    }
+                    return React.createElement("div", { key: group.key, style: { border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' } }, header, table);
+                }))),
         pasteOpen && React.createElement("div", { style: { position: 'fixed', inset: 0, zIndex: 2147483001, background: 'oklch(0.2 0.01 60 / 0.5)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }, onClick: (e) => e.target === e.currentTarget && setPasteOpen(false) },
             React.createElement("div", { style: { background: 'var(--surface)', borderRadius: 14, border: '1px solid var(--border)', boxShadow: 'var(--shadow-lg)', width: 'min(680px, calc(100vw - 48px))', maxHeight: 'calc(100dvh - 48px)', display: 'flex', flexDirection: 'column' } },
                 React.createElement("div", { style: { padding: '18px 22px 14px', borderBottom: '1px solid var(--border-soft)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flex: '0 0 auto' } },
