@@ -100,10 +100,35 @@
             var isPlaca = s(r.tipo || 'Placa').toLowerCase().indexOf('placa') >= 0;
             var key = String(pid) + '::' + block.toLowerCase();
             if (!byKey[key])
-                byKey[key] = { id: key, name: block, count: 0, photo: !isPlaca || hasBlockImage(pid, block) || !!r.photo, product: pid, needs_photo: isPlaca, block_image_id: blockImageIdFor(pid, block) };
-            byKey[key].count += 1;
+                byKey[key] = { id: key, name: block, count: 0, photo: !isPlaca || hasBlockImage(pid, block) || !!r.photo, product: pid, needs_photo: isPlaca, block_image_id: blockImageIdFor(pid, block), _isPlaca: isPlaca, _grupo: s(r.grupo || ''), _rows: 0, _qtySum: 0 };
+            byKey[key]._rows += 1;
+            byKey[key]._qtySum += n(r.quantity);
+            if (!byKey[key]._grupo)
+                byKey[key]._grupo = s(r.grupo || '');
             if (r.photo)
                 byKey[key].photo = true;
+        });
+        // Reconstituir `count` y `packaging` desde las filas: el empaque vive en
+        // `grupo_name` y se perdía al recargar (un empaque parecía "suelto" → 1 fila
+        // con cantidad N en lugar de N filas). Aquí se restaura para que al editar
+        // se regeneren las N filas (1 por palet/caja).
+        Object.keys(byKey).forEach(function (k) {
+            var bb = byKey[k];
+            var g = String(bb._grupo || '').toLowerCase();
+            var pkgKind = (g.indexOf('palet') >= 0 || g.indexOf('pallet') >= 0) ? 'palet' : (g.indexOf('caja') >= 0 ? 'caja' : (g.indexOf('suelto') >= 0 ? 'suelto' : ''));
+            var mq = g.match(/x\s*(\d+)/);
+            var grupoQty = mq ? parseInt(mq[1], 10) : 0;
+            if (bb._isPlaca) {
+                bb.count = bb._rows;
+                bb.packaging = { kind: '', qty: '' };
+            } else if (pkgKind === 'caja' || pkgKind === 'palet') {
+                bb.count = 0;
+                bb.packaging = { kind: pkgKind, qty: grupoQty > 0 ? grupoQty : bb._rows };
+            } else {
+                bb.count = bb._qtySum || bb._rows;
+                bb.packaging = { kind: 'suelto', qty: '' };
+            }
+            delete bb._isPlaca; delete bb._grupo; delete bb._rows; delete bb._qtySum;
         });
         var blocks = Object.keys(byKey).map(function (k) { return byKey[k]; });
         var productIds = uniq(uiRows.map(function (r) { return r.product_id; })).filter(Boolean);
@@ -1929,8 +1954,9 @@ const PL_PKG = (grupo) => {
     const m = raw.match(/^([a-záéíóúñ]+)\s*(?:x\s*(\d+))?/i);
     const kind = (m && m[1] || '').toLowerCase();
     const qty = (m && m[2]) ? parseInt(m[2], 10) : 0;
-    const nice = kind === 'suelto' ? 'Suelto' : kind === 'caja' ? 'Caja' : (kind === 'palet' || kind === 'pallet') ? 'Palet' : (kind ? kind[0].toUpperCase() + kind.slice(1) : '—');
-    const label = kind === 'suelto' ? 'Suelto' : (qty ? `${nice} ×${qty}` : nice);
+    // El nombre del empaque se muestra SIEMPRE en mayúsculas (PALET / CAJA / SUELTO).
+    const nice = kind === 'suelto' ? 'SUELTO' : kind === 'caja' ? 'CAJA' : (kind === 'palet' || kind === 'pallet') ? 'PALET' : (kind ? kind.toUpperCase() : '—');
+    const label = kind === 'suelto' ? 'SUELTO' : (qty ? `${nice} ×${qty}` : nice);
     return { kind, qty, label };
 };
 const PL_LOOSE = (pkg) => !pkg.kind || pkg.kind === 'suelto';
