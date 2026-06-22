@@ -3041,7 +3041,7 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                 React.createElement(Btn, { variant: "secondary", icon: "upload", size: "sm", disabled: placaRows.length === 0, onClick: () => { setPasteText(''); setPasteOpen(true); } }, "Pegar de Excel"))),
         allRows.length === 0 && React.createElement("div", { className: "text-muted", style: { padding: '24px 4px', textAlign: 'center' } }, "No hay filas que detallar todavía."),
         React.createElement("div", { className: "sheet" },
-            React.createElement("div", { className: "sheet-scroll", style: { display: 'flex', flexDirection: 'column', gap: 18 } },
+            React.createElement("div", { className: "sheet-scroll" },
                 productGroups.map(group => {
                     const gRows = group.rows;
                     const prod = productById[group.key] || {};
@@ -3144,7 +3144,10 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                                     notesCell(r));
                             })));
                     }
-                    return React.createElement("div", { key: group.key, style: { border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' } }, header, table);
+                    // OJO: sin overflow:hidden aquí. Si se recorta, este wrapper se
+                    // vuelve el contenedor sticky del thead y la cabecera se encima de
+                    // las primeras filas. El scroll vertical lo maneja .sheet-scroll.
+                    return React.createElement("div", { key: group.key, style: { border: '1px solid var(--border)', borderRadius: 10, marginBottom: 14 } }, header, table);
                 }))),
         pasteOpen && React.createElement("div", { style: { position: 'fixed', inset: 0, zIndex: 2147483001, background: 'oklch(0.2 0.01 60 / 0.5)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }, onClick: (e) => e.target === e.currentTarget && setPasteOpen(false) },
             React.createElement("div", { style: { background: 'var(--surface)', borderRadius: 14, border: '1px solid var(--border)', boxShadow: 'var(--shadow-lg)', width: 'min(680px, calc(100vw - 48px))', maxHeight: 'calc(100dvh - 48px)', display: 'flex', flexDirection: 'column' } },
