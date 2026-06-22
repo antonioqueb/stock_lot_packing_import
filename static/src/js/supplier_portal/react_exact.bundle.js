@@ -1934,6 +1934,17 @@ const PL_PKG = (grupo) => {
     return { kind, qty, label };
 };
 const PL_LOOSE = (pkg) => !pkg.kind || pkg.kind === 'suelto';
+// Etiqueta de la columna "No." según el empaque del producto. Para formato/pieza
+// el mismo campo de "No. Placa" (plate → numero_placa) se muestra como No. Palet/Caja.
+const PL_PKG_NUM_LABEL = (rows) => {
+    const kinds = new Set((rows || []).map(r => PL_PKG(r.grupo).kind));
+    const hasC = kinds.has('caja');
+    const hasP = kinds.has('palet') || kinds.has('pallet');
+    if (hasP && !hasC) return 'No. Palet';
+    if (hasC && !hasP) return 'No. Caja';
+    if (hasP || hasC) return 'No. Empaque';
+    return 'No. Paquete';
+};
 // Estado de la fila según su tipo: Completo / Pendiente / Falta foto.
 const PL_STATE = (r) => {
     const kind = PL_KIND(r);
@@ -3087,6 +3098,7 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                             React.createElement("thead", null, React.createElement("tr", null,
                                 React.createElement("th", { style: { width: 30 } }, "#"),
                                 React.createElement("th", { style: { minWidth: 140 } }, "Empaque"),
+                                React.createElement("th", { style: { minWidth: 110 } }, PL_PKG_NUM_LABEL(gRows)),
                                 React.createElement("th", { style: { width: 160 } }, "m² (por capturar)"),
                                 React.createElement("th", { style: { minWidth: 180 } }, NATIONAL ? 'Plataforma' : 'Contenedor'),
                                 (!NATIONAL && React.createElement("th", { style: { width: 60 } }, "Foto")),
@@ -3097,6 +3109,8 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                                 return React.createElement("tr", { key: r.id, className: activeRow === r.id ? 'is-active' : '', onClick: () => setActiveRow(r.id) },
                                     React.createElement("td", { style: { textAlign: 'center', color: 'var(--ink-4)', fontSize: 11 } }, gi + 1),
                                     React.createElement("td", null, pkg.label),
+                                    PropCell({ rowId: r.id, field: "plate" },
+                                        React.createElement("input", { value: r.plate || '', placeholder: "rellenar valor", style: { textTransform: 'uppercase' }, onChange: forceUpper((e) => updRow(r.id, { plate: e.target.value })) })),
                                     PropCell({ rowId: r.id, field: "quantity", errClass: noQ ? 'is-error' : '' },
                                         React.createElement("input", { type: "text", inputMode: "decimal", value: r.quantity || '', placeholder: "0.00", onChange: (e) => updRow(r.id, { quantity: e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.') }) })),
                                     containerCell(r),
@@ -3110,6 +3124,7 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                             React.createElement("thead", null, React.createElement("tr", null,
                                 React.createElement("th", { style: { width: 30 } }, "#"),
                                 React.createElement("th", { style: { minWidth: 140 } }, "Empaque"),
+                                React.createElement("th", { style: { minWidth: 110 } }, PL_PKG_NUM_LABEL(gRows)),
                                 React.createElement("th", { style: { width: 160 } }, "Cantidad"),
                                 React.createElement("th", { style: { minWidth: 180 } }, NATIONAL ? 'Plataforma' : 'Contenedor'),
                                 React.createElement("th", { style: { minWidth: 170 } }, "Notas"))),
@@ -3119,6 +3134,8 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                                 return React.createElement("tr", { key: r.id, className: activeRow === r.id ? 'is-active' : '', onClick: () => setActiveRow(r.id) },
                                     React.createElement("td", { style: { textAlign: 'center', color: 'var(--ink-4)', fontSize: 11 } }, gi + 1),
                                     React.createElement("td", null, pkg.label),
+                                    PropCell({ rowId: r.id, field: "plate" },
+                                        React.createElement("input", { value: r.plate || '', placeholder: "rellenar valor", style: { textTransform: 'uppercase' }, onChange: forceUpper((e) => updRow(r.id, { plate: e.target.value })) })),
                                     PropCell({ rowId: r.id, field: "quantity", errClass: noQ ? 'is-error' : '' },
                                         React.createElement("input", { type: "text", inputMode: "decimal", value: r.quantity || '', placeholder: "0", onChange: (e) => updRow(r.id, { quantity: e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.') }) })),
                                     containerCell(r),
