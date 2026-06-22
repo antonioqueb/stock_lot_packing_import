@@ -2139,7 +2139,7 @@ const FORMATO_TERM = 'Tono';
 // Configuración de agrupación POR TIPO de producto (embarque combinado).
 const GROUP_MODES = {
     placa:   { term: 'Bloque',     icon: 'cube',  color: 'var(--accent)', photo: 'required', generatesRows: true,  explainer: 'full',  countLabel: 'Placas' },
-    formato: { term: FORMATO_TERM, icon: 'image', color: '#7c5cff',       photo: 'optional', generatesRows: false, explainer: 'brief', countLabel: 'Cantidad (m² o cajas)' },
+    formato: { term: FORMATO_TERM, icon: 'image', color: '#7c5cff',       photo: 'optional', generatesRows: false, explainer: 'brief', countLabel: 'Cantidad total de metros cuadrados' },
     pieza:   { term: 'Grupo',      icon: 'box',   color: '#0ea5a0',       photo: 'hidden',   generatesRows: false, explainer: 'none',  countLabel: 'Cantidad total' },
 };
 const groupMode = (draft, p) => (draft.typeOverride && draft.typeOverride[p.id]) || (p && p.kind) || 'placa';
@@ -2223,19 +2223,27 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
                     generated.push(base);
                 }
             } else {
-                // Formato/Pieza: NO genera filas individuales. 1 fila que carga la cantidad del grupo.
+                // Formato/Pieza: NO genera filas individuales. 1 fila que carga la
+                // cantidad del grupo. La cantidad depende del EMPAQUE (matriz):
+                //  · suelto      → cantidad total tecleada (m² en formato, unidades en pieza)
+                //  · caja/palet  → pieza: nº de empaques · formato: pendiente (m² después → 0)
+                const pk = b.packaging || {};
+                const loose = pk.kind === 'suelto' || !pk.kind;
+                const qty = loose
+                    ? (+b.count || 0)
+                    : (mode === 'formato' ? 0 : (+pk.qty || 0));
                 const id = `r-${b.id}-q`;
                 const lotName = (b.name || '').trim() || autoLot;
                 const base = {
                     id, product_id: b.product || product.id, tipo,
                     block: lotName, atado: '', plate: '',
-                    ref: product.ref || '', thickness: 0, h: 0, w: 0, quantity: +b.count || 0, weight: 0, notes: '', grupo: pkg, pedimento: '', container: defaultContainer, container_id: false, photo: false, errors: [],
+                    ref: product.ref || '', thickness: 0, h: 0, w: 0, quantity: qty, weight: 0, notes: '', grupo: pkg, pedimento: '', container: defaultContainer, container_id: false, photo: false, errors: [],
                     blockStart: true,
                 };
                 const prev = prevById[id];
                 if (prev)
                     KEEP.forEach(k => { if (prev[k] !== undefined) base[k] = prev[k]; });
-                base.quantity = +b.count || 0;
+                base.quantity = qty;
                 base.block = lotName;
                 base.grupo = pkg;
                 generated.push(base);
@@ -2254,6 +2262,11 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
         genSigRef.current = blocksSig;
         setRows(buildRows());
     }, [step, blocksSig]);
+    // Nº de filas placa que se generarán (las únicas que se capturan en "Llenar
+    // placas"). Si es 0, el packing es solo formato/pieza y se cierra desde el paso 3.
+    const placaCount = draft.blocks.reduce((a, b) => a + (groupModeById(draft, proforma.products, b.product) === 'placa' ? (+b.count || 0) : 0), 0);
+    // Total de filas reales a generar (placa = 1 por placa; formato/pieza = 1 por grupo).
+    const totalRowsToGen = draft.blocks.reduce((a, b) => a + (groupModeById(draft, proforma.products, b.product) === 'placa' ? (+b.count || 0) : 1), 0);
     const canNext = () => {
         if (step === 1)
             return !!(draft.number || '').trim() && draft.products.length > 0;
@@ -2262,11 +2275,15 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
                 return false;
             return draft.blocks.every(b => {
                 const mode = groupModeById(draft, proforma.products, b.product);
-                if ((+b.count || 0) <= 0)
+                if (mode === 'placa')
+                    return (+b.count || 0) > 0 && !!(b.name || '').trim();
+                // Formato/Pieza: el EMPAQUE es obligatorio y es lo primero.
+                const pk = b.packaging || {};
+                if (!pk.kind)
                     return false;
-                if (mode === 'placa' && !(b.name || '').trim())
-                    return false;
-                return true;
+                if (pk.kind === 'suelto')
+                    return (+b.count || 0) > 0; // total: m² (formato) / unidades (pieza)
+                return (+pk.qty || 0) > 0; // caja/palet: nº de empaques
             });
         }
         return true;
@@ -2287,7 +2304,7 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
                                 'Captura placa por placa'),
                     React.createElement("p", { className: "sub" },
                         step === 1 && 'Selecciona uno o más productos de la PO. Cada packing list puede incluir varios productos.',
-                        step === 2 && 'Cada línea se organiza según su tipo: bloques con fotos para placas, tonos por cantidad para formatos, conteo simple para piezas. El detalle aparece en cada tarjeta.',
+                        step === 2 && 'El tipo lo define la categoría del producto. En placas, arma los bloques y sube una foto de cada uno. En formatos y piezas, primero indica cómo viene empacado (suelto, caja o palet) y luego la cantidad.',
                         step === 3 && 'Confirmamos cuántas filas vamos a generar. Si algo no cuadra, regresa al paso anterior.',
                         step === 4 && 'Las filas ya están creadas. Solo llena las dimensiones de cada placa y asigna su contenedor.')),
                 React.createElement("button", { className: "icon-btn", onClick: commitAndClose, "aria-label": "Cerrar" },
@@ -2328,10 +2345,17 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
                         WIZARD_STEPS[step].label)),
                     step === 3 && (React.createElement(React.Fragment, null,
                         React.createElement(Btn, { variant: "ghost", onClick: () => setStep(2) }, "Ajustar bloques"),
-                        React.createElement(Btn, { variant: "accent", icon: "sparkles", onClick: () => setStep(4) },
-                            "Generar ",
-                            draft.blocks.reduce((a, b) => a + (groupModeById(draft, proforma.products, b.product) === 'placa' ? (+b.count || 0) : 0), 0),
-                            " filas"))),
+                        // Si hay placas, vamos a "Llenar placas". Si el packing es solo
+                        // formato/pieza, esas filas ya están completas: creamos y cerramos.
+                        (placaCount > 0
+                            ? React.createElement(Btn, { variant: "accent", icon: "sparkles", onClick: () => setStep(4) },
+                                "Generar ",
+                                placaCount,
+                                " placas")
+                            : React.createElement(Btn, { variant: "accent", icon: "check", onClick: commitAndClose },
+                                "Crear ",
+                                totalRowsToGen,
+                                " filas y terminar")))),
                     step === 4 && (React.createElement(Btn, { variant: "primary", icon: "check", onClick: commitAndClose }, "Listo, volver al embarque")))))));
 };
 /* ====================== Step 1 ====================== */
@@ -2377,23 +2401,27 @@ const Step1Products = ({ proforma, draft, setDraft }) => {
 const Step2Blocks = ({ proforma, draft, setDraft, pendingImages }) => {
     const products = proforma.products.filter(p => draft.products.includes(p.id));
     // Default inteligente: al entrar, cada línea ya tiene 1 grupo. Las PIEZAS
-    // vienen pre-llenadas al 100% (cantidad total). También limpia grupos de
-    // productos deseleccionados.
+    // arrancan en "suelto" pre-llenadas al 100% (cantidad total). Los FORMATOS
+    // arrancan sin empaque elegido para forzar la decisión (empaque primero).
+    // También limpia grupos de productos deseleccionados.
     React.useEffect(() => {
         const selected = new Set((draft.products || []).map(String));
         const pruned = draft.blocks.filter(b => selected.has(String(b.product)));
         const missing = products.filter(p => !pruned.some(b => String(b.product) === String(p.id)));
         if (missing.length === 0 && pruned.length === draft.blocks.length)
             return;
-        const adds = missing.map(p => ({
-            id: 'b' + Date.now() + Math.random().toString(36).slice(2, 6) + String(p.id),
-            product: p.id, name: '',
-            count: groupMode(draft, p) === 'pieza' ? (+p.requested_qty || 0) : 0,
-            photo: false, packaging: { kind: '', qty: '' },
-        }));
+        const adds = missing.map(p => {
+            const m = groupMode(draft, p);
+            return {
+                id: 'b' + Date.now() + Math.random().toString(36).slice(2, 6) + String(p.id),
+                product: p.id, name: '',
+                count: m === 'pieza' ? (+p.requested_qty || 0) : 0,
+                photo: false,
+                packaging: { kind: m === 'pieza' ? 'suelto' : '', qty: '' },
+            };
+        });
         setDraft({ ...draft, blocks: [...pruned, ...adds] });
     }, [draft.products]);
-    const setOverride = (pid, kind) => setDraft({ ...draft, typeOverride: { ...(draft.typeOverride || {}), [pid]: kind } });
     const addGroup = (pid) => setDraft({ ...draft, blocks: [...draft.blocks, {
                 id: 'b' + Date.now() + Math.random().toString(36).slice(2, 6), product: pid, name: '',
                 count: 0, photo: false, packaging: { kind: '', qty: '' },
@@ -2412,7 +2440,24 @@ const Step2Blocks = ({ proforma, draft, setDraft, pendingImages }) => {
         });
     };
     const blockPhotoSrc = (b) => b.image_preview || (b.block_image_id ? `/web/image/supplier.shipment.block.image/${b.block_image_id}/image` : '');
+    // Etiqueta de la unidad de empaque elegida → "Cantidad de cajas/palets".
+    // ('pallet' es el valor heredado de versiones previas; se trata como 'palet'.)
+    const pkgUnit = (kind) => (kind === 'palet' || kind === 'pallet') ? 'palets' : 'cajas';
+    // Normaliza el valor del select de empaque (compat con datos antiguos).
+    const pkgKind = (kind) => kind === 'pallet' ? 'palet' : (kind || '');
+    // ¿El grupo quedó configurado según su tipo y empaque?
+    const blockConfigured = (b, mode) => {
+        if (mode === 'placa')
+            return (+b.count || 0) > 0 && !!(b.name || '').trim();
+        const pk = b.packaging || {};
+        if (!pk.kind)
+            return false;
+        if (pk.kind === 'suelto')
+            return (+b.count || 0) > 0; // pieza: unidades · formato: m²
+        return (+pk.qty || 0) > 0; // caja/palet: nº de empaques
+    };
     return React.createElement("div", { style: { display: 'flex', flexDirection: 'column', gap: 16 } }, products.map(p => {
+        // El TIPO viene de la categoría del producto y es INMUTABLE (no hay selector).
         const mode = groupMode(draft, p);
         const cfg = GROUP_MODES[mode] || GROUP_MODES.placa;
         const groups = draft.blocks.filter(b => String(b.product) === String(p.id));
@@ -2420,18 +2465,26 @@ const Step2Blocks = ({ proforma, draft, setDraft, pendingImages }) => {
         const needsPhoto = cfg.photo === 'required' && !window.PORTAL_NATIONAL;
         const total = groups.reduce((a, b) => a + (+b.count || 0), 0);
         const req = +p.requested_qty || 0;
-        let badge;
-        if (needsPhoto && groups.some(g => (+g.count || 0) > 0 && !g.photo)) badge = { tone: 'partial', icon: 'camera', text: 'Falta foto' };
-        else if (req && total >= req) badge = { tone: 'done', icon: 'check', text: 'Completo' };
-        else if (total > 0) badge = { tone: 'partial', icon: null, text: `Parcial (${total} de ${req})` };
-        else badge = { tone: 'todo', icon: null, text: `0 de ${req}` };
-        const term = cfg.term.toLowerCase();
-        // Camino B (formato/pieza): por defecto 1 grupo = solo cantidad total, sin
-        // nombre/tono ni explainer. "Tono/lote" es una división OPCIONAL.
         const caminoB = mode !== 'placa';
+        let badge;
+        if (mode === 'placa') {
+            if (needsPhoto && groups.some(g => (+g.count || 0) > 0 && !g.photo)) badge = { tone: 'partial', icon: 'camera', text: 'Falta foto' };
+            else if (req && total >= req) badge = { tone: 'done', icon: 'check', text: 'Completo' };
+            else if (total > 0) badge = { tone: 'partial', icon: null, text: `Parcial (${total} de ${req})` };
+            else badge = { tone: 'todo', icon: null, text: `0 de ${req}` };
+        } else {
+            const allCfg = groups.length > 0 && groups.every(g => blockConfigured(g, mode));
+            const anyCfg = groups.some(g => blockConfigured(g, mode));
+            if (allCfg) badge = { tone: 'done', icon: 'check', text: 'Listo' };
+            else if (anyCfg) badge = { tone: 'partial', icon: null, text: 'Incompleto' };
+            else badge = { tone: 'todo', icon: null, text: 'Falta empaque' };
+        }
+        const term = cfg.term.toLowerCase();
         const divided = groups.length > 1;
+        // Nombre/tono: en placa siempre; en formato/pieza solo si se dividió.
         const showName = !caminoB || divided;
-        const typeLabel = mode === 'placa' ? 'Bloque' : (mode === 'formato' ? 'Formato' : 'Pieza');
+        // Etiqueta de SOLO LECTURA del tipo.
+        const typeLabel = mode === 'placa' ? 'Placa' : (mode === 'formato' ? 'Formato' : 'Pieza');
         return React.createElement("div", { key: p.id, className: "pl-product", style: { border: '1px solid var(--border)', borderLeft: `3px solid ${cfg.color}`, borderRadius: 12, padding: 14, background: 'var(--surface)' } },
             React.createElement("div", { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' } },
                 React.createElement("div", { style: { display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 } },
@@ -2441,49 +2494,75 @@ const Step2Blocks = ({ proforma, draft, setDraft, pendingImages }) => {
                         React.createElement("div", { className: "text-muted text-small" }, typeLabel + (p.ref ? ' · ' + p.ref : '')))),
                 React.createElement("div", { style: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' } },
                     React.createElement(Badge, { tone: badge.tone }, badge.icon ? React.createElement(Icon, { name: badge.icon, size: 10 }) : null, " " + badge.text),
-                    React.createElement(Select, { value: mode, onChange: (e) => setOverride(p.id, e.target.value), style: { width: 116 }, title: "Tipo de organización" },
-                        React.createElement("option", { value: "placa" }, "Placa"),
-                        React.createElement("option", { value: "formato" }, "Formato"),
-                        React.createElement("option", { value: "pieza" }, "Pieza")),
-                    (showName
+                    // Tipo: etiqueta de SOLO LECTURA (sin selector — lo define la categoría).
+                    React.createElement(Badge, { tone: "draft" }, typeLabel),
+                    // Placa: agregar bloques. Formato: dividir por tono/lote (OPCIONAL).
+                    // Pieza: sin división.
+                    (mode === 'placa'
                         ? React.createElement(Btn, { variant: "secondary", size: "sm", icon: "plus", onClick: () => addGroup(p.id) }, "Agregar " + cfg.term)
-                        : React.createElement(Btn, { variant: "ghost", size: "sm", icon: "plus", onClick: () => addGroup(p.id) }, "Dividir en varios (tono/lote)")))),
+                        : mode === 'formato'
+                            ? React.createElement(Btn, { variant: "ghost", size: "sm", icon: "plus", onClick: () => addGroup(p.id) }, "Dividir por tono/lote")
+                            : null))),
             (cfg.explainer === 'full' && React.createElement(Callout, { tone: "info", icon: "info", title: "¿Qué es un bloque?" }, "Un bloque es la piedra original de cantera, antes de cortarse. De cada bloque salen varias placas; cada una se captura individualmente en el siguiente paso.")),
-            (caminoB && divided && React.createElement(Callout, { tone: "info", icon: "info", title: `Dividido por ${term}/lote` }, "Cada " + term + "/lote es una fila con su cantidad. La suma de todos debe igualar el total del producto.")),
-            React.createElement("div", { style: { display: 'flex', flexDirection: 'column', gap: 10, marginTop: 10 } }, groups.map((b, bi) => React.createElement("div", { key: b.id, className: "block-card", style: { borderColor: 'var(--border)' } },
-                (showPhoto && React.createElement("label", { className: `block-photo ${b.photo ? 'has-photo' : ''}`, style: { cursor: 'pointer', overflow: 'hidden' }, title: "Subir/Reemplazar foto" },
-                    React.createElement("input", { type: "file", accept: "image/*", style: { display: 'none' }, onChange: (e) => pickBlockPhoto(b, e.target.files && e.target.files[0]) }),
-                    blockPhotoSrc(b) ? React.createElement("img", { src: blockPhotoSrc(b), alt: "foto", style: { width: '100%', height: '100%', objectFit: 'cover', borderRadius: 8 } }) : React.createElement("div", { style: { textAlign: 'center' } },
-                        React.createElement(Icon, { name: "camera", size: 20 }),
-                        React.createElement("div", { style: { fontSize: 10, marginTop: 4, fontWeight: 600 } }, needsPhoto ? 'Subir foto' : 'Foto (opc.)')))),
-                React.createElement("div", { className: "block-fields" },
-                    (showName && React.createElement(Field, { label: mode === 'placa' ? `Nombre del bloque #${bi + 1}` : `Nombre del ${term}/lote #${bi + 1}`, required: mode === 'placa' },
-                        React.createElement(Input, { mono: true, placeholder: mode === 'placa' ? 'Ej. 3024117' : `Ej. ${cfg.term} A`, value: b.name, onChange: (e) => updBlock(b.id, { name: e.target.value }) }))),
-                    React.createElement("div", { className: "block-fields-row" },
-                        React.createElement(Field, { label: cfg.countLabel, required: true },
-                            React.createElement(Input, { mono: true, type: "number", min: mode === 'placa' ? 1 : 0, value: b.count || '', placeholder: mode === 'placa' ? '18' : '0', onChange: (e) => updBlock(b.id, { count: +e.target.value }) })),
-                        React.createElement(Field, { label: "Estado" },
-                            React.createElement("div", { style: { display: 'flex', gap: 6, alignItems: 'center', padding: '8px 0' } },
-                                (cfg.photo === 'required'
-                                    ? (b.photo ? React.createElement(Badge, { tone: "done" }, React.createElement(Icon, { name: "check", size: 10 }), " Foto OK") : React.createElement(Badge, { tone: "partial" }, React.createElement(Icon, { name: "camera", size: 10 }), " Falta foto"))
-                                    : React.createElement("span", { className: "text-muted text-small" }, cfg.photo === 'optional' ? 'Foto opcional' : 'Sin foto')),
-                                (groups.length > 1 && React.createElement(Btn, { variant: "ghost", size: "sm", icon: "trash", className: "btn-danger-ghost", onClick: () => delBlock(b.id) }))))),
-                    React.createElement("details", { className: "pl-packaging", style: { marginTop: 2 } },
-                        React.createElement("summary", { style: { cursor: 'pointer', fontSize: 12, color: 'var(--ink-3)' } }, "¿Cómo viene empacado? (opcional)"),
-                        React.createElement("div", { style: { display: 'flex', gap: 8, marginTop: 6 } },
-                            React.createElement(Select, { value: (b.packaging && b.packaging.kind) || '', onChange: (e) => updPack(b.id, { kind: e.target.value }), style: { width: 140 } },
-                                React.createElement("option", { value: "" }, "— sin definir —"),
-                                React.createElement("option", { value: "pallet" }, "Pallet"),
-                                React.createElement("option", { value: "caja" }, "Caja"),
-                                React.createElement("option", { value: "suelto" }, "Suelto")),
-                            React.createElement(Input, { mono: true, type: "number", min: 0, placeholder: "Cantidad", value: (b.packaging && b.packaging.qty) || '', onChange: (e) => updPack(b.id, { qty: e.target.value }), style: { width: 120 } }))))))));
+            (caminoB && divided && React.createElement(Callout, { tone: "info", icon: "info", title: `Dividido por ${term}/lote` }, "Cada " + term + "/lote es una fila con su propio empaque y cantidad.")),
+            React.createElement("div", { style: { display: 'flex', flexDirection: 'column', gap: 10, marginTop: 10 } }, groups.map((b, bi) => {
+                const pk = b.packaging || {};
+                const hasKind = !!pk.kind;
+                const loose = pk.kind === 'suelto';
+                return React.createElement("div", { key: b.id, className: "block-card", style: { borderColor: 'var(--border)' } },
+                    (showPhoto && React.createElement("label", { className: `block-photo ${b.photo ? 'has-photo' : ''}`, style: { cursor: 'pointer', overflow: 'hidden' }, title: "Subir/Reemplazar foto" },
+                        React.createElement("input", { type: "file", accept: "image/*", style: { display: 'none' }, onChange: (e) => pickBlockPhoto(b, e.target.files && e.target.files[0]) }),
+                        blockPhotoSrc(b) ? React.createElement("img", { src: blockPhotoSrc(b), alt: "foto", style: { width: '100%', height: '100%', objectFit: 'cover', borderRadius: 8 } }) : React.createElement("div", { style: { textAlign: 'center' } },
+                            React.createElement(Icon, { name: "camera", size: 20 }),
+                            React.createElement("div", { style: { fontSize: 10, marginTop: 4, fontWeight: 600 } }, needsPhoto ? 'Subir foto' : 'Foto (opc.)')))),
+                    React.createElement("div", { className: "block-fields" },
+                        // ============ PLACA: nombre + nº de placas (SIN empaque) ============
+                        (mode === 'placa' && React.createElement(React.Fragment, null,
+                            React.createElement(Field, { label: `Nombre del bloque #${bi + 1}`, required: true },
+                                React.createElement(Input, { mono: true, placeholder: 'Ej. 3024117', value: b.name, onChange: (e) => updBlock(b.id, { name: e.target.value }) })),
+                            React.createElement("div", { className: "block-fields-row" },
+                                React.createElement(Field, { label: "Placas", required: true },
+                                    React.createElement(Input, { mono: true, type: "number", min: 1, value: b.count || '', placeholder: '18', onChange: (e) => updBlock(b.id, { count: +e.target.value }) })),
+                                React.createElement(Field, { label: "Estado" },
+                                    React.createElement("div", { style: { display: 'flex', gap: 6, alignItems: 'center', padding: '8px 0' } },
+                                        (b.photo ? React.createElement(Badge, { tone: "done" }, React.createElement(Icon, { name: "check", size: 10 }), " Foto OK") : React.createElement(Badge, { tone: "partial" }, React.createElement(Icon, { name: "camera", size: 10 }), " Falta foto")),
+                                        (groups.length > 1 && React.createElement(Btn, { variant: "ghost", size: "sm", icon: "trash", className: "btn-danger-ghost", onClick: () => delBlock(b.id) }))))))),
+                        // ===== FORMATO / PIEZA: EMPAQUE primero, siempre desplegado =====
+                        (caminoB && React.createElement(React.Fragment, null,
+                            (showName && React.createElement(Field, { label: `Nombre del ${term}/lote #${bi + 1}` },
+                                React.createElement(Input, { mono: true, placeholder: `Ej. ${cfg.term} A`, value: b.name, onChange: (e) => updBlock(b.id, { name: e.target.value }) }))),
+                            React.createElement("div", { style: { display: 'flex', flexDirection: 'column', gap: 8 } },
+                                React.createElement("div", { style: { fontSize: 12.5, fontWeight: 600, color: 'var(--ink-3)' } }, "¿Cómo viene empacado?"),
+                                React.createElement("div", { className: "block-fields-row" },
+                                    React.createElement(Field, { label: "Empaque", required: true },
+                                        React.createElement(Select, { value: pkgKind(pk.kind), onChange: (e) => updPack(b.id, { kind: e.target.value }) },
+                                            React.createElement("option", { value: "" }, "— elige —"),
+                                            React.createElement("option", { value: "suelto" }, "Suelto"),
+                                            React.createElement("option", { value: "caja" }, "Caja"),
+                                            React.createElement("option", { value: "palet" }, "Palet"))),
+                                    // Empaque NO suelto → SOLO la cantidad de empaques (nunca el total).
+                                    (hasKind && !loose && React.createElement(Field, { label: `Cantidad de ${pkgUnit(pk.kind)}`, required: true },
+                                        React.createElement(Input, { mono: true, type: "number", min: 1, placeholder: "0", value: pk.qty || '', onChange: (e) => updPack(b.id, { qty: e.target.value }) }))))),
+                            // Empaque SUELTO → cantidad total (m² en formato, unidades en pieza).
+                            (loose && React.createElement("div", { className: "block-fields-row", style: { marginTop: 2 } },
+                                React.createElement(Field, { label: mode === 'formato' ? "Cantidad total de metros cuadrados" : "Cantidad total", required: true },
+                                    React.createElement(Input, { mono: true, type: "number", min: 0, value: b.count || '', placeholder: '0', onChange: (e) => updBlock(b.id, { count: +e.target.value }) })))),
+                            // Formato empacado: los m² se capturan después (fila pendiente).
+                            (mode === 'formato' && hasKind && !loose && React.createElement("div", { className: "text-muted text-small", style: { padding: '2px 0' } },
+                                React.createElement(Icon, { name: "info", size: 11 }), " Los metros cuadrados se capturan después.")),
+                            React.createElement("div", { style: { display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'space-between', marginTop: 2 } },
+                                React.createElement("span", { className: "text-muted text-small" }, mode === 'formato' ? 'Foto opcional' : 'Sin foto'),
+                                (groups.length > 1 && React.createElement(Btn, { variant: "ghost", size: "sm", icon: "trash", className: "btn-danger-ghost", onClick: () => delBlock(b.id) }, "Quitar")))))));
+            })));
     }));
 };
 /* ====================== Step 3 ====================== */
 const Step3Review = ({ proforma, draft }) => {
     const products = proforma.products.filter(p => draft.products.includes(p.id));
-    // Filas a generar = solo placas (formato/pieza no generan filas individuales).
-    const totalPlates = draft.blocks.reduce((a, b) => a + (groupModeById(draft, proforma.products, b.product) === 'placa' ? (+b.count || 0) : 0), 0);
+    // Filas a generar = 1 por placa + 1 por grupo de formato/pieza. TODAS se crean
+    // como registros reales; las de formato/pieza ya quedan completas (o pendientes
+    // de m² en el caso de formato empacado).
+    const totalPlates = draft.blocks.reduce((a, b) => a + (groupModeById(draft, proforma.products, b.product) === 'placa' ? (+b.count || 0) : 1), 0);
     const needsBlockPhoto = (b) => {
         // Compra nacional: nunca se exige foto de bloque (placas como formatos).
         if (window.PORTAL_NATIONAL) return false;
