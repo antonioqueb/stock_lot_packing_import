@@ -1943,7 +1943,8 @@ const PL_PKG_NUM_LABEL = (rows) => {
     if (hasP && !hasC) return 'No. Palet';
     if (hasC && !hasP) return 'No. Caja';
     if (hasP || hasC) return 'No. Empaque';
-    return 'No. Paquete';
+    // Suelto: en pieza cada fila es una pieza; en formato es 1 fila continua.
+    return (rows || []).some(r => PL_KIND(r) === 'pieza') ? 'No. Pieza' : 'No.';
 };
 // Estado de la fila según su tipo: Completo / Pendiente / Falta foto.
 const PL_STATE = (r) => {
@@ -2355,8 +2356,9 @@ const genPackingRows = (draft, proforma, ship, prevRows) => {
             const loose = pk.kind === 'suelto' || !pk.kind;
             const lotName = (b.name || '').trim() || autoLot;
             if (loose) {
-                // SUELTO → 1 fila con la cantidad total (m² en formato, unidades en
-                // pieza). Se prellena pero queda EDITABLE en el paso 4 (otros detalles).
+                // SUELTO (pieza o formato) → 1 SOLA fila con la cantidad total
+                // (unidades en pieza, m² en formato). Se prellena pero queda EDITABLE
+                // en el paso 4 para capturar otros detalles.
                 const id = `r-${b.id}-q`;
                 const grupo = pk.kind === 'suelto' ? 'suelto' : '';
                 const base = { id, product_id: b.product || product.id, tipo, block: lotName, atado: '', plate: '', ref: product.ref || '', thickness: 0, h: 0, w: 0, quantity: +b.count || 0, weight: 0, notes: '', grupo, pedimento: '', container: defaultContainer, container_id: false, photo: false, errors: [], blockStart: true };
