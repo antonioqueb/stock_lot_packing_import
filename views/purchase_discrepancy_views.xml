@@ -56,10 +56,13 @@
                     </div>
                     <field name="line_ids">
                         <list editable="bottom">
+                            <field name="currency_id" column_invisible="1"/>
                             <field name="product_id" options="{'no_create': True}"/>
                             <field name="qty_purchased" readonly="1"/>
                             <field name="qty_affected"/>
                             <field name="product_uom_id" options="{'no_create': True, 'no_open': True}"/>
+                            <field name="unit_cost" readonly="1"/>
+                            <field name="amount_affected" readonly="1" sum="Total"/>
                         </list>
                     </field>
 

@@ -113,11 +113,13 @@
                             <table class="table table-sm" style="width: 100%; font-size: 9px; border-collapse: collapse; table-layout: fixed;">
                                 <thead>
                                     <tr style="background-color: #2f2f2f; color: #fff;">
-                                        <th class="text-center" style="color: #fff; width: 5%; font-weight: bold;">#</th>
-                                        <th style="color: #fff; width: 44%; font-weight: bold;">Producto</th>
-                                        <th class="text-end" style="color: #fff; width: 21%; font-weight: bold;">Cantidad comprada</th>
-                                        <th class="text-end" style="color: #fff; width: 21%; font-weight: bold;">Cantidad con discrepancia</th>
-                                        <th class="text-center" style="color: #fff; width: 9%; font-weight: bold;">UDM</th>
+                                        <th class="text-center" style="color: #fff; width: 4%; font-weight: bold;">#</th>
+                                        <th style="color: #fff; width: 28%; font-weight: bold;">Producto</th>
+                                        <th class="text-end" style="color: #fff; width: 13%; font-weight: bold;">Cant. comprada</th>
+                                        <th class="text-end" style="color: #fff; width: 15%; font-weight: bold;">Cant. con discrepancia</th>
+                                        <th class="text-center" style="color: #fff; width: 8%; font-weight: bold;">UDM</th>
+                                        <th class="text-end" style="color: #fff; width: 14%; font-weight: bold;">Costo de compra</th>
+                                        <th class="text-end" style="color: #fff; width: 18%; font-weight: bold;">Monto afectado</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -129,20 +131,21 @@
                                             <td class="text-end align-middle" style="white-space: nowrap;"><span t-esc="'%.2f' % (ln.qty_purchased or 0.0)"/></td>
                                             <td class="text-end align-middle" style="white-space: nowrap; font-weight: bold;"><span t-esc="'%.2f' % (ln.qty_affected or 0.0)"/></td>
                                             <td class="text-center align-middle"><span t-esc="ln.product_uom_id.name or ''"/></td>
+                                            <td class="text-end align-middle" style="white-space: nowrap;"><span t-field="ln.unit_cost" t-options='{"widget": "monetary", "display_currency": doc.currency_id}'/></td>
+                                            <td class="text-end align-middle" style="white-space: nowrap; font-weight: bold;"><span t-field="ln.amount_affected" t-options='{"widget": "monetary", "display_currency": doc.currency_id}'/></td>
                                         </tr>
                                     </t>
                                 </tbody>
+                                <tfoot>
+                                    <tr style="background-color: #f2f2f2; color: #222;">
+                                        <td colspan="6" class="text-end" style="padding: 4px 8px; font-weight: 800; text-transform: uppercase; border: 1px solid #d8d8d8;">Monto afectado total</td>
+                                        <td class="text-end" style="padding: 4px 8px; font-weight: 800; border: 1px solid #d8d8d8; white-space: nowrap;"><span t-field="doc.amount_affected" t-options='{"widget": "monetary", "display_currency": doc.currency_id}'/></td>
+                                    </tr>
+                                </tfoot>
                             </table>
                         </t>
                         <t t-else="">
                             <div style="font-size: 9px; color: #999; font-style: italic; padding: 6px 0;">No se marcó cantidad afectada en ningún producto.</div>
-                        </t>
-
-                        <t t-if="doc.amount_affected">
-                            <div style="text-align: right; font-size: 10px; margin-top: 4px;">
-                                <span style="text-transform: uppercase; color: #555; font-size: 8.5px; letter-spacing: 0.3px;">Monto afectado: </span>
-                                <strong><span t-field="doc.amount_affected"/></strong>
-                            </div>
                         </t>
 
                         <!-- ============ DESCRIPCIÓN ============ -->

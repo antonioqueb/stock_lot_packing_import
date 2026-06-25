@@ -26,7 +26,8 @@ class PurchaseDiscrepancy(models.Model):
         'res.company', related='picking_id.company_id', store=True, readonly=True,
     )
     currency_id = fields.Many2one(
-        'res.currency', related='company_id.currency_id', readonly=True,
+        'res.currency', string='Moneda',
+        compute='_compute_currency_id', store=True,
     )
     purchase_id = fields.Many2one(
         'purchase.order', string='Orden de Compra',
@@ -60,7 +61,8 @@ class PurchaseDiscrepancy(models.Model):
     ], string='Tipo de Discrepancia', required=True, default='damaged', tracking=True)
     description = fields.Text(string='Descripción', required=True)
     amount_affected = fields.Monetary(
-        string='Monto Afectado', currency_field='currency_id',
+        string='Monto Afectado (total)', currency_field='currency_id',
+        compute='_compute_amount_affected', store=True,
     )
     affected_product_count = fields.Integer(
         string='Productos afectados', compute='_compute_affected_count',
@@ -91,86 +93,75 @@ class PurchaseDiscrepancy(models.Model):
                 po = moves.mapped('purchase_line_id.order_id')[:1]
             rec.purchase_id = po.id if po else False
 
+    @api.depends('purchase_id', 'purchase_id.currency_id', 'company_id')
+    def _compute_currency_id(self):
+        for rec in self:
+            rec.currency_id = (
+                rec.purchase_id.currency_id
+                or rec.company_id.currency_id
+                or self.env.company.currency_id
+            )
+
     @api.depends('picking_id')
     def _compute_container_no(self):
         for rec in self:
             rec.container_no = getattr(rec.picking_id, 'supplier_container_no', False) or ''
+
+    @api.depends('line_ids.amount_affected')
+    def _compute_amount_affected(self):
+        for rec in self:
+            rec.amount_affected = sum(rec.line_ids.mapped('amount_affected'))
 
     @api.depends('line_ids.qty_affected')
     def _compute_affected_count(self):
         for rec in self:
             rec.affected_product_count = len(rec.line_ids.filtered(lambda l: l.qty_affected > 0))
 
-    def _get_reception_products(self):
-        """Productos de la recepción, con cantidad COMPRADA (de la OC), RECIBIDA
-        (lo realmente recibido) y UDM. La comprada sirve de marco de referencia."""
-        self.ensure_one()
-        picking = self.picking_id
-        if not picking:
-            return []
-        # Comprado por producto: suma de las líneas de OC ligadas a los movimientos.
-        purchased = {}
-        moves = picking.move_ids
-        if moves and 'purchase_line_id' in moves._fields:
-            for pl in moves.mapped('purchase_line_id'):
-                if pl.product_id:
-                    purchased.setdefault(pl.product_id.id, 0.0)
-                    purchased[pl.product_id.id] += pl.product_qty or 0.0
-        summary = {}
-        for ml in picking.move_line_ids:
-            product = ml.product_id
-            if not product:
-                continue
-            if product.id not in summary:
-                summary[product.id] = {
-                    'product': product,
-                    'qty': 0.0,
-                    'purchased': purchased.get(product.id, 0.0),
-                    'uom': product.uom_id,
-                }
-            summary[product.id]['qty'] += ml.quantity or 0.0
-        return list(summary.values())
+    @api.depends('evidence_ids')
+    def _compute_evidence_count(self):
+        for rec in self:
+            rec.evidence_count = len(rec.evidence_ids)
 
     def _build_lines_from_reception(self):
-        """Comandos O2m para llenar line_ids con TODOS los productos recibidos."""
+        """Comandos O2m: una línea por cada producto recibido en la recepción.
+        Las cantidades comprada/recibida y el costo los calcula la propia línea."""
         self.ensure_one()
         commands = [(5, 0, 0)]
-        for r in self._get_reception_products():
+        seen = set()
+        picking = self.picking_id
+        if not picking:
+            return commands
+        for ml in picking.move_line_ids:
+            product = ml.product_id
+            if not product or product.id in seen:
+                continue
+            seen.add(product.id)
             commands.append((0, 0, {
-                'product_id': r['product'].id,
-                'qty_purchased': r['purchased'],
-                'qty_received': r['qty'],
-                'product_uom_id': r['uom'].id,
+                'product_id': product.id,
+                'product_uom_id': product.uom_id.id,
                 'qty_affected': 0.0,
             }))
         return commands
 
     @api.onchange('picking_id')
     def _onchange_picking_id(self):
-        """Al elegir la recepción, se enseñan TODOS los productos recibidos como
-        líneas (cantidad afectada en 0; el usuario la captura o usa 'Afectar todo')."""
+        """Al elegir la recepción se enseñan TODOS los productos recibidos."""
         if not self.picking_id:
             self.line_ids = [(5, 0, 0)]
             return
         self.line_ids = self._build_lines_from_reception()
 
     def action_load_reception(self):
-        """Vuelve a cargar los productos de la recepción (reemplaza las líneas)."""
         for rec in self:
             rec.line_ids = rec._build_lines_from_reception()
         return True
 
     def action_affect_all(self):
-        """'Seleccionar todo': la cantidad con discrepancia = la comprada, en cada línea."""
+        """'Seleccionar todo': la cantidad con discrepancia = la comprada."""
         for rec in self:
             for line in rec.line_ids:
                 line.qty_affected = line.qty_purchased
         return True
-
-    @api.depends('evidence_ids')
-    def _compute_evidence_count(self):
-        for rec in self:
-            rec.evidence_count = len(rec.evidence_ids)
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -179,8 +170,6 @@ class PurchaseDiscrepancy(models.Model):
                 vals['name'] = self.env['ir.sequence'].next_by_code(
                     'purchase.discrepancy') or _('Nuevo')
         records = super().create(vals_list)
-        # Si se creó con recepción pero sin líneas (p. ej. creación programática),
-        # se cargan los productos recibidos automáticamente.
         for rec in records:
             if rec.picking_id and not rec.line_ids:
                 rec.line_ids = rec._build_lines_from_reception()
@@ -210,18 +199,58 @@ class PurchaseDiscrepancyLine(models.Model):
         'purchase.discrepancy', string='Discrepancia',
         required=True, ondelete='cascade',
     )
+    currency_id = fields.Many2one(
+        'res.currency', related='discrepancy_id.currency_id', store=True, readonly=True,
+    )
     product_id = fields.Many2one('product.product', string='Producto', required=True)
+    product_uom_id = fields.Many2one('uom.uom', string='UDM')
+
+    # Cantidades y costo: COMPUTADAS ALMACENADAS desde el producto + la recepción,
+    # para que nunca se pierdan al guardar/imprimir (no dependen de onchange).
     qty_purchased = fields.Float(
-        string='Cantidad comprada', digits='Product Unit of Measure', readonly=True,
+        string='Cantidad comprada', digits='Product Unit of Measure',
+        compute='_compute_line_data', store=True, readonly=True,
         help='Cantidad comprada en la orden de compra (marco de referencia).',
     )
     qty_received = fields.Float(
-        string='Recibido', digits='Product Unit of Measure', readonly=True,
+        string='Recibido', digits='Product Unit of Measure',
+        compute='_compute_line_data', store=True, readonly=True,
+    )
+    unit_cost = fields.Monetary(
+        string='Costo de compra', currency_field='currency_id',
+        compute='_compute_line_data', store=True, readonly=True,
+        help='Costo unitario de compra (precio de la línea de OC; si no hay, costo estándar).',
     )
     qty_affected = fields.Float(
         string='Cantidad con discrepancia', digits='Product Unit of Measure',
     )
-    product_uom_id = fields.Many2one('uom.uom', string='UDM')
+    amount_affected = fields.Monetary(
+        string='Monto afectado', currency_field='currency_id',
+        compute='_compute_line_data', store=True, readonly=True,
+    )
+
+    @api.depends('product_id', 'qty_affected',
+                 'discrepancy_id.picking_id', 'discrepancy_id.purchase_id')
+    def _compute_line_data(self):
+        for line in self:
+            picking = line.discrepancy_id.picking_id
+            product = line.product_id
+            purchased = received = cost = 0.0
+            if picking and product:
+                moves = picking.move_ids.filtered(lambda m: m.product_id == product)
+                pls = moves.mapped('purchase_line_id') if 'purchase_line_id' in moves._fields else moves.browse()
+                for pl in pls:
+                    purchased += pl.product_qty or 0.0
+                if pls:
+                    cost = pls[0].price_unit or 0.0
+                if not cost:
+                    cost = product.standard_price or 0.0
+                for ml in picking.move_line_ids.filtered(lambda m: m.product_id == product):
+                    received += ml.quantity or 0.0
+            line.qty_purchased = purchased
+            line.qty_received = received
+            line.unit_cost = cost
+            line.amount_affected = (line.qty_affected or 0.0) * cost
 
 
 class PurchaseDiscrepancyEvidence(models.Model):
