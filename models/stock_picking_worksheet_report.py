@@ -21,6 +21,30 @@ class StockPicking(models.Model):
     def _ws_safe_text(self, value):
         return escape(str(value or '').strip())
 
+    def _ws_get_origin_name(self, product, partner):
+        """Nombre de origen del producto (el asignado por el proveedor).
+
+        Prefiere el nombre de origen del proveedor del picking; si no hay uno
+        específico, usa el primero por secuencia. Defensivo: vacío si el módulo
+        product_origin_names no está instalado o no hay nombres."""
+        if not product:
+            return ''
+        tmpl = product.product_tmpl_id
+        if 'origin_name_ids' not in tmpl._fields:
+            return ''
+        origins = tmpl.origin_name_ids
+        if not origins:
+            return ''
+        match = origins
+        if partner:
+            partner_match = origins.filtered(
+                lambda o: o.partner_id and o.partner_id.id == partner.id
+            )
+            if partner_match:
+                match = partner_match
+        # origin_name_ids ya viene ordenado por secuencia (_order del modelo).
+        return match[0].name or ''
+
     def _ws_get_linked_transit_voyage_for_report(self):
         self.ensure_one()
 
@@ -413,14 +437,22 @@ class StockPicking(models.Model):
             headers = headers_placa if is_placa else headers_formato
             col_widths = col_widths_placa if is_placa else col_widths_formato
 
+            origin_name = self._ws_get_origin_name(product, partner)
+            origin_html = (
+                ' <font color="#6B4226" size="6">· Origen: %s</font>'
+                % self._ws_safe_text(origin_name)
+            ) if origin_name else ''
+
             story.append(Paragraph(
                 '<b>%s</b> '
                 '<font color="#888888" size="6">(%s)</font> '
-                '<font color="#6B4226" size="6">[%s]</font> '
-                '<font color="#888888" size="5.5">— %s lotes</font>' % (
+                '<font color="#6B4226" size="6">[%s]</font>'
+                '%s'
+                ' <font color="#888888" size="5.5">— %s lotes</font>' % (
                     self._ws_safe_text(product.display_name),
                     self._ws_safe_text(product.default_code or ''),
                     self._ws_safe_text(unit_type),
+                    origin_html,
                     len(lines),
                 ),
                 style_section,
