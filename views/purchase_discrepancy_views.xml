@@ -37,22 +37,32 @@
                         </group>
                         <group string="Discrepancia">
                             <field name="discrepancy_type"/>
-                            <field name="product_id"
-                                   options="{'no_create': True}"
-                                   placeholder="Opcional: producto afectado"/>
-                            <label for="qty_affected"/>
-                            <div class="o_row">
-                                <field name="qty_affected"/>
-                                <field name="product_uom_id" options="{'no_create': True, 'no_open': True}"/>
-                            </div>
                             <field name="amount_affected"/>
                             <field name="currency_id" invisible="1"/>
                             <field name="date"/>
                             <field name="reported_by" readonly="1"/>
                         </group>
                     </group>
-                    <separator string="Material recibido (resumen absorbido de la recepción)"/>
-                    <field name="reception_summary_html" nolabel="1" readonly="1"/>
+
+                    <separator string="Productos afectados (todo lo recibido en la recepción)"/>
+                    <div class="oe_button_box" style="margin-bottom:4px;">
+                        <button name="action_affect_all" type="object"
+                                string="Seleccionar todo" icon="fa-check-square-o"
+                                class="btn btn-secondary btn-sm"
+                                help="Pone la cantidad afectada igual a la recibida en todas las líneas"/>
+                        <button name="action_load_reception" type="object"
+                                string="Recargar de la recepción" icon="fa-refresh"
+                                class="btn btn-link btn-sm"/>
+                    </div>
+                    <field name="line_ids">
+                        <list editable="bottom">
+                            <field name="product_id" options="{'no_create': True}"/>
+                            <field name="qty_purchased" readonly="1"/>
+                            <field name="qty_affected"/>
+                            <field name="product_uom_id" options="{'no_create': True, 'no_open': True}"/>
+                        </list>
+                    </field>
+
                     <group string="Descripción de la discrepancia">
                         <field name="description" nolabel="1"
                                placeholder="Describe la discrepancia (qué se esperaba vs qué llegó)..."/>
@@ -94,10 +104,8 @@
                 <field name="date"/>
                 <field name="partner_id"/>
                 <field name="picking_id"/>
-                <field name="product_id"/>
                 <field name="discrepancy_type"/>
-                <field name="qty_affected" sum="Total"/>
-                <field name="product_uom_id"/>
+                <field name="affected_product_count" string="Productos"/>
                 <field name="amount_affected" sum="Total" widget="monetary"/>
                 <field name="currency_id" column_invisible="1"/>
                 <field name="evidence_count" string="Evid."/>
@@ -118,7 +126,7 @@
                 <field name="name"/>
                 <field name="partner_id"/>
                 <field name="picking_id"/>
-                <field name="product_id"/>
+                <field name="line_ids" string="Producto" filter_domain="[('line_ids.product_id', 'ilike', self)]"/>
                 <filter name="open" string="Abiertas" domain="[('state', '=', 'open')]"/>
                 <filter name="resolved" string="Resueltas" domain="[('state', '=', 'resolved')]"/>
                 <filter name="rejected" string="Rechazadas" domain="[('state', '=', 'rejected')]"/>

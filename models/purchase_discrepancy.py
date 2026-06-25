@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 from odoo import models, fields, api, _
-from markupsafe import Markup, escape
 
 
 class PurchaseDiscrepancy(models.Model):
@@ -34,7 +33,7 @@ class PurchaseDiscrepancy(models.Model):
         compute='_compute_purchase_id', store=True, readonly=True,
     )
 
-    # --- Datos que se ABSORBEN de la recepción (solo lectura) ---
+    # --- Datos absorbidos de la recepción (solo lectura) ---
     origin = fields.Char(
         related='picking_id.origin', string='Documento Origen', readonly=True,
     )
@@ -44,15 +43,12 @@ class PurchaseDiscrepancy(models.Model):
     container_no = fields.Char(
         string='Contenedor', compute='_compute_container_no',
     )
-    reception_summary_html = fields.Html(
-        string='Material recibido', compute='_compute_reception_summary',
-        sanitize=False,
+
+    # --- Productos afectados (multi-línea) ---
+    line_ids = fields.One2many(
+        'purchase.discrepancy.line', 'discrepancy_id', string='Productos afectados',
     )
 
-    product_id = fields.Many2one(
-        'product.product', string='Producto afectado', tracking=True,
-        help='Opcional: producto puntual afectado por la discrepancia.',
-    )
     discrepancy_type = fields.Selection([
         ('missing', 'Faltante'),
         ('damaged', 'Dañado'),
@@ -63,15 +59,11 @@ class PurchaseDiscrepancy(models.Model):
         ('other', 'Otro'),
     ], string='Tipo de Discrepancia', required=True, default='damaged', tracking=True)
     description = fields.Text(string='Descripción', required=True)
-    qty_affected = fields.Float(
-        string='Cantidad Afectada', digits='Product Unit of Measure',
-    )
-    product_uom_id = fields.Many2one(
-        'uom.uom', string='Unidad',
-        compute='_compute_product_uom_id', store=True, readonly=False,
-    )
     amount_affected = fields.Monetary(
         string='Monto Afectado', currency_field='currency_id',
+    )
+    affected_product_count = fields.Integer(
+        string='Productos afectados', compute='_compute_affected_count',
     )
     state = fields.Selection([
         ('draft', 'Borrador'),
@@ -104,70 +96,76 @@ class PurchaseDiscrepancy(models.Model):
         for rec in self:
             rec.container_no = getattr(rec.picking_id, 'supplier_container_no', False) or ''
 
-    def _get_reception_summary(self):
-        """Resumen del material recibido en la recepción, agrupado por producto.
-        Fuente única para el formulario (HTML) y el reporte PDF."""
+    @api.depends('line_ids.qty_affected')
+    def _compute_affected_count(self):
+        for rec in self:
+            rec.affected_product_count = len(rec.line_ids.filtered(lambda l: l.qty_affected > 0))
+
+    def _get_reception_products(self):
+        """Productos de la recepción, con cantidad COMPRADA (de la OC), RECIBIDA
+        (lo realmente recibido) y UDM. La comprada sirve de marco de referencia."""
         self.ensure_one()
-        summary = {}
         picking = self.picking_id
         if not picking:
             return []
+        # Comprado por producto: suma de las líneas de OC ligadas a los movimientos.
+        purchased = {}
+        moves = picking.move_ids
+        if moves and 'purchase_line_id' in moves._fields:
+            for pl in moves.mapped('purchase_line_id'):
+                if pl.product_id:
+                    purchased.setdefault(pl.product_id.id, 0.0)
+                    purchased[pl.product_id.id] += pl.product_qty or 0.0
+        summary = {}
         for ml in picking.move_line_ids:
             product = ml.product_id
             if not product:
                 continue
-            key = product.id
-            if key not in summary:
-                summary[key] = {
-                    'name': product.display_name,
-                    'code': product.default_code or '',
-                    'uom': product.uom_id.name or '',
+            if product.id not in summary:
+                summary[product.id] = {
+                    'product': product,
                     'qty': 0.0,
-                    'lots': [],
+                    'purchased': purchased.get(product.id, 0.0),
+                    'uom': product.uom_id,
                 }
-            summary[key]['qty'] += ml.quantity or 0.0
-            lot = ml.lot_id
-            if lot and lot.name and lot.name not in summary[key]['lots']:
-                summary[key]['lots'].append(lot.name)
+            summary[product.id]['qty'] += ml.quantity or 0.0
         return list(summary.values())
 
-    @api.depends('picking_id', 'picking_id.move_line_ids',
-                 'picking_id.move_line_ids.quantity', 'picking_id.move_line_ids.lot_id')
-    def _compute_reception_summary(self):
-        for rec in self:
-            rows = rec._get_reception_summary() if rec.picking_id else []
-            if not rows:
-                rec.reception_summary_html = Markup(
-                    '<p style="color:#888;margin:0;">Sin material recibido en la recepción.</p>'
-                )
-                continue
-            parts = [
-                '<table style="width:100%;font-size:12px;border-collapse:collapse;">',
-                '<thead><tr style="background:#2f2f2f;color:#fff;">'
-                '<th style="color:#fff;padding:4px 6px;text-align:left;">Producto</th>'
-                '<th style="color:#fff;padding:4px 6px;text-align:right;">Cantidad</th>'
-                '<th style="color:#fff;padding:4px 6px;text-align:left;">UDM</th>'
-                '<th style="color:#fff;padding:4px 6px;text-align:left;">Lotes</th>'
-                '</tr></thead><tbody>',
-            ]
-            for r in rows:
-                lots = ', '.join(r['lots']) if r['lots'] else '-'
-                parts.append(
-                    '<tr>'
-                    '<td style="padding:3px 6px;border:1px solid #e5e7eb;">%s</td>'
-                    '<td style="padding:3px 6px;border:1px solid #e5e7eb;text-align:right;">%.2f</td>'
-                    '<td style="padding:3px 6px;border:1px solid #e5e7eb;">%s</td>'
-                    '<td style="padding:3px 6px;border:1px solid #e5e7eb;">%s</td>'
-                    '</tr>' % (escape(r['name']), r['qty'], escape(r['uom']), escape(lots))
-                )
-            parts.append('</tbody></table>')
-            rec.reception_summary_html = Markup(''.join(parts))
+    def _build_lines_from_reception(self):
+        """Comandos O2m para llenar line_ids con TODOS los productos recibidos."""
+        self.ensure_one()
+        commands = [(5, 0, 0)]
+        for r in self._get_reception_products():
+            commands.append((0, 0, {
+                'product_id': r['product'].id,
+                'qty_purchased': r['purchased'],
+                'qty_received': r['qty'],
+                'product_uom_id': r['uom'].id,
+                'qty_affected': 0.0,
+            }))
+        return commands
 
-    @api.depends('product_id')
-    def _compute_product_uom_id(self):
+    @api.onchange('picking_id')
+    def _onchange_picking_id(self):
+        """Al elegir la recepción, se enseñan TODOS los productos recibidos como
+        líneas (cantidad afectada en 0; el usuario la captura o usa 'Afectar todo')."""
+        if not self.picking_id:
+            self.line_ids = [(5, 0, 0)]
+            return
+        self.line_ids = self._build_lines_from_reception()
+
+    def action_load_reception(self):
+        """Vuelve a cargar los productos de la recepción (reemplaza las líneas)."""
         for rec in self:
-            if rec.product_id and not rec.product_uom_id:
-                rec.product_uom_id = rec.product_id.uom_id
+            rec.line_ids = rec._build_lines_from_reception()
+        return True
+
+    def action_affect_all(self):
+        """'Seleccionar todo': la cantidad con discrepancia = la comprada, en cada línea."""
+        for rec in self:
+            for line in rec.line_ids:
+                line.qty_affected = line.qty_purchased
+        return True
 
     @api.depends('evidence_ids')
     def _compute_evidence_count(self):
@@ -180,7 +178,13 @@ class PurchaseDiscrepancy(models.Model):
             if vals.get('name', _('Nuevo')) == _('Nuevo'):
                 vals['name'] = self.env['ir.sequence'].next_by_code(
                     'purchase.discrepancy') or _('Nuevo')
-        return super().create(vals_list)
+        records = super().create(vals_list)
+        # Si se creó con recepción pero sin líneas (p. ej. creación programática),
+        # se cargan los productos recibidos automáticamente.
+        for rec in records:
+            if rec.picking_id and not rec.line_ids:
+                rec.line_ids = rec._build_lines_from_reception()
+        return records
 
     def action_set_open(self):
         self.write({'state': 'open'})
@@ -195,6 +199,29 @@ class PurchaseDiscrepancy(models.Model):
         return self.env.ref(
             'stock_lot_packing_import.action_report_purchase_discrepancy'
         ).report_action(self)
+
+
+class PurchaseDiscrepancyLine(models.Model):
+    _name = 'purchase.discrepancy.line'
+    _description = 'Producto Afectado por Discrepancia'
+    _order = 'id'
+
+    discrepancy_id = fields.Many2one(
+        'purchase.discrepancy', string='Discrepancia',
+        required=True, ondelete='cascade',
+    )
+    product_id = fields.Many2one('product.product', string='Producto', required=True)
+    qty_purchased = fields.Float(
+        string='Cantidad comprada', digits='Product Unit of Measure', readonly=True,
+        help='Cantidad comprada en la orden de compra (marco de referencia).',
+    )
+    qty_received = fields.Float(
+        string='Recibido', digits='Product Unit of Measure', readonly=True,
+    )
+    qty_affected = fields.Float(
+        string='Cantidad con discrepancia', digits='Product Unit of Measure',
+    )
+    product_uom_id = fields.Many2one('uom.uom', string='UDM')
 
 
 class PurchaseDiscrepancyEvidence(models.Model):
