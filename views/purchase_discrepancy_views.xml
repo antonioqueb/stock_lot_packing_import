@@ -108,7 +108,7 @@
         <field name="name">purchase.discrepancy.search</field>
         <field name="model">purchase.discrepancy</field>
         <field name="arch" type="xml">
-            <search string="Discrepancias">
+            <search>
                 <field name="name"/>
                 <field name="partner_id"/>
                 <field name="picking_id"/>
@@ -116,14 +116,11 @@
                 <filter name="open" string="Abiertas" domain="[('state', '=', 'open')]"/>
                 <filter name="resolved" string="Resueltas" domain="[('state', '=', 'resolved')]"/>
                 <filter name="rejected" string="Rechazadas" domain="[('state', '=', 'rejected')]"/>
-                <separator/>
-                <group expand="0" string="Agrupar por">
-                    <filter name="group_partner" string="Proveedor" context="{'group_by': 'partner_id'}"/>
-                    <filter name="group_picking" string="Recepción" context="{'group_by': 'picking_id'}"/>
-                    <filter name="group_type" string="Tipo" context="{'group_by': 'discrepancy_type'}"/>
-                    <filter name="group_state" string="Estado" context="{'group_by': 'state'}"/>
-                    <filter name="group_date" string="Fecha" context="{'group_by': 'date:month'}"/>
-                </group>
+                <filter name="group_partner" string="Proveedor" context="{'group_by': 'partner_id'}"/>
+                <filter name="group_picking" string="Recepción" context="{'group_by': 'picking_id'}"/>
+                <filter name="group_type" string="Tipo" context="{'group_by': 'discrepancy_type'}"/>
+                <filter name="group_state" string="Estado" context="{'group_by': 'state'}"/>
+                <filter name="group_date" string="Fecha" context="{'group_by': 'date:month'}"/>
             </search>
         </field>
     </record>
