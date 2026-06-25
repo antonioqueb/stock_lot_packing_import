@@ -142,11 +142,13 @@
         </field>
     </record>
 
+    <!-- Bajo Inventario (visible para administradores/usuarios de inventario).
+         Antes estaba bajo Compras y no lo veían quienes no tienen esa app. -->
     <menuitem id="menu_purchase_discrepancy_root"
               name="Discrepancias de Proveedor"
-              parent="purchase.menu_purchase_root"
+              parent="stock.menu_stock_root"
               action="action_purchase_discrepancy"
-              sequence="90"/>
+              sequence="95"/>
 
     <!-- ============== BOTÓN EN LA RECEPCIÓN (stock.picking) ============== -->
     <record id="view_picking_form_inherit_discrepancy" model="ir.ui.view">
