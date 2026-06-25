@@ -26,16 +26,20 @@
                         <h1><field name="name" readonly="1"/></h1>
                     </div>
                     <group>
-                        <group>
+                        <group string="Recepción">
                             <field name="picking_id"
                                    options="{'no_create': True}"/>
                             <field name="partner_id" readonly="1"/>
                             <field name="purchase_id" readonly="1"/>
-                            <field name="product_id"
-                                   options="{'no_create': True}"/>
+                            <field name="origin" readonly="1"/>
+                            <field name="container_no" readonly="1"/>
+                            <field name="scheduled_date" readonly="1"/>
                         </group>
-                        <group>
+                        <group string="Discrepancia">
                             <field name="discrepancy_type"/>
+                            <field name="product_id"
+                                   options="{'no_create': True}"
+                                   placeholder="Opcional: producto afectado"/>
                             <label for="qty_affected"/>
                             <div class="o_row">
                                 <field name="qty_affected"/>
@@ -47,7 +51,9 @@
                             <field name="reported_by" readonly="1"/>
                         </group>
                     </group>
-                    <group string="Descripción">
+                    <separator string="Material recibido (resumen absorbido de la recepción)"/>
+                    <field name="reception_summary_html" nolabel="1" readonly="1"/>
+                    <group string="Descripción de la discrepancia">
                         <field name="description" nolabel="1"
                                placeholder="Describe la discrepancia (qué se esperaba vs qué llegó)..."/>
                     </group>
@@ -153,6 +159,11 @@
         <field name="model">stock.picking</field>
         <field name="inherit_id" ref="stock.view_picking_form"/>
         <field name="arch" type="xml">
+            <xpath expr="//header" position="inside">
+                <button type="object" name="action_create_discrepancy"
+                        string="Registrar Discrepancia" class="btn-secondary"
+                        invisible="picking_type_code != 'incoming'"/>
+            </xpath>
             <xpath expr="//div[@name='button_box']" position="inside">
                 <button type="object" name="action_view_discrepancies"
                         class="oe_stat_button" icon="fa-exclamation-triangle"

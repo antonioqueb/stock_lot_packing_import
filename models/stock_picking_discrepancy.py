@@ -38,9 +38,6 @@ class StockPicking(models.Model):
             'name': _('Registrar Discrepancia'),
             'res_model': 'purchase.discrepancy',
             'view_mode': 'form',
-            'target': 'new',
-            'context': {
-                'default_picking_id': self.id,
-                'default_partner_id': self.partner_id.id,
-            },
+            'target': 'current',
+            'context': {'default_picking_id': self.id},
         }

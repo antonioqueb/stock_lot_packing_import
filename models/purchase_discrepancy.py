@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from odoo import models, fields, api, _
+from markupsafe import Markup, escape
 
 
 class PurchaseDiscrepancy(models.Model):
@@ -32,7 +33,26 @@ class PurchaseDiscrepancy(models.Model):
         'purchase.order', string='Orden de Compra',
         compute='_compute_purchase_id', store=True, readonly=True,
     )
-    product_id = fields.Many2one('product.product', string='Producto', tracking=True)
+
+    # --- Datos que se ABSORBEN de la recepción (solo lectura) ---
+    origin = fields.Char(
+        related='picking_id.origin', string='Documento Origen', readonly=True,
+    )
+    scheduled_date = fields.Datetime(
+        related='picking_id.scheduled_date', string='Fecha Recepción', readonly=True,
+    )
+    container_no = fields.Char(
+        string='Contenedor', compute='_compute_container_no',
+    )
+    reception_summary_html = fields.Html(
+        string='Material recibido', compute='_compute_reception_summary',
+        sanitize=False,
+    )
+
+    product_id = fields.Many2one(
+        'product.product', string='Producto afectado', tracking=True,
+        help='Opcional: producto puntual afectado por la discrepancia.',
+    )
     discrepancy_type = fields.Selection([
         ('missing', 'Faltante'),
         ('damaged', 'Dañado'),
@@ -78,6 +98,70 @@ class PurchaseDiscrepancy(models.Model):
             if moves and 'purchase_line_id' in moves._fields:
                 po = moves.mapped('purchase_line_id.order_id')[:1]
             rec.purchase_id = po.id if po else False
+
+    @api.depends('picking_id')
+    def _compute_container_no(self):
+        for rec in self:
+            rec.container_no = getattr(rec.picking_id, 'supplier_container_no', False) or ''
+
+    def _get_reception_summary(self):
+        """Resumen del material recibido en la recepción, agrupado por producto.
+        Fuente única para el formulario (HTML) y el reporte PDF."""
+        self.ensure_one()
+        summary = {}
+        picking = self.picking_id
+        if not picking:
+            return []
+        for ml in picking.move_line_ids:
+            product = ml.product_id
+            if not product:
+                continue
+            key = product.id
+            if key not in summary:
+                summary[key] = {
+                    'name': product.display_name,
+                    'code': product.default_code or '',
+                    'uom': product.uom_id.name or '',
+                    'qty': 0.0,
+                    'lots': [],
+                }
+            summary[key]['qty'] += ml.quantity or 0.0
+            lot = ml.lot_id
+            if lot and lot.name and lot.name not in summary[key]['lots']:
+                summary[key]['lots'].append(lot.name)
+        return list(summary.values())
+
+    @api.depends('picking_id', 'picking_id.move_line_ids',
+                 'picking_id.move_line_ids.quantity', 'picking_id.move_line_ids.lot_id')
+    def _compute_reception_summary(self):
+        for rec in self:
+            rows = rec._get_reception_summary() if rec.picking_id else []
+            if not rows:
+                rec.reception_summary_html = Markup(
+                    '<p style="color:#888;margin:0;">Sin material recibido en la recepción.</p>'
+                )
+                continue
+            parts = [
+                '<table style="width:100%;font-size:12px;border-collapse:collapse;">',
+                '<thead><tr style="background:#2f2f2f;color:#fff;">'
+                '<th style="color:#fff;padding:4px 6px;text-align:left;">Producto</th>'
+                '<th style="color:#fff;padding:4px 6px;text-align:right;">Cantidad</th>'
+                '<th style="color:#fff;padding:4px 6px;text-align:left;">UDM</th>'
+                '<th style="color:#fff;padding:4px 6px;text-align:left;">Lotes</th>'
+                '</tr></thead><tbody>',
+            ]
+            for r in rows:
+                lots = ', '.join(r['lots']) if r['lots'] else '-'
+                parts.append(
+                    '<tr>'
+                    '<td style="padding:3px 6px;border:1px solid #e5e7eb;">%s</td>'
+                    '<td style="padding:3px 6px;border:1px solid #e5e7eb;text-align:right;">%.2f</td>'
+                    '<td style="padding:3px 6px;border:1px solid #e5e7eb;">%s</td>'
+                    '<td style="padding:3px 6px;border:1px solid #e5e7eb;">%s</td>'
+                    '</tr>' % (escape(r['name']), r['qty'], escape(r['uom']), escape(lots))
+                )
+            parts.append('</tbody></table>')
+            rec.reception_summary_html = Markup(''.join(parts))
 
     @api.depends('product_id')
     def _compute_product_uom_id(self):
