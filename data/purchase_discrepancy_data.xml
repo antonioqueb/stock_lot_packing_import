@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <record id="seq_purchase_discrepancy" model="ir.sequence">
+            <field name="name">Discrepancia de Proveedor</field>
+            <field name="code">purchase.discrepancy</field>
+            <field name="prefix">DISC/%(year)s/</field>
+            <field name="padding">4</field>
+            <field name="company_id" eval="False"/>
+        </record>
+    </data>
+</odoo>

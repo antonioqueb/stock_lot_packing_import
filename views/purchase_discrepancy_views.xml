@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================ FORM ============================ -->
+    <record id="view_purchase_discrepancy_form" model="ir.ui.view">
+        <field name="name">purchase.discrepancy.form</field>
+        <field name="model">purchase.discrepancy</field>
+        <field name="arch" type="xml">
+            <form string="Discrepancia de Proveedor">
+                <header>
+                    <button name="action_set_open" type="object" string="Reabrir"
+                            class="btn-secondary"
+                            invisible="state == 'open'"/>
+                    <button name="action_set_resolved" type="object" string="Marcar Resuelta"
+                            class="btn-primary"
+                            invisible="state in ('resolved', 'rejected')"/>
+                    <button name="action_set_rejected" type="object" string="Rechazar"
+                            invisible="state in ('resolved', 'rejected')"/>
+                    <button name="action_print_report" type="object" string="Imprimir reporte"
+                            class="btn-secondary"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="open,resolved,rejected"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name" readonly="1"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="picking_id"
+                                   options="{'no_create': True}"/>
+                            <field name="partner_id" readonly="1"/>
+                            <field name="purchase_id" readonly="1"/>
+                            <field name="product_id"
+                                   options="{'no_create': True}"/>
+                        </group>
+                        <group>
+                            <field name="discrepancy_type"/>
+                            <label for="qty_affected"/>
+                            <div class="o_row">
+                                <field name="qty_affected"/>
+                                <field name="product_uom_id" options="{'no_create': True, 'no_open': True}"/>
+                            </div>
+                            <field name="amount_affected"/>
+                            <field name="currency_id" invisible="1"/>
+                            <field name="date"/>
+                            <field name="reported_by" readonly="1"/>
+                        </group>
+                    </group>
+                    <group string="Descripción">
+                        <field name="description" nolabel="1"
+                               placeholder="Describe la discrepancia (qué se esperaba vs qué llegó)..."/>
+                    </group>
+
+                    <notebook>
+                        <page string="Evidencias" name="evidence">
+                            <field name="evidence_ids">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="name"/>
+                                    <field name="attachment" filename="filename" widget="binary"/>
+                                    <field name="filename" column_invisible="1"/>
+                                    <field name="is_image" column_invisible="1"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Resolución" name="resolution">
+                            <field name="resolution_note" nolabel="1"
+                                   placeholder="Cómo se resolvió (nota de crédito, reposición, descuento, etc.)..."/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================ LIST ============================ -->
+    <record id="view_purchase_discrepancy_list" model="ir.ui.view">
+        <field name="name">purchase.discrepancy.list</field>
+        <field name="model">purchase.discrepancy</field>
+        <field name="arch" type="xml">
+            <list string="Discrepancias de Proveedor"
+                  decoration-success="state == 'resolved'"
+                  decoration-muted="state == 'rejected'"
+                  decoration-warning="state == 'open'">
+                <field name="name"/>
+                <field name="date"/>
+                <field name="partner_id"/>
+                <field name="picking_id"/>
+                <field name="product_id"/>
+                <field name="discrepancy_type"/>
+                <field name="qty_affected" sum="Total"/>
+                <field name="product_uom_id"/>
+                <field name="amount_affected" sum="Total" widget="monetary"/>
+                <field name="currency_id" column_invisible="1"/>
+                <field name="evidence_count" string="Evid."/>
+                <field name="state" widget="badge"
+                       decoration-success="state == 'resolved'"
+                       decoration-warning="state == 'open'"
+                       decoration-muted="state == 'rejected'"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ============================ SEARCH ============================ -->
+    <record id="view_purchase_discrepancy_search" model="ir.ui.view">
+        <field name="name">purchase.discrepancy.search</field>
+        <field name="model">purchase.discrepancy</field>
+        <field name="arch" type="xml">
+            <search string="Discrepancias">
+                <field name="name"/>
+                <field name="partner_id"/>
+                <field name="picking_id"/>
+                <field name="product_id"/>
+                <filter name="open" string="Abiertas" domain="[('state', '=', 'open')]"/>
+                <filter name="resolved" string="Resueltas" domain="[('state', '=', 'resolved')]"/>
+                <filter name="rejected" string="Rechazadas" domain="[('state', '=', 'rejected')]"/>
+                <separator/>
+                <group expand="0" string="Agrupar por">
+                    <filter name="group_partner" string="Proveedor" context="{'group_by': 'partner_id'}"/>
+                    <filter name="group_picking" string="Recepción" context="{'group_by': 'picking_id'}"/>
+                    <filter name="group_type" string="Tipo" context="{'group_by': 'discrepancy_type'}"/>
+                    <filter name="group_state" string="Estado" context="{'group_by': 'state'}"/>
+                    <filter name="group_date" string="Fecha" context="{'group_by': 'date:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ============================ ACTION + MENÚ ============================ -->
+    <record id="action_purchase_discrepancy" model="ir.actions.act_window">
+        <field name="name">Discrepancias de Proveedor</field>
+        <field name="res_model">purchase.discrepancy</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_purchase_discrepancy_search"/>
+        <field name="context">{'search_default_open': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Registra tu primera discrepancia de proveedor</p>
+            <p>Documenta faltantes, daños o material distinto al recibir, adjunta
+               evidencias e imprime el reporte para reclamar al proveedor.</p>
+        </field>
+    </record>
+
+    <menuitem id="menu_purchase_discrepancy_root"
+              name="Discrepancias de Proveedor"
+              parent="purchase.menu_purchase_root"
+              action="action_purchase_discrepancy"
+              sequence="90"/>
+
+    <!-- ============== BOTÓN EN LA RECEPCIÓN (stock.picking) ============== -->
+    <record id="view_picking_form_inherit_discrepancy" model="ir.ui.view">
+        <field name="name">stock.picking.form.inherit.discrepancy</field>
+        <field name="model">stock.picking</field>
+        <field name="inherit_id" ref="stock.view_picking_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button type="object" name="action_view_discrepancies"
+                        class="oe_stat_button" icon="fa-exclamation-triangle"
+                        invisible="picking_type_code != 'incoming'">
+                    <field name="discrepancy_count" widget="statinfo" string="Discrepancias"/>
+                </button>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

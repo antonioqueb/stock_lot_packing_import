@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="action_report_purchase_discrepancy" model="ir.actions.report">
+        <field name="name">Reporte de Discrepancia</field>
+        <field name="model">purchase.discrepancy</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">stock_lot_packing_import.report_purchase_discrepancy</field>
+        <field name="report_file">stock_lot_packing_import.report_purchase_discrepancy</field>
+        <field name="print_report_name">'Discrepancia - %s' % (object.name or '')</field>
+        <field name="binding_model_id" ref="model_purchase_discrepancy"/>
+        <field name="binding_type">report</field>
+    </record>
+
+    <template id="report_purchase_discrepancy">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="doc">
+                <t t-call="web.external_layout">
+                    <div class="page" style="font-family: Arial, sans-serif; color: #111827; font-size: 12px;">
+
+                        <div style="text-align:center; border-bottom:2px solid #111827; padding-bottom:8px; margin-bottom:12px;">
+                            <h2 style="margin:0; letter-spacing:1px;">REPORTE DE DISCREPANCIA DE PROVEEDOR</h2>
+                            <div style="font-size:18px; font-weight:800; margin-top:4px;">
+                                <t t-esc="doc.name"/>
+                            </div>
+                        </div>
+
+                        <table class="table table-sm" style="font-size:12px; margin-bottom:14px;">
+                            <tr>
+                                <td style="width:18%; color:#6b7280; font-weight:700;">Proveedor</td>
+                                <td style="width:32%;"><span t-field="doc.partner_id"/></td>
+                                <td style="width:18%; color:#6b7280; font-weight:700;">Fecha</td>
+                                <td style="width:32%;"><span t-field="doc.date"/></td>
+                            </tr>
+                            <tr>
+                                <td style="color:#6b7280; font-weight:700;">Recepción</td>
+                                <td><span t-field="doc.picking_id"/></td>
+                                <td style="color:#6b7280; font-weight:700;">Orden de Compra</td>
+                                <td><t t-esc="doc.purchase_id.name or '-'"/></td>
+                            </tr>
+                            <tr>
+                                <td style="color:#6b7280; font-weight:700;">Producto</td>
+                                <td><t t-esc="doc.product_id.display_name or '-'"/></td>
+                                <td style="color:#6b7280; font-weight:700;">Tipo</td>
+                                <td><span t-field="doc.discrepancy_type"/></td>
+                            </tr>
+                            <tr>
+                                <td style="color:#6b7280; font-weight:700;">Cantidad afectada</td>
+                                <td>
+                                    <t t-esc="'%.3f' % (doc.qty_affected or 0.0)"/>
+                                    <t t-esc="doc.product_uom_id.name or ''"/>
+                                </td>
+                                <td style="color:#6b7280; font-weight:700;">Monto afectado</td>
+                                <td><span t-field="doc.amount_affected"/></td>
+                            </tr>
+                        </table>
+
+                        <div style="margin-bottom:14px;">
+                            <div style="font-weight:800; text-transform:uppercase; font-size:11px; color:#374151; border-bottom:1px solid #e5e7eb; padding-bottom:3px; margin-bottom:5px;">
+                                Descripción
+                            </div>
+                            <div style="white-space:pre-line;"><t t-esc="doc.description or '-'"/></div>
+                        </div>
+
+                        <t t-if="doc.evidence_ids">
+                            <div style="font-weight:800; text-transform:uppercase; font-size:11px; color:#374151; border-bottom:1px solid #e5e7eb; padding-bottom:3px; margin-bottom:8px;">
+                                Evidencias (<t t-esc="len(doc.evidence_ids)"/>)
+                            </div>
+                            <div class="row">
+                                <t t-foreach="doc.evidence_ids" t-as="ev">
+                                    <div class="col-6" style="margin-bottom:10px; page-break-inside:avoid;">
+                                        <div style="border:1px solid #d1d5db; border-radius:4px; padding:6px; min-height:30px;">
+                                            <div style="font-size:11px; font-weight:700; margin-bottom:4px;">
+                                                <t t-esc="ev.name or ev.filename or 'Evidencia'"/>
+                                            </div>
+                                            <t t-if="ev.is_image and ev.attachment">
+                                                <img t-att-src="image_data_uri(ev.attachment)"
+                                                     style="max-width:100%; max-height:230px; border-radius:3px;"/>
+                                            </t>
+                                            <t t-else="">
+                                                <div style="font-size:10px; color:#6b7280;">
+                                                    📎 Archivo adjunto: <t t-esc="ev.filename or '-'"/>
+                                                </div>
+                                            </t>
+                                        </div>
+                                    </div>
+                                </t>
+                            </div>
+                        </t>
+
+                        <t t-if="doc.resolution_note">
+                            <div style="margin-top:12px;">
+                                <div style="font-weight:800; text-transform:uppercase; font-size:11px; color:#374151; border-bottom:1px solid #e5e7eb; padding-bottom:3px; margin-bottom:5px;">
+                                    Resolución
+                                </div>
+                                <div style="white-space:pre-line;"><t t-esc="doc.resolution_note"/></div>
+                            </div>
+                        </t>
+
+                        <div style="margin-top:18px; font-size:10px; color:#6b7280; text-align:center; border-top:1px solid #e5e7eb; padding-top:6px;">
+                            Reportado por <t t-esc="doc.reported_by.name or '-'"/> · Estado:
+                            <span t-field="doc.state"/>
+                        </div>
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+
+</odoo>
