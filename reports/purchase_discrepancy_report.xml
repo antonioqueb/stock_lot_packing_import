@@ -25,7 +25,7 @@
                         <div class="row border-bottom pb-2 mb-2" style="border-color: #000 !important; align-items: center;">
                             <div class="col-8">
                                 <h4 class="text-uppercase mb-0" style="font-weight: 800; letter-spacing: 1px;">
-                                    Reporte de Discrepancia
+                                    Discrepancia
                                     <span t-field="doc.name" style="margin-left: 10px; color: #333;"/>
                                 </h4>
                             </div>
