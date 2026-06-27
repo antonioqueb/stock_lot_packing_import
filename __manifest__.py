@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Importación Masiva de Lotes via Packing List & Portal Proveedor',
-    'version': '19.0.6.38.0',
+    'version': '19.0.6.39.0',
     'depends': ['stock', 'purchase', 'stock_lot_dimensions', 'documents', 'documents_spreadsheet', 'web', 'product_origin_names'],
     'author': 'Alphaqueb Consulting',
     'category': 'Inventory/Inventory',

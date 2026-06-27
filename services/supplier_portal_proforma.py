@@ -1182,7 +1182,7 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                 for block_name, product_id in blocks_in_packing:
                     existing = block_image_model.search([
                         ("shipment_id", "=", shipment.id),
-                        ("block_name", "=", block_name),
+                        ("block_name", "=ilike", block_name),
                         ("product_id", "=", product_id),
                     ], limit=1)
                     if not existing:
@@ -1311,11 +1311,16 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
         clean_block = str(block_name).strip()
         clean_product = self.safe_int(product_id)
 
-        # Upsert: respeta la restricción única (shipment_id, block_name, product_id).
-        # Si ya hay foto para ese bloque/producto se reemplaza en lugar de duplicar.
+        # Validar producto: sin esto un product_id=0/inválido crea registros basura
+        # o rompe la FK (error 500) y la foto "no se sube".
+        if not clean_product or not request.env["product.product"].sudo().browse(clean_product).exists():
+            return {"success": False, "message": "Producto del bloque inválido o no especificado."}
+
+        # Upsert insensible a mayúsculas (el portal puede mandar otra capitalización):
+        # evita duplicados y que la validación final no encuentre la foto.
         record = block_image_model.search([
             ("shipment_id", "=", shipment.id),
-            ("block_name", "=", clean_block),
+            ("block_name", "=ilike", clean_block),
             ("product_id", "=", clean_product),
         ], limit=1)
         values = {
@@ -1364,6 +1369,7 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
             "product_id": image.product_id.id,
             "product_name": self.origin_name_for_partner(image.product_id, self.partner_from_shipment(shipment)),
             "image_filename": image.image_filename or "",
+            "has_image": bool(image.image),
         } for image in shipment.block_image_ids]
 
         return {"success": True, "block_images": images}
