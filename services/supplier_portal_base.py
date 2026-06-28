@@ -49,6 +49,11 @@ class SupplierPortalBaseService:
         )
         if not access or access.is_expired:
             return False
+        # Registra la última conexión del proveedor (throttle interno).
+        try:
+            access._touch_last_access()
+        except Exception:
+            pass
         return access
 
     def get_or_create_proforma(self, access):

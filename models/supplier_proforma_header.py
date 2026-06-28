@@ -56,6 +56,97 @@ class SupplierProformaHeader(models.Model):
         'Ya existe una proforma de proveedor para esta Orden de Compra.',
     )
 
+    def _portal_progress(self):
+        """% de avance de captura del portal. Fuente ÚNICA reutilizable: el
+        servicio del portal y la torre de control llaman este mismo método, así
+        el dashboard siempre coincide con lo que ve el proveedor."""
+        self.ensure_one()
+        sections = {}
+        total_weight = 0
+        completed_weight = 0
+
+        weight = 10
+        total_weight += weight
+        globals_filled = (
+            bool(self.proforma_number) and bool(self.payment_terms)
+            and bool(self.country_origin) and bool(self.incoterm)
+        )
+        if globals_filled:
+            completed_weight += weight
+        sections["globals"] = {"filled": globals_filled, "weight": weight}
+
+        weight = 5
+        total_weight += weight
+        has_shipments = bool(self.shipment_ids)
+        if has_shipments:
+            completed_weight += weight
+        sections["has_shipments"] = {"filled": has_shipments, "weight": weight}
+
+        if not has_shipments:
+            percent = round((completed_weight / total_weight) * 100) if total_weight else 0
+            return {"percent": percent, "sections": sections}
+
+        doc_model = self.env["supplier.shipment.document"].sudo()
+        all_docs = doc_model.search([("shipment_id", "in", self.shipment_ids.ids)])
+        doc_index_by_shipment = {}
+        for doc in all_docs:
+            if doc.shipment_id:
+                doc_index_by_shipment.setdefault(doc.shipment_id.id, set()).add(doc.document_type)
+
+        shipment_doc_types_required = ["bl", "invoice", "packing_list"]
+        shipment_doc_types_extra = ["eur1", "certificate_origin", "fumigation"]
+
+        for shipment in self.shipment_ids:
+            prefix = "ship_%s" % shipment.id
+            shipment_doc_types = doc_index_by_shipment.get(shipment.id, set())
+
+            weight = 5
+            total_weight += weight
+            has_logistics = bool(shipment.vessel_name or shipment.shipping_line) and bool(shipment.etd or shipment.eta)
+            if has_logistics:
+                completed_weight += weight
+            sections["%s_logistics" % prefix] = {"filled": has_logistics, "weight": weight}
+
+            weight = 3
+            total_weight += weight
+            has_bl_info = bool(shipment.bl_number)
+            if has_bl_info:
+                completed_weight += weight
+            sections["%s_bl_info" % prefix] = {"filled": has_bl_info, "weight": weight}
+
+            weight = 3
+            total_weight += weight
+            has_containers = bool(shipment.container_ids)
+            if has_containers:
+                completed_weight += weight
+            sections["%s_containers" % prefix] = {"filled": has_containers, "weight": weight}
+
+            weight = 5
+            total_weight += weight
+            has_packings = bool(shipment.packing_ids) and any(pk.row_ids for pk in shipment.packing_ids)
+            if has_packings:
+                completed_weight += weight
+            sections["%s_packings" % prefix] = {"filled": has_packings, "weight": weight}
+
+            for doc_type in shipment_doc_types_required:
+                weight = 8
+                total_weight += weight
+                has_doc = doc_type in shipment_doc_types
+                if has_doc:
+                    completed_weight += weight
+                sections["%s_doc_%s" % (prefix, doc_type)] = {"filled": has_doc, "weight": weight}
+
+            for doc_type in shipment_doc_types_extra:
+                weight = 4
+                total_weight += weight
+                has_doc = doc_type in shipment_doc_types
+                if has_doc:
+                    completed_weight += weight
+                sections["%s_doc_%s" % (prefix, doc_type)] = {"filled": has_doc, "weight": weight}
+
+        percent = round((completed_weight / total_weight) * 100) if total_weight else 0
+        return {"percent": percent, "sections": sections}
+
 
 class SupplierShipment(models.Model):
     _name = 'supplier.shipment'

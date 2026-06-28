@@ -43,6 +43,13 @@ class SupplierAccess(models.Model):
     is_expired = fields.Boolean(compute="_compute_expired", store=False)
     portal_url = fields.Char(compute="_compute_url", store=False)
 
+    last_access = fields.Datetime(
+        string="Última conexión",
+        readonly=True,
+        copy=False,
+        help="Última vez que el proveedor entró al portal a capturar datos.",
+    )
+
     _supplier_access_unique_purchase = models.Constraint(
         'UNIQUE(purchase_id)',
         'Ya existe un link para esta Orden de Compra.',
@@ -59,6 +66,15 @@ class SupplierAccess(models.Model):
         base_url = self.env['ir.config_parameter'].sudo().get_param('web.base.url')
         for rec in self:
             rec.portal_url = f"{base_url}/supplier/pl/{rec.access_token}"
+
+    def _touch_last_access(self):
+        """Sella la última conexión del proveedor. Con throttle de 5 minutos para
+        no escribir en cada RPC del portal (el llenado dispara muchas llamadas)."""
+        now = fields.Datetime.now()
+        threshold = now - timedelta(minutes=5)
+        to_stamp = self.filtered(lambda a: not a.last_access or a.last_access < threshold)
+        if to_stamp:
+            to_stamp.sudo().write({'last_access': now})
 
     def action_open_portal(self):
         """Abre el portal del proveedor en una pestaña nueva."""
