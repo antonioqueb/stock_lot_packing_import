@@ -521,6 +521,7 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
             "global_documents": [],
             "progress": progress,
             "quantity_balance": quantity_balance,
+            "is_internal": self.is_internal_user(),
         }
 
     # =====================================================================
@@ -572,6 +573,9 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                 "purchase_payment_scope" in po._fields
                 and po.purchase_payment_scope == "national"
             ),
+            # Usuario interno con sesión activa: el portal le permite saltarse la
+            # obligatoriedad de foto de bloque (el proveedor externo no).
+            "is_internal": self.is_internal_user(),
         }
 
         values = {
@@ -1165,8 +1169,9 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                             "message": "Existe un packing con filas usando contenedores fuera de su alcance.",
                         }
 
-            # Compra nacional: no se exige fotografía por bloque.
-            if is_national:
+            # Compra nacional: no se exige fotografía por bloque. Usuario interno
+            # con sesión activa: también puede saltarse la validación.
+            if is_national or self.is_internal_user():
                 continue
             block_image_model = request.env["supplier.shipment.block.image"].sudo()
             for packing in self.sorted_packings(shipment.packing_ids):

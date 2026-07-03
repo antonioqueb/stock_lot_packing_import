@@ -176,6 +176,9 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
         const mode = groupModeById(draft, proforma.products, b.product);
         if ((+b.count || 0) <= 0) return false;
         if (mode === 'placa' && !(b.name || '').trim()) return false;  // el bloque necesita nombre
+        // Placa de importación: la foto del bloque es OBLIGATORIA y se exige AQUÍ
+        // (antes de generar filas), no al final. Exento si es nacional o usuario interno.
+        if (mode === 'placa' && !window.PORTAL_NATIONAL && !window.PORTAL_INTERNAL && !b.photo) return false;
         return true;
       });
     }

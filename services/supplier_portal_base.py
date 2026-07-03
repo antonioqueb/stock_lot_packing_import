@@ -56,6 +56,16 @@ class SupplierPortalBaseService:
             pass
         return access
 
+    def is_internal_user(self):
+        """True si quien usa el portal es un usuario INTERNO de la empresa con
+        sesión activa en Odoo (no el proveedor público). En rutas auth='public',
+        request.env.user es el usuario logueado si hay sesión, o el público.
+        Los internos pueden saltarse la obligatoriedad de foto de bloque."""
+        try:
+            return request.env.user.has_group('base.group_user')
+        except Exception:
+            return False
+
     def get_or_create_proforma(self, access):
         po = access.purchase_id
         if not po:

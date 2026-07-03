@@ -218,6 +218,8 @@
     // Flag global de "compra nacional": ajusta SOLO la vista del proveedor
     // (nombres, pasos y columnas). Lo leen el sistema i18n y las vistas.
     window.PORTAL_NATIONAL = !!(window.SupplierReactExactData.proforma && window.SupplierReactExactData.proforma.is_national);
+    // Usuario interno con sesión activa: puede saltarse la foto de bloque obligatoria.
+    window.PORTAL_INTERNAL = !!((window.SupplierReactExactData && window.SupplierReactExactData.is_internal) || (window.SupplierReactExactData.proforma && window.SupplierReactExactData.proforma.is_internal));
 })();
 // ===== tweaks-panel.jsx =====
 // tweaks-panel.jsx
@@ -2546,7 +2548,11 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
             return draft.blocks.every(b => {
                 const mode = groupModeById(draft, proforma.products, b.product);
                 if (mode === 'placa')
-                    return (+b.count || 0) > 0 && !!(b.name || '').trim();
+                    // Placa de importación: la foto del bloque es OBLIGATORIA y se
+                    // exige AQUÍ (antes de generar filas), no al final. Exento si es
+                    // nacional o si quien captura es un usuario interno.
+                    return (+b.count || 0) > 0 && !!(b.name || '').trim()
+                        && (window.PORTAL_NATIONAL || window.PORTAL_INTERNAL || !!b.photo);
                 // Formato/Pieza: el EMPAQUE es obligatorio y es lo primero.
                 const pk = b.packaging || {};
                 if (!pk.kind)
