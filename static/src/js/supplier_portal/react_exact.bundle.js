@@ -1984,7 +1984,7 @@ const PL_PKG_NUM_LABEL = (rows) => {
 const PL_STATE = (r) => {
     const kind = PL_KIND(r);
     const pkg = PL_PKG(r.grupo);
-    const needsPhoto = !window.PORTAL_NATIONAL;
+    const needsPhoto = !window.PORTAL_NATIONAL && !window.PORTAL_INTERNAL;
     if (kind === 'placa') {
         if (needsPhoto && !r.photo) return { tone: 'partial', text: 'Falta foto requerida', icon: 'camera' };
         const ok = (parseFloat(r.h) > 0) && (parseFloat(r.w) > 0) && !!r.container;
@@ -2141,7 +2141,7 @@ const TabPackings = ({ ship, updateShip, openPackingWizard, proforma, onDeletePa
                 const product = proforma.products.find(p => pk.products.includes(p.id));
                 // Solo los bloques de PLACA (Camino A) requieren foto. Formato/Pieza no.
                 const isPlacaBlock = (b) => {
-                    if (window.PORTAL_NATIONAL) return false;
+                    if (window.PORTAL_NATIONAL || window.PORTAL_INTERNAL) return false;
                     const pp = proforma.products.find(p => String(p.id) === String(b.product));
                     return ((pp && pp.kind) || 'placa') === 'placa';
                 };
@@ -2803,7 +2803,7 @@ const Step2Blocks = ({ proforma, draft, setDraft, pendingImages, typeTab }) => {
         const cfg = GROUP_MODES[mode] || GROUP_MODES.placa;
         const groups = draft.blocks.filter(b => String(b.product) === String(p.id));
         const showPhoto = cfg.photo !== 'hidden' && !window.PORTAL_NATIONAL;
-        const needsPhoto = cfg.photo === 'required' && !window.PORTAL_NATIONAL;
+        const needsPhoto = cfg.photo === 'required' && !window.PORTAL_NATIONAL && !window.PORTAL_INTERNAL;
         const total = groups.reduce((a, b) => a + (+b.count || 0), 0);
         const req = +p.requested_qty || 0;
         const caminoB = mode !== 'placa';
@@ -2935,7 +2935,7 @@ const Step3Review = ({ proforma, draft, ship }) => {
     const totalRows = rows.length;
     const pendingRows = rows.filter(PL_IS_PENDING).length;
     // Fotos faltantes: SOLO bloques de placa (formato/pieza no llevan foto).
-    const photosMissing = window.PORTAL_NATIONAL ? 0 : draft.blocks.filter(b => groupModeById(draft, proforma.products, b.product) === 'placa' && !b.photo).length;
+    const photosMissing = (window.PORTAL_NATIONAL || window.PORTAL_INTERNAL) ? 0 : draft.blocks.filter(b => groupModeById(draft, proforma.products, b.product) === 'placa' && !b.photo).length;
     const statCard = (label, value, accent) => React.createElement("div", { style: { padding: 18, border: accent ? '1.5px solid var(--accent)' : '1px solid var(--border)', borderRadius: 12, background: accent ? 'var(--accent-soft)' : 'var(--surface)' } },
         React.createElement("div", { className: accent ? '' : 'text-muted', style: { fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase', fontWeight: 600, marginBottom: 6, color: accent ? 'var(--accent)' : undefined } }, label),
         React.createElement("div", { className: "mono", style: { fontSize: 28, fontWeight: 700, letterSpacing: '-0.02em', color: accent ? 'var(--accent)' : undefined } }, value));
@@ -2954,7 +2954,7 @@ const Step3Review = ({ proforma, draft, ship }) => {
                 const typeLabel = sum.kind === 'placa' ? 'Placa' : (sum.kind === 'formato' ? 'Formato' : 'Pieza');
                 const stateText = sum.tone === 'done' ? 'Declarado' : (sum.kind === 'placa' ? 'Con detalles pendientes' : (sum.kind === 'formato' ? 'm\u00B2 por declarar' : 'cantidad por declarar'));
                 // "X bloque(s) sin foto" SOLO aplica al producto placa.
-                const blocksNoPhoto = (!window.PORTAL_NATIONAL && sum.kind === 'placa') ? draft.blocks.filter(b => String(b.product) === String(p.id) && !b.photo).length : 0;
+                const blocksNoPhoto = (!window.PORTAL_NATIONAL && !window.PORTAL_INTERNAL && sum.kind === 'placa') ? draft.blocks.filter(b => String(b.product) === String(p.id) && !b.photo).length : 0;
                 return (React.createElement("div", { key: p.id, style: { border: '1px solid var(--border)', borderRadius: 12, padding: 16, background: 'var(--surface)' } },
                     React.createElement("div", { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' } },
                         React.createElement("div", { style: { display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 } },
