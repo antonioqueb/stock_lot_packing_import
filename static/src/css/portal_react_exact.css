@@ -1305,6 +1305,16 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
 }
 .sheet-table tbody td.is-error input { background: var(--danger-soft); color: var(--danger); font-weight: 600; }
 .sheet-table tbody td.is-error { border-color: var(--danger); }
+/* Placeholders del grid: discretos y pequeños ("capturar", "0.00"...). */
+.sheet-table tbody td input::placeholder {
+  font-size: 10.5px;
+  color: var(--ink-4);
+  text-transform: none;
+  letter-spacing: 0.02em;
+  font-weight: 400;
+}
+/* En celda con error, el placeholder también avisa en rojo. */
+.sheet-table tbody td.is-error input::placeholder { color: var(--danger); opacity: 0.75; }
 .sheet-table tbody td.cell-computed input { color: var(--ink-3); background: var(--surface-alt); pointer-events: none; }
 .sheet-table tbody tr.is-active td { background: oklch(0.985 0.014 230); }
 .sheet-table tbody tr:hover td { background: oklch(0.99 0.005 60); }
