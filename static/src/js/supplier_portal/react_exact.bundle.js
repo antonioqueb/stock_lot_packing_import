@@ -2541,6 +2541,31 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
     // los conteos del wizard, así cuadran con Revisión y con el paso 4.
     const previewRows = genPackingRows(draft, proforma, ship, rows);
     const totalRowsToGen = previewRows.length;
+    // Pestañas por TIPO en el paso 2, controladas desde el pie del wizard:
+    // Avanzar recorre placa → formato → pieza; solo en la última aparece
+    // "Revisar declaración del envío".
+    const s2Products = proforma.products.filter(p => draft.products.includes(p.id));
+    const s2Types = ['placa', 'formato', 'pieza'].filter(t => s2Products.some(p => groupMode(draft, p) === t));
+    const [s2Tab, setS2Tab] = React.useState(null);
+    const s2Active = s2Types.indexOf(s2Tab) >= 0 ? s2Tab : (s2Types[0] || 'placa');
+    const s2Idx = s2Types.indexOf(s2Active);
+    const s2IsLast = s2Types.length <= 1 || s2Idx === s2Types.length - 1;
+    const s2IsFirst = s2Types.length <= 1 || s2Idx <= 0;
+    const s2GroupOk = (g, t) => {
+        if (t === 'placa')
+            return (+g.count || 0) > 0 && !!(g.name || '').trim();
+        const pk = g.packaging || {};
+        if (!pk.kind)
+            return false;
+        if (pk.kind === 'suelto')
+            return (+g.count || 0) > 0;
+        return (+pk.qty || 0) > 0;
+    };
+    const s2TypeReady = (t) => s2Products.filter(p => groupMode(draft, p) === t).every(p => {
+        const gs = draft.blocks.filter(b => String(b.product) === String(p.id));
+        return gs.length > 0 && gs.every(g => s2GroupOk(g, t));
+    });
+    const S2_LABELS = { placa: 'Placas', formato: 'Formatos', pieza: 'Piezas' };
     const canNext = () => {
         if (step === 1)
             return !!(draft.number || '').trim() && draft.products.length > 0;
@@ -2573,10 +2598,10 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
                     return true;
                 const mode = groupModeById(draft, proforma.products, pid);
                 const pgroups = draft.blocks.filter(b => String(b.product) === String(pid));
+                // Solo PIEZAS SUELTAS se comparan 1:1 contra lo solicitado; en placa
+                // requested_qty viene en m² y en empacados la cantidad se declara después.
                 let declared = 0;
-                if (mode === 'placa')
-                    declared = pgroups.reduce((a, g) => a + (+g.count || 0), 0);
-                else if (pgroups.length && pgroups.every(g => (g.packaging || {}).kind === 'suelto'))
+                if (mode === 'pieza' && pgroups.length && pgroups.every(g => (g.packaging || {}).kind === 'suelto'))
                     declared = pgroups.reduce((a, g) => a + (+g.count || 0), 0);
                 else
                     return true;
@@ -2613,7 +2638,7 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
                         React.createElement("span", null, s.label)),
                     i < WIZARD_STEPS.length - 1 && React.createElement("span", { className: "step-sep" }))))),
                 step === 1 && React.createElement(Step1Products, { proforma: proforma, draft: draft, setDraft: setDraft }),
-                step === 2 && React.createElement(Step2Blocks, { proforma: proforma, draft: draft, setDraft: setDraft, pendingImages: pendingImages }),
+                step === 2 && React.createElement(Step2Blocks, { proforma: proforma, draft: draft, setDraft: setDraft, pendingImages: pendingImages, typeTab: s2Active }),
                 step === 3 && React.createElement(Step3Review, { proforma: proforma, draft: draft, ship: ship }),
                 step === 4 && React.createElement(Step4Sheet, { proforma: proforma, draft: draft, rows: rows, setRows: setRows, ship: ship, pendingImages: pendingImages })),
             step === 4 && React.createElement("div", { className: "wizard-prop-tip" },
@@ -2632,13 +2657,25 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
                     React.createElement("kbd", { className: "wizard-prop-kbd" }, "Tab"),
                     " entre celdas.")),
             React.createElement("div", { className: "modal-foot" },
-                React.createElement("div", null, step > 1 && step < 4 && React.createElement(Btn, { variant: "ghost", icon: "arrow_left", onClick: () => setStep(step - 1) }, "Anterior")),
+                React.createElement("div", { style: { display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' } },
+                    step > 1 && step < 4 && React.createElement(Btn, { variant: "ghost", icon: "arrow_left", onClick: () => { if (step === 2 && !s2IsFirst) setS2Tab(s2Types[s2Idx - 1]); else setStep(step - 1); } }, "Anterior"),
+                    step === 2 && s2Types.length > 1 && s2Types.map(t => {
+                        const cfgT = GROUP_MODES[t] || GROUP_MODES.placa;
+                        const active = t === s2Active;
+                        const ready = s2TypeReady(t);
+                        return React.createElement("button", { key: t, type: "button", onClick: () => setS2Tab(t), style: { display: 'flex', alignItems: 'center', gap: 7, padding: '7px 12px', borderRadius: 10, cursor: 'pointer', border: active ? `1.5px solid ${cfgT.color}` : '1px solid var(--border)', background: active ? 'var(--accent-soft)' : 'var(--surface)', fontWeight: active ? 700 : 500, fontSize: 12.5 } },
+                            React.createElement("span", { style: { display: 'grid', placeItems: 'center', width: 18, height: 18, borderRadius: 5, background: cfgT.color, color: 'white' } }, React.createElement(Icon, { name: cfgT.icon, size: 10 })),
+                            S2_LABELS[t],
+                            React.createElement("span", { title: ready ? 'Declarado' : 'Declaración incompleta', style: { width: 8, height: 8, borderRadius: 99, background: ready ? '#16a34a' : '#d97706' } }));
+                    })),
                 React.createElement("div", { style: { display: 'flex', gap: 8, alignItems: 'center' } },
                     React.createElement("span", { className: "text-muted text-small" }, step === 4 && (React.createElement("span", null,
                         React.createElement(Icon, { name: "check", size: 11 }),
                         " Autoguardado \u00B7 hace un momento"))),
                     step < 3 && (step === 2
-                        ? React.createElement(Btn, { variant: "primary", iconRight: "arrow_right", disabled: !canNext(), onClick: () => setStep(step + 1) }, "Revisar declaración del envío")
+                        ? (s2IsLast
+                            ? React.createElement(Btn, { variant: "primary", iconRight: "arrow_right", disabled: !canNext(), onClick: () => setStep(step + 1) }, "Revisar declaración del envío")
+                            : React.createElement(Btn, { variant: "primary", iconRight: "arrow_right", onClick: () => setS2Tab(s2Types[s2Idx + 1]) }, "Avanzar"))
                         : React.createElement(Btn, { variant: "primary", iconRight: "arrow_right", disabled: !canNext(), onClick: () => setStep(step + 1) },
                             "Siguiente: ",
                             WIZARD_STEPS[step].label)),
@@ -2694,22 +2731,15 @@ const Step1Products = ({ proforma, draft, setDraft }) => {
         }))));
 };
 /* ====================== Step 2 ====================== */
-const Step2Blocks = ({ proforma, draft, setDraft, pendingImages }) => {
+const Step2Blocks = ({ proforma, draft, setDraft, pendingImages, typeTab }) => {
     const products = proforma.products.filter(p => draft.products.includes(p.id));
-    // Separación por TIPO de producto: pestañas para no mezclar placas, formatos
-    // y piezas en una sola lista — cada tipo tiene su propia lógica de declaración.
-    const typesPresent = ['placa', 'formato', 'pieza'].filter(t => products.some(p => groupMode(draft, p) === t));
-    const [typeTab, setTypeTab] = React.useState(typesPresent[0] || 'placa');
-    const activeType = typesPresent.indexOf(typeTab) >= 0 ? typeTab : (typesPresent[0] || 'placa');
+    // El TIPO activo lo controlan las pestañas del pie del wizard (junto a Avanzar).
+    const activeType = typeTab || 'placa';
     const TYPE_TAB_META = {
-        placa: { label: 'Placas', hint: 'Este tipo se organiza por bloques. Registra cada bloque de origen y cuántas placas envías de cada uno.' },
-        formato: { label: 'Formatos', hint: 'Se declara por empaque. Indica el tipo de empaque y la cantidad enviada; divide por tono o lote si aplica.' },
-        pieza: { label: 'Piezas', hint: 'Se declara por empaque. Indica el tipo de empaque y cuántos empaques envías.' },
+        placa: { hint: 'Este tipo se organiza por bloques. Registra cada bloque de origen y cuántas placas envías de cada uno.' },
+        formato: { hint: 'Se declara por empaque. Indica el tipo de empaque y la cantidad enviada; divide por tono o lote si aplica.' },
+        pieza: { hint: 'Se declara por empaque. Indica el tipo de empaque y cuántos empaques envías.' },
     };
-    const typeReady = (t) => products.filter(p => groupMode(draft, p) === t).every(p => {
-        const gs = draft.blocks.filter(b => String(b.product) === String(p.id));
-        return gs.length > 0 && gs.every(g => blockConfigured(g, t));
-    });
     // Default inteligente: al entrar, cada línea ya tiene 1 grupo. FORMATO y
     // PIEZA arrancan con empaque "palet" preseleccionado (regla de negocio:
     // pallet por defecto, tarima como alternativa, suelto es la excepción).
@@ -2781,13 +2811,15 @@ const Step2Blocks = ({ proforma, draft, setDraft, pendingImages }) => {
         const looseSum = groups.reduce((a, g) => a + ((((g.packaging || {}).kind) === 'suelto') ? (+g.count || 0) : 0), 0);
         const packCount = groups.reduce((a, g) => { const k = (g.packaging || {}).kind; return a + ((k && k !== 'suelto') ? (+((g.packaging || {}).qty) || 0) : 0); }, 0);
         const declaredLabel = mode === 'placa'
-            ? `${total} de ${req || '—'}`
+            ? `${total} placa${total === 1 ? '' : 's'}`
             : ([looseSum > 0 ? `${looseSum}` : '', packCount > 0 ? `${packCount} empaque${packCount === 1 ? '' : 's'}` : ''].filter(Boolean).join(' + ') || '0');
         let badge;
         if (mode === 'placa') {
+            // OJO: requested_qty viene en la UNIDAD DE COMPRA (p.ej. m²), no en
+            // placas: el nº de placas declaradas NO se compara contra esa cantidad.
             if (needsPhoto && groups.some(g => (+g.count || 0) > 0 && !g.photo)) badge = { tone: 'partial', icon: 'camera', text: 'Falta foto del bloque' };
-            else if (req && total >= req) badge = { tone: 'done', icon: 'check', text: 'Declarado' };
-            else if (total > 0) badge = { tone: 'partial', icon: null, text: `Declarado ${total} de ${req}` };
+            else if (total > 0 && groups.every(g => (+g.count || 0) > 0 && !!(g.name || '').trim())) badge = { tone: 'done', icon: 'check', text: 'Declarado' };
+            else if (total > 0) badge = { tone: 'partial', icon: null, text: 'Declaración incompleta' };
             else badge = { tone: 'todo', icon: null, text: groups.some(g => (g.name || '').trim()) ? 'Falta declarar placas' : 'Falta agregar bloque' };
         } else {
             const allCfg = groups.length > 0 && groups.every(g => blockConfigured(g, mode));
@@ -2812,7 +2844,7 @@ const Step2Blocks = ({ proforma, draft, setDraft, pendingImages }) => {
                         React.createElement("div", { className: "text-muted text-small" }, typeLabel + (p.ref ? ' · ' + p.ref : '')),
                         React.createElement("div", { className: "text-small", style: { fontWeight: 600, marginTop: 2 } },
                             "Cantidad a enviar: ",
-                            req > 0 ? req : '—',
+                            req > 0 ? (req + ((p.unit || '') ? ' ' + p.unit : '')) : '—',
                             " · Declarado: ",
                             declaredLabel))),
                 React.createElement("div", { style: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' } },
@@ -2826,16 +2858,11 @@ const Step2Blocks = ({ proforma, draft, setDraft, pendingImages }) => {
                         : mode === 'formato'
                             ? React.createElement(Btn, { variant: "ghost", size: "sm", icon: "plus", onClick: () => addGroup(p.id) }, "Dividir por tono/lote")
                             : React.createElement(Btn, { variant: "ghost", size: "sm", icon: "plus", onClick: () => addGroup(p.id) }, "Agregar empaque")))),
-            (mode === 'placa' && req > 0 && total > 0 && total < req && React.createElement(Callout, { tone: "warn", icon: "alert", title: "Declaración incompleta" },
-                "Declaraste ", total, " de ", req, " placas. Faltan ", req - total, " placas por declarar.")),
-            (mode === 'placa' && req > 0 && total > req && React.createElement(Callout, { tone: "warn", icon: "alert", title: "Cantidad excedente" },
-                "Declaraste ", total, " de ", req, " placas. Hay ", total - req, " placas excedentes. Confirma si deseas continuar con esta diferencia.",
-                React.createElement("label", { style: { display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, cursor: 'pointer', fontWeight: 600 } },
-                    React.createElement("input", { type: "checkbox", checked: !!((draft.over_ok || {})[p.id]), onChange: (e) => setDraft({ ...draft, over_ok: { ...(draft.over_ok || {}), [p.id]: e.target.checked } }) }),
-                    "Confirmo enviar la cantidad excedente"))),
-            (caminoB && req > 0 && groups.length > 0 && groups.every(g => (g.packaging || {}).kind === 'suelto') && looseSum > 0 && looseSum < req && React.createElement(Callout, { tone: "warn", icon: "alert", title: "Declaración incompleta" },
+            // Placa: sin advertencia faltante/excedente — requested_qty está en m²
+            // y el nº de placas no es comparable contra esa unidad.
+            (mode === 'pieza' && req > 0 && groups.length > 0 && groups.every(g => (g.packaging || {}).kind === 'suelto') && looseSum > 0 && looseSum < req && React.createElement(Callout, { tone: "warn", icon: "alert", title: "Declaración incompleta" },
                 "Declaraste ", looseSum, " de ", req, " unidades. Faltan ", req - looseSum, " unidades por declarar.")),
-            (caminoB && req > 0 && groups.length > 0 && groups.every(g => (g.packaging || {}).kind === 'suelto') && looseSum > req && React.createElement(Callout, { tone: "warn", icon: "alert", title: "Cantidad excedente" },
+            (mode === 'pieza' && req > 0 && groups.length > 0 && groups.every(g => (g.packaging || {}).kind === 'suelto') && looseSum > req && React.createElement(Callout, { tone: "warn", icon: "alert", title: "Cantidad excedente" },
                 "Declaraste ", looseSum, " de ", req, " unidades. Hay ", looseSum - req, " unidades excedentes. Confirma si deseas continuar con esta diferencia.",
                 React.createElement("label", { style: { display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, cursor: 'pointer', fontWeight: 600 } },
                     React.createElement("input", { type: "checkbox", checked: !!((draft.over_ok || {})[p.id]), onChange: (e) => setDraft({ ...draft, over_ok: { ...(draft.over_ok || {}), [p.id]: e.target.checked } }) }),
@@ -2894,18 +2921,6 @@ const Step2Blocks = ({ proforma, draft, setDraft, pendingImages }) => {
             })));
     };
     return React.createElement("div", { style: { display: 'flex', flexDirection: 'column', gap: 14 } },
-        typesPresent.length > 1 && React.createElement("div", { style: { display: 'flex', gap: 8, flexWrap: 'wrap' } }, typesPresent.map(t => {
-            const meta = TYPE_TAB_META[t] || {};
-            const cfgT = GROUP_MODES[t] || GROUP_MODES.placa;
-            const n = products.filter(p => groupMode(draft, p) === t).length;
-            const active = t === activeType;
-            const ready = typeReady(t);
-            return React.createElement("button", { key: t, type: "button", onClick: () => setTypeTab(t), style: { display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', borderRadius: 10, cursor: 'pointer', border: active ? `1.5px solid ${cfgT.color}` : '1px solid var(--border)', background: active ? 'var(--accent-soft)' : 'var(--surface)', fontWeight: active ? 700 : 500, fontSize: 13 } },
-                React.createElement("span", { style: { display: 'grid', placeItems: 'center', width: 20, height: 20, borderRadius: 6, background: cfgT.color, color: 'white' } }, React.createElement(Icon, { name: cfgT.icon, size: 11 })),
-                meta.label,
-                React.createElement("span", { className: "text-muted text-small" }, `(${n})`),
-                React.createElement("span", { title: ready ? 'Declarado' : 'Declaración incompleta', style: { width: 8, height: 8, borderRadius: 99, background: ready ? '#16a34a' : '#d97706' } }));
-        })),
         React.createElement("div", { className: "text-muted text-small" }, (TYPE_TAB_META[activeType] || {}).hint || ''),
         React.createElement("div", { style: { display: 'flex', flexDirection: 'column', gap: 16 } }, products.filter(p => groupMode(draft, p) === activeType).map(renderProductCard)));
 };
