@@ -1025,7 +1025,8 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
   margin: 4px 0 0 !important;
   color: var(--ink-3) !important;
   font-size: 13.5px !important;
-  max-width: 60ch !important;
+  /* Usa todo el ancho del modal (antes 60ch: partía el texto teniendo espacio). */
+  max-width: 100% !important;
 }
 
 .modal-scrim > .modal > .modal-body {
