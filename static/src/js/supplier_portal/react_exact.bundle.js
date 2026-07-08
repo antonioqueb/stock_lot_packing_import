@@ -2387,8 +2387,13 @@ const genPackingRows = (draft, proforma, ship, prevRows) => {
         const product = proforma.products.find(p => String(p.id) === String(b.product)) || proforma.products[0] || {};
         const mode = groupModeById(draft, proforma.products, b.product);
         const tipo = mode === 'placa' ? 'Placa' : (mode === 'formato' ? 'Formato' : 'Pieza');
-        // Nombre de lote estable para formato/pieza sin nombre (no bloquea).
-        const autoLot = (product.ref || product.name || (proforma && proforma.po_name) || draft.number || 'LOTE') + '-' + (bIdx + 1);
+        // Formato/Pieza: el "bloque" agrupador es la FECHA del Packing List
+        // (no el nombre del material), p. ej. 8/JUL/2026.
+        const _plMeses = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
+        const _plParts = String(draft.date || '').split('-');
+        const autoLot = (_plParts.length === 3 && _plParts[0].length === 4)
+            ? (parseInt(_plParts[2], 10) + '/' + (_plMeses[parseInt(_plParts[1], 10) - 1] || _plParts[1]) + '/' + _plParts[0])
+            : (draft.number || 'PL');
         // El empaque se persiste como string en `grupo` (grupo_name).
         const pkg = (b.packaging && b.packaging.kind) ? (b.packaging.kind + (b.packaging.qty ? ' x' + b.packaging.qty : '')) : '';
         if (mode === 'placa') {
@@ -2405,7 +2410,8 @@ const genPackingRows = (draft, proforma, ship, prevRows) => {
         } else {
             const pk = b.packaging || {};
             const loose = pk.kind === 'suelto' || !pk.kind;
-            const lotName = (b.name || '').trim() || autoLot;
+            // SIEMPRE la fecha del PL: es el valor agrupador de formato/pieza.
+            const lotName = autoLot;
             if (loose) {
                 // SUELTO (pieza o formato) → 1 SOLA fila con la cantidad total
                 // (unidades en pieza, m² en formato). Se prellena pero queda EDITABLE
