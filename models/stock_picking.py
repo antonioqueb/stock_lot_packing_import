@@ -604,7 +604,7 @@ class StockPicking(models.Model):
             for product in products:
                 is_placa = self._ws_product_is_placa(product)
                 if is_placa:
-                    headers = base_headers + ['LARGO REAL (m)', 'ALTO REAL (m)']
+                    headers = base_headers + ['LARGO R.', 'ALTO R.']
                 else:
                     # Formatos: solo cantidad real contra teórica.
                     headers = base_headers + ['CANT. TEÓRICA', 'CANT. REAL']

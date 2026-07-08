@@ -406,27 +406,26 @@ class StockPicking(models.Model):
             avail_w * 0.100,
         ]
 
-        # Formatos: sin dimensiones; solo cantidad teórica vs real.
+        # Formatos/piezas: sin dimensiones ni ATADO (solo aplica a placas);
+        # solo cantidad teórica vs real.
         headers_formato = [
             Paragraph('#', style_th),
             Paragraph('LOTE', style_th),
             Paragraph('BLOQUE', style_th),
             Paragraph('PLACA', style_th),
-            Paragraph('ATADO', style_th),
             Paragraph('DUEÑO', style_th),
             Paragraph('CANT. TEÓRICA', style_th),
             Paragraph('CANT. REAL', style_th),
         ]
 
         col_widths_formato = [
-            avail_w * 0.035,
-            avail_w * 0.110,
-            avail_w * 0.150,
-            avail_w * 0.105,
-            avail_w * 0.130,
+            avail_w * 0.040,
+            avail_w * 0.140,
             avail_w * 0.190,
-            avail_w * 0.140,
-            avail_w * 0.140,
+            avail_w * 0.120,
+            avail_w * 0.210,
+            avail_w * 0.150,
+            avail_w * 0.150,
         ]
 
         for pid, pdata in products_data.items():
@@ -490,13 +489,12 @@ class StockPicking(models.Model):
                         Paragraph(self._ws_safe_text(lot.name), style_td_bold),
                         Paragraph(self._ws_safe_text(lot.x_bloque), style_td),
                         Paragraph(self._ws_safe_text(lot.x_numero_placa), style_td),
-                        Paragraph(self._ws_safe_text(lot.x_atado), style_td),
                         Paragraph(self._ws_safe_text(owner_name), style_td_owner),
                         Paragraph(f'{qty_teo:.2f}', style_td),
                         Paragraph('', style_editable),
                     ])
 
-            total_row = [Paragraph('', style_td)] * (10 if is_placa else 8)
+            total_row = [Paragraph('', style_td)] * (10 if is_placa else 7)
             total_row[0] = Paragraph(
                 '<b>TOTAL: %s lotes</b>' % row_num,
                 ParagraphStyle(
@@ -511,9 +509,11 @@ class StockPicking(models.Model):
 
             data_table = Table(table_data, colWidths=col_widths, repeatRows=1)
 
-            edit_first = 8 if is_placa else 7
-            edit_last = 9 if is_placa else 7
-            teo_last = 7 if is_placa else 6
+            edit_first = 8 if is_placa else 6
+            edit_last = 9 if is_placa else 6
+            teo_last = 7 if is_placa else 5
+            ident_last = 4 if is_placa else 3
+            owner_col = 5 if is_placa else 4
 
             tbl_styles = [
                 ('BACKGROUND', (0, 0), (-1, 0), HEADER_BG),
@@ -532,8 +532,8 @@ class StockPicking(models.Model):
 
                 # Separadores lógicos:
                 # Datos de identificación | dueño | teórico | captura real.
-                ('LINEAFTER', (4, 0), (4, -1), 1.2, DIVIDER_COLOR),
-                ('LINEAFTER', (5, 0), (5, -1), 1.2, DIVIDER_COLOR),
+                ('LINEAFTER', (ident_last, 0), (ident_last, -1), 1.2, DIVIDER_COLOR),
+                ('LINEAFTER', (owner_col, 0), (owner_col, -1), 1.2, DIVIDER_COLOR),
                 ('LINEAFTER', (teo_last, 0), (teo_last, -1), 1.5, DIVIDER_COLOR),
 
                 # Columnas editables (Alto/Largo Real o Cant. Real).

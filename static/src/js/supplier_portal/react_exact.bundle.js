@@ -185,7 +185,7 @@
                     return { id: inv.id || ('inv' + i), number: s(inv.invoice_number || inv.number, ''), date: s(inv.invoice_date || inv.date, ''), amount: n(inv.amount, 0), currency: isNational ? 'MXN' : s(inv.currency_name || inv.currency || 'USD', 'USD'), scope: inv.scope || 'full', containers: arr(inv.container_ids || inv.containers) };
                 }),
                 containers: arr(sh.containers).map(function (c, i) {
-                    return { id: c.id || ('c' + i), number: s(c.container_number || c.number, ''), seal: s(c.seal_number || c.seal, ''), type: s(c.container_type || c.type || '40HQ', '40HQ'), weight: n(c.weight, 0), volume: n(c.volume, 0), packages: n(c.packages, 0) };
+                    return { id: c.id || ('c' + i), number: s(c.container_number || c.number, ''), seal: s(c.seal_number || c.seal, ''), type: s(String(c.container_type || c.type || '40').replace(/\D/g, '').slice(0, 2) || '40', '40'), weight: n(c.weight, 0), volume: n(c.volume, 0), packages: n(c.packages, 0) };
                 }),
                 packings: arr(sh.packings).map(function (pk) { return normalizePacking(pk, sh, shipProducts); }),
                 documents: arr(sh.documents).map(function (d) { return { id: d.id, name: s(d.name || d.file_name, 'documento'), kind: docKind(d.document_type || d.kind), size: n(d.file_size || d.size, 0), uploaded: s(d.uploaded || d.create_date || '', '') }; })
@@ -875,8 +875,8 @@ const MOCK_PROFORMA = {
                 { id: 'inv2', number: 'JQ-INV-2026-089', date: '2026-06-11', amount: 28800, currency: 'USD', scope: 'specific', containers: ['c1'] },
             ],
             containers: [
-                { id: 'c1', number: 'COSU6817042', seal: 'CN8821044', type: '40HQ', weight: 27500, volume: 67.2, packages: 12 },
-                { id: 'c2', number: 'COSU6817043', seal: 'CN8821045', type: '40HQ', weight: 26800, volume: 67.2, packages: 11 },
+                { id: 'c1', number: 'COSU6817042', seal: 'CN8821044', type: '40', weight: 27500, volume: 67.2, packages: 12 },
+                { id: 'c2', number: 'COSU6817043', seal: 'CN8821045', type: '40', weight: 26800, volume: 67.2, packages: 11 },
             ],
             packings: [
                 {
@@ -922,7 +922,7 @@ const MOCK_PROFORMA = {
                 { id: 'inv3', number: 'JQ-INV-2026-092', date: '', amount: 0, currency: 'USD', scope: 'full', containers: [] },
             ],
             containers: [
-                { id: 'c3', number: '', seal: '', type: '40HQ', weight: 0, volume: 0, packages: 0 },
+                { id: 'c3', number: '', seal: '', type: '40', weight: 0, volume: 0, packages: 0 },
             ],
             packings: [],
             documents: [],
@@ -1891,7 +1891,7 @@ const TabInvoices = ({ ship, updateShip }) => {
    Containers tab
    ============================================================ */
 const TabContainers = ({ ship, updateShip }) => {
-    const addC = () => updateShip({ containers: [...ship.containers, { id: 'c' + Date.now(), number: '', seal: '', type: '40HQ', weight: 0, volume: 0, packages: 0 }] });
+    const addC = () => updateShip({ containers: [...ship.containers, { id: 'c' + Date.now(), number: '', seal: '', type: '40', weight: 0, volume: 0, packages: 0 }] });
     const updC = (id, patch) => updateShip({ containers: ship.containers.map(c => c.id === id ? { ...c, ...patch } : c) });
     const delC = (id) => updateShip({ containers: ship.containers.filter(c => c.id !== id) });
     return (React.createElement("div", { className: "card" },
@@ -1930,11 +1930,10 @@ const TabContainers = ({ ship, updateShip }) => {
                     React.createElement(Field, { label: "No. de Sello", required: true, help: "Sello de seguridad que se rompe al abrir el contenedor." },
                         React.createElement(Input, { mono: true, placeholder: "CN8821044", value: c.seal, onChange: (e) => updC(c.id, { seal: e.target.value.toUpperCase() }) })),
                     React.createElement(Field, { label: "Tipo", required: true },
-                        React.createElement(Select, { value: c.type, onChange: (e) => updC(c.id, { type: e.target.value }) },
-                            React.createElement("option", null, "20GP"),
-                            React.createElement("option", null, "40GP"),
-                            React.createElement("option", null, "40HQ"),
-                            React.createElement("option", null, "45HQ")))),
+                        React.createElement(Select, { value: String(c.type || '').replace(/\D/g, '').slice(0, 2), onChange: (e) => updC(c.id, { type: e.target.value }) },
+                            React.createElement("option", null, "20"),
+                            React.createElement("option", null, "40"),
+                            React.createElement("option", null, "45")))),
                 React.createElement("div", { className: "fld-row cols-3", style: { marginTop: 14 } },
                     React.createElement(Field, { label: "Peso bruto (kg)" },
                         React.createElement(Input, { mono: true, type: "number", placeholder: "27500", value: c.weight || '', onChange: (e) => updC(c.id, { weight: +e.target.value }) })),
@@ -4234,7 +4233,7 @@ function completedProforma() {
             i.amount = 12000; if (!i.date)
             i.date = '2026-07-14'; });
         if (s.containers.length === 0)
-            s.containers = [{ id: 'cx', number: 'COSU6817044', seal: 'CN8821099', type: '40HQ', weight: 27200, volume: 67.2, packages: 12 }];
+            s.containers = [{ id: 'cx', number: 'COSU6817044', seal: 'CN8821099', type: '40', weight: 27200, volume: 67.2, packages: 12 }];
         s.containers.forEach(c => { if (!c.number)
             c.number = 'COSU6817099'; });
         if (s.packings.length === 0) {
