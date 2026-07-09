@@ -26,6 +26,8 @@
                 <field name="x_qty_solicitada_original"
                        string="Solicitado Original"
                        optional="show"
+                       decoration-warning="x_qty_solicitada_original and x_qty_solicitada_original != product_qty"
+                       decoration-bf="x_qty_solicitada_original and x_qty_solicitada_original != product_qty"
                        readonly="1"/>
                 <field name="x_qty_embarcada"
                        string="Embarcado (PL)"

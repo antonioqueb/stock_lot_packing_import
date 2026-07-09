@@ -454,12 +454,70 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
             )
             return False
 
+    def _sync_po_commercial_qty(self, shipment):
+        """Actualiza la cantidad COMERCIAL de la OC con lo embarcado real.
+
+        Al proveedor se le paga lo declarado en el Packing List, así que
+        product_qty (la cantidad que impacta montos, pagos, comisiones y
+        costos) se ajusta al total declarado en TODOS los embarques de la
+        proforma. La solicitud original se congela UNA sola vez en
+        x_qty_solicitada_original para comparar pedido vs embarcado.
+
+        Reglas:
+        - Productos aún sin declarar en ningún PL: no se tocan.
+        - Si la OC tiene varias líneas del mismo producto, no se ajusta ese
+          producto (ambiguo repartir); solo se registra en el log.
+        """
+        po = shipment.proforma_id.purchase_id
+        if not po or po.state == 'cancel':
+            return
+
+        declared = self._shipment_qty_map(shipment)
+        for pid, qty in self._other_shipments_qty_map(shipment).items():
+            declared[pid] = declared.get(pid, 0.0) + qty
+
+        lines_by_product = {}
+        for line in po.order_line.filtered(
+            lambda l: not l.display_type and l.product_id
+        ):
+            lines_by_product.setdefault(line.product_id.id, []).append(line)
+
+        for pid, total in declared.items():
+            lines = lines_by_product.get(pid) or []
+            if not lines:
+                continue
+            if len(lines) > 1:
+                _logger.warning(
+                    "[PL_SYNC][PO] OC %s tiene %s líneas del producto %s; no se "
+                    "ajusta product_qty automáticamente (reparto ambiguo).",
+                    po.name, len(lines), pid,
+                )
+                continue
+
+            line = lines[0]
+            vals = {'x_qty_embarcada': total}
+
+            if not line.x_qty_solicitada_original:
+                vals['x_qty_solicitada_original'] = line.product_qty
+
+            if total > 0 and abs((line.product_qty or 0.0) - total) > 1e-6:
+                vals['product_qty'] = total
+                _logger.info(
+                    "[PL_SYNC][PO] %s / %s: cantidad comercial %s -> %s "
+                    "(embarcado declarado en PL).",
+                    po.name, line.product_id.display_name,
+                    line.product_qty, total,
+                )
+
+            line.with_context(skip_date_sync=True).write(vals)
+
     def sync_shipment(self, shipment):
         picking = self.sync_shipment_header_to_picking(shipment)
         if not picking:
             return False
 
         self._sync_picking_moves_from_shipment(shipment)
+        self._sync_po_commercial_qty(shipment)
         self.sync_shipment_rows_to_spreadsheet(shipment)
         return picking
 
