@@ -67,7 +67,17 @@
                         type="object"
                         class="btn-success"
                         icon="fa-check-square-o"
-                        invisible="state in ('done', 'cancel', 'draft') or not packing_list_imported or not ws_spreadsheet_id"/>
+                        invisible="state in ('done', 'cancel', 'draft') or not packing_list_imported or not ws_spreadsheet_id or worksheet_imported"/>
+
+                <!-- WS ya procesado pero recepción SIN validar: aún se puede
+                     corregir (reprocesa medidas/cantidades reales). Después de
+                     validar, solo ajuste manual de inventario. -->
+                <button name="action_import_worksheet"
+                        string="Corregir WS"
+                        type="object"
+                        class="btn-warning"
+                        icon="fa-undo"
+                        invisible="state in ('done', 'cancel', 'draft') or not worksheet_imported or not ws_spreadsheet_id"/>
             </xpath>
 
             <!-- Nueva Pestaña: Datos de Embarque -->

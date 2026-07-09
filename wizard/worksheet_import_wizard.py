@@ -16,24 +16,195 @@ class WorksheetImportWizard(models.TransientModel):
     ws_spreadsheet_id = fields.Many2one('documents.document', related='picking_id.ws_spreadsheet_id', readonly=True)
     excel_file = fields.Binary(string='Archivo Excel (Opcional)', attachment=False)
     excel_filename = fields.Char(string='Nombre del archivo')
-    
-    def action_import_worksheet(self):
+    state = fields.Selection([
+        ('draft', 'Captura'),
+        ('review', 'Resumen previo'),
+    ], default='draft')
+    summary_html = fields.Html(string='Resumen', readonly=True, sanitize=False)
+
+    # =========================================================================
+    # PASO 1: RESUMEN PREVIO (no toca nada)
+    # =========================================================================
+
+    def _ws_collect_rows(self):
+        """Lee las filas del WS (spreadsheet o Excel) sin aplicar cambios."""
         self.ensure_one()
-        
+
         if self.picking_id.state == 'done':
-            raise UserError('La recepción ya está validada. No se puede procesar el Worksheet sobre lotes históricos.')
+            raise UserError(
+                'La recepción ya está validada. Las correcciones ahora solo '
+                'proceden por ajuste manual de inventario.')
 
         if not self.ws_spreadsheet_id and not self.excel_file:
             raise UserError('No se encontró el Spreadsheet del Worksheet ni se subió un archivo Excel.')
 
-        rows_data = []
-        if self.excel_file:
-            rows_data = self._get_data_from_excel()
-        else:
-            rows_data = self._get_data_from_spreadsheet()
-
+        rows_data = self._get_data_from_excel() if self.excel_file else self._get_data_from_spreadsheet()
         if not rows_data:
             raise UserError('No se encontraron datos de medidas reales (Alto/Largo Real) para procesar.')
+        return rows_data
+
+    def _ws_find_move_line(self, product, lot_name):
+        domain_base = [
+            ('picking_id', '=', self.picking_id.id),
+            ('lot_id.name', '=', lot_name),
+        ]
+        ml = self.env['stock.move.line'].search(
+            domain_base + [('product_id', '=', product.id)], limit=1)
+        if not ml:
+            ml = self.env['stock.move.line'].search(domain_base, limit=1)
+        return ml
+
+    def _ws_build_summary_html(self, rows_data):
+        picking = self.picking_id
+
+        def _tipo(product):
+            u = product.product_tmpl_id.x_unidad_del_producto or 'Placa'
+            u = str(u).strip().lower()
+            return {'placa': 'Placas', 'formato': 'Formatos'}.get(u, 'Piezas / Adhesivos')
+
+        def _row_capture(d):
+            if d.get('is_placa', True):
+                return bool(d.get('alto_real') or d.get('ancho_real'))
+            return bool(d.get('qty_real'))
+
+        buckets = {}
+        diffs = []
+        not_found = []
+        total_m2_real = 0.0
+        total_units_real = 0.0
+
+        for data in rows_data:
+            product = data['product']
+            lot_name = data['lot_name']
+            ml = self._ws_find_move_line(product, lot_name)
+            if not ml or not ml.lot_id:
+                not_found.append(lot_name)
+                continue
+
+            tipo = _tipo(product)
+            b = buckets.setdefault(tipo, {
+                'captured': 0, 'missing': 0,
+                'declared': 0.0, 'real': 0.0, 'missing_qty': 0.0,
+            })
+
+            declared = picking._ws_move_line_qty(ml)
+            is_m2 = 'm²' in (ml.product_uom_id.name or '') or 'm2' in (ml.product_uom_id.name or '').lower()
+
+            if not _row_capture(data):
+                b['missing'] += 1
+                b['missing_qty'] += declared
+                continue
+
+            if data.get('is_placa', True):
+                real = round((data.get('alto_real') or 0.0) * (data.get('ancho_real') or 0.0), 3)
+            else:
+                real = data.get('qty_real') or 0.0
+
+            b['captured'] += 1
+            b['declared'] += declared
+            b['real'] += real
+            if is_m2:
+                total_m2_real += real
+            else:
+                total_units_real += real
+
+            if abs(real - declared) > 0.005:
+                diffs.append((lot_name, product.display_name, declared, real))
+
+        # ── HTML ──
+        rows_html = ''
+        tot_missing = 0
+        for tipo in ('Placas', 'Formatos', 'Piezas / Adhesivos'):
+            b = buckets.get(tipo)
+            if not b:
+                continue
+            tot_missing += b['missing']
+            delta = b['real'] - b['declared']
+            color = '#dc3545' if abs(delta) > 0.005 or b['missing'] else '#198754'
+            rows_html += (
+                '<tr><td><b>%s</b></td><td class="text-end">%s</td>'
+                '<td class="text-end">%s</td><td class="text-end">%.3f</td>'
+                '<td class="text-end">%.3f</td>'
+                '<td class="text-end" style="color:%s;font-weight:600;">%+.3f</td></tr>'
+            ) % (tipo, b['captured'], b['missing'], b['declared'], b['real'], color, delta)
+
+        html = (
+            '<h5>Resumen previo — lo que se va a procesar</h5>'
+            '<table class="table table-sm"><thead><tr>'
+            '<th>Tipo</th><th class="text-end">Capturados</th>'
+            '<th class="text-end">Faltantes</th>'
+            '<th class="text-end">Declarado prov.</th>'
+            '<th class="text-end">Real WS</th><th class="text-end">Dif.</th>'
+            '</tr></thead><tbody>%s</tbody></table>'
+            '<p><b>Totales reales:</b> %.3f m² · %.2f unidades</p>'
+        ) % (rows_html, total_m2_real, total_units_real)
+
+        if tot_missing:
+            html += (
+                '<div class="alert alert-danger"><b>⚠ %s lote(s) SIN captura</b>: '
+                'al confirmar se eliminarán como faltantes. Si en realidad sí '
+                'llegaron, captura sus medidas antes de confirmar.</div>'
+            ) % tot_missing
+
+        if diffs:
+            d_rows = ''.join(
+                '<tr><td>%s</td><td>%s</td><td class="text-end">%.3f</td>'
+                '<td class="text-end">%.3f</td><td class="text-end" style="color:#dc3545;">%+.3f</td></tr>'
+                % (l, p, dec, real, real - dec)
+                for l, p, dec, real in diffs[:20]
+            )
+            more = '' if len(diffs) <= 20 else '<p class="text-muted">…y %s diferencias más.</p>' % (len(diffs) - 20)
+            html += (
+                '<h6>Diferencias contra lo declarado (%s)</h6>'
+                '<table class="table table-sm"><thead><tr><th>Lote</th><th>Producto</th>'
+                '<th class="text-end">Declarado</th><th class="text-end">Real</th>'
+                '<th class="text-end">Dif.</th></tr></thead><tbody>%s</tbody></table>%s'
+            ) % (len(diffs), d_rows, more)
+
+        if not_found:
+            html += (
+                '<div class="alert alert-warning">Lotes del WS no encontrados en '
+                'la recepción (se ignorarán): %s</div>'
+            ) % ', '.join(not_found[:15])
+
+        html += (
+            '<div class="alert alert-info" style="margin-bottom:0;">'
+            '<b>Reglas de corrección:</b> piezas/placas recibidas → Packing List. '
+            'Medidas/cantidades reales → Worksheet (este paso). '
+            'Después de validar la recepción → solo ajuste manual de inventario.</div>'
+        )
+        return html
+
+    def _ws_reopen(self):
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'worksheet.import.wizard',
+            'res_id': self.id,
+            'view_mode': 'form',
+            'target': 'new',
+        }
+
+    def action_review_worksheet(self):
+        self.ensure_one()
+        rows_data = self._ws_collect_rows()
+        self.summary_html = self._ws_build_summary_html(rows_data)
+        self.state = 'review'
+        return self._ws_reopen()
+
+    def action_back_to_draft(self):
+        self.ensure_one()
+        self.state = 'draft'
+        return self._ws_reopen()
+
+    def action_edit_worksheet(self):
+        """Abre el WS para corregir capturas antes de confirmar."""
+        self.ensure_one()
+        return self.picking_id.action_open_worksheet_spreadsheet()
+    
+    def action_import_worksheet(self):
+        self.ensure_one()
+
+        rows_data = self._ws_collect_rows()
 
         # RED DE SEGURIDAD: si ninguna fila trae captura (todo vacío o en 0),
         # abortar sin tocar nada. Antes esto borraba TODOS los lotes de la

@@ -7,25 +7,41 @@
             <form>
                 <sheet>
                     <field name="ws_spreadsheet_id" invisible="1"/>
-                    <group>
+                    <field name="state" invisible="1"/>
+
+                    <group invisible="state != 'draft'">
                         <field name="picking_id" readonly="1"/>
                         <field name="excel_filename" invisible="1"/>
-                        <field name="excel_file" filename="excel_filename" 
+                        <field name="excel_file" filename="excel_filename"
                                invisible="ws_spreadsheet_id != False"/>
                     </group>
-                    
-                    <div class="alert alert-success" role="alert" invisible="ws_spreadsheet_id == False">
+
+                    <div class="alert alert-success" role="alert" invisible="state != 'draft' or ws_spreadsheet_id == False">
                         <p><strong><i class="fa fa-table"></i> Spreadsheet Detectado:</strong></p>
                         <p>El sistema leerá las columnas <strong>"LARGO R."</strong> y <strong>"ALTO R."</strong> (metros) directamente de tu hoja de cálculo activa.</p>
-                        <p>Asegúrate de haber guardado los cambios en el Spreadsheet antes de procesar.</p>
+                        <p>Asegúrate de haber guardado los cambios en el Spreadsheet antes de continuar.</p>
                     </div>
 
-                    <div class="alert alert-info" role="alert" invisible="ws_spreadsheet_id != False">
+                    <div class="alert alert-info" role="alert" invisible="state != 'draft' or ws_spreadsheet_id != False">
                         <p>Sube el archivo Excel con las medidas reales si no estás usando la hoja de cálculo de Odoo.</p>
                     </div>
+
+                    <field name="summary_html" nolabel="1" readonly="1" invisible="state != 'review'"/>
                 </sheet>
                 <footer>
-                    <button string="Actualizar Medidas Reales" name="action_import_worksheet" type="object" class="btn-primary"/>
+                    <!-- Paso 1: leer y mostrar el resumen SIN tocar nada -->
+                    <button string="Revisar antes de procesar" name="action_review_worksheet"
+                            type="object" class="btn-primary" invisible="state != 'draft'"/>
+
+                    <!-- Paso 2: confirmación explícita sobre el resumen -->
+                    <button string="Confirmar y Procesar" name="action_import_worksheet"
+                            type="object" class="btn-primary" invisible="state != 'review'"/>
+                    <button string="Editar Worksheet" name="action_edit_worksheet"
+                            type="object" class="btn-warning" icon="fa-pencil"
+                            invisible="state != 'review'"/>
+                    <button string="Volver" name="action_back_to_draft"
+                            type="object" class="btn-secondary" invisible="state != 'review'"/>
+
                     <button string="Cancelar" class="btn-secondary" special="cancel"/>
                 </footer>
             </form>
