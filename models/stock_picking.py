@@ -756,7 +756,25 @@ class StockPicking(models.Model):
     
     def action_import_worksheet(self):
         self.ensure_one()
-        return {'name': 'Procesar Worksheet', 'type': 'ir.actions.act_window', 'res_model': 'worksheet.import.wizard', 'view_mode': 'form', 'target': 'new', 'context': {'default_picking_id': self.id}}
+
+        wizard = self.env['worksheet.import.wizard'].create({
+            'picking_id': self.id,
+        })
+
+        # Con spreadsheet: DIRECTO al resumen previo (un solo popup, con las
+        # opciones de Editar Worksheet / Confirmar). El paso de captura solo
+        # aplica cuando no hay spreadsheet y se debe subir un Excel.
+        if self.ws_spreadsheet_id:
+            return wizard.action_review_worksheet()
+
+        return {
+            'name': 'Procesar Worksheet',
+            'type': 'ir.actions.act_window',
+            'res_model': 'worksheet.import.wizard',
+            'res_id': wizard.id,
+            'view_mode': 'form',
+            'target': 'new',
+        }
 
     def process_external_pl_data(self, json_data):
         return True
