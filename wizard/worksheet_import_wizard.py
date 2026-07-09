@@ -177,6 +177,7 @@ class WorksheetImportWizard(models.TransientModel):
 
     def _ws_reopen(self):
         return {
+            'name': 'Procesar Worksheet',
             'type': 'ir.actions.act_window',
             'res_model': 'worksheet.import.wizard',
             'res_id': self.id,

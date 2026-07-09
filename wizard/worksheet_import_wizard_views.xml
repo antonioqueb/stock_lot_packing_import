@@ -40,7 +40,8 @@
                             type="object" class="btn-warning" icon="fa-pencil"
                             invisible="state != 'review'"/>
                     <button string="Volver" name="action_back_to_draft"
-                            type="object" class="btn-secondary" invisible="state != 'review'"/>
+                            type="object" class="btn-secondary"
+                            invisible="state != 'review' or ws_spreadsheet_id != False"/>
 
                     <button string="Cancelar" class="btn-secondary" special="cancel"/>
                 </footer>
