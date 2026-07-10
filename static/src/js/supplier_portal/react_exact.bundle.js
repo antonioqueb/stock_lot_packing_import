@@ -1446,13 +1446,14 @@ const Overview = ({ proforma, status, setRoute }) => {
         if (sst.status === 'done')
             return;
         const reasons = [];
-        if (!sst.tabs.hasLog)
+        const natOnly = !!(typeof window !== 'undefined' && window.PORTAL_NATIONAL);
+        if (!natOnly && !sst.tabs.hasLog)
             reasons.push('logística');
-        if (!sst.tabs.hasBL)
+        if (!natOnly && !sst.tabs.hasBL)
             reasons.push('B/L');
-        if (!sst.tabs.hasInv)
+        if (!natOnly && !sst.tabs.hasInv)
             reasons.push('invoices');
-        if (!sst.tabs.hasContainers)
+        if (!natOnly && !sst.tabs.hasContainers)
             reasons.push('contenedores');
         if (!sst.tabs.hasPacking)
             reasons.push('packing list');
@@ -3373,18 +3374,22 @@ window.PackingWizard = PackingWizard;
 /* global React, Icon, Btn, Badge, Callout, ProgressRing */
 const Confirm = ({ proforma, status, setRoute, onComplete }) => {
     const allDone = status.overall >= 100;
+    const natReview = !!(typeof window !== 'undefined' && window.PORTAL_NATIONAL);
     const checks = [
-        { ok: status.globals_pct === 100, label: 'Datos generales de la Proforma', detail: status.globals_pct === 100 ? 'Completos' : `${status.globals_pct}% — faltan campos requeridos` },
+        // Nacional: los datos de proforma no existen en el flujo.
+        ...(natReview ? [] : [
+            { ok: status.globals_pct === 100, label: 'Datos generales de la Proforma', detail: status.globals_pct === 100 ? 'Completos' : `${status.globals_pct}% — faltan campos requeridos` },
+        ]),
         ...proforma.shipments.map((s, i) => {
             const sst = status.shipments_status[i];
             const miss = [];
-            if (!sst.tabs.hasLog)
+            if (!natReview && !sst.tabs.hasLog)
                 miss.push('logística');
-            if (!sst.tabs.hasBL)
+            if (!natReview && !sst.tabs.hasBL)
                 miss.push('B/L');
-            if (!sst.tabs.hasInv)
+            if (!natReview && !sst.tabs.hasInv)
                 miss.push('invoices');
-            if (!sst.tabs.hasContainers)
+            if (!natReview && !sst.tabs.hasContainers)
                 miss.push('contenedores');
             if (!sst.tabs.hasPacking)
                 miss.push('packing');
