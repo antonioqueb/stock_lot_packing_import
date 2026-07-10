@@ -961,7 +961,7 @@ const SECTIONS = [
     { id: 'globals', label: 'Datos de la Proforma', icon: 'globe' },
     { id: 'shipments', label: 'Embarques', icon: 'ship', children: true },
     { id: 'review', label: 'Revisar y enviar', icon: 'flag' },
-];
+].filter(sec => !(typeof window !== 'undefined' && window.PORTAL_NATIONAL && sec.id === 'globals'));
 // Compute per-section completion
 function computeStatus(proforma) {
     const g = proforma.globals;
@@ -993,7 +993,7 @@ function computeStatus(proforma) {
     const ship_pct = proforma.shipments.length === 0 ? 0
         : Math.round(shipments_status.reduce((a, b) => a + b.pct, 0) / shipments_status.length);
     const ship_overall = ship_pct === 100 ? 'done' : ship_pct > 0 ? 'partial' : 'todo';
-    const overall = Math.round((globals_pct + ship_pct) / 2);
+    const overall = isNational ? ship_pct : Math.round((globals_pct + ship_pct) / 2);
     return { globals_pct, globals_status, ship_pct, ship_overall, ship_done, shipments_status, overall };
 }
 window.MOCK_PROFORMA = MOCK_PROFORMA;
