@@ -1434,7 +1434,7 @@ window.Sidebar = Sidebar;
 const Overview = ({ proforma, status, setRoute }) => {
     // Pending items list, in plain language
     const pending = [];
-    if (status.globals_pct < 100)
+    if (status.globals_pct < 100 && !(typeof window !== 'undefined' && window.PORTAL_NATIONAL))
         pending.push({
             id: 'globals', icon: 'globe', tone: 'partial',
             title: 'Completar datos generales de la Proforma',
