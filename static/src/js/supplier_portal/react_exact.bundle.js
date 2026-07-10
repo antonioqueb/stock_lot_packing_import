@@ -979,7 +979,7 @@ function computeStatus(proforma) {
         const hasInv = s.invoices.length > 0 && s.invoices.every(i => i.number && i.amount);
         const hasContainers = s.containers.length > 0 && s.containers.every(c => c.number);
         const hasPacking = s.packings.length > 0 && s.packings.every(p => p.rows_filled >= p.rows_total);
-        const checks = isNational ? [hasInv, hasPacking] : [hasLog, hasBL, hasInv, hasContainers, hasPacking];
+        const checks = isNational ? [hasPacking] : [hasLog, hasBL, hasInv, hasContainers, hasPacking];
         const score = checks.filter(Boolean).length;
         const total = checks.length;
         return {
@@ -1708,7 +1708,7 @@ const ShipmentDetail = ({ proforma, setProforma, status, setRoute, route, openPa
     // Modo compra nacional: se ocultan los pasos de importación (logística y
     // contenedores). El backend no cambia; solo se filtra la vista.
     const isNational = !!(typeof window !== 'undefined' && window.PORTAL_NATIONAL);
-    const tabs = SHIP_TABS.filter(t => !(isNational && (t.id === 'logistics' || t.id === 'containers')));
+    const tabs = SHIP_TABS.filter(t => !(isNational && t.id !== 'packings'));
     const pickTab = (id) => (id && tabs.some(t => t.id === id)) ? id : tabs[0].id;
     const [tab, setTab] = React.useState(pickTab(route.tab));
     React.useEffect(() => { if (route.tab)
@@ -2572,8 +2572,13 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
     });
     const S2_LABELS = { placa: 'Placas', formato: 'Formatos', pieza: 'Piezas' };
     const canNext = () => {
-        if (step === 1)
-            return !!(draft.number || '').trim() && draft.products.length > 0;
+        if (step === 1) {
+            // Nacional: el folio es opcional; basta la FECHA del packing.
+            const idOk = window.PORTAL_NATIONAL
+                ? !!(draft.date || '').trim()
+                : !!(draft.number || '').trim();
+            return idOk && draft.products.length > 0;
+        }
         if (step === 2) {
             if (draft.blocks.length === 0)
                 return false;
@@ -2704,7 +2709,7 @@ const Step1Products = ({ proforma, draft, setDraft }) => {
     };
     return (React.createElement("div", null,
         React.createElement("div", { className: "fld-row", style: { marginBottom: 18 } },
-            React.createElement(Field, { label: "No. del Packing", required: true, help: "Identifica este documento. Suele ser una variante de la invoice.", helpExample: "PK-2026-088-A", error: !(draft.number || '').trim() ? 'El folio es obligatorio para continuar.' : undefined, hint: "Obligatorio: escribe el folio del packing list." },
+            React.createElement(Field, { label: "No. del Packing", required: !window.PORTAL_NATIONAL, help: window.PORTAL_NATIONAL ? "Opcional en compra nacional: si lo dejas vacío se genera automáticamente." : "Identifica este documento. Suele ser una variante de la invoice.", helpExample: "PK-2026-088-A", error: (!window.PORTAL_NATIONAL && !(draft.number || '').trim()) ? 'El folio es obligatorio para continuar.' : undefined, hint: window.PORTAL_NATIONAL ? undefined : "Obligatorio: escribe el folio del packing list." },
                 React.createElement(Input, { mono: true, placeholder: "Agregar folio", value: draft.number, onChange: (e) => setDraft({ ...draft, number: e.target.value }) })),
             React.createElement(Field, { label: "Fecha del Packing", required: true },
                 React.createElement(Input, { type: "date", value: draft.date, onChange: (e) => setDraft({ ...draft, date: e.target.value }) }))),

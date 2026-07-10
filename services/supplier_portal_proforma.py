@@ -4,6 +4,7 @@ import json
 import logging
 
 from markupsafe import Markup
+from odoo import fields
 from odoo.http import request
 
 from .supplier_portal_base import SupplierPortalBaseService
@@ -315,8 +316,10 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
         )
 
         doc_model = request.env["supplier.shipment.document"].sudo()
+        # Nacional: no se cargan documentos (ni invoice ni BL); el Packing List
+        # se GENERA en el portal, no se sube como archivo. Nada obligatorio.
         required_per_shipment = (
-            ["invoice", "packing_list"] if is_national
+            [] if is_national
             else ["bl", "invoice", "packing_list"]
         )
 
@@ -987,6 +990,23 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
             if "packing_date" in packing_data
             else (packing.packing_date if packing else False)
         )
+
+        # Compra nacional: el folio del PL no es obligatorio (solo la fecha).
+        # El modelo lo exige, así que se autogenera uno estable desde la fecha.
+        if not (packing_number or "").strip():
+            proforma_rec = shipment.proforma_id
+            po_rec = proforma_rec.purchase_id if proforma_rec else False
+            is_national_po = bool(
+                po_rec and 'purchase_payment_scope' in po_rec._fields
+                and po_rec.purchase_payment_scope == 'national'
+            )
+            if is_national_po:
+                base = 'PL-%s' % (packing_date or fields.Date.context_today(shipment))
+                existing = shipment.packing_ids.filtered(
+                    lambda pk: (pk.packing_number or '').startswith(base)
+                    and (not packing or pk.id != packing.id)
+                )
+                packing_number = base if not existing else '%s-%d' % (base, len(existing) + 1)
 
         packing_vals = {
             "packing_number": packing_number or "",
