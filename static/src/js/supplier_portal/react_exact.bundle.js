@@ -139,7 +139,12 @@
         var total = n(pk.row_count || pk.rows_total || uiRows.length || blocks.reduce(function (a, b) { return a + n(b.count); }, 0), 0);
         var filled = uiRows.filter(function (r) {
             var tipo = s(r.tipo || 'Placa').toLowerCase();
-            var hasMeasure = tipo.indexOf('placa') >= 0 ? (n(r.h) > 0 && n(r.w) > 0) : (n(r.quantity) > 0);
+            // Nacional: las medidas de placa se capturan en la RECEPCIÓN, no
+            // en el portal — la fila declarada ya cuenta como completa.
+            var natPl = !!(typeof window !== 'undefined' && window.PORTAL_NATIONAL);
+            var hasMeasure = tipo.indexOf('placa') >= 0
+                ? (natPl ? true : (n(r.h) > 0 && n(r.w) > 0))
+                : (n(r.quantity) > 0);
             return hasMeasure;
         }).length;
         return {
@@ -2146,7 +2151,7 @@ const TabPackings = ({ ship, updateShip, openPackingWizard, proforma, onDeletePa
                     return ((pp && pp.kind) || 'placa') === 'placa';
                 };
                 const placaBlocks = (pk.blocks || []).filter(isPlacaBlock);
-                const photosOk = placaBlocks.every(b => b.photo);
+                const photosOk = window.PORTAL_NATIONAL ? true : placaBlocks.every(b => b.photo);
                 const rowsOk = pk.rows_filled === pk.rows_total;
                 const fullyOk = photosOk && rowsOk;
                 const isOpen = openId === pk.id;
