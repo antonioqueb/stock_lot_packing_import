@@ -2710,8 +2710,8 @@ const Step1Products = ({ proforma, draft, setDraft }) => {
     };
     return (React.createElement("div", null,
         React.createElement("div", { className: "fld-row", style: { marginBottom: 18 } },
-            React.createElement(Field, { label: "No. del Packing", required: !window.PORTAL_NATIONAL, help: window.PORTAL_NATIONAL ? "Opcional en compra nacional: si lo dejas vacío se genera automáticamente." : "Identifica este documento. Suele ser una variante de la invoice.", helpExample: "PK-2026-088-A", error: (!window.PORTAL_NATIONAL && !(draft.number || '').trim()) ? 'El folio es obligatorio para continuar.' : undefined, hint: window.PORTAL_NATIONAL ? undefined : "Obligatorio: escribe el folio del packing list." },
-                React.createElement(Input, { mono: true, placeholder: "Agregar folio", value: draft.number, onChange: (e) => setDraft({ ...draft, number: e.target.value }) })),
+            (!window.PORTAL_NATIONAL && React.createElement(Field, { label: "No. del Packing", required: true, help: "Identifica este documento. Suele ser una variante de la invoice.", helpExample: "PK-2026-088-A", error: !(draft.number || '').trim() ? 'El folio es obligatorio para continuar.' : undefined, hint: "Obligatorio: escribe el folio del packing list." },
+                React.createElement(Input, { mono: true, placeholder: "Agregar folio", value: draft.number, onChange: (e) => setDraft({ ...draft, number: e.target.value }) }))),
             React.createElement(Field, { label: "Fecha del Packing", required: true },
                 React.createElement(Input, { type: "date", value: draft.date, onChange: (e) => setDraft({ ...draft, date: e.target.value }) }))),
         React.createElement("div", { style: { fontSize: 12.5, fontWeight: 600, color: 'var(--ink-3)', letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 10 } }, "Productos solicitados en esta PO"),
@@ -2769,14 +2769,15 @@ const Step2Blocks = ({ proforma, draft, setDraft, pendingImages, typeTab }) => {
                 product: p.id, name: '',
                 count: m === 'pieza' ? (+p.requested_qty || 0) : 0,
                 photo: false,
-                packaging: { kind: 'palet', qty: '' },
+                packaging: { kind: m === 'formato' ? 'tarima' : 'palet', qty: '' },
             };
         });
         setDraft({ ...draft, blocks: [...pruned, ...adds] });
     }, [draft.products]);
     const addGroup = (pid) => setDraft({ ...draft, blocks: [...draft.blocks, {
                 id: 'b' + Date.now() + Math.random().toString(36).slice(2, 6), product: pid, name: '',
-                count: 0, photo: false, packaging: { kind: 'palet', qty: '' },
+                count: 0, photo: false,
+                packaging: { kind: groupModeById(draft, proforma.products, pid) === 'formato' ? 'tarima' : 'palet', qty: '' },
             }] });
     const updBlock = (id, patch) => setDraft({ ...draft, blocks: draft.blocks.map(b => b.id === id ? { ...b, ...patch } : b) });
     const updPack = (id, patch) => setDraft({ ...draft, blocks: draft.blocks.map(b => b.id === id ? { ...b, packaging: { ...(b.packaging || {}), ...patch } } : b) });
