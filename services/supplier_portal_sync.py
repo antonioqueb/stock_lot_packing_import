@@ -569,18 +569,51 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
                 for packing in ship.packing_ids.sorted('id'):
                     all_rows |= packing.row_ids
 
+        po_by_header = {h.id: h.purchase_id.id for h in headers}
+        sorted_rows = all_rows.sorted(
+            lambda r: (r.packing_id.id, r.sequence, r.id))
+
+        # Dos pasadas: PRIMERO las filas con PI elegida a mano en el portal
+        # (consumen la capacidad de SU PO), después el FIFO llena el resto.
         consumed = {}
-        for row in all_rows.sorted(lambda r: (r.packing_id.id, r.sequence, r.id)):
+
+        def pick_line(lines, qty):
+            return next(
+                (l for l in lines
+                 if consumed.get(l.id, 0.0) + qty
+                 <= capacity.get(l.id, 0.0) + 1e-4),
+                lines[-1],
+            )
+
+        manual_rows = sorted_rows.filtered(
+            lambda r: r.pi_manual and r.pi_header_id)
+        auto_rows = sorted_rows - manual_rows
+
+        for row in manual_rows:
+            po_id = po_by_header.get(row.pi_header_id.id)
+            lines = [
+                l for l in (lines_by_product.get(row.product_id.id) or [])
+                if l.order_id.id == po_id
+            ]
+            if not lines:
+                # La PI elegida no tiene línea de ese producto: se respeta la
+                # PI del proveedor y la fila queda sin línea de compra.
+                if row.purchase_line_id:
+                    row.write({'purchase_line_id': False})
+                continue
+            qty = self._row_effective_qty(row)
+            target = pick_line(lines, qty)
+            consumed[target.id] = consumed.get(target.id, 0.0) + qty
+            if (row.purchase_line_id.id or False) != target.id:
+                row.write({'purchase_line_id': target.id})
+
+        for row in auto_rows.sorted(
+                lambda r: (r.packing_id.id, r.sequence, r.id)):
             lines = lines_by_product.get(row.product_id.id) or []
             target = False
             if lines:
                 qty = self._row_effective_qty(row)
-                target = next(
-                    (l for l in lines
-                     if consumed.get(l.id, 0.0) + qty
-                     <= capacity.get(l.id, 0.0) + 1e-4),
-                    lines[-1],
-                )
+                target = pick_line(lines, qty)
                 consumed[target.id] = consumed.get(target.id, 0.0) + qty
             header = header_by_po.get(target.order_id.id) if target else False
             new_line_id = target.id if target else False

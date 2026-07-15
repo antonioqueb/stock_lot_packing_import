@@ -454,6 +454,12 @@ class SupplierShipmentPackingRow(models.Model):
         ondelete='set null',
         copy=False,
     )
+    pi_manual = fields.Boolean(
+        string='PI asignada manualmente',
+        copy=False,
+        help='True cuando el proveedor eligió la PI de esta fila en el portal; '
+             'el FIFO automático NUNCA la reasigna.',
+    )
 
     tipo = fields.Selection(
         [

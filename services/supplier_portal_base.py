@@ -258,6 +258,10 @@ class SupplierPortalBaseService:
         return False
 
     def build_products_payload_from_purchase(self, purchase):
+        """Productos pedidos. Acepta UNA o VARIAS OCs (factura de carga):
+        el total por producto se SUMA a través de todas las líneas de todas
+        las órdenes, usando la solicitud original congelada cuando existe
+        (product_qty ya pudo haberse ajustado a lo embarcado)."""
         bucket = {}
 
         for line in purchase.order_line.filtered(lambda l: not l.display_type and l.product_id):
@@ -275,11 +279,41 @@ class SupplierPortalBaseService:
                     "unit_type": unit_type,
                 }
 
-            bucket[product.id]["qty_ordered"] += (line.product_qty or 0.0)
+            base_qty = line.x_qty_solicitada_original or line.product_qty or 0.0
+            bucket[product.id]["qty_ordered"] += base_qty
 
         products = list(bucket.values())
         products.sort(key=lambda item: (item.get("name") or "").lower())
         return products
+
+    def covered_purchase_orders(self, access):
+        """POs amparadas por el enlace: las de la factura de carga, o la del
+        access clásico. SIEMPRE devuelve recordset."""
+        try:
+            return access._covered_purchase_orders()
+        except Exception:
+            return access.purchase_id
+
+    def ensure_headers_for_access(self, access):
+        """Garantiza UNA proforma (PI) por cada PO amparada y las devuelve en
+        el orden de las POs. Pre-llena el número de PI capturado en Compras."""
+        pos = self.covered_purchase_orders(access)
+        Header = request.env['supplier.proforma.header'].sudo()
+        headers = Header
+        for po in pos:
+            header = Header.search([('purchase_id', '=', po.id)], limit=1)
+            if not header:
+                header = Header.create({
+                    'purchase_id': po.id,
+                    'access_id': access.id,
+                    'proforma_number': po.supplier_pi_number or po.partner_ref or '',
+                    'payment_terms': po.payment_term_id.name if po.payment_term_id else '',
+                    'incoterm': po.incoterm_id.code if po.incoterm_id else '',
+                })
+            elif not header.access_id:
+                header.write({'access_id': access.id})
+            headers |= header
+        return headers
 
     def sorted_shipments(self, shipment_records):
         return shipment_records.sorted("sequence")

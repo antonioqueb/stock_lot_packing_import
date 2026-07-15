@@ -164,8 +164,10 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
         if not proforma or not proforma.purchase_id:
             return []
 
-        po = proforma.purchase_id
-        ordered_map = self.sync_service._po_ordered_qty_map(po)
+        # Con factura de carga el pedido es la SUMA de todas las POs amparadas.
+        access = proforma.access_id
+        pos = self.covered_purchase_orders(access) if access else proforma.purchase_id
+        ordered_map = self.sync_service._pos_ordered_qty_map(pos)
 
         current_map = {}
         for shipment in proforma.shipment_ids:
@@ -174,7 +176,7 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                 current_map[pid] = current_map.get(pid, 0.0) + qty
 
         product_line_map = {}
-        for line in po.order_line.filtered(lambda l: not l.display_type and l.product_id):
+        for line in pos.order_line.filtered(lambda l: not l.display_type and l.product_id):
             if self._is_service_product(line.product_id):
                 continue
             if line.product_id.id not in product_line_map:
@@ -383,6 +385,9 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                 "ref_proveedor": row.ref_proveedor or "",
                 "area_m2": row.area_m2,
                 "has_image": bool(row.image),
+                "pi_header_id": row.pi_header_id.id if row.pi_header_id else False,
+                "pi_number": row.pi_header_id.proforma_number if row.pi_header_id else "",
+                "pi_manual": bool(row.pi_manual),
             })
 
         return {
@@ -543,9 +548,29 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
         if not po:
             return request.render("stock_lot_packing_import.portal_not_found")
 
-        products = self.build_products_payload_from_purchase(po)
+        # Factura de carga: el enlace ampara VARIAS POs. Los productos y sus
+        # totales se suman a través de todas; además se garantiza una PI por
+        # PO y se publican al frontend para la asignación por fila.
+        covered_pos = self.covered_purchase_orders(access)
+        headers = self.ensure_headers_for_access(access)
+        products = self.build_products_payload_from_purchase(covered_pos)
         proforma = self.get_or_create_proforma(access)
         proforma_data = self.serialize_proforma(proforma) if proforma else {}
+
+        header_by_po = {h.purchase_id.id: h for h in headers}
+        proformas_payload = []
+        for po_it in covered_pos:
+            header = header_by_po.get(po_it.id)
+            if not header:
+                continue
+            proformas_payload.append({
+                "id": header.id,
+                "number": header.proforma_number
+                          or po_it.supplier_pi_number or po_it.name or "",
+                "po_id": po_it.id,
+                "po_name": po_it.name or "",
+                "is_main": bool(proforma and header.id == proforma.id),
+            })
 
         full_data = {
             "products": products,
@@ -561,8 +586,10 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                 "general_notes": proforma.general_notes or "" if proforma else "",
             },
             "proforma": proforma_data,
+            "proformas": proformas_payload,
+            "is_cargo": len(covered_pos) > 1,
             "token": token,
-            "poName": po.name or "",
+            "poName": " · ".join(covered_pos.mapped("name")) or (po.name or ""),
             "pickingName": "",
             "vendor_name": po.partner_id.name or "",
             "companyName": po.company_id.name or "",
@@ -1046,6 +1073,10 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
             shipment_container_ids = set(shipment.container_ids.ids)
             packing_container_ids = set(normalized_container_ids)
 
+            # PIs válidas para asignación manual por fila: las proformas de
+            # las POs amparadas por este enlace.
+            allowed_header_ids = set(self.ensure_headers_for_access(access).ids)
+
             for idx, row in enumerate(rows, start=1):
                 row_id = self.safe_int(row.get("id"), 0)
                 row_container_id = self.safe_int(row.get("container_id"), 0)
@@ -1082,6 +1113,18 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                     "pedimento": row.get("pedimento", ""),
                     "ref_proveedor": row.get("ref_proveedor", ""),
                 }
+
+                # Asignación MANUAL de PI por fila (misma mecánica que el
+                # contenedor). Si no viene, la fila queda para el FIFO.
+                if "pi_header_id" in row:
+                    pi_header_id = self.safe_int(row.get("pi_header_id"), 0)
+                    if pi_header_id and pi_header_id not in allowed_header_ids:
+                        return {
+                            "success": False,
+                            "message": "La fila %s contiene una PI que no pertenece a esta carga." % idx,
+                        }
+                    row_vals["pi_header_id"] = pi_header_id or False
+                    row_vals["pi_manual"] = bool(pi_header_id)
 
                 if not row_vals["product_id"]:
                     return {"success": False, "message": "Todas las filas deben tener producto."}
