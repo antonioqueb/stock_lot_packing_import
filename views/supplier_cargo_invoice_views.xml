@@ -73,8 +73,7 @@
                             <field name="purchase_ids" nolabel="1">
                                 <list>
                                     <field name="name"/>
-                                    <field name="supplier_pi_number" string="No. PI"/>
-                                    <field name="pi_confirmed_date" string="PI confirmada" optional="hide"/>
+                                    <field name="partner_ref" string="No. PI / Referencia"/>
                                     <field name="date_order" widget="date" string="Fecha OC"/>
                                     <field name="user_id" string="Comprador" optional="show"/>
                                     <field name="amount_total" sum="Total"/>
@@ -146,9 +145,8 @@
         <field name="model">purchase.order</field>
         <field name="inherit_id" ref="purchase.purchase_order_form"/>
         <field name="arch" type="xml">
-            <xpath expr="//field[@name='partner_ref']" position="after">
-                <field name="supplier_pi_number"/>
-                <field name="pi_confirmed_date" invisible="not supplier_pi_number"/>
+            <xpath expr="//field[@name='partner_ref']" position="attributes">
+                <attribute name="string">Referencia / PI del proveedor</attribute>
             </xpath>
         </field>
     </record>

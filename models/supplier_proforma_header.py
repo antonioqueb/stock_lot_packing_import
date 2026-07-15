@@ -33,14 +33,14 @@ class SupplierProformaHeader(models.Model):
                 if not po:
                     continue
                 new_num = header.proforma_number or ''
-                if (po.supplier_pi_number or '') != new_num:
-                    if po.supplier_pi_number and po.supplier_pi_number != new_num:
+                if (po.partner_ref or '') != new_num:
+                    if po.partner_ref and po.partner_ref != new_num:
                         po.message_post(body=(
                             'El proveedor capturó en el portal el No. de PI '
-                            '"%s" (antes: "%s").' % (new_num, po.supplier_pi_number)
+                            '"%s" (antes: "%s").' % (new_num, po.partner_ref)
                         ))
                     po.with_context(skip_pi_sync=True).write({
-                        'supplier_pi_number': new_num,
+                        'partner_ref': new_num,
                     })
         return res
     invoice_global_number = fields.Char(string='No. de factura global', copy=False)

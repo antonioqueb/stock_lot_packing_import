@@ -26,6 +26,16 @@ class StockPicking(models.Model):
 
     supplier_access_ids = fields.One2many('stock.picking.supplier.access', 'picking_id', string="Links Proveedor")
 
+    # Factura de carga multi-PO: cada PO de la carga tiene SU PROPIA recepción.
+    # Este campo identifica a qué orden pertenece este picking dentro del
+    # embarque (supplier_shipment_id agrupa; supplier_cargo_po_id separa).
+    supplier_cargo_po_id = fields.Many2one(
+        'purchase.order', string='OC de esta recepción',
+        index=True, copy=False,
+        help='Orden de compra específica que recibe con este picking cuando '
+             'el embarque ampara varias PO (factura de carga).',
+    )
+
     # --- DATOS DE EMBARQUE (CABECERA) ---
     supplier_invoice_number = fields.Char(string="No. de factura")
     supplier_shipment_date = fields.Date(string="Fecha de embarque")

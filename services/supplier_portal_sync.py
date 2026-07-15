@@ -31,9 +31,28 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
     def _find_picking_for_shipment(self, shipment):
         return self.env["stock.picking"].sudo().search(
             [("supplier_shipment_id", "=", shipment.id)],
-            order="id desc",
+            order="id asc",
             limit=1,
         )
+
+    def _find_pickings_for_shipment(self, shipment):
+        """TODAS las recepciones del embarque (una por PO en cargas)."""
+        return self.env["stock.picking"].sudo().search(
+            [("supplier_shipment_id", "=", shipment.id)], order="id asc")
+
+    def _find_picking_for_shipment_po(self, shipment, po, is_main=False):
+        """Recepción de UNA PO dentro del embarque. El picking legado (sin
+        supplier_cargo_po_id, flujo clásico) lo adopta la PO principal."""
+        picks = self._find_pickings_for_shipment(shipment)
+        exact = picks.filtered(lambda pk: pk.supplier_cargo_po_id.id == po.id)
+        if exact:
+            return exact[0]
+        if is_main:
+            legacy = picks.filtered(lambda pk: not pk.supplier_cargo_po_id)
+            if legacy:
+                legacy[0].sudo().write({"supplier_cargo_po_id": po.id})
+                return legacy[0]
+        return self.env["stock.picking"].sudo()
 
     def _get_incoming_picking_type(self, po):
         picking_type = getattr(po, "picking_type_id", False)
@@ -153,6 +172,54 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
                 result[pid] = result.get(pid, 0.0) + qty
         return result
 
+    def _row_po_id(self, row, default_po_id=0, allowed_ids=None):
+        """PO a la que pertenece una fila del PL: su línea de compra, si no
+        su PI elegida, si no la PO principal del embarque."""
+        po_id = 0
+        if row.purchase_line_id:
+            po_id = row.purchase_line_id.order_id.id
+        elif row.pi_header_id and row.pi_header_id.purchase_id:
+            po_id = row.pi_header_id.purchase_id.id
+        if allowed_ids is not None and po_id and po_id not in allowed_ids:
+            po_id = 0
+        return po_id or default_po_id
+
+    def _shipment_qty_map_by_po(self, shipment):
+        """{po_id: {product_id: qty}} de lo capturado en este embarque,
+        repartido según la PI/línea de compra asignada a cada fila."""
+        pos = self._covered_pos_for_shipment(shipment)
+        default_po_id = pos[:1].id if pos else 0
+        allowed = set(pos.ids)
+        result = {}
+        for packing in shipment.packing_ids:
+            for row in packing.row_ids:
+                po_id = self._row_po_id(row, default_po_id, allowed)
+                if not po_id:
+                    continue
+                bucket = result.setdefault(po_id, {})
+                pid = row.product_id.id
+                bucket[pid] = bucket.get(pid, 0.0) + self._row_effective_qty(row)
+        return result
+
+    def _remaining_qty_map_for_po(self, shipment, po):
+        """Remanente de UNA PO: su solicitud original menos lo ya asignado a
+        sus líneas en cualquier OTRO embarque (filas trazadas)."""
+        ordered = self._po_ordered_qty_map(po)
+        shipped_other = {}
+        rows = self.env['supplier.shipment.packing.row'].sudo().search([
+            ('purchase_line_id.order_id', '=', po.id),
+        ])
+        for row in rows:
+            if row.packing_id.shipment_id.id == shipment.id:
+                continue
+            pid = row.product_id.id
+            shipped_other[pid] = (
+                shipped_other.get(pid, 0.0) + self._row_effective_qty(row))
+        return {
+            pid: qty - shipped_other.get(pid, 0.0)
+            for pid, qty in ordered.items()
+        }
+
     def _remaining_qty_map_for_shipment(self, shipment):
         """
         Remanente disponible para este shipment:
@@ -192,7 +259,7 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
                 pid = line.product_id.id
                 if pid not in product_line_map:
                     product_line_map[pid] = line
-                ref = po.supplier_pi_number and ('PI %s' % po.supplier_pi_number) or po.name
+                ref = po.partner_ref and ('PI %s' % po.partner_ref) or po.name
                 pi_refs_by_product.setdefault(pid, [])
                 if ref not in pi_refs_by_product[pid]:
                     pi_refs_by_product[pid].append(ref)
@@ -271,36 +338,44 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
             )
 
     def _sync_picking_moves_from_shipment(self, shipment):
-        """
-        Sincroniza el picking del shipment:
-        - si el shipment ya tiene rows, usa esas cantidades
-        - si aún no tiene rows, usa el remanente disponible
-        """
-        picking = self._find_picking_for_shipment(shipment)
-        if not picking:
-            return False
-
-        if picking.state == "done":
-            return picking
-
+        """UNA recepción POR PO (punto clave de la factura de carga): lo
+        capturado en el PL se reparte entre las recepciones según la PI/línea
+        asignada a cada fila. Sin filas todavía, cada recepción nace con el
+        remanente de SU propia PO. Con una sola PO es el flujo clásico."""
         pos = self._covered_pos_for_shipment(shipment)
-        po = pos[:1]
-        if not po:
+        if not pos:
+            return self._find_picking_for_shipment(shipment) or False
+
+        by_po = self._shipment_qty_map_by_po(shipment)
+        has_rows = any(
+            qty > 0 for bucket in by_po.values() for qty in bucket.values())
+
+        main_picking = False
+        for index, po in enumerate(pos):
+            picking = self._ensure_po_picking(shipment, po, is_main=(index == 0))
+            if not picking:
+                continue
+            if index == 0:
+                main_picking = picking
+            target = (
+                by_po.get(po.id, {}) if has_rows
+                else self._remaining_qty_map_for_po(shipment, po)
+            )
+            self._sync_picking_moves_for_po(shipment, po, picking, target)
+        return main_picking or self._find_picking_for_shipment(shipment)
+
+    def _sync_picking_moves_for_po(self, shipment, po, picking, target_qty_map):
+        """Moves de la recepción de UNA PO: un move por producto con la
+        cantidad que le tocó a esa orden (capado a su pedido)."""
+        if not picking or picking.state == "done":
             return picking
 
-        ordered_qty_map = self._pos_ordered_qty_map(pos)
-        current_qty_map = self._shipment_qty_map(shipment)
-        remaining_qty_map = self._remaining_qty_map_for_shipment(shipment)
+        ordered_qty_map = self._po_ordered_qty_map(po)
 
-        has_current_rows = any(qty > 0 for qty in current_qty_map.values())
-        target_qty_map = current_qty_map if has_current_rows else remaining_qty_map
-
-        # Un producto por shipment a nivel operativo (todas las POs de la carga)
         product_line_map = {}
-        for po_it in pos:
-            for po_line in po_it.order_line.filtered(lambda l: not l.display_type and l.product_id):
-                if po_line.product_id.id not in product_line_map:
-                    product_line_map[po_line.product_id.id] = po_line
+        for po_line in po.order_line.filtered(lambda l: not l.display_type and l.product_id):
+            if po_line.product_id.id not in product_line_map:
+                product_line_map[po_line.product_id.id] = po_line
 
         # UNA línea por producto en la recepción. Si la OC tiene el mismo
         # producto en varias líneas (precios distintos), el picking nativo nace
@@ -360,34 +435,29 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
         return picking
 
     # =====================================================================
-    #  PICKING POR SHIPMENT
+    #  PICKING POR SHIPMENT (uno por PO)
     # =====================================================================
 
-    def get_or_create_picking_for_shipment(self, shipment):
-        picking = self._find_picking_for_shipment(shipment)
+    def _ensure_po_picking(self, shipment, po, is_main=False):
+        """Busca/adopta/crea la recepción de UNA PO dentro del embarque."""
+        picking = self._find_picking_for_shipment_po(shipment, po, is_main=is_main)
         if picking:
-            self._sync_picking_moves_from_shipment(shipment)
             return picking
 
-        po = shipment.proforma_id.purchase_id
-        if not po:
-            return False
-
         unlinked_po_pickings = self._get_unlinked_po_pickings(po)
-
         if unlinked_po_pickings:
             picking = unlinked_po_pickings[0]
             picking.sudo().write({
                 "supplier_shipment_id": shipment.id,
+                "supplier_cargo_po_id": po.id,
                 "origin": self._prepare_picking_origin(po, shipment),
             })
-            self._sync_picking_moves_from_shipment(shipment)
             return picking
 
         picking_type = self._get_incoming_picking_type(po)
         if not picking_type:
             _logger.error("[Portal] No se encontró tipo de operación incoming para PO %s.", po.name)
-            return False
+            return self.env["stock.picking"].sudo()
 
         vals = {
             "picking_type_id": picking_type.id,
@@ -397,32 +467,35 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
             "location_id": picking_type.default_location_src_id.id,
             "location_dest_id": picking_type.default_location_dest_id.id,
             "supplier_shipment_id": shipment.id,
+            "supplier_cargo_po_id": po.id,
         }
 
         if "move_type" in self.env["stock.picking"]._fields:
             vals["move_type"] = po.picking_ids[:1].move_type if po.picking_ids else "direct"
 
-        picking = self.env["stock.picking"].sudo().create(vals)
-        self._sync_picking_moves_from_shipment(shipment)
-        return picking
+        return self.env["stock.picking"].sudo().create(vals)
+
+    def get_or_create_picking_for_shipment(self, shipment):
+        """Garantiza las recepciones del embarque (una por PO) y devuelve la
+        principal — compat con los llamadores existentes."""
+        return self._sync_picking_moves_from_shipment(shipment)
 
     # =====================================================================
     #  CABECERA / SPREADSHEET
     # =====================================================================
 
     def sync_shipment_header_to_picking(self, shipment):
-        picking = self.get_or_create_picking_for_shipment(shipment)
-        if not picking:
+        main_picking = self.get_or_create_picking_for_shipment(shipment)
+        if not main_picking:
             return False
 
         header = shipment.proforma_id
+        Header = self.env['supplier.proforma.header'].sudo()
         container_numbers = list(dict.fromkeys([x for x in shipment.container_ids.mapped("container_number") if x]))
         seal_numbers = list(dict.fromkeys([x for x in shipment.container_ids.mapped("seal_number") if x]))
         container_types = list(dict.fromkeys([x for x in shipment.container_ids.mapped("container_type") if x]))
 
-        vals = {
-            "origin": self._prepare_picking_origin(header.purchase_id, shipment),
-            "supplier_proforma_number": header.proforma_number or "",
+        base_vals = {
             "supplier_invoice_number": header.invoice_global_number or "",
             "supplier_payment_terms": header.payment_terms or "",
             "supplier_country_origin": header.country_origin or "",
@@ -442,23 +515,37 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
             "supplier_status": shipment.status or "",
         }
 
-        try:
-            picking.sudo().write(vals)
-            return picking
-        except Exception:
-            _logger.exception(
-                "[Portal] Error sincronizando cabecera de shipment %s al picking %s.",
-                shipment.id, picking.id,
+        ok = True
+        for picking in self._find_pickings_for_shipment(shipment):
+            po = picking.supplier_cargo_po_id or header.purchase_id
+            po_header = Header.search(
+                [('purchase_id', '=', po.id)], limit=1) or header
+            vals = dict(
+                base_vals,
+                origin=self._prepare_picking_origin(po, shipment),
+                supplier_proforma_number=po_header.proforma_number or "",
             )
-            return False
+            try:
+                picking.sudo().write(vals)
+            except Exception:
+                ok = False
+                _logger.exception(
+                    "[Portal] Error sincronizando cabecera de shipment %s al picking %s.",
+                    shipment.id, picking.id,
+                )
+        return main_picking if ok or main_picking else False
 
     def sync_shipment_rows_to_spreadsheet(self, shipment):
-        picking = self.get_or_create_picking_for_shipment(shipment)
-        if not picking:
+        main_picking = self.get_or_create_picking_for_shipment(shipment)
+        if not main_picking:
             return False
 
         header = shipment.proforma_id
-        rows = []
+        Header = self.env['supplier.proforma.header'].sudo()
+        pos = self._covered_pos_for_shipment(shipment)
+        default_po_id = pos[:1].id if pos else 0
+        allowed = set(pos.ids)
+        rows_by_po = {}
 
         for packing in self.sorted_packings(shipment.packing_ids):
             packing_container_ids = packing.container_ids.ids
@@ -475,7 +562,8 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
                 else:
                     container_name = "SN"
 
-                rows.append({
+                target_po_id = self._row_po_id(row, default_po_id, allowed)
+                rows_by_po.setdefault(target_po_id, []).append({
                     "product_id": row.product_id.id,
                     "grosor": row.grosor or "",
                     "alto": row.alto or 0,
@@ -496,8 +584,7 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
                     "packing_container_ids": packing_container_ids,
                 })
 
-        header_data = {
-            "proforma_number": header.proforma_number or "",
+        base_header_data = {
             "invoice_number": header.invoice_global_number or "",
             "payment_terms": header.payment_terms or "",
             "country_origin": header.country_origin or "",
@@ -517,15 +604,26 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
             "status": shipment.status or "",
         }
 
-        try:
-            picking.sudo().update_packing_list_from_portal(rows, header_data=header_data)
-            return True
-        except Exception:
-            _logger.exception(
-                "[Portal] Error sincronizando filas del shipment %s al spreadsheet del picking %s.",
-                shipment.id, picking.id,
+        ok = True
+        for picking in self._find_pickings_for_shipment(shipment):
+            po = picking.supplier_cargo_po_id
+            po_id = po.id if po else default_po_id
+            po_header = Header.search(
+                [('purchase_id', '=', po_id)], limit=1) or header
+            header_data = dict(
+                base_header_data,
+                proforma_number=po_header.proforma_number or "",
             )
-            return False
+            try:
+                picking.sudo().update_packing_list_from_portal(
+                    rows_by_po.get(po_id, []), header_data=header_data)
+            except Exception:
+                ok = False
+                _logger.exception(
+                    "[Portal] Error sincronizando filas del shipment %s al spreadsheet del picking %s.",
+                    shipment.id, picking.id,
+                )
+        return ok
 
     def _allocate_rows_to_po_lines(self, shipment):
         """Asigna a CADA fila de PL su línea de compra (PO) y su PI.
@@ -713,12 +811,13 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
             line.with_context(skip_date_sync=True).write(vals)
 
     def sync_shipment(self, shipment):
+        # PRIMERO el reparto PI/PO por fila: las recepciones POR PO dependen
+        # de saber a qué orden pertenece cada fila del PL.
+        self._allocate_rows_to_po_lines(shipment)
         picking = self.sync_shipment_header_to_picking(shipment)
         if not picking:
             return False
 
-        self._sync_picking_moves_from_shipment(shipment)
-        self._allocate_rows_to_po_lines(shipment)
         self._sync_po_commercial_qty(shipment)
         self.sync_shipment_rows_to_spreadsheet(shipment)
         return picking
@@ -732,28 +831,29 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
     # =====================================================================
 
     def delete_picking_for_shipment(self, shipment):
-        picking = self._find_picking_for_shipment(shipment)
-        if not picking:
+        pickings = self._find_pickings_for_shipment(shipment)
+        if not pickings:
             return True
 
-        if picking.state == "done":
-            return False
-
-        try:
-            if picking.state not in ("draft", "cancel"):
-                try:
-                    picking.sudo().action_cancel()
-                except Exception:
-                    _logger.warning(
-                        "[Portal] No se pudo cancelar picking %s antes de eliminar. Se intenta unlink directo.",
-                        picking.id,
-                    )
-
-            picking.sudo().unlink()
-            return True
-        except Exception:
-            _logger.exception(
-                "[Portal] No se pudo eliminar picking %s ligado al shipment %s.",
-                picking.id, shipment.id,
-            )
-            return False
+        ok = True
+        for picking in pickings:
+            if picking.state == "done":
+                ok = False
+                continue
+            try:
+                if picking.state not in ("draft", "cancel"):
+                    try:
+                        picking.sudo().action_cancel()
+                    except Exception:
+                        _logger.warning(
+                            "[Portal] No se pudo cancelar picking %s antes de eliminar. Se intenta unlink directo.",
+                            picking.id,
+                        )
+                picking.sudo().unlink()
+            except Exception:
+                ok = False
+                _logger.exception(
+                    "[Portal] No se pudo eliminar picking %s ligado al shipment %s.",
+                    picking.id, shipment.id,
+                )
+        return ok

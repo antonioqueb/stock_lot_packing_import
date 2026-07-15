@@ -32,31 +32,21 @@ class PurchaseOrderLine(models.Model):
 
 class PurchaseOrderPI(models.Model):
     """Vínculo PO ↔ PI: la relación 'PO 46 ↔ PI 1500' existe en Odoo desde
-    que el proveedor confirma su proforma, ANTES de tocar el portal. Se
-    sincroniza en ambos sentidos con supplier.proforma.header."""
-    _inherit = 'purchase.order'
+    que el proveedor confirma su proforma, ANTES de tocar el portal.
 
-    supplier_pi_number = fields.Char(
-        string='No. PI del Proveedor',
-        tracking=True,
-        copy=False,
-        help='Número de proforma (PI) con el que el proveedor confirmó esta '
-             'orden. Se sincroniza con el portal del proveedor.',
-    )
-    pi_confirmed_date = fields.Date(
-        string='Fecha confirmación PI',
-        copy=False,
-        tracking=True,
-    )
+    La PI del proveedor ES la "Referencia de proveedor" NATIVA (partner_ref):
+    ningún campo nuevo. partner_ref se sincroniza en ambos sentidos con
+    supplier.proforma.header.proforma_number (guard skip_pi_sync)."""
+    _inherit = 'purchase.order'
 
     def write(self, vals):
         res = super().write(vals)
-        if 'supplier_pi_number' in vals and not self.env.context.get('skip_pi_sync'):
+        if 'partner_ref' in vals and not self.env.context.get('skip_pi_sync'):
             headers = self.env['supplier.proforma.header'].sudo().search([
                 ('purchase_id', 'in', self.ids),
             ])
             for header in headers:
-                new_num = self.browse(header.purchase_id.id).supplier_pi_number or ''
+                new_num = header.purchase_id.partner_ref or ''
                 if (header.proforma_number or '') != new_num:
                     header.with_context(skip_pi_sync=True).write({
                         'proforma_number': new_num,

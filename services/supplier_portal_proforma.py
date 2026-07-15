@@ -566,7 +566,7 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
             proformas_payload.append({
                 "id": header.id,
                 "number": header.proforma_number
-                          or po_it.supplier_pi_number or po_it.name or "",
+                          or po_it.partner_ref or po_it.name or "",
                 "po_id": po_it.id,
                 "po_name": po_it.name or "",
                 "is_main": bool(proforma and header.id == proforma.id),

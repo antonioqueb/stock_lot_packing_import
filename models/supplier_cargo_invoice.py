@@ -105,7 +105,7 @@ class SupplierCargoInvoice(models.Model):
             ('purchase_id', 'in', self.purchase_ids.ids),
         ])
 
-    @api.depends('purchase_ids.amount_total', 'purchase_ids.supplier_pi_number')
+    @api.depends('purchase_ids.amount_total', 'purchase_ids.partner_ref')
     def _compute_summary(self):
         for rec in self:
             pos = rec.purchase_ids
@@ -116,7 +116,7 @@ class SupplierCargoInvoice(models.Model):
             rec.shipment_count = len(shipments)
             rec.packing_count = len(shipments.mapped('packing_ids'))
             rec.container_count = len(shipments.mapped('container_ids'))
-            missing = pos.filtered(lambda p: not p.supplier_pi_number)
+            missing = pos.filtered(lambda p: not p.partner_ref)
             rec.missing_pi_names = ', '.join(missing.mapped('name'))
 
     @staticmethod
@@ -204,13 +204,13 @@ class SupplierCargoInvoice(models.Model):
             partners = rec.purchase_ids.mapped('partner_id')
             rec.partner_id = partners[:1]
 
-    @api.depends('purchase_ids.supplier_pi_number', 'purchase_ids.name')
+    @api.depends('purchase_ids.partner_ref', 'purchase_ids.name')
     def _compute_pi_summary(self):
         for rec in self:
             parts = []
             for po in rec.purchase_ids:
-                if po.supplier_pi_number:
-                    parts.append('%s ↔ PI %s' % (po.name, po.supplier_pi_number))
+                if po.partner_ref:
+                    parts.append('%s ↔ PI %s' % (po.name, po.partner_ref))
                 else:
                     parts.append(po.name)
             rec.pi_summary = ' · '.join(parts)
@@ -263,11 +263,11 @@ class SupplierCargoInvoice(models.Model):
                 header = Header.create({
                     'purchase_id': po.id,
                     'access_id': access.id,
-                    'proforma_number': po.supplier_pi_number or '',
+                    'proforma_number': po.partner_ref or '',
                 })
-            elif po.supplier_pi_number and not header.proforma_number:
+            elif po.partner_ref and not header.proforma_number:
                 header.with_context(skip_pi_sync=True).write({
-                    'proforma_number': po.supplier_pi_number,
+                    'proforma_number': po.partner_ref,
                 })
 
         if self.state == 'draft':

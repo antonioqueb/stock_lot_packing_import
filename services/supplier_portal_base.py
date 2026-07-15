@@ -306,7 +306,7 @@ class SupplierPortalBaseService:
                 header = Header.create({
                     'purchase_id': po.id,
                     'access_id': access.id,
-                    'proforma_number': po.supplier_pi_number or po.partner_ref or '',
+                    'proforma_number': po.partner_ref or '',
                     'payment_terms': po.payment_term_id.name if po.payment_term_id else '',
                     'incoterm': po.incoterm_id.code if po.incoterm_id else '',
                 })
