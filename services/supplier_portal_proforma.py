@@ -1303,7 +1303,22 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
         proforma.write({"status": "complete"})
         self.sync_service.sync_all_shipments(proforma)
 
+        # Al terminar el proveedor, el PL de CADA recepción se procesa en
+        # automático (una recepción por PO en facturas de carga) — el mismo
+        # efecto que el botón "Procesar PL", sin acción manual. Si alguna
+        # falla, la finalización NO se revierte: el botón manual queda como
+        # respaldo y se avisa en la respuesta.
+        processed_pls, process_errors = self._auto_process_packing_lists(proforma)
+
         result = {"success": True}
+        if processed_pls:
+            result["processed_pl"] = processed_pls
+        if process_errors:
+            result["warning"] = (
+                "La operación se finalizó, pero el procesamiento automático del "
+                "PL falló en estas recepciones (procésalas con el botón "
+                "'Procesar PL'):\n\n" + "\n".join(process_errors)
+            )
         if over_items:
             detail_lines = []
             for item in over_items:
@@ -1329,6 +1344,49 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
             )
             result["over_items"] = over_items
         return result
+
+    def _auto_process_packing_lists(self, proforma):
+        """Procesa el PL de todas las recepciones de la proforma (equivalente
+        programático del botón "Procesar PL"). Devuelve (procesadas, errores).
+
+        Se salta recepciones ya procesadas, validadas, sin spreadsheet o sin
+        material asignado (PO de la carga sin filas en este embarque)."""
+        Wizard = request.env["packing.list.import.wizard"].sudo()
+        pickings = request.env["stock.picking"].sudo()
+        for shipment in proforma.shipment_ids:
+            pickings |= self.sync_service._find_pickings_for_shipment(shipment)
+
+        processed = []
+        errors = []
+        for picking in pickings:
+            if picking.state in ("done", "cancel", "draft"):
+                continue
+            if picking.packing_list_imported or picking.worksheet_imported:
+                continue
+            if not picking.spreadsheet_id:
+                continue
+            has_demand = any(
+                move.state not in ("done", "cancel")
+                and (move.product_uom_qty or 0.0) > 0
+                for move in picking.move_ids
+            )
+            if not has_demand:
+                continue
+            try:
+                wizard = Wizard.create({"picking_id": picking.id})
+                wizard.action_import_excel()
+                processed.append(picking.name)
+                _logger.info(
+                    "[Portal] PL procesado automáticamente al completar la "
+                    "proforma %s: recepción %s.", proforma.id, picking.name,
+                )
+            except Exception as exc:
+                errors.append("%s: %s" % (picking.name, exc))
+                _logger.exception(
+                    "[Portal] Falló el auto-proceso del PL en la recepción %s.",
+                    picking.name,
+                )
+        return processed, errors
 
     def reload_proforma(self, token):
         access = self.validate_token(token)
