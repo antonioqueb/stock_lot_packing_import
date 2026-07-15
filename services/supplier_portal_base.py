@@ -282,6 +282,17 @@ class SupplierPortalBaseService:
             base_qty = line.x_qty_solicitada_original or line.product_qty or 0.0
             bucket[product.id]["qty_ordered"] += base_qty
 
+            # Desglose por PI/PO: cuánto del total pertenece a cada pedido
+            # (visible en el portal cuando el enlace ampara varias POs).
+            po = line.order_id
+            label = ('PI %s' % po.partner_ref) if po.partner_ref else (po.name or '')
+            breakdown = bucket[product.id].setdefault("pi_breakdown", [])
+            hit = next((x for x in breakdown if x["label"] == label), None)
+            if hit:
+                hit["qty"] += base_qty
+            else:
+                breakdown.append({"label": label, "qty": base_qty})
+
         products = list(bucket.values())
         products.sort(key=lambda item: (item.get("name") or "").lower())
         return products

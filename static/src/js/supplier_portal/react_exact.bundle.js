@@ -40,6 +40,7 @@
             ref: s(p.code || p.default_code || p.ref, ''),
             kind: k,
             requested_qty: n(p.qty_ordered || p.requested_qty || p.qty_available, 0),
+            pi_breakdown: Array.isArray(p.pi_breakdown) ? p.pi_breakdown : [],
             unit: s(p.uom || p.unit || (k === 'placa' ? 'placa' : 'pz'), ''),
             dim_text: s(p.dim_text || p.dimension || p.uom || '', '')
         };
@@ -231,6 +232,16 @@
     // contenedor); vacío = reparto automático según pedido.
     window.PORTAL_PROFORMAS = (rawPayload && Array.isArray(rawPayload.proformas)) ? rawPayload.proformas : [];
     window.PORTAL_CARGO = !!(rawPayload && rawPayload.is_cargo) && window.PORTAL_PROFORMAS.length > 1;
+    window.PORTAL_PI_QTYS = function (product) {
+        if (!window.PORTAL_CARGO) return '';
+        var bd = (product && product.pi_breakdown) || [];
+        if (bd.length < 1) return '';
+        return bd.map(function (b) {
+            var q = +b.qty || 0;
+            var qs = (Math.abs(q - Math.round(q)) < 0.005) ? String(Math.round(q)) : q.toFixed(2);
+            return b.label + ': ' + qs;
+        }).join(' \u00B7 ');
+    };
     window.PORTAL_PI_LABEL = function (fallback) {
         var ps = window.PORTAL_PROFORMAS || [];
         if (ps.length > 1) {
@@ -1545,7 +1556,8 @@ const Overview = ({ proforma, status, setRoute }) => {
                     React.createElement("td", { style: { textAlign: 'right' }, className: "mono" },
                         React.createElement("strong", null, p.requested_qty),
                         " ",
-                        React.createElement("span", { className: "ink-3" }, p.unit)))))))),
+                        React.createElement("span", { className: "ink-3" }, p.unit),
+                        window.PORTAL_PI_QTYS(p) && React.createElement("div", { style: { fontSize: 11.5, color: 'var(--ink-3)', marginTop: 2, fontWeight: 400 } }, window.PORTAL_PI_QTYS(p))))))))),
         React.createElement(Callout, { tone: "info", icon: "sparkles", title: "Tip: el packing list es lo m\u00E1s detallado." },
             "Antes de capturar placa por placa, vas a configurar los ",
             React.createElement("strong", null, "bloques"),
@@ -2762,7 +2774,8 @@ const Step1Products = ({ proforma, draft, setDraft }) => {
                     React.createElement("div", { className: "mono", style: { fontWeight: 700, fontSize: 17 } }, p.requested_qty),
                     React.createElement("div", { className: "text-muted", style: { fontSize: 11 } },
                         p.unit,
-                        " solicitados"))));
+                        " solicitados"),
+                    window.PORTAL_PI_QTYS(p) && React.createElement("div", { className: "mono", style: { fontSize: 11, color: 'var(--ink-3)', marginTop: 2 } }, window.PORTAL_PI_QTYS(p)))));
         }))));
 };
 /* ====================== Step 2 ====================== */
