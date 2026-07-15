@@ -7,3 +7,5 @@ from . import stock_picking_worksheet_report
 from . import supplier_proforma_header
 from . import purchase_discrepancy
 from . import stock_picking_discrepancy
+from . import stock_move_merge
+from . import supplier_cargo_invoice

@@ -15,7 +15,38 @@ class SupplierAccess(models.Model):
         string="Orden de Compra",
         required=True,
         ondelete='cascade',
+        help='PO principal del enlace. Con factura de carga, es la primera '
+             'de las PO amparadas.',
     )
+
+    cargo_invoice_id = fields.Many2one(
+        'supplier.cargo.invoice',
+        string='Factura de carga',
+        ondelete='cascade',
+        index=True,
+        help='Cuando el enlace ampara VARIAS PO/PI (factura de carga), '
+             'todas viven aquí. Sin carga: enlace clásico de una sola PO.',
+    )
+
+    purchase_ids = fields.Many2many(
+        'purchase.order',
+        string='PO amparadas',
+        compute='_compute_purchase_ids',
+    )
+
+    def _compute_purchase_ids(self):
+        for rec in self:
+            if rec.cargo_invoice_id:
+                rec.purchase_ids = rec.cargo_invoice_id.purchase_ids
+            else:
+                rec.purchase_ids = rec.purchase_id
+
+    def _covered_purchase_orders(self):
+        """POs que este enlace ampara (helper para servicios del portal)."""
+        self.ensure_one()
+        if self.cargo_invoice_id and self.cargo_invoice_id.purchase_ids:
+            return self.cargo_invoice_id.purchase_ids
+        return self.purchase_id
 
     # Se conserva SOLO por compatibilidad visual / legacy.
     # Ya no es el ancla funcional del portal.
@@ -51,8 +82,8 @@ class SupplierAccess(models.Model):
     )
 
     _supplier_access_unique_purchase = models.Constraint(
-        'UNIQUE(purchase_id)',
-        'Ya existe un link para esta Orden de Compra.',
+        'UNIQUE(purchase_id, cargo_invoice_id)',
+        'Ya existe un link para esta Orden de Compra en esta factura de carga.',
     )
 
     @api.depends('expiration_date')

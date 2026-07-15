@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_supplier_cargo_invoice_form" model="ir.ui.view">
+        <field name="name">supplier.cargo.invoice.form</field>
+        <field name="model">supplier.cargo.invoice</field>
+        <field name="arch" type="xml">
+            <form string="Factura de Carga">
+                <header>
+                    <button name="action_generate_link" type="object"
+                            string="Generar enlace del portal" class="btn-primary"
+                            icon="fa-link"
+                            invisible="not purchase_ids"/>
+                    <field name="state" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <label for="name" string="Factura de carga del proveedor"/>
+                        <h1><field name="name" placeholder="No. de factura de carga / embarque"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="date"/>
+                            <field name="partner_id" readonly="1"/>
+                        </group>
+                        <group>
+                            <field name="portal_url" widget="CopyClipboardChar" readonly="1"
+                                   invisible="not portal_url"/>
+                        </group>
+                    </group>
+                    <group string="PO / PI amparadas por esta factura">
+                        <field name="purchase_ids" nolabel="1">
+                            <list>
+                                <field name="name"/>
+                                <field name="supplier_pi_number" string="No. PI"/>
+                                <field name="partner_id"/>
+                                <field name="date_order" widget="date"/>
+                                <field name="amount_total" sum="Total"/>
+                                <field name="state" widget="badge"/>
+                            </list>
+                        </field>
+                        <div class="text-muted" colspan="2">
+                            <field name="pi_summary" readonly="1" nolabel="1"/>
+                        </div>
+                    </group>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_supplier_cargo_invoice_list" model="ir.ui.view">
+        <field name="name">supplier.cargo.invoice.list</field>
+        <field name="model">supplier.cargo.invoice</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name"/>
+                <field name="date"/>
+                <field name="partner_id"/>
+                <field name="pi_summary" string="PO / PI"/>
+                <field name="state" widget="badge"
+                       decoration-info="state == 'linked'"
+                       decoration-success="state in ('shipped', 'closed')"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_supplier_cargo_invoice" model="ir.actions.act_window">
+        <field name="name">Facturas de Carga</field>
+        <field name="res_model">supplier.cargo.invoice</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Registra la primera factura de carga</p>
+            <p>Agrupa varias PO/PI del mismo proveedor en un solo enlace de portal.</p>
+        </field>
+    </record>
+
+    <menuitem id="menu_supplier_cargo_invoice"
+              name="Facturas de Carga"
+              parent="purchase.menu_purchase_root"
+              action="action_supplier_cargo_invoice"
+              sequence="26"/>
+
+    <!-- Multi-select en la lista de OCs: crear la carga con las seleccionadas -->
+    <record id="action_server_create_cargo_from_pos" model="ir.actions.server">
+        <field name="name">Crear Factura de Carga (enlace único)</field>
+        <field name="model_id" ref="purchase.model_purchase_order"/>
+        <field name="binding_model_id" ref="purchase.model_purchase_order"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">action = env['supplier.cargo.invoice'].action_create_from_purchases(records.ids)</field>
+    </record>
+
+    <!-- PI del proveedor visible en la OC -->
+    <record id="view_purchase_order_form_pi" model="ir.ui.view">
+        <field name="name">purchase.order.form.supplier.pi</field>
+        <field name="model">purchase.order</field>
+        <field name="inherit_id" ref="purchase.purchase_order_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='partner_ref']" position="after">
+                <field name="supplier_pi_number"/>
+                <field name="pi_confirmed_date" invisible="not supplier_pi_number"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

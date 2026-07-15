@@ -1112,11 +1112,36 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
         # La exigencia final de fotos se mantiene en complete_proforma().
         self.sync_service.sync_shipment(shipment)
 
+        # Aviso de saldo (NO bloqueante): si lo capturado supera lo pedido en
+        # las PO/PI amparadas, se informa pero se permite guardar (el exceso
+        # embarcado es una realidad operativa que se cobra aparte).
+        balance_warnings = []
+        try:
+            remaining = self.sync_service._remaining_qty_map_for_shipment(shipment)
+            current = self.sync_service._shipment_qty_map(shipment)
+            for pid, qty in current.items():
+                rem = remaining.get(pid)
+                if rem is None:
+                    continue
+                over = qty - rem
+                if over > 1e-4:
+                    product = request.env["product.product"].sudo().browse(pid)
+                    balance_warnings.append(
+                        "%s: capturado %.2f %s por ENCIMA de lo pedido en la "
+                        "PO/PI." % (
+                            product.display_name, over,
+                            product.uom_id.name or "",
+                        )
+                    )
+        except Exception:
+            _logger.exception("[Portal] No se pudo calcular el aviso de saldo PL.")
+
         return {
             "success": True,
             "packing_id": packing.id,
             "row_ids": packing.row_ids.ids,
             "rows": saved_rows_response,
+            "balance_warnings": balance_warnings,
             # LIVE-PORTAL-005:
             # Se devuelve el objeto serializado para que el frontend pueda
             # reconciliar la UI optimista aun si el reload posterior tarda.

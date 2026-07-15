@@ -14,3 +14,5 @@ access_purchase_supplier_portal_link_wizard_user,purchase.supplier.portal.link.w
 access_purchase_discrepancy_user,purchase.discrepancy user,model_purchase_discrepancy,base.group_user,1,1,1,1
 access_purchase_discrepancy_line_user,purchase.discrepancy.line user,model_purchase_discrepancy_line,base.group_user,1,1,1,1
 access_purchase_discrepancy_evidence_user,purchase.discrepancy.evidence user,model_purchase_discrepancy_evidence,base.group_user,1,1,1,1
+access_supplier_cargo_invoice_user,supplier.cargo.invoice.user,model_supplier_cargo_invoice,purchase.group_purchase_user,1,1,1,0
+access_supplier_cargo_invoice_mgr,supplier.cargo.invoice.mgr,model_supplier_cargo_invoice,purchase.group_purchase_manager,1,1,1,1

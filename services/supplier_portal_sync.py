@@ -2,6 +2,8 @@
 
 import logging
 
+from odoo import fields
+
 from .supplier_portal_base import SupplierPortalBaseService
 
 _logger = logging.getLogger(__name__)
@@ -78,6 +80,43 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
             return round((row.alto or 0.0) * (row.ancho or 0.0), 6)
         return row.quantity or 0.0
 
+    def _covered_pos_for_shipment(self, shipment):
+        """POs que amparan a este embarque.
+
+        Con factura de carga: TODAS las PO de la carga (el embarque puede
+        mezclar material de varias PI). Sin carga: la PO de la proforma
+        (flujo clásico, intacto).
+        """
+        proforma = shipment.proforma_id
+        access = proforma.access_id if proforma else False
+        if access and access.cargo_invoice_id and access.cargo_invoice_id.purchase_ids:
+            return access.cargo_invoice_id.purchase_ids
+        return proforma.purchase_id if proforma else self.env['purchase.order']
+
+    def _pos_ordered_qty_map(self, pos):
+        """Agregado por producto de VARIAS POs (respeta cantidad original)."""
+        result = {}
+        for po in pos:
+            for pid, qty in self._po_ordered_qty_map(po).items():
+                result[pid] = result.get(pid, 0.0) + qty
+        return result
+
+    def _pos_shipped_qty_map(self, pos, exclude_shipment=None):
+        """Embarcado ACUMULADO por producto en TODOS los embarques de todas
+        las proformas de esas POs (todas las cargas históricas). Es la base
+        del saldo pendiente global de la PI/PO (punto 10 del flujo)."""
+        result = {}
+        headers = self.env['supplier.proforma.header'].sudo().search([
+            ('purchase_id', 'in', pos.ids),
+        ])
+        for header in headers:
+            for shipment in header.shipment_ids:
+                if exclude_shipment and shipment.id == exclude_shipment.id:
+                    continue
+                for pid, qty in self._shipment_qty_map(shipment).items():
+                    result[pid] = result.get(pid, 0.0) + qty
+        return result
+
     def _po_ordered_qty_map(self, po):
         """
         Cantidad maestra pedida por producto.
@@ -117,11 +156,12 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
     def _remaining_qty_map_for_shipment(self, shipment):
         """
         Remanente disponible para este shipment:
-        solicitado original - ya capturado en otros shipments
+        solicitado original (todas las POs de la carga) menos lo YA capturado
+        en cualquier embarque de cualquier carga (saldo global de la PI/PO).
         """
-        po = shipment.proforma_id.purchase_id
-        ordered = self._po_ordered_qty_map(po)
-        assigned_other = self._other_shipments_qty_map(shipment)
+        pos = self._covered_pos_for_shipment(shipment)
+        ordered = self._pos_ordered_qty_map(pos)
+        assigned_other = self._pos_shipped_qty_map(pos, exclude_shipment=shipment)
 
         result = {}
         for pid, qty_ordered in ordered.items():
@@ -137,17 +177,25 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
         - qty_available: remanente disponible para este embarque
         - qty_remaining_after: remanente después de lo capturado en este embarque
         """
-        po = shipment.proforma_id.purchase_id
-        ordered = self._po_ordered_qty_map(po)
-        other = self._other_shipments_qty_map(shipment)
+        pos = self._covered_pos_for_shipment(shipment)
+        ordered = self._pos_ordered_qty_map(pos)
+        # Saldo GLOBAL: lo capturado en cualquier embarque de cualquier carga.
+        other = self._pos_shipped_qty_map(pos, exclude_shipment=shipment)
         current = self._shipment_qty_map(shipment)
 
         product_line_map = {}
-        for line in po.order_line.filtered(lambda l: not l.display_type and l.product_id):
-            if self._is_service_product(line.product_id):
-                continue
-            if line.product_id.id not in product_line_map:
-                product_line_map[line.product_id.id] = line
+        pi_refs_by_product = {}
+        for po in pos:
+            for line in po.order_line.filtered(lambda l: not l.display_type and l.product_id):
+                if self._is_service_product(line.product_id):
+                    continue
+                pid = line.product_id.id
+                if pid not in product_line_map:
+                    product_line_map[pid] = line
+                ref = po.supplier_pi_number and ('PI %s' % po.supplier_pi_number) or po.name
+                pi_refs_by_product.setdefault(pid, [])
+                if ref not in pi_refs_by_product[pid]:
+                    pi_refs_by_product[pid].append(ref)
 
         products = []
         for pid, line in product_line_map.items():
@@ -174,6 +222,8 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
                 "qty_remaining_after": qty_remaining_after,
                 "qty_over_assigned": qty_over_assigned,
                 "is_over_assigned": bool(qty_over_assigned > 0.000001),
+                # Trazabilidad PI/PO visible en el portal.
+                "pi_refs": ' · '.join(pi_refs_by_product.get(pid, [])),
             })
 
         products.sort(key=lambda item: (item.get("name") or "").lower())
@@ -233,26 +283,49 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
         if picking.state == "done":
             return picking
 
-        po = shipment.proforma_id.purchase_id
+        pos = self._covered_pos_for_shipment(shipment)
+        po = pos[:1]
         if not po:
             return picking
 
-        ordered_qty_map = self._po_ordered_qty_map(po)
+        ordered_qty_map = self._pos_ordered_qty_map(pos)
         current_qty_map = self._shipment_qty_map(shipment)
         remaining_qty_map = self._remaining_qty_map_for_shipment(shipment)
 
         has_current_rows = any(qty > 0 for qty in current_qty_map.values())
         target_qty_map = current_qty_map if has_current_rows else remaining_qty_map
 
-        # Un producto por shipment a nivel operativo
+        # Un producto por shipment a nivel operativo (todas las POs de la carga)
         product_line_map = {}
-        for po_line in po.order_line.filtered(lambda l: not l.display_type and l.product_id):
-            if po_line.product_id.id not in product_line_map:
-                product_line_map[po_line.product_id.id] = po_line
+        for po_it in pos:
+            for po_line in po_it.order_line.filtered(lambda l: not l.display_type and l.product_id):
+                if po_line.product_id.id not in product_line_map:
+                    product_line_map[po_line.product_id.id] = po_line
 
+        # UNA línea por producto en la recepción. Si la OC tiene el mismo
+        # producto en varias líneas (precios distintos), el picking nativo nace
+        # con un move por línea: se conserva UNO (que recibe la cantidad TOTAL
+        # agregada del producto) y los duplicados se cancelan. El costo por
+        # línea vive en la OC; la recepción opera el producto completo.
         existing_moves = {}
+        duplicate_moves = self.env["stock.move"].sudo()
         for move in picking.move_ids.filtered(lambda m: m.state != "cancel" and m.product_id):
-            existing_moves[move.product_id.id] = move
+            pid = move.product_id.id
+            if pid in existing_moves:
+                duplicate_moves |= move
+            else:
+                existing_moves[pid] = move
+
+        if duplicate_moves:
+            pending_dups = duplicate_moves.filtered(lambda m: m.state != "done")
+            if pending_dups:
+                _logger.info(
+                    "[Portal] Recepción %s: consolidando %s move(s) duplicados "
+                    "del mismo producto (OC con varias líneas por precio). "
+                    "moves=%s",
+                    picking.name, len(pending_dups), pending_dups.ids,
+                )
+                pending_dups._action_cancel()
 
         valid_product_ids = set(product_line_map.keys())
 
@@ -454,58 +527,153 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
             )
             return False
 
+    def _allocate_rows_to_po_lines(self, shipment):
+        """Asigna a CADA fila de PL su línea de compra (PO) y su PI.
+
+        FIFO determinista y RE-EJECUTABLE sobre todo el alcance de la carga:
+        se recorren las filas de todos los embarques de las POs amparadas en
+        orden de captura y se llenan las líneas de compra más antiguas primero
+        (capacidad = solicitud original congelada). El excedente cae en la
+        ÚLTIMA línea del producto para que el saldo quede visible ahí.
+
+        Convención de cantidades: la misma de _po_ordered_qty_map (sin
+        conversión de UoM; las líneas de piedra se capturan en la UoM del
+        producto). Cada re-sincronización recalcula la asignación completa,
+        así que también sanea filas legado sin referencia.
+        """
+        pos = self._covered_pos_for_shipment(shipment)
+        if not pos:
+            return
+        pos = pos.sorted(lambda p: (p.date_order or fields.Datetime.now(), p.id))
+
+        headers = self.env['supplier.proforma.header'].sudo().search([
+            ('purchase_id', 'in', pos.ids),
+        ])
+        header_by_po = {}
+        for header in headers.sorted('id'):
+            header_by_po.setdefault(header.purchase_id.id, header)
+
+        lines_by_product = {}
+        capacity = {}
+        for po in pos:
+            for line in po.order_line.filtered(
+                lambda l: not l.display_type and l.product_id
+            ):
+                lines_by_product.setdefault(line.product_id.id, []).append(line)
+                capacity[line.id] = (
+                    line.x_qty_solicitada_original or line.product_qty or 0.0)
+
+        all_rows = self.env['supplier.shipment.packing.row'].sudo()
+        for header in headers:
+            for ship in header.shipment_ids.sorted('id'):
+                for packing in ship.packing_ids.sorted('id'):
+                    all_rows |= packing.row_ids
+
+        consumed = {}
+        for row in all_rows.sorted(lambda r: (r.packing_id.id, r.sequence, r.id)):
+            lines = lines_by_product.get(row.product_id.id) or []
+            target = False
+            if lines:
+                qty = self._row_effective_qty(row)
+                target = next(
+                    (l for l in lines
+                     if consumed.get(l.id, 0.0) + qty
+                     <= capacity.get(l.id, 0.0) + 1e-4),
+                    lines[-1],
+                )
+                consumed[target.id] = consumed.get(target.id, 0.0) + qty
+            header = header_by_po.get(target.order_id.id) if target else False
+            new_line_id = target.id if target else False
+            new_header_id = header.id if header else False
+            if (row.purchase_line_id.id or False) != new_line_id \
+                    or (row.pi_header_id.id or False) != new_header_id:
+                row.write({
+                    'purchase_line_id': new_line_id,
+                    'pi_header_id': new_header_id,
+                })
+
     def _sync_po_commercial_qty(self, shipment):
         """Actualiza la cantidad COMERCIAL de la OC con lo embarcado real.
 
         Al proveedor se le paga lo declarado en el Packing List, así que
         product_qty (la cantidad que impacta montos, pagos, comisiones y
-        costos) se ajusta al total declarado en TODOS los embarques de la
-        proforma. La solicitud original se congela UNA sola vez en
-        x_qty_solicitada_original para comparar pedido vs embarcado.
+        costos) se ajusta al total declarado. La solicitud original se
+        congela UNA sola vez en x_qty_solicitada_original.
+
+        Con la trazabilidad por fila (purchase_line_id, asignada en
+        _allocate_rows_to_po_lines) el ajuste es POR LÍNEA de compra: las OCs
+        con el mismo producto en varias líneas (precios distintos) también se
+        actualizan correctamente. Filas legado sin referencia conservan el
+        comportamiento anterior: solo se ajustan productos con UNA línea.
 
         Reglas:
-        - Productos aún sin declarar en ningún PL: no se tocan.
-        - Si la OC tiene varias líneas del mismo producto, no se ajusta ese
-          producto (ambiguo repartir); solo se registra en el log.
+        - Líneas aún sin nada declarado en ningún PL: no se tocan.
+        - La PO/PI nunca se cierra sola por saldo; solo se informa.
         """
-        po = shipment.proforma_id.purchase_id
-        if not po or po.state == 'cancel':
+        pos = self._covered_pos_for_shipment(shipment).filtered(
+            lambda p: p.state != 'cancel')
+        if not pos:
             return
 
-        declared = self._shipment_qty_map(shipment)
-        for pid, qty in self._other_shipments_qty_map(shipment).items():
-            declared[pid] = declared.get(pid, 0.0) + qty
+        po_lines = pos.order_line.filtered(
+            lambda l: not l.display_type and l.product_id)
+        if not po_lines:
+            return
 
+        # Declarado por línea de compra: filas trazadas de TODOS los
+        # embarques/cargas que apuntan a líneas de estas POs.
+        rows = self.env['supplier.shipment.packing.row'].sudo().search([
+            ('purchase_line_id', 'in', po_lines.ids),
+        ])
+        declared_by_line = {}
+        referenced_by_product = {}
+        for row in rows:
+            qty = self._row_effective_qty(row)
+            declared_by_line[row.purchase_line_id.id] = (
+                declared_by_line.get(row.purchase_line_id.id, 0.0) + qty)
+            pid = row.product_id.id
+            referenced_by_product[pid] = (
+                referenced_by_product.get(pid, 0.0) + qty)
+
+        # Filas legado sin referencia: diferencia entre el total declarado
+        # global y lo ya trazado, repartida solo si el producto tiene UNA
+        # línea (mismo criterio que antes de la trazabilidad por fila).
         lines_by_product = {}
-        for line in po.order_line.filtered(
-            lambda l: not l.display_type and l.product_id
-        ):
+        for line in po_lines:
             lines_by_product.setdefault(line.product_id.id, []).append(line)
 
-        for pid, total in declared.items():
+        for pid, total in self._pos_shipped_qty_map(pos).items():
+            unref = total - referenced_by_product.get(pid, 0.0)
+            if unref <= 1e-4:
+                continue
             lines = lines_by_product.get(pid) or []
             if not lines:
                 continue
             if len(lines) > 1:
                 _logger.warning(
-                    "[PL_SYNC][PO] OC %s tiene %s líneas del producto %s; no se "
-                    "ajusta product_qty automáticamente (reparto ambiguo).",
-                    po.name, len(lines), pid,
+                    "[PL_SYNC][PO] %s: producto %s tiene %s líneas y filas de "
+                    "PL sin trazar; ese remanente no se reparte (ambiguo).",
+                    ', '.join(pos.mapped('name')), pid, len(lines),
                 )
                 continue
+            declared_by_line[lines[0].id] = (
+                declared_by_line.get(lines[0].id, 0.0) + unref)
 
-            line = lines[0]
+        for line in po_lines:
+            total = declared_by_line.get(line.id, 0.0)
+            if total <= 0:
+                continue
+
             vals = {'x_qty_embarcada': total}
-
             if not line.x_qty_solicitada_original:
                 vals['x_qty_solicitada_original'] = line.product_qty
 
-            if total > 0 and abs((line.product_qty or 0.0) - total) > 1e-6:
+            if abs((line.product_qty or 0.0) - total) > 1e-6:
                 vals['product_qty'] = total
                 _logger.info(
                     "[PL_SYNC][PO] %s / %s: cantidad comercial %s -> %s "
                     "(embarcado declarado en PL).",
-                    po.name, line.product_id.display_name,
+                    line.order_id.name, line.product_id.display_name,
                     line.product_qty, total,
                 )
 
@@ -517,6 +685,7 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
             return False
 
         self._sync_picking_moves_from_shipment(shipment)
+        self._allocate_rows_to_po_lines(shipment)
         self._sync_po_commercial_qty(shipment)
         self.sync_shipment_rows_to_spreadsheet(shipment)
         return picking

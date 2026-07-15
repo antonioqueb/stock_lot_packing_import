@@ -23,6 +23,26 @@ class SupplierProformaHeader(models.Model):
     )
 
     proforma_number = fields.Char(string='No. de Proforma', copy=False)
+
+    def write(self, vals):
+        res = super().write(vals)
+        # PI capturada en el portal → reflejar en la OC (vínculo PO↔PI).
+        if 'proforma_number' in vals and not self.env.context.get('skip_pi_sync'):
+            for header in self:
+                po = header.purchase_id
+                if not po:
+                    continue
+                new_num = header.proforma_number or ''
+                if (po.supplier_pi_number or '') != new_num:
+                    if po.supplier_pi_number and po.supplier_pi_number != new_num:
+                        po.message_post(body=(
+                            'El proveedor capturó en el portal el No. de PI '
+                            '"%s" (antes: "%s").' % (new_num, po.supplier_pi_number)
+                        ))
+                    po.with_context(skip_pi_sync=True).write({
+                        'supplier_pi_number': new_num,
+                    })
+        return res
     invoice_global_number = fields.Char(string='No. de factura global', copy=False)
     payment_terms = fields.Char(string='Términos de pago', copy=False)
     country_origin = fields.Char(string='País de origen', copy=False)
@@ -411,6 +431,28 @@ class SupplierShipmentPackingRow(models.Model):
         string='Contenedor',
         index=True,
         ondelete='set null',
+    )
+
+    # Trazabilidad PI/PO por fila (cada fila del PL sabe de qué línea de
+    # compra proviene). Se asigna automáticamente en FIFO al sincronizar el
+    # embarque; el usuario no la captura.
+    # NOTA: NO llamar 'proforma_id' — stock_transit_allocation ya define ese
+    # nombre como related almacenado a shipment_id.proforma_id (la proforma
+    # del embarque). Este campo es la PI de la LÍNEA de compra, que en una
+    # factura de carga multi-PO puede ser otra.
+    purchase_line_id = fields.Many2one(
+        'purchase.order.line',
+        string='Línea de compra (PO)',
+        index=True,
+        ondelete='set null',
+        copy=False,
+    )
+    pi_header_id = fields.Many2one(
+        'supplier.proforma.header',
+        string='PI de la línea',
+        index=True,
+        ondelete='set null',
+        copy=False,
     )
 
     tipo = fields.Selection(
