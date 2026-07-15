@@ -53,6 +53,151 @@ class SupplierCargoInvoice(models.Model):
         string='Enlace del portal', compute='_compute_portal_url',
     )
 
+    # ------------------------------------------------------------------
+    # Resumen ejecutivo de la carga (todo computado, nada que capturar)
+    # ------------------------------------------------------------------
+    currency_id = fields.Many2one(
+        'res.currency', compute='_compute_summary', string='Moneda',
+    )
+    amount_total = fields.Monetary(
+        string='Importe total', compute='_compute_summary',
+        currency_field='currency_id',
+        help='Suma de los importes de todas las OC amparadas.',
+    )
+    purchase_count = fields.Integer(compute='_compute_summary')
+    shipment_count = fields.Integer(compute='_compute_summary')
+    packing_count = fields.Integer(
+        string='Packing Lists', compute='_compute_summary',
+    )
+    container_count = fields.Integer(
+        string='Contenedores', compute='_compute_summary',
+    )
+    missing_pi_names = fields.Char(compute='_compute_summary')
+
+    ordered_display = fields.Char(
+        string='Pedido', compute='_compute_material',
+        help='Total solicitado en las OC amparadas (solicitud original).',
+    )
+    shipped_display = fields.Char(
+        string='Embarcado', compute='_compute_material',
+        help='Total declarado en los Packing Lists del portal.',
+    )
+    pending_display = fields.Char(
+        string='Pendiente por embarcar', compute='_compute_material',
+    )
+
+    capture_progress = fields.Integer(
+        string='Avance de captura', compute='_compute_portal_info',
+        help='Promedio del avance de captura del portal en las PI de la carga.',
+    )
+    access_expiration = fields.Datetime(
+        string='Vigencia del enlace', compute='_compute_portal_info',
+    )
+    last_access = fields.Datetime(
+        string='Último acceso del proveedor', compute='_compute_portal_info',
+    )
+
+    def _cargo_headers(self):
+        self.ensure_one()
+        if not self.purchase_ids:
+            return self.env['supplier.proforma.header']
+        return self.env['supplier.proforma.header'].sudo().search([
+            ('purchase_id', 'in', self.purchase_ids.ids),
+        ])
+
+    @api.depends('purchase_ids.amount_total', 'purchase_ids.supplier_pi_number')
+    def _compute_summary(self):
+        for rec in self:
+            pos = rec.purchase_ids
+            rec.purchase_count = len(pos)
+            rec.currency_id = pos[:1].currency_id
+            rec.amount_total = sum(pos.mapped('amount_total'))
+            shipments = rec._cargo_headers().mapped('shipment_ids')
+            rec.shipment_count = len(shipments)
+            rec.packing_count = len(shipments.mapped('packing_ids'))
+            rec.container_count = len(shipments.mapped('container_ids'))
+            missing = pos.filtered(lambda p: not p.supplier_pi_number)
+            rec.missing_pi_names = ', '.join(missing.mapped('name'))
+
+    @staticmethod
+    def _cargo_fmt_qty(qty, uom):
+        if abs(qty - round(qty)) < 0.005:
+            num = '%d' % round(qty)
+        else:
+            num = ('%.2f' % qty).rstrip('0').rstrip('.')
+        return '%s %s' % (num, uom) if uom else num
+
+    @classmethod
+    def _cargo_uom_display(cls, qty_map):
+        parts = [
+            cls._cargo_fmt_qty(q, u)
+            for u, q in sorted(qty_map.items()) if abs(q) > 0.005
+        ]
+        return ' · '.join(parts) if parts else '—'
+
+    @api.depends('purchase_ids.order_line.product_qty')
+    def _compute_material(self):
+        for rec in self:
+            ordered = {}
+            for line in rec.purchase_ids.order_line:
+                if line.display_type or not line.product_id:
+                    continue
+                uom = line.product_id.uom_id.name or '?'
+                qty = line.x_qty_solicitada_original or line.product_qty or 0.0
+                ordered[uom] = ordered.get(uom, 0.0) + qty
+
+            shipped = {}
+            for shipment in rec._cargo_headers().mapped('shipment_ids'):
+                for packing in shipment.packing_ids:
+                    for row in packing.row_ids:
+                        uom = row.product_id.uom_id.name or '?'
+                        shipped[uom] = shipped.get(uom, 0.0) + (row.area_m2 or 0.0)
+
+            pending = {
+                uom: max(qty - shipped.get(uom, 0.0), 0.0)
+                for uom, qty in ordered.items()
+            }
+            rec.ordered_display = self._cargo_uom_display(ordered)
+            rec.shipped_display = self._cargo_uom_display(shipped)
+            rec.pending_display = self._cargo_uom_display(pending)
+
+    @api.depends('access_ids.last_access', 'access_ids.expiration_date',
+                 'purchase_ids')
+    def _compute_portal_info(self):
+        for rec in self:
+            access = rec.access_ids[:1]
+            rec.access_expiration = access.expiration_date
+            rec.last_access = access.last_access
+            percents = []
+            for header in rec._cargo_headers():
+                try:
+                    percents.append(header._portal_progress().get('percent', 0))
+                except Exception:
+                    continue
+            rec.capture_progress = (
+                round(sum(percents) / len(percents)) if percents else 0)
+
+    def action_view_purchases(self):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Órdenes de compra'),
+            'res_model': 'purchase.order',
+            'view_mode': 'list,form',
+            'domain': [('id', 'in', self.purchase_ids.ids)],
+        }
+
+    def action_view_shipments(self):
+        self.ensure_one()
+        shipments = self._cargo_headers().mapped('shipment_ids')
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Embarques'),
+            'res_model': 'supplier.shipment',
+            'view_mode': 'list,form',
+            'domain': [('id', 'in', shipments.ids)],
+        }
+
     @api.depends('purchase_ids.partner_id')
     def _compute_partner_id(self):
         for rec in self:

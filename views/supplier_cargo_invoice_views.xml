@@ -14,35 +14,80 @@
                     <field name="state" widget="statusbar"/>
                 </header>
                 <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_purchases" type="object"
+                                class="oe_stat_button" icon="fa-shopping-cart"
+                                invisible="not purchase_count">
+                            <field name="purchase_count" widget="statinfo" string="Órdenes"/>
+                        </button>
+                        <button name="action_view_shipments" type="object"
+                                class="oe_stat_button" icon="fa-ship"
+                                invisible="not shipment_count">
+                            <field name="shipment_count" widget="statinfo" string="Embarques"/>
+                        </button>
+                    </div>
                     <div class="oe_title">
                         <label for="name" string="Factura de carga del proveedor"/>
                         <h1><field name="name" placeholder="No. de factura de carga / embarque"/></h1>
                     </div>
+                    <field name="missing_pi_names" invisible="1"/>
+                    <div class="alert alert-warning" role="alert"
+                         invisible="not missing_pi_names">
+                        <i class="fa fa-exclamation-triangle me-2"/>
+                        Sin No. de PI capturado: <field name="missing_pi_names" readonly="1" class="fw-bold"/>.
+                        Captúralo en cada OC para la trazabilidad PI ↔ PO.
+                    </div>
                     <group>
-                        <group>
+                        <group string="Datos de la carga">
                             <field name="date"/>
                             <field name="partner_id" readonly="1"/>
+                            <field name="currency_id" invisible="1"/>
+                            <field name="amount_total"/>
                         </group>
-                        <group>
+                        <group string="Portal del proveedor">
                             <field name="portal_url" widget="CopyClipboardChar" readonly="1"
                                    invisible="not portal_url"/>
+                            <field name="capture_progress" widget="progressbar"
+                                   invisible="not portal_url"/>
+                            <field name="last_access" invisible="not portal_url"/>
+                            <field name="access_expiration" invisible="not portal_url"/>
+                            <div class="text-muted" colspan="2" invisible="portal_url">
+                                Genera el enlace del portal para que el proveedor
+                                capture sus Packing Lists de toda la carga en un solo lugar.
+                            </div>
                         </group>
                     </group>
-                    <group string="PO / PI amparadas por esta factura">
-                        <field name="purchase_ids" nolabel="1">
-                            <list>
-                                <field name="name"/>
-                                <field name="supplier_pi_number" string="No. PI"/>
-                                <field name="partner_id"/>
-                                <field name="date_order" widget="date"/>
-                                <field name="amount_total" sum="Total"/>
-                                <field name="state" widget="badge"/>
-                            </list>
-                        </field>
-                        <div class="text-muted" colspan="2">
-                            <field name="pi_summary" readonly="1" nolabel="1"/>
-                        </div>
+                    <group>
+                        <group string="Material">
+                            <field name="ordered_display"/>
+                            <field name="shipped_display"/>
+                            <field name="pending_display"/>
+                        </group>
+                        <group string="Logística">
+                            <field name="packing_count"/>
+                            <field name="container_count"/>
+                        </group>
                     </group>
+                    <notebook>
+                        <page string="PO / PI amparadas" name="purchases">
+                            <field name="purchase_ids" nolabel="1">
+                                <list>
+                                    <field name="name"/>
+                                    <field name="supplier_pi_number" string="No. PI"/>
+                                    <field name="pi_confirmed_date" string="PI confirmada" optional="hide"/>
+                                    <field name="date_order" widget="date" string="Fecha OC"/>
+                                    <field name="user_id" string="Comprador" optional="show"/>
+                                    <field name="amount_total" sum="Total"/>
+                                    <field name="currency_id" column_invisible="1"/>
+                                    <field name="state" widget="badge"
+                                           decoration-success="state in ('purchase', 'done')"/>
+                                </list>
+                            </field>
+                            <div class="text-muted mt-2">
+                                <field name="pi_summary" readonly="1" nolabel="1"/>
+                            </div>
+                        </page>
+                    </notebook>
                 </sheet>
                 <chatter/>
             </form>
@@ -58,6 +103,10 @@
                 <field name="date"/>
                 <field name="partner_id"/>
                 <field name="pi_summary" string="PO / PI"/>
+                <field name="currency_id" column_invisible="1"/>
+                <field name="amount_total" sum="Total" optional="show"/>
+                <field name="shipped_display" string="Embarcado" optional="show"/>
+                <field name="capture_progress" widget="progressbar" optional="show"/>
                 <field name="state" widget="badge"
                        decoration-info="state == 'linked'"
                        decoration-success="state in ('shipped', 'closed')"/>
