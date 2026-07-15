@@ -1059,7 +1059,7 @@ const TR = {
     'Eliminar embarque': 'Delete shipment', 'Logística · B/L · Invoices · Contenedores · Packing': 'Logistics · B/L · Invoices · Containers · Packing', 'Logística internacional': 'International logistics', 'Datos de logística': 'Logistics data', 'Información del transporte. La obtienes de tu agente de carga (forwarder).': 'Transport information. Your freight forwarder provides it.', 'Naviera / Aerolínea': 'Carrier / Airline', 'Compañía que opera el transporte.': 'Company operating the transport.', 'Ej. COSCO Shipping Lines': 'E.g. COSCO Shipping Lines', 'COSCO, MSC, Hapag-Lloyd…': 'COSCO, MSC, Hapag-Lloyd…', 'Buque + viaje': 'Vessel + voyage', 'Nombre del buque seguido del número de viaje.': 'Vessel name followed by voyage number.', 'Ej. COSCO TAICANG / 042E': 'E.g. COSCO TAICANG / 042E', 'ETD': 'ETD', 'ETA': 'ETA', 'Estimated Time of Departure — fecha estimada de salida del puerto origen.': 'Estimated Time of Departure — estimated date of departure from the origin port.', 'Estimated Time of Arrival — fecha estimada de llegada al puerto destino.': 'Estimated Time of Arrival — estimated date of arrival at the destination port.', 'Notas internas sobre el viaje.': 'Internal notes about the trip.', 'Ej. Cambio de buque por sobrecupo. Reasignado a TAICANG.': 'E.g. Vessel changed due to overbooking. Reassigned to TAICANG.',
     'Bill of Lading (B/L)': 'Bill of Lading (B/L)', 'El B/L es el documento que prueba que la naviera recibió tu mercancía. Súbelo en cuanto lo recibas — sin él, aduanas no libera el embarque.': 'The B/L is the document proving the carrier received your goods. Upload it as soon as you get it — without it, customs will not release the shipment.', 'Número de B/L': 'B/L Number', 'El número único que asigna la naviera a tu embarque.': 'The unique number the carrier assigns to your shipment.', 'Fecha de B/L': 'B/L Date', 'Fecha que aparece impresa en el documento.': 'Date printed on the document.', 'Archivo PDF': 'PDF file', 'Sube el PDF original. Aceptamos máximo 10 MB.': 'Upload the original PDF. Max 10 MB.', 'Subir PDF': 'Upload PDF',
     'Invoices (Facturas comerciales)': 'Invoices (Commercial)', 'Crea al menos una factura comercial por cada embarque. Puedes asignarla a todo el embarque o solo a contenedores específicos.': 'Create at least one commercial invoice per shipment. You can assign it to the whole shipment or to specific containers.', 'Aún no hay invoices': 'No invoices yet', 'La factura comercial que emites para el embarque. Puede ser una global o varias parciales.': 'The commercial invoice you issue for the shipment. Can be global or several partials.', 'Agregar primer invoice': 'Add first invoice', 'Agregar invoice': 'Add invoice', 'Invoice ': 'Invoice ', 'No. Invoice': 'Invoice No.', 'Identifica este documento. Suele ser una variante de la invoice.': 'Identifies this document. Usually a variant of the invoice.', 'Ej. JQ-INV-2026-088': 'E.g. JQ-INV-2026-088', 'Fecha': 'Date', 'Monto + moneda': 'Amount + currency', 'Total facturado en este embarque': 'Total invoiced in this shipment', 'Total invoices': 'Total invoices',
-    'PI / Pedido': 'PI / Order', '— automático —': '— automatic —', 'Las PI de esta carga las asigna SOM GROUP por cada pedido.': 'The PIs of this cargo are assigned by SOM GROUP per order.', 'Contenedores': 'Containers', 'Contenedor': 'Container', 'Cada caja física que viaja en el embarque. Los números son los que están pintados en el contenedor (4 letras + 7 dígitos).': 'Each physical box traveling in the shipment. Numbers are those painted on the container (4 letters + 7 digits).', 'Captura los números de contenedor en cuanto te los entregue tu agente. Los necesitas antes del packing list.': 'Enter the container numbers as soon as your agent gives them to you. You need them before the packing list.', 'Agregar primer contenedor': 'Add first container', 'Agregar contenedor': 'Add container', 'No. Contenedor': 'Container No.', 'No. de Sello': 'Seal No.', 'Sello de seguridad que se rompe al abrir el contenedor.': 'Security seal that breaks when opening the container.', 'Peso bruto (kg)': 'Gross weight (kg)', 'Volumen (m³)': 'Volume (m³)', 'No. de paquetes / bultos': 'Packages / bundles', 'Dimensión': 'Dimensions', 'Contenedor sin número': 'Container without number',
+    'PI / Pedido': 'PI / Order', '— automático —': '— automatic —', 'Las PI de esta carga las asigna SOM GROUP por cada pedido.': 'The PIs of this cargo are assigned by SOM GROUP per order.', 'Editar estructura': 'Edit structure', 'Agregar fila': 'Add row', 'Quitar fila': 'Remove row', 'Falta la foto de bloque: ': 'Block photo missing: ', 'Contenedores': 'Containers', 'Contenedor': 'Container', 'Cada caja física que viaja en el embarque. Los números son los que están pintados en el contenedor (4 letras + 7 dígitos).': 'Each physical box traveling in the shipment. Numbers are those painted on the container (4 letters + 7 digits).', 'Captura los números de contenedor en cuanto te los entregue tu agente. Los necesitas antes del packing list.': 'Enter the container numbers as soon as your agent gives them to you. You need them before the packing list.', 'Agregar primer contenedor': 'Add first container', 'Agregar contenedor': 'Add container', 'No. Contenedor': 'Container No.', 'No. de Sello': 'Seal No.', 'Sello de seguridad que se rompe al abrir el contenedor.': 'Security seal that breaks when opening the container.', 'Peso bruto (kg)': 'Gross weight (kg)', 'Volumen (m³)': 'Volume (m³)', 'No. de paquetes / bultos': 'Packages / bundles', 'Dimensión': 'Dimensions', 'Contenedor sin número': 'Container without number',
     'Packing Lists': 'Packing Lists', 'Nuevo packing': 'New packing', 'Sin packing lists todavía': 'No packing lists yet', 'Aquí registras placa por placa (o pieza por pieza) lo que va en cada contenedor. ': 'Here you register slab by slab (or piece by piece) what goes in each container. ', 'Es la parte más detallada.': 'It is the most detailed part.', 'Empezar con el asistente': 'Start with the wizard', 'Cómo funciona el asistente': 'How the wizard works', 'El asistente te llevará paso a paso: ': 'The wizard guides you step by step: ', 'En lugar de que escribas mil líneas a mano, el asistente ': 'Instead of writing a thousand lines by hand, the wizard ', 'genera las filas automáticamente': 'auto-generates the rows', 'Tip: el packing list es lo más detallado.': 'Tip: the packing list is the most detailed.', 'Fecha del Packing': 'Packing date', 'No. del Packing': 'Packing No.',
     // Wizard steps
     'Bloque': 'Block', 'Bloques configurados': 'Configured blocks', 'Atado': 'Bundle', 'No. Placa': 'Slab No.', 'Grosor cm': 'Thickness cm', 'Alto m': 'Height m', 'Largo m': 'Length m', 'Foto': 'Photo', 'Notas': 'Notes', 'Referencia': 'Reference', 'Placas / piezas': 'Slabs / pieces', 'Crear primer bloque': 'Create first block', 'Sin bloques aún': 'No blocks yet', 'Empieza con uno. Puedes agregar tantos como necesites.': 'Start with one. You can add as many as needed.', 'Agregar bloque': 'Add block', 'Un bloque es la piedra original de cantera, antes de cortarse. De cada bloque salen varias placas. Si tienes 3 bloques con 18, 16 y 14 placas, este paso generará automáticamente 48 filas para llenar.': 'A block is the original quarry stone, before being cut. Multiple slabs come from each block. If you have 3 blocks with 18, 16 and 14 slabs, this step will auto-generate 48 rows to fill.', 'Antes de capturar placa por placa, vas a configurar los ': 'Before entering slab by slab, you will configure the ', 'Puedes continuar y subirlas después, pero el packing list no se considerará completo hasta que cada bloque tenga al menos una foto.': 'You can continue and upload them later, but the packing list will not be considered complete until each block has at least one photo.', 'Estructura del packing': 'Packing structure', 'Filas a generar': 'Rows to generate', 'Ajustar bloques': 'Adjust blocks', 'Listo, volver al embarque': 'Done, back to shipment', 'Iniciar llenado': 'Start filling', 'Paso ': 'Step ', 'Ordenados de lo más fácil a lo más detallado. Comienza por el primero.': 'Sorted from easiest to most detailed. Start with the first.',
@@ -1099,7 +1099,7 @@ const TR = {
     'Eliminar embarque': '删除货运', 'Logística · B/L · Invoices · Contenedores · Packing': '物流 · 提单 · 发票 · 集装箱 · 装箱', 'Logística internacional': '国际物流', 'Datos de logística': '物流数据', 'Información del transporte. La obtienes de tu agente de carga (forwarder).': '运输信息。由您的货运代理提供。', 'Naviera / Aerolínea': '船公司 / 航空公司', 'Compañía que opera el transporte.': '运营运输的公司。', 'Buque + viaje': '船舶 + 航次', 'Nombre del buque seguido del número de viaje.': '船舶名称加航次号。', 'Estimated Time of Departure — fecha estimada de salida del puerto origen.': '预计离港时间。', 'Estimated Time of Arrival — fecha estimada de llegada al puerto destino.': '预计到港时间。', 'Notas internas sobre el viaje.': '关于此次航行的内部备注。',
     'Bill of Lading (B/L)': '提单 (B/L)', 'El B/L es el documento que prueba que la naviera recibió tu mercancía. Súbelo en cuanto lo recibas — sin él, aduanas no libera el embarque.': '提单是证明船公司已接收货物的文件。收到后请立即上传 — 没有它海关不会放行。', 'Número de B/L': '提单号', 'El número único que asigna la naviera a tu embarque.': '船公司为您的货运分配的唯一编号。', 'Fecha de B/L': '提单日期', 'Fecha que aparece impresa en el documento.': '文件上打印的日期。', 'Archivo PDF': 'PDF 文件', 'Sube el PDF original. Aceptamos máximo 10 MB.': '上传原始 PDF。最大 10 MB。', 'Subir PDF': '上传 PDF',
     'Invoices (Facturas comerciales)': '发票(商业发票)', 'Crea al menos una factura comercial por cada embarque. Puedes asignarla a todo el embarque o solo a contenedores específicos.': '每次货运至少创建一张商业发票。可分配给整个货运或特定集装箱。', 'Aún no hay invoices': '尚无发票', 'La factura comercial que emites para el embarque. Puede ser una global o varias parciales.': '为货运开具的商业发票。可以是总发票或多张部分发票。', 'Agregar primer invoice': '添加首张发票', 'Agregar invoice': '添加发票', 'No. Invoice': '发票编号', 'Identifica este documento. Suele ser una variante de la invoice.': '识别此文件。通常是发票的变体。', 'Fecha': '日期', 'Monto + moneda': '金额 + 币种', 'Total facturado en este embarque': '本货运开票总额', 'Total invoices': '发票总额',
-    'PI / Pedido': '形式发票 / 订单', '— automático —': '— 自动 —', 'Las PI de esta carga las asigna SOM GROUP por cada pedido.': '本批次的形式发票由SOM GROUP按每个订单分配。', 'Contenedores': '集装箱', 'Contenedor': '集装箱', 'Cada caja física que viaja en el embarque. Los números son los que están pintados en el contenedor (4 letras + 7 dígitos).': '运输中的每个物理箱体。编号为集装箱上喷涂的(4 字母 + 7 数字)。', 'Captura los números de contenedor en cuanto te los entregue tu agente. Los necesitas antes del packing list.': '代理交付后请立即录入集装箱号。装箱单之前需要。', 'Agregar primer contenedor': '添加首个集装箱', 'Agregar contenedor': '添加集装箱', 'No. Contenedor': '集装箱号', 'No. de Sello': '封条号', 'Sello de seguridad que se rompe al abrir el contenedor.': '打开集装箱时会破坏的安全封条。', 'Peso bruto (kg)': '毛重 (kg)', 'Volumen (m³)': '体积 (m³)', 'No. de paquetes / bultos': '包装件数', 'Dimensión': '尺寸', 'Contenedor sin número': '无编号集装箱',
+    'PI / Pedido': '形式发票 / 订单', '— automático —': '— 自动 —', 'Las PI de esta carga las asigna SOM GROUP por cada pedido.': '本批次的形式发票由SOM GROUP按每个订单分配。', 'Editar estructura': '编辑结构', 'Agregar fila': '添加行', 'Quitar fila': '删除行', 'Falta la foto de bloque: ': '缺少荒料照片: ', 'Contenedores': '集装箱', 'Contenedor': '集装箱', 'Cada caja física que viaja en el embarque. Los números son los que están pintados en el contenedor (4 letras + 7 dígitos).': '运输中的每个物理箱体。编号为集装箱上喷涂的(4 字母 + 7 数字)。', 'Captura los números de contenedor en cuanto te los entregue tu agente. Los necesitas antes del packing list.': '代理交付后请立即录入集装箱号。装箱单之前需要。', 'Agregar primer contenedor': '添加首个集装箱', 'Agregar contenedor': '添加集装箱', 'No. Contenedor': '集装箱号', 'No. de Sello': '封条号', 'Sello de seguridad que se rompe al abrir el contenedor.': '打开集装箱时会破坏的安全封条。', 'Peso bruto (kg)': '毛重 (kg)', 'Volumen (m³)': '体积 (m³)', 'No. de paquetes / bultos': '包装件数', 'Dimensión': '尺寸', 'Contenedor sin número': '无编号集装箱',
     'Packing Lists': '装箱单', 'Nuevo packing': '新建装箱单', 'Sin packing lists todavía': '尚无装箱单', 'Aquí registras placa por placa (o pieza por pieza) lo que va en cada contenedor. ': '在此逐板(或逐件)登记每个集装箱的内容。 ', 'Es la parte más detallada.': '是最详细的部分。', 'Empezar con el asistente': '使用向导开始', 'Cómo funciona el asistente': '向导工作原理', 'El asistente te llevará paso a paso: ': '向导将逐步引导您: ', 'En lugar de que escribas mil líneas a mano, el asistente ': '无需手动编写上千行,向导 ', 'genera las filas automáticamente': '自动生成行', 'Tip: el packing list es lo más detallado.': '提示: 装箱单是最详细的部分。', 'Fecha del Packing': '装箱日期', 'No. del Packing': '装箱单号',
     'Bloque': '区块', 'Bloques configurados': '已配置区块', 'Atado': '捆', 'No. Placa': '板号', 'Grosor cm': '厚度 cm', 'Alto m': '高 m', 'Largo m': '长 m', 'Foto': '照片', 'Notas': '备注', 'Referencia': '参考', 'Placas / piezas': '板 / 件', 'Crear primer bloque': '创建首个区块', 'Sin bloques aún': '尚无区块', 'Empieza con uno. Puedes agregar tantos como necesites.': '从一个开始。可按需添加。', 'Agregar bloque': '添加区块', 'Un bloque es la piedra original de cantera, antes de cortarse. De cada bloque salen varias placas. Si tienes 3 bloques con 18, 16 y 14 placas, este paso generará automáticamente 48 filas para llenar.': '区块是切割前的原石。每个区块产生多块板。如有 3 个区块分别 18、16、14 块板,此步骤将自动生成 48 行供填写。', 'Antes de capturar placa por placa, vas a configurar los ': '逐板录入前,您将配置 ', 'Puedes continuar y subirlas después, pero el packing list no se considerará completo hasta que cada bloque tenga al menos una foto.': '可继续并稍后上传,但装箱单只有在每个区块至少有一张照片时才算完成。', 'Estructura del packing': '装箱结构', 'Filas a generar': '生成行数', 'Ajustar bloques': '调整区块', 'Listo, volver al embarque': '完成,返回货运', 'Iniciar llenado': '开始填写', 'Paso ': '步骤 ', 'Ordenados de lo más fácil a lo más detallado. Comienza por el primero.': '从易到详排序。从第一个开始。',
     'Llena más rápido con propagación': '使用传播更快填写', 'Pasa el cursor sobre cualquier celda y verás ': '将光标悬停在任何单元格上,您将看到 ', 'dos íconos a la derecha': '右侧两个图标', 'copia el valor a la siguiente fila del mismo bloque ·': '将值复制到同一区块的下一行 ·', 'copia a todas las filas debajo en el mismo bloque. También puedes copiar/pegar desde Excel y usar ': '复制到同一区块下方所有行。也可从 Excel 复制粘贴并使用 ', ' entre celdas.': ' 在单元格之间。', 'Copiar a la siguiente fila del mismo bloque': '复制到同一区块的下一行', 'Copiar a TODAS las filas del mismo bloque (abajo)': '复制到同一区块的所有下方行', 'Todas (': '全部 (', 'Pendientes (': '待完成 (', 'Errores (': '错误 (', 'Sin dimensiones': '无尺寸', 'con errores': '有错误', 'Exportar CSV': '导出 CSV', 'Pegar de Excel': '从 Excel 粘贴', 'Pegar desde Excel': '从 Excel 粘贴',
@@ -1133,7 +1133,7 @@ const TR = {
     'Eliminar embarque': 'Elimina spedizione', 'Logística · B/L · Invoices · Contenedores · Packing': 'Logistica · B/L · Fatture · Container · Packing', 'Logística internacional': 'Logistica internazionale', 'Datos de logística': 'Dati logistici', 'Información del transporte. La obtienes de tu agente de carga (forwarder).': 'Informazioni sul trasporto. Ottenute dal tuo spedizioniere.', 'Naviera / Aerolínea': 'Compagnia di navigazione / Aerea', 'Compañía que opera el transporte.': 'Compagnia che gestisce il trasporto.', 'Buque + viaje': 'Nave + viaggio', 'Nombre del buque seguido del número de viaje.': 'Nome della nave seguito dal numero di viaggio.', 'Estimated Time of Departure — fecha estimada de salida del puerto origen.': 'Estimated Time of Departure — data prevista di partenza dal porto di origine.', 'Estimated Time of Arrival — fecha estimada de llegada al puerto destino.': 'Estimated Time of Arrival — data prevista di arrivo al porto di destinazione.', 'Notas internas sobre el viaje.': 'Note interne sul viaggio.',
     'Bill of Lading (B/L)': 'Polizza di Carico (B/L)', 'El B/L es el documento que prueba que la naviera recibió tu mercancía. Súbelo en cuanto lo recibas — sin él, aduanas no libera el embarque.': 'Il B/L è il documento che prova che il vettore ha ricevuto la merce. Caricalo appena lo ricevi — senza, la dogana non rilascia la spedizione.', 'Número de B/L': 'Numero B/L', 'El número único que asigna la naviera a tu embarque.': 'Il numero univoco che il vettore assegna alla spedizione.', 'Fecha de B/L': 'Data B/L', 'Fecha que aparece impresa en el documento.': 'Data stampata sul documento.', 'Archivo PDF': 'File PDF', 'Sube el PDF original. Aceptamos máximo 10 MB.': 'Carica il PDF originale. Max 10 MB.', 'Subir PDF': 'Carica PDF',
     'Invoices (Facturas comerciales)': 'Fatture (commerciali)', 'Crea al menos una factura comercial por cada embarque. Puedes asignarla a todo el embarque o solo a contenedores específicos.': 'Crea almeno una fattura commerciale per spedizione. Puoi assegnarla all’intera spedizione o solo a container specifici.', 'Aún no hay invoices': 'Nessuna fattura ancora', 'La factura comercial que emites para el embarque. Puede ser una global o varias parciales.': 'La fattura commerciale emessa per la spedizione. Può essere globale o parziali.', 'Agregar primer invoice': 'Aggiungi prima fattura', 'Agregar invoice': 'Aggiungi fattura', 'No. Invoice': 'N. Fattura', 'Identifica este documento. Suele ser una variante de la invoice.': 'Identifica questo documento. Di solito una variante della fattura.', 'Fecha': 'Data', 'Monto + moneda': 'Importo + valuta', 'Total facturado en este embarque': 'Totale fatturato in questa spedizione', 'Total invoices': 'Totale fatture',
-    'PI / Pedido': 'PI / Ordine', '— automático —': '— automatico —', 'Las PI de esta carga las asigna SOM GROUP por cada pedido.': 'Le PI di questo carico sono assegnate da SOM GROUP per ogni ordine.', 'Contenedores': 'Container', 'Contenedor': 'Container', 'Cada caja física que viaja en el embarque. Los números son los que están pintados en el contenedor (4 letras + 7 dígitos).': 'Ogni cassa fisica nella spedizione. I numeri sono quelli dipinti sul container (4 lettere + 7 cifre).', 'Captura los números de contenedor en cuanto te los entregue tu agente. Los necesitas antes del packing list.': 'Inserisci i numeri dei container appena il tuo agente te li dà. Servono prima del packing list.', 'Agregar primer contenedor': 'Aggiungi primo container', 'Agregar contenedor': 'Aggiungi container', 'No. Contenedor': 'N. Container', 'No. de Sello': 'N. Sigillo', 'Sello de seguridad que se rompe al abrir el contenedor.': 'Sigillo di sicurezza che si rompe aprendo il container.', 'Peso bruto (kg)': 'Peso lordo (kg)', 'Volumen (m³)': 'Volume (m³)', 'No. de paquetes / bultos': 'N. colli / pacchi', 'Dimensión': 'Dimensione', 'Contenedor sin número': 'Container senza numero',
+    'PI / Pedido': 'PI / Ordine', '— automático —': '— automatico —', 'Las PI de esta carga las asigna SOM GROUP por cada pedido.': 'Le PI di questo carico sono assegnate da SOM GROUP per ogni ordine.', 'Editar estructura': 'Modifica struttura', 'Agregar fila': 'Aggiungi riga', 'Quitar fila': 'Rimuovi riga', 'Falta la foto de bloque: ': 'Manca la foto del blocco: ', 'Contenedores': 'Container', 'Contenedor': 'Container', 'Cada caja física que viaja en el embarque. Los números son los que están pintados en el contenedor (4 letras + 7 dígitos).': 'Ogni cassa fisica nella spedizione. I numeri sono quelli dipinti sul container (4 lettere + 7 cifre).', 'Captura los números de contenedor en cuanto te los entregue tu agente. Los necesitas antes del packing list.': 'Inserisci i numeri dei container appena il tuo agente te li dà. Servono prima del packing list.', 'Agregar primer contenedor': 'Aggiungi primo container', 'Agregar contenedor': 'Aggiungi container', 'No. Contenedor': 'N. Container', 'No. de Sello': 'N. Sigillo', 'Sello de seguridad que se rompe al abrir el contenedor.': 'Sigillo di sicurezza che si rompe aprendo il container.', 'Peso bruto (kg)': 'Peso lordo (kg)', 'Volumen (m³)': 'Volume (m³)', 'No. de paquetes / bultos': 'N. colli / pacchi', 'Dimensión': 'Dimensione', 'Contenedor sin número': 'Container senza numero',
     'Packing Lists': 'Packing Lists', 'Nuevo packing': 'Nuovo packing', 'Sin packing lists todavía': 'Nessun packing list ancora', 'Aquí registras placa por placa (o pieza por pieza) lo que va en cada contenedor. ': 'Qui registri lastra per lastra (o pezzo per pezzo) cosa va in ogni container. ', 'Es la parte más detallada.': 'È la parte più dettagliata.', 'Empezar con el asistente': 'Inizia con l’assistente', 'Cómo funciona el asistente': 'Come funziona l’assistente', 'El asistente te llevará paso a paso: ': 'L’assistente ti guiderà passo a passo: ', 'En lugar de que escribas mil líneas a mano, el asistente ': 'Invece di scrivere mille righe a mano, l’assistente ', 'genera las filas automáticamente': 'genera le righe automaticamente', 'Tip: el packing list es lo más detallado.': 'Suggerimento: il packing list è la parte più dettagliata.', 'Fecha del Packing': 'Data Packing', 'No. del Packing': 'N. Packing',
     'Bloque': 'Blocco', 'Bloques configurados': 'Blocchi configurati', 'Atado': 'Pacco', 'No. Placa': 'N. Lastra', 'Grosor cm': 'Spessore cm', 'Alto m': 'Altezza m', 'Largo m': 'Lunghezza m', 'Foto': 'Foto', 'Notas': 'Note', 'Referencia': 'Riferimento', 'Placas / piezas': 'Lastre / pezzi', 'Crear primer bloque': 'Crea primo blocco', 'Sin bloques aún': 'Nessun blocco ancora', 'Empieza con uno. Puedes agregar tantos como necesites.': 'Inizia con uno. Puoi aggiungerne quanti ne servono.', 'Agregar bloque': 'Aggiungi blocco', 'Un bloque es la piedra original de cantera, antes de cortarse. De cada bloque salen varias placas. Si tienes 3 bloques con 18, 16 y 14 placas, este paso generará automáticamente 48 filas para llenar.': 'Un blocco è la pietra originale di cava, prima del taglio. Da ogni blocco escono più lastre. Se hai 3 blocchi con 18, 16 e 14 lastre, questo passo genererà automaticamente 48 righe da compilare.', 'Antes de capturar placa por placa, vas a configurar los ': 'Prima di registrare lastra per lastra, configurerai i ', 'Puedes continuar y subirlas después, pero el packing list no se considerará completo hasta que cada bloque tenga al menos una foto.': 'Puoi continuare e caricarle dopo, ma il packing list non sarà completo finché ogni blocco non avrà almeno una foto.', 'Estructura del packing': 'Struttura del packing', 'Filas a generar': 'Righe da generare', 'Ajustar bloques': 'Regola blocchi', 'Listo, volver al embarque': 'Fatto, torna alla spedizione', 'Iniciar llenado': 'Inizia compilazione', 'Paso ': 'Passo ', 'Ordenados de lo más fácil a lo más detallado. Comienza por el primero.': 'Ordinati dal più facile al più dettagliato. Inizia dal primo.',
     'Llena más rápido con propagación': 'Compila più velocemente con la propagazione', 'Pasa el cursor sobre cualquier celda y verás ': 'Passa il cursore su qualsiasi cella e vedrai ', 'dos íconos a la derecha': 'due icone a destra', 'copia el valor a la siguiente fila del mismo bloque ·': 'copia il valore alla riga successiva dello stesso blocco ·', 'copia a todas las filas debajo en el mismo bloque. También puedes copiar/pegar desde Excel y usar ': 'copia in tutte le righe sottostanti dello stesso blocco. Puoi anche copiare/incollare da Excel e usare ', ' entre celdas.': ' tra le celle.', 'Copiar a la siguiente fila del mismo bloque': 'Copia nella riga successiva dello stesso blocco', 'Copiar a TODAS las filas del mismo bloque (abajo)': 'Copia in TUTTE le righe dello stesso blocco (sotto)', 'Todas (': 'Tutte (', 'Pendientes (': 'In sospeso (', 'Errores (': 'Errori (', 'Sin dimensiones': 'Senza dimensioni', 'con errores': 'con errori', 'Exportar CSV': 'Esporta CSV', 'Pegar de Excel': 'Incolla da Excel', 'Pegar desde Excel': 'Incolla da Excel',
@@ -1167,7 +1167,7 @@ const TR = {
     'Eliminar embarque': 'Excluir embarque', 'Logística · B/L · Invoices · Contenedores · Packing': 'Logística · B/L · Faturas · Contêineres · Packing', 'Logística internacional': 'Logística internacional', 'Datos de logística': 'Dados de logística', 'Información del transporte. La obtienes de tu agente de carga (forwarder).': 'Informações do transporte. Obtidas do seu agente de carga (forwarder).', 'Naviera / Aerolínea': 'Armador / Companhia aérea', 'Compañía que opera el transporte.': 'Empresa que opera o transporte.', 'Buque + viaje': 'Navio + viagem', 'Nombre del buque seguido del número de viaje.': 'Nome do navio seguido do número da viagem.', 'Estimated Time of Departure — fecha estimada de salida del puerto origen.': 'Estimated Time of Departure — data estimada de saída do porto de origem.', 'Estimated Time of Arrival — fecha estimada de llegada al puerto destino.': 'Estimated Time of Arrival — data estimada de chegada ao porto de destino.', 'Notas internas sobre el viaje.': 'Notas internas sobre a viagem.',
     'Bill of Lading (B/L)': 'Bill of Lading (B/L)', 'El B/L es el documento que prueba que la naviera recibió tu mercancía. Súbelo en cuanto lo recibas — sin él, aduanas no libera el embarque.': 'O B/L é o documento que prova que o armador recebeu sua mercadoria. Faça upload assim que receber — sem ele, a alfândega não libera o embarque.', 'Número de B/L': 'Número do B/L', 'El número único que asigna la naviera a tu embarque.': 'O número único atribuído pelo armador ao seu embarque.', 'Fecha de B/L': 'Data do B/L', 'Fecha que aparece impresa en el documento.': 'Data impressa no documento.', 'Archivo PDF': 'Arquivo PDF', 'Sube el PDF original. Aceptamos máximo 10 MB.': 'Envie o PDF original. Máximo 10 MB.', 'Subir PDF': 'Enviar PDF',
     'Invoices (Facturas comerciales)': 'Faturas (comerciais)', 'Crea al menos una factura comercial por cada embarque. Puedes asignarla a todo el embarque o solo a contenedores específicos.': 'Crie pelo menos uma fatura comercial por embarque. Pode atribuí-la a todo o embarque ou apenas a contêineres específicos.', 'Aún no hay invoices': 'Ainda não há faturas', 'La factura comercial que emites para el embarque. Puede ser una global o varias parciales.': 'A fatura comercial emitida para o embarque. Pode ser global ou parciais.', 'Agregar primer invoice': 'Adicionar primeira fatura', 'Agregar invoice': 'Adicionar fatura', 'No. Invoice': 'Nº Fatura', 'Identifica este documento. Suele ser una variante de la invoice.': 'Identifica este documento. Geralmente uma variação da fatura.', 'Fecha': 'Data', 'Monto + moneda': 'Valor + moeda', 'Total facturado en este embarque': 'Total faturado neste embarque', 'Total invoices': 'Total faturas',
-    'PI / Pedido': 'PI / Pedido', '— automático —': '— automático —', 'Las PI de esta carga las asigna SOM GROUP por cada pedido.': 'As PIs desta carga são atribuídas pela SOM GROUP para cada pedido.', 'Contenedores': 'Contêineres', 'Contenedor': 'Contêiner', 'Cada caja física que viaja en el embarque. Los números son los que están pintados en el contenedor (4 letras + 7 dígitos).': 'Cada caixa física que viaja no embarque. Os números são os pintados no contêiner (4 letras + 7 dígitos).', 'Captura los números de contenedor en cuanto te los entregue tu agente. Los necesitas antes del packing list.': 'Capture os números de contêiner assim que seu agente os entregar. Você precisa deles antes do packing list.', 'Agregar primer contenedor': 'Adicionar primeiro contêiner', 'Agregar contenedor': 'Adicionar contêiner', 'No. Contenedor': 'Nº Contêiner', 'No. de Sello': 'Nº Lacre', 'Sello de seguridad que se rompe al abrir el contenedor.': 'Lacre de segurança que se rompe ao abrir o contêiner.', 'Peso bruto (kg)': 'Peso bruto (kg)', 'Volumen (m³)': 'Volume (m³)', 'No. de paquetes / bultos': 'Nº de pacotes / volumes', 'Dimensión': 'Dimensão', 'Contenedor sin número': 'Contêiner sem número',
+    'PI / Pedido': 'PI / Pedido', '— automático —': '— automático —', 'Las PI de esta carga las asigna SOM GROUP por cada pedido.': 'As PIs desta carga são atribuídas pela SOM GROUP para cada pedido.', 'Editar estructura': 'Editar estrutura', 'Agregar fila': 'Adicionar linha', 'Quitar fila': 'Remover linha', 'Falta la foto de bloque: ': 'Falta a foto do bloco: ', 'Contenedores': 'Contêineres', 'Contenedor': 'Contêiner', 'Cada caja física que viaja en el embarque. Los números son los que están pintados en el contenedor (4 letras + 7 dígitos).': 'Cada caixa física que viaja no embarque. Os números são os pintados no contêiner (4 letras + 7 dígitos).', 'Captura los números de contenedor en cuanto te los entregue tu agente. Los necesitas antes del packing list.': 'Capture os números de contêiner assim que seu agente os entregar. Você precisa deles antes do packing list.', 'Agregar primer contenedor': 'Adicionar primeiro contêiner', 'Agregar contenedor': 'Adicionar contêiner', 'No. Contenedor': 'Nº Contêiner', 'No. de Sello': 'Nº Lacre', 'Sello de seguridad que se rompe al abrir el contenedor.': 'Lacre de segurança que se rompe ao abrir o contêiner.', 'Peso bruto (kg)': 'Peso bruto (kg)', 'Volumen (m³)': 'Volume (m³)', 'No. de paquetes / bultos': 'Nº de pacotes / volumes', 'Dimensión': 'Dimensão', 'Contenedor sin número': 'Contêiner sem número',
     'Packing Lists': 'Packing Lists', 'Nuevo packing': 'Novo packing', 'Sin packing lists todavía': 'Nenhum packing list ainda', 'Aquí registras placa por placa (o pieza por pieza) lo que va en cada contenedor. ': 'Aqui você registra chapa por chapa (ou peça por peça) o que vai em cada contêiner. ', 'Es la parte más detallada.': 'É a parte mais detalhada.', 'Empezar con el asistente': 'Começar com o assistente', 'Cómo funciona el asistente': 'Como funciona o assistente', 'El asistente te llevará paso a paso: ': 'O assistente te guiará passo a passo: ', 'En lugar de que escribas mil líneas a mano, el asistente ': 'Em vez de escrever mil linhas à mão, o assistente ', 'genera las filas automáticamente': 'gera as linhas automaticamente', 'Tip: el packing list es lo más detallado.': 'Dica: o packing list é a parte mais detalhada.', 'Fecha del Packing': 'Data do Packing', 'No. del Packing': 'Nº do Packing',
     'Bloque': 'Bloco', 'Bloques configurados': 'Blocos configurados', 'Atado': 'Amarrado', 'No. Placa': 'Nº Chapa', 'Grosor cm': 'Espessura cm', 'Alto m': 'Altura m', 'Largo m': 'Comprimento m', 'Foto': 'Foto', 'Notas': 'Notas', 'Referencia': 'Referência', 'Placas / piezas': 'Chapas / peças', 'Crear primer bloque': 'Criar primeiro bloco', 'Sin bloques aún': 'Sem blocos ainda', 'Empieza con uno. Puedes agregar tantos como necesites.': 'Comece com um. Pode adicionar quantos precisar.', 'Agregar bloque': 'Adicionar bloco', 'Un bloque es la piedra original de cantera, antes de cortarse. De cada bloque salen varias placas. Si tienes 3 bloques con 18, 16 y 14 placas, este paso generará automáticamente 48 filas para llenar.': 'Um bloco é a pedra original da pedreira, antes de ser cortada. De cada bloco saem várias chapas. Se você tem 3 blocos com 18, 16 e 14 chapas, este passo gerará automaticamente 48 linhas para preencher.', 'Antes de capturar placa por placa, vas a configurar los ': 'Antes de capturar chapa por chapa, você vai configurar os ', 'Puedes continuar y subirlas después, pero el packing list no se considerará completo hasta que cada bloque tenga al menos una foto.': 'Pode continuar e enviá-las depois, mas o packing list não será considerado completo até que cada bloco tenha pelo menos uma foto.', 'Estructura del packing': 'Estrutura do packing', 'Filas a generar': 'Linhas a gerar', 'Ajustar bloques': 'Ajustar blocos', 'Listo, volver al embarque': 'Pronto, voltar ao embarque', 'Iniciar llenado': 'Iniciar preenchimento', 'Paso ': 'Passo ', 'Ordenados de lo más fácil a lo más detallado. Comienza por el primero.': 'Ordenados do mais fácil ao mais detalhado. Comece pelo primeiro.',
     'Llena más rápido con propagación': 'Preencha mais rápido com propagação', 'Pasa el cursor sobre cualquier celda y verás ': 'Passe o cursor sobre qualquer célula e verá ', 'dos íconos a la derecha': 'dois ícones à direita', 'copia el valor a la siguiente fila del mismo bloque ·': 'copia o valor à próxima linha do mesmo bloco ·', 'copia a todas las filas debajo en el mismo bloque. También puedes copiar/pegar desde Excel y usar ': 'copia a todas as linhas abaixo no mesmo bloco. Também pode copiar/colar do Excel e usar ', ' entre celdas.': ' entre células.', 'Copiar a la siguiente fila del mismo bloque': 'Copiar para a próxima linha do mesmo bloco', 'Copiar a TODAS las filas del mismo bloque (abajo)': 'Copiar para TODAS as linhas do mesmo bloco (abaixo)', 'Todas (': 'Todas (', 'Pendientes (': 'Pendentes (', 'Errores (': 'Erros (', 'Sin dimensiones': 'Sem dimensões', 'con errores': 'com erros', 'Exportar CSV': 'Exportar CSV', 'Pegar de Excel': 'Colar do Excel', 'Pegar desde Excel': 'Colar do Excel',
@@ -2075,7 +2075,6 @@ const PackingListView = ({ pk, proforma }) => {
                     React.createElement("th", { style: { width: 80 } }, "Largo"),
                     React.createElement("th", { style: { width: 80 } }, "Ancho"),
                     React.createElement("th", { style: { width: 80 } }, "m²"),
-                    React.createElement("th", null, "Lote"),
                     (!window.PORTAL_NATIONAL && React.createElement("th", { style: { width: 56 } }, "Foto")),
                     React.createElement("th", { style: { width: 120 } }, "Estado"))),
                 React.createElement("tbody", null, g.rows.map((r, i) => {
@@ -2088,7 +2087,6 @@ const PackingListView = ({ pk, proforma }) => {
                         React.createElement("td", { className: "mono" }, (parseFloat(r.w) > 0) ? r.w : '—'),
                         React.createElement("td", { className: "mono" }, (parseFloat(r.h) > 0) ? r.h : '—'),
                         React.createElement("td", { className: "mono" }, m2 > 0 ? m2.toFixed(2) : '—'),
-                        React.createElement("td", { className: "mono" }, r.notes || '—'),
                         (!window.PORTAL_NATIONAL && React.createElement("td", { style: { textAlign: 'center' } }, r.photo ? React.createElement(Icon, { name: "check", size: 12 }) : React.createElement(Icon, { name: "camera", size: 12 }))),
                         React.createElement("td", null, React.createElement(Badge, { tone: st.tone }, st.icon ? React.createElement(Icon, { name: st.icon, size: 10 }) : null, " " + st.text)));
                 })));
@@ -2193,7 +2191,7 @@ const TabPackings = ({ ship, updateShip, openPackingWizard, proforma, onDeletePa
                                 placaBlocks.filter(b => !b.photo).length,
                                 " bloques sin foto"))),
                     React.createElement("div", { style: { display: 'flex', gap: 8 } },
-                        React.createElement(Btn, { variant: isOpen ? 'primary' : 'ghost', icon: isOpen ? 'chevron_down' : 'chevron_right', onClick: () => setOpenId(isOpen ? null : pk.id) }, isOpen ? "Ocultar" : "Ver detalle"),
+                        React.createElement(Btn, { variant: 'ghost', icon: 'box', onClick: () => openPackingWizard(ship.id, pk.id, 'structure') }, "Editar estructura"),
                         React.createElement(Btn, { variant: "secondary", icon: "pencil", onClick: () => openPackingWizard(ship.id, pk.id) }, "Editar"),
                         React.createElement(Btn, { variant: "ghost", icon: "trash", className: "btn-danger-ghost", onClick: () => {
                                 if (typeof onDeletePacking === 'function' && window.confirm(`¿Eliminar el packing list ${pk.number}? Se borrarán todas sus filas. Esta acción no se puede deshacer.`))
@@ -2502,11 +2500,11 @@ const PL_PRODUCT_SUMMARY = (prows) => {
     }
     return { kind, parts, tone };
 };
-const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampleRows, pendingImages }) => {
+const PackingWizard = ({ proforma, shipmentId, packingId, startAtStructure, onClose, onSave, sampleRows, pendingImages }) => {
     const ship = proforma.shipments.find(s => s.id === shipmentId);
     const existing = packingId ? ship.packings.find(p => p.id === packingId) : null;
     // determine starting step: if editing and already has rows, jump to step 4
-    const initialStep = existing ? (existing.rows_filled > 0 ? 4 : 3) : 1;
+    const initialStep = existing ? (startAtStructure ? 2 : (existing.rows_filled > 0 ? 4 : 3)) : 1;
     const [step, setStep] = React.useState(initialStep);
     const [draft, setDraft] = React.useState(() => existing ? {
         number: existing.number,
@@ -2590,6 +2588,10 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
         return gs.length > 0 && gs.every(g => s2GroupOk(g, t));
     });
     const S2_LABELS = { placa: 'Placas', formato: 'Formatos', pieza: 'Piezas' };
+    // Bloques de PLACA sin foto: bloquean el avance (salvo compra nacional)
+    // y se listan en la alerta del pie para que el proveedor sepa POR QUÉ.
+    const plMissingPhotoBlocks = window.PORTAL_NATIONAL ? [] : (draft.blocks || []).filter(b =>
+        groupModeById(draft, proforma.products, b.product) === 'placa' && !b.photo);
     const canNext = () => {
         if (step === 1) {
             // Nacional: el folio es opcional; basta la FECHA del packing.
@@ -2608,7 +2610,7 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
                     // exige AQUÍ (antes de generar filas), no al final. Exento si es
                     // nacional o si quien captura es un usuario interno.
                     return (+b.count || 0) > 0 && !!(b.name || '').trim()
-                        && (window.PORTAL_NATIONAL || window.PORTAL_INTERNAL || !!b.photo);
+                        && (window.PORTAL_NATIONAL || !!b.photo);
                 // Formato/Pieza: el EMPAQUE es obligatorio y es lo primero.
                 const pk = b.packaging || {};
                 if (!pk.kind)
@@ -2669,7 +2671,7 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
                 step === 1 && React.createElement(Step1Products, { proforma: proforma, draft: draft, setDraft: setDraft }),
                 step === 2 && React.createElement(Step2Blocks, { proforma: proforma, draft: draft, setDraft: setDraft, pendingImages: pendingImages, typeTab: s2Active }),
                 step === 3 && React.createElement(Step3Review, { proforma: proforma, draft: draft, ship: ship }),
-                step === 4 && React.createElement(Step4Sheet, { proforma: proforma, draft: draft, rows: rows, setRows: setRows, ship: ship, pendingImages: pendingImages })),
+                step === 4 && React.createElement(Step4Sheet, { proforma: proforma, draft: draft, setDraft: setDraft, rows: rows, setRows: setRows, ship: ship, pendingImages: pendingImages })),
             step === 4 && React.createElement("div", { className: "wizard-prop-tip" },
                 React.createElement(Icon, { name: "sparkles", size: 14 }),
                 React.createElement("span", null,
@@ -2701,6 +2703,10 @@ const PackingWizard = ({ proforma, shipmentId, packingId, onClose, onSave, sampl
                     React.createElement("span", { className: "text-muted text-small" }, step === 4 && (React.createElement("span", null,
                         React.createElement(Icon, { name: "check", size: 11 }),
                         " Autoguardado \u00B7 hace un momento"))),
+                    (step === 2 && plMissingPhotoBlocks.length > 0) && React.createElement("span", { style: { color: 'var(--warn)', fontSize: 12.5, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6, maxWidth: 460, textAlign: 'right' } },
+                        React.createElement(Icon, { name: "alert", size: 12 }),
+                        "Falta la foto de bloque: ",
+                        plMissingPhotoBlocks.map(b => (b.name || '').trim() || '—').join(', ')),
                     step < 3 && (step === 2
                         ? (s2IsLast
                             ? React.createElement(Btn, { variant: "primary", iconRight: "arrow_right", disabled: !canNext(), onClick: () => setStep(step + 1) }, "Revisar declaración del envío")
@@ -2999,7 +3005,7 @@ const Step3Review = ({ proforma, draft, ship }) => {
             })))));
 };
 /* ====================== Step 4: Spreadsheet ====================== */
-const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => {
+const Step4Sheet = ({ proforma, draft, setDraft, rows, setRows, ship, pendingImages }) => {
     const [activeRow, setActiveRow] = React.useState(null);
     // Filtro de filas del grid: todas / pendientes / con errores.
     const [rowFilter, setRowFilter] = React.useState('all');
@@ -3143,6 +3149,61 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
     const prodOrder = [];
     allRows.forEach(r => { const k = prodKey(r); if (prodOrder.indexOf(k) < 0) prodOrder.push(k); });
     const productGroups = prodOrder.map(k => ({ key: k, rows: allRows.filter(r => prodKey(r) === k) }));
+    // ── Agregar/quitar filas desde el llenado ──
+    // No se insertan filas "sueltas": se ajusta el conteo del bloque/empaque
+    // en la estructura (draft) y la regeneración reconcilia conservando lo
+    // capturado. Así Revisión, contadores y estructura siempre cuadran.
+    const rowBlockOf = (r) => {
+        const blocks = draft.blocks || [];
+        if (String(r.tipo || 'Placa').toLowerCase().indexOf('placa') >= 0)
+            return blocks.find(b => String(b.product) === String(r.product_id) && (b.name || '') === (r.block || ''));
+        const g = PL_PKG(r.grupo).kind;
+        return blocks.find(b => String(b.product) === String(r.product_id)
+            && ((b.packaging && b.packaging.kind) || '') === g);
+    };
+    const plCanEditRows = (r) => {
+        if (String(r.tipo || 'Placa').toLowerCase().indexOf('placa') >= 0)
+            return true;
+        return PL_PKG(r.grupo).kind !== 'suelto';
+    };
+    const addRowAfter = (r) => {
+        if (!setDraft || !r) return;
+        const target = rowBlockOf(r);
+        if (!target) return;
+        setDraft(d => ({ ...d, blocks: (d.blocks || []).map(b => {
+            if (b.id !== target.id) return b;
+            if (groupModeById(d, proforma.products, b.product) === 'placa')
+                return { ...b, count: (+b.count || 0) + 1 };
+            const pk2 = b.packaging || {};
+            if (pk2.kind === 'suelto') return b;
+            return { ...b, packaging: { ...pk2, qty: (+pk2.qty || 0) + 1 } };
+        }) }));
+    };
+    const delRow = (r) => {
+        if (!setDraft || !plCanEditRows(r)) return;
+        const target = rowBlockOf(r);
+        setRows(prev => prev.filter(x => x.id !== r.id));
+        if (!target) return;
+        setDraft(d => ({ ...d, blocks: (d.blocks || []).map(b => {
+            if (b.id !== target.id) return b;
+            if (groupModeById(d, proforma.products, b.product) === 'placa')
+                return { ...b, count: Math.max((+b.count || 0) - 1, 0) };
+            const pk2 = b.packaging || {};
+            return { ...b, packaging: { ...pk2, qty: Math.max((+pk2.qty || 0) - 1, 0) } };
+        }) }));
+    };
+    const delCell = (r) => React.createElement("td", { style: { textAlign: 'center', width: 34 } },
+        plCanEditRows(r) ? React.createElement("button", { title: "Quitar fila", style: { border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--ink-4)', padding: 2 }, onClick: (e) => { e.stopPropagation(); delRow(r); } },
+            React.createElement(Icon, { name: "trash", size: 12 })) : null);
+    const addRowFooter = (gRows) => {
+        const last = gRows[gRows.length - 1];
+        if (!last || !plCanEditRows(last)) return null;
+        return React.createElement("tfoot", null, React.createElement("tr", null,
+            React.createElement("td", { colSpan: 99, style: { padding: '6px 8px', background: 'var(--bg)' } },
+                React.createElement("button", { style: { display: 'inline-flex', alignItems: 'center', gap: 6, border: '1px dashed var(--border)', background: 'transparent', borderRadius: 8, padding: '5px 10px', cursor: 'pointer', fontSize: 12, color: 'var(--ink-2)' }, onClick: () => addRowAfter(last) },
+                    React.createElement(Icon, { name: "plus", size: 11 }),
+                    "Agregar fila"))));
+    };
     // ---- Exportar / Pegar (Excel) — columnas de placa ----
     const COL_DEFS = [
         { header: '#',          field: null,        type: 'index'  },
@@ -3287,7 +3348,8 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                                 React.createElement("th", { style: { minWidth: 180 } }, NATIONAL ? 'Plataforma' : 'Contenedor'),
                                 (CARGO && React.createElement("th", { style: { minWidth: 150 } }, "PI / Pedido")),
                                 (!NATIONAL && React.createElement("th", { style: { width: 60 } }, "Foto")),
-                                React.createElement("th", { style: { minWidth: 170 } }, "Notas"))),
+                                React.createElement("th", { style: { minWidth: 170 } }, "Notas"),
+                                React.createElement("th", { style: { width: 34 } }, ""))),
                             React.createElement("tbody", null, gRows.filter(rowMatchesFilter).map((r) => {
                                 const gi = gRows.indexOf(r);
                                 const hNum = parseFloat(r.h) || 0;
@@ -3313,8 +3375,9 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                                     containerCell(r),
                                     (CARGO && piCell(r)),
                                     (!NATIONAL && photoCell(r)),
-                                    notesCell(r));
-                            })));
+                                    notesCell(r),
+                                    delCell(r));
+                            })), addRowFooter(gRows));
                     } else if (kind === 'formato') {
                         // Formato: 1 fila por empaque (palet/caja) o 1 fila si es suelto.
                         // Se captura el m² de cada una.
@@ -3327,7 +3390,8 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                                 React.createElement("th", { style: { minWidth: 180 } }, NATIONAL ? 'Plataforma' : 'Contenedor'),
                                 (CARGO && React.createElement("th", { style: { minWidth: 150 } }, "PI / Pedido")),
                                 (!NATIONAL && React.createElement("th", { style: { width: 60 } }, "Foto")),
-                                React.createElement("th", { style: { minWidth: 170 } }, "Notas"))),
+                                React.createElement("th", { style: { minWidth: 170 } }, "Notas"),
+                                React.createElement("th", { style: { width: 34 } }, ""))),
                             React.createElement("tbody", null, gRows.filter(rowMatchesFilter).map((r) => {
                                 const gi = gRows.indexOf(r);
                                 const pkg = PL_PKG(r.grupo);
@@ -3342,8 +3406,9 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                                     containerCell(r),
                                     (CARGO && piCell(r)),
                                     (!NATIONAL && photoCell(r)),
-                                    notesCell(r));
-                            })));
+                                    notesCell(r),
+                                    delCell(r));
+                            })), addRowFooter(gRows));
                     } else {
                         // Pieza: 1 fila por empaque o 1 fila si es suelto. Se captura la
                         // cantidad (unidades sueltas / piezas por empaque) y otros detalles.
@@ -3355,7 +3420,8 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                                 React.createElement("th", { style: { width: 160 } }, "Cantidad"),
                                 React.createElement("th", { style: { minWidth: 180 } }, NATIONAL ? 'Plataforma' : 'Contenedor'),
                                 (CARGO && React.createElement("th", { style: { minWidth: 150 } }, "PI / Pedido")),
-                                React.createElement("th", { style: { minWidth: 170 } }, "Notas"))),
+                                React.createElement("th", { style: { minWidth: 170 } }, "Notas"),
+                                React.createElement("th", { style: { width: 34 } }, ""))),
                             React.createElement("tbody", null, gRows.filter(rowMatchesFilter).map((r) => {
                                 const gi = gRows.indexOf(r);
                                 const pkg = PL_PKG(r.grupo);
@@ -3369,8 +3435,9 @@ const Step4Sheet = ({ proforma, draft, rows, setRows, ship, pendingImages }) => 
                                         React.createElement("input", { type: "text", inputMode: "decimal", value: r.quantity || '', placeholder: "0", onChange: (e) => updRow(r.id, { quantity: e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.') }) })),
                                     containerCell(r),
                                     (CARGO && piCell(r)),
-                                    notesCell(r));
-                            })));
+                                    notesCell(r),
+                                    delCell(r));
+                            })), addRowFooter(gRows));
                     }
                     // OJO: sin overflow:hidden aquí. Si se recorta, este wrapper se
                     // vuelve el contenedor sticky del thead y la cabecera se encima de
@@ -4118,7 +4185,7 @@ function App() {
     // Iniciales del proveedor para el avatar: hasta 2 letras (una por cada una de
     // las dos primeras palabras); si solo hay una palabra, una sola letra.
     const vendorInitials = ((proforma.vendor || '').trim().split(/\s+/).filter(Boolean).slice(0, 2).map(w => w.charAt(0).toUpperCase()).join('')) || '—';
-    const openPackingWizard = (shipmentId, packingId) => setPackingWiz({ shipmentId, packingId });
+    const openPackingWizard = (shipmentId, packingId, mode) => setPackingWiz({ shipmentId, packingId, mode });
     const closePackingWizard = () => setPackingWiz(null);
     const savePacking = (shipmentId, packingId, draftSnap, rowsSnap) => {
         if (!shipmentId)
@@ -4238,7 +4305,7 @@ function App() {
                     route.section === 'shipments' && React.createElement(ShipmentsList, { proforma: proforma, setProforma: setProforma, status: status, setRoute: setRoute }),
                     route.section === 'shipment' && React.createElement(ShipmentDetail, { proforma: proforma, setProforma: setProforma, status: status, setRoute: setRoute, route: route, openPackingWizard: openPackingWizard, onDeleteShipment: deleteShipment, onDeletePacking: deletePacking }),
                     route.section === 'review' && React.createElement(Confirm, { proforma: proforma, status: status, setRoute: setRoute, onComplete: completePortal }))),
-            packingWiz && (React.createElement(PackingWizard, { proforma: proforma, shipmentId: packingWiz.shipmentId, packingId: packingWiz.packingId, sampleRows: SAMPLE_ROWS, onClose: closePackingWizard, onSave: savePacking, pendingImages: pendingImagesRef })),
+            packingWiz && (React.createElement(PackingWizard, { proforma: proforma, shipmentId: packingWiz.shipmentId, packingId: packingWiz.packingId, startAtStructure: packingWiz.mode === 'structure', sampleRows: SAMPLE_ROWS, onClose: closePackingWizard, onSave: savePacking, pendingImages: pendingImagesRef })),
             showOnboard && React.createElement(Onboarding, { onClose: () => setShowOnboard(false) }),
             React.createElement(NoticeModal, { notice: notice, onClose: () => setNotice(null) }),
             React.createElement(TweaksPanel, { title: "Tweaks" },
