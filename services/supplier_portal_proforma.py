@@ -1065,6 +1065,20 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
 
         saved_rows_response = []
 
+        # BLINDAJE ANTI-BORRADO: un guardado con la lista de filas VACÍA sobre
+        # un packing que SÍ tiene filas en el servidor nunca es una captura
+        # legítima (borrar el PL completo tiene su propio endpoint explícito).
+        # Es el patrón de un autosave con estado corrupto/reiniciado del
+        # frontend: se ignoran las filas (se conserva lo del servidor) y el
+        # portal se reconcilia con la verdad de Odoo en el siguiente reload.
+        if rows is not None and not rows and packing.row_ids:
+            _logger.warning(
+                "[Portal][GUARD] save_packing recibió 0 filas para el packing %s "
+                "(%s filas en servidor). Se IGNORA el borrado masivo.",
+                packing.id, len(packing.row_ids),
+            )
+            rows = None
+
         if rows is not None:
             existing_rows = {row.id: row for row in packing.row_ids}
             incoming_ids = set()
