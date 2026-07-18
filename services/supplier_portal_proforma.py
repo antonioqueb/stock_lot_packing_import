@@ -1147,6 +1147,30 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                     row_record = existing_rows.get(row_id)
                     if not row_record:
                         return {"success": False, "message": "Una de las filas no pertenece al packing actual."}
+                    # BLINDAJE ANTI-BORRADO (2): si la fila YA tiene medidas
+                    # capturadas en el servidor y el guardado llega con TODO en
+                    # cero (alto, ancho y cantidad), es el patrón de un autosave
+                    # con estado reiniciado — no una corrección legítima (para
+                    # quitar una fila está el botón de eliminar fila). Se
+                    # conservan las medidas del servidor y se registra en log.
+                    incoming_empty = (
+                        not row_vals.get("alto")
+                        and not row_vals.get("ancho")
+                        and not row_vals.get("quantity")
+                    )
+                    server_has_data = bool(
+                        row_record.alto or row_record.ancho or row_record.quantity
+                    )
+                    if incoming_empty and server_has_data:
+                        _logger.warning(
+                            "[Portal][GUARD] Fila %s del packing %s llegó SIN "
+                            "medidas (servidor: alto=%s ancho=%s qty=%s). Se "
+                            "conservan los valores del servidor.",
+                            row_record.id, packing.id,
+                            row_record.alto, row_record.ancho, row_record.quantity,
+                        )
+                        for key in ("alto", "ancho", "quantity", "peso"):
+                            row_vals.pop(key, None)
                     row_record.write(row_vals)
                 else:
                     row_record = row_model.create(row_vals)
