@@ -3145,10 +3145,17 @@ const Step4Sheet = ({ proforma, draft, setDraft, rows, setRows, ship, pendingIma
     // la PI a todo el bloque igual que el contenedor.
     const CARGO = !!(typeof window !== 'undefined' && window.PORTAL_CARGO);
     const cargoPis = (typeof window !== 'undefined' && window.PORTAL_PROFORMAS) || [];
+    const piOptionsForRow = (r) => cargoPis.filter(q => {
+        // Solo PIs que CONTIENEN el producto de la fila; si el payload no trae
+        // la lista (versión vieja en caché), no se filtra.
+        if (!Array.isArray(q.product_ids) || !q.product_ids.length)
+            return true;
+        return q.product_ids.some(id => String(id) === String(r.product_id));
+    });
     const piCell = (r) => PropCell({ rowId: r.id, field: "pi_header_id" },
         React.createElement("select", { value: r.pi_header_id || '', onChange: (e) => updRow(r.id, { pi_header_id: e.target.value ? parseInt(e.target.value, 10) : false }) },
             React.createElement("option", { value: "" }, "— automático —"),
-            cargoPis.map(q => React.createElement("option", { key: q.id, value: q.id }, (q.number || q.po_name || '') + (q.number && q.po_name ? ' (' + q.po_name + ')' : '')))));
+            piOptionsForRow(r).map(q => React.createElement("option", { key: q.id, value: q.id }, (q.number || q.po_name || '') + (q.number && q.po_name ? ' (' + q.po_name + ')' : '')))));
     // Celda de foto reutilizable (placa y formato).
     const photoCell = (r) => React.createElement("td", { style: { textAlign: 'center' } },
         React.createElement("label", { className: `row-mini-photo ${r.photo ? 'has' : ''}`, style: { cursor: 'pointer', overflow: 'hidden' }, title: "Subir/Reemplazar foto", onClick: (e) => e.stopPropagation() },

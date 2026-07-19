@@ -563,6 +563,12 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
             header = header_by_po.get(po_it.id)
             if not header:
                 continue
+            pi_product_ids = list(dict.fromkeys(
+                line.product_id.id
+                for line in po_it.order_line
+                if not line.display_type and line.product_id
+                and not self._is_service_product(line.product_id)
+            ))
             proformas_payload.append({
                 "id": header.id,
                 "number": header.proforma_number
@@ -570,6 +576,9 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                 "po_id": po_it.id,
                 "po_name": po_it.name or "",
                 "is_main": bool(proforma and header.id == proforma.id),
+                # Productos que ampara esta PI: el selector por fila del PL
+                # solo ofrece PIs que CONTIENEN el material de la fila.
+                "product_ids": pi_product_ids,
             })
 
         full_data = {
@@ -1137,6 +1146,21 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                             "success": False,
                             "message": "La fila %s contiene una PI que no pertenece a esta carga." % idx,
                         }
+                    # La PI elegida debe CONTENER el producto de la fila: una
+                    # PI sin ese material provocaría un reparto imposible.
+                    if pi_header_id and row_vals.get("product_id"):
+                        pi_header = request.env["supplier.proforma.header"].sudo().browse(pi_header_id)
+                        pi_po = pi_header.purchase_id
+                        has_product = pi_po and any(
+                            not l.display_type
+                            and l.product_id.id == row_vals["product_id"]
+                            for l in pi_po.order_line
+                        )
+                        if not has_product:
+                            return {
+                                "success": False,
+                                "message": "La fila %s asigna una PI que no contiene ese producto." % idx,
+                            }
                     row_vals["pi_header_id"] = pi_header_id or False
                     row_vals["pi_manual"] = bool(pi_header_id)
 
