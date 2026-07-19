@@ -2524,7 +2524,9 @@ const PackingWizard = ({ proforma, shipmentId, packingId, startAtStructure, onCl
         products: existing.products,
         blocks: existing.blocks.map(b => ({ ...b })),
     } : {
-        number: '',
+        // El No. del Packing nace con el número del INVOICE ya capturado en
+        // este embarque (mismo folio comercial); el proveedor puede cambiarlo.
+        number: (ship && Array.isArray(ship.invoices) && ship.invoices[0] && ship.invoices[0].number) || '',
         date: new Date().toISOString().slice(0, 10),
         products: [],
         blocks: [],
