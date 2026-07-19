@@ -249,7 +249,7 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
         doc_index_by_shipment = {}
         for doc in all_docs:
             if doc.shipment_id:
-                doc_index_by_shipment.setdefault(doc.shipment_id, set()).add(doc.document_type)
+                doc_index_by_shipment.setdefault(doc.shipment_id.id, set()).add(doc.document_type)
 
         shipment_doc_types_required = ["bl", "invoice", "packing_list"]
         shipment_doc_types_extra = ["eur1", "certificate_origin", "fumigation"]
@@ -332,7 +332,7 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
         doc_index_by_shipment = {}
         for doc in all_docs:
             if doc.shipment_id:
-                doc_index_by_shipment.setdefault(doc.shipment_id, set()).add(doc.document_type)
+                doc_index_by_shipment.setdefault(doc.shipment_id.id, set()).add(doc.document_type)
 
         for shipment in proforma.shipment_ids:
             shipment_doc_types = doc_index_by_shipment.get(shipment.id, set())

@@ -168,8 +168,13 @@ class SupplierCargoInvoice(models.Model):
             access = rec.access_ids[:1]
             rec.access_expiration = access.expiration_date
             rec.last_access = access.last_access
+            # El avance real de captura vive en las proformas CON embarques
+            # (la captura de la carga sucede en una sola sesión de portal);
+            # las PI hermanas sin embarques no diluyen el promedio.
+            headers = rec._cargo_headers()
+            with_shipments = headers.filtered(lambda h: h.shipment_ids)
             percents = []
-            for header in rec._cargo_headers():
+            for header in (with_shipments or headers):
                 try:
                     percents.append(header._portal_progress().get('percent', 0))
                 except Exception:
