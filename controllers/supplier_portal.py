@@ -23,6 +23,14 @@ class SupplierPortalController(http.Controller):
     def view_supplier_portal(self, token, **kwargs):
         return self.proforma_service.build_portal_view(token)
 
+    @http.route("/supplier/api/v2/save_progress", type="jsonrpc", auth="public", csrf=False)
+    def api_save_progress(self, **kw):
+        params = self.base_service.get_params()
+        return self.proforma_service.save_progress(
+            params.get("token"),
+            params.get("percent"),
+        )
+
     # =====================================================================
     #  GLOBALS
     # =====================================================================

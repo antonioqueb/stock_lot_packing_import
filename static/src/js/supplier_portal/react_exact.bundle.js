@@ -4178,6 +4178,22 @@ function App() {
             clearTimeout(saveTimerRef.current);
     }, []);
     const status = React.useMemo(() => computeStatus(proforma), [proforma]);
+    // El avance que ve el proveedor se reporta a Odoo tal cual (debounced):
+    // la torre de control y la factura de carga lo HEREDAN en lugar de
+    // recalcularlo con otra vara.
+    const progressSentRef = React.useRef(null);
+    React.useEffect(() => {
+        if (!PORTAL_TOKEN || t.show_completed_route)
+            return;
+        const pct = Math.max(0, Math.min(100, Math.round(status.overall || 0)));
+        if (progressSentRef.current === pct)
+            return;
+        const timer = setTimeout(() => {
+            progressSentRef.current = pct;
+            portalRpc('/supplier/api/v2/save_progress', { token: PORTAL_TOKEN, percent: pct }).catch(() => { });
+        }, 800);
+        return () => clearTimeout(timer);
+    }, [status, t.show_completed_route]);
     // routing: { section, shipmentId?, tab? }
     const [route, setRoute] = React.useState({ section: 'overview' });
     const [packingWiz, setPackingWiz] = React.useState(null);

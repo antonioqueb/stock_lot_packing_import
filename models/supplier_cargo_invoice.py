@@ -179,16 +179,28 @@ class SupplierCargoInvoice(models.Model):
             with_shipments = headers.filtered(lambda h: h.shipment_ids)
             percents = []
             for header in (with_shipments or headers):
-                try:
-                    percents.append(self._progress_percent_capture(
-                        header._portal_progress()))
-                except Exception:
-                    _logger.exception(
-                        "[Cargo] No se pudo calcular el avance de captura de "
-                        "la proforma %s (carga %s).", header.id, rec.id)
-                    continue
+                percents.append(self._header_capture_percent(header))
             rec.capture_progress = (
                 round(sum(percents) / len(percents)) if percents else 0)
+
+    @api.model
+    def _header_capture_percent(self, header):
+        """Avance de UNA proforma con precedencia clara:
+        1) el % reportado por el PROPIO portal (idéntico a lo que ve el
+           proveedor), 2) 100 si ya está marcada como completa, 3) cálculo
+        interno como último recurso (enlaces nunca abiertos tras el deploy)."""
+        stored = getattr(header, 'portal_overall_pct', 0) or 0
+        if stored > 0:
+            return stored
+        if (header.status or '') == 'complete':
+            return 100
+        try:
+            return self._progress_percent_capture(header._portal_progress())
+        except Exception:
+            _logger.exception(
+                "[Cargo] No se pudo calcular el avance de la proforma %s.",
+                header.id)
+            return 0
 
     @staticmethod
     def _progress_percent_capture(progress):

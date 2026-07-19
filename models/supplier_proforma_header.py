@@ -23,6 +23,12 @@ class SupplierProformaHeader(models.Model):
     )
 
     proforma_number = fields.Char(string='No. de Proforma', copy=False)
+    portal_overall_pct = fields.Integer(
+        string='Avance del portal (%)', copy=False,
+        help='Porcentaje de avance reportado por el PROPIO portal del '
+             'proveedor (el mismo número que él ve). Fuente de verdad del '
+             'avance de captura.',
+    )
 
     def write(self, vals):
         res = super().write(vals)

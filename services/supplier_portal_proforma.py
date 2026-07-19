@@ -1362,7 +1362,7 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
             if (excess / ordered) > OVER_THRESHOLD:
                 over_items.append(item)
 
-        proforma.write({"status": "complete"})
+        proforma.write({"status": "complete", "portal_overall_pct": 100})
         self.sync_service.sync_all_shipments(proforma)
 
         # Al terminar el proveedor, el PL de CADA recepción se procesa en
@@ -1449,6 +1449,20 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                     picking.name,
                 )
         return processed, errors
+
+    def save_progress(self, token, percent):
+        """El portal reporta SU porcentaje de avance (status.overall). Odoo
+        lo hereda tal cual: es el mismo número que ve el proveedor."""
+        access = self.validate_token(token)
+        if not access:
+            return {"success": False, "message": "Token inválido."}
+        proforma = self.get_or_create_proforma(access)
+        if not proforma:
+            return {"success": False, "message": "Proforma no encontrada."}
+        pct = max(0, min(100, self.safe_int(percent, 0)))
+        if proforma.portal_overall_pct != pct:
+            proforma.write({"portal_overall_pct": pct})
+        return {"success": True, "percent": pct}
 
     def reload_proforma(self, token):
         access = self.validate_token(token)
