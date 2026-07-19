@@ -8,8 +8,12 @@ factura y Odoo genera UN enlace contextualizado — nunca un enlace por PO.
 Compatibilidad: una carga con una sola PO se comporta exactamente como el
 flujo actual (el enlace clásico por OC sigue funcionando sin carga).
 """
+import logging
+
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
+
+_logger = logging.getLogger(__name__)
 
 
 class SupplierCargoInvoice(models.Model):
@@ -176,11 +180,35 @@ class SupplierCargoInvoice(models.Model):
             percents = []
             for header in (with_shipments or headers):
                 try:
-                    percents.append(header._portal_progress().get('percent', 0))
+                    percents.append(self._progress_percent_capture(
+                        header._portal_progress()))
                 except Exception:
+                    _logger.exception(
+                        "[Cargo] No se pudo calcular el avance de captura de "
+                        "la proforma %s (carga %s).", header.id, rec.id)
                     continue
             rec.capture_progress = (
                 round(sum(percents) / len(percents)) if percents else 0)
+
+    @staticmethod
+    def _progress_percent_capture(progress):
+        """% con la MISMA vara que el portal del proveedor: solo lo que ÉL
+        debe capturar. Se excluyen los documentos opcionales (EUR1, cert. de
+        origen, fumigación) y los datos generales (en cargas los pre-llena
+        Compras). Así un enlace terminado marca 100."""
+        skip_suffixes = ('_doc_eur1', '_doc_certificate_origin', '_doc_fumigation')
+        total = 0
+        done = 0
+        for key, sec in (progress.get('sections') or {}).items():
+            if key == 'globals' or key.endswith(skip_suffixes):
+                continue
+            weight = sec.get('weight') or 0
+            total += weight
+            if sec.get('filled'):
+                done += weight
+        if not total:
+            return progress.get('percent', 0)
+        return round(done / total * 100)
 
     def action_view_purchases(self):
         self.ensure_one()
