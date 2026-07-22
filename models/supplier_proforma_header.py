@@ -206,6 +206,8 @@ class SupplierShipment(models.Model):
     # para reportes/vistas existentes.
     naviera_id = fields.Many2one('res.partner', string='Naviera (catálogo)')
     forwarder_id = fields.Many2one('res.partner', string='Forwarder (catálogo)')
+    pol_id = fields.Many2one('res.partner', string='POL (catálogo)')
+    pod_id = fields.Many2one('res.partner', string='POD (catálogo)')
     vessel_name = fields.Char(string='Buque / viaje')
     etd = fields.Date(string='ETD')
     eta = fields.Date(string='ETA')

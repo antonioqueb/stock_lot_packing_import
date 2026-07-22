@@ -420,15 +420,52 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
         el Char shipping_line se sincroniza con su nombre (reportes/vistas
         existentes siguen funcionando)."""
         vals = {}
-        for key in ("naviera_id", "forwarder_id"):
+        name_sync = {"naviera_id": "shipping_line", "pol_id": "port_origin",
+                     "pod_id": "port_destination"}
+        for key in ("naviera_id", "forwarder_id", "pol_id", "pod_id"):
             if key in (shipment_data or {}):
                 pid = self.safe_int(shipment_data.get(key), 0)
                 vals[key] = pid or False
-                if key == "naviera_id" and pid:
+                sync_field = name_sync.get(key)
+                if sync_field and pid:
                     partner = request.env["res.partner"].sudo().browse(pid)
                     if partner.exists():
-                        vals["shipping_line"] = partner.name
+                        vals[sync_field] = partner.name
         return vals
+
+    def _tariff_routes(self, access=None):
+        """Rutas COMPLETAS del tarifario activo para la cascada del portal:
+        forwarder → naviera → POL → POD. Si la OC del enlace ya tiene país de
+        origen, solo rutas de ese país (el proveedor no elige país)."""
+        try:
+            domain = [("state", "=", "active")]
+            country = False
+            if access:
+                pos = self.covered_purchase_orders(access)
+                countries = pos.mapped('som_route_country_id') if pos and 'som_route_country_id' in pos._fields else False
+                if countries and len(countries) == 1:
+                    country = countries
+            if not country and access and access.purchase_id.partner_id.country_id:
+                country = access.purchase_id.partner_id.country_id
+            if country:
+                tariffs = request.env["freight.tariff"].sudo().search(
+                    domain + [("country_id", "=", country.id)])
+                if not tariffs:
+                    tariffs = request.env["freight.tariff"].sudo().search(domain)
+            else:
+                tariffs = request.env["freight.tariff"].sudo().search(domain)
+            return [{
+                "forwarder_id": t.forwarder_id.id,
+                "forwarder_name": t.forwarder_id.name or "",
+                "naviera_id": t.naviera_id.id if t.naviera_id else False,
+                "naviera_name": t.naviera_id.name or "",
+                "pol_id": t.pol_id.id,
+                "pol_name": t.pol_id.name or "",
+                "pod_id": t.pod_id.id,
+                "pod_name": t.pod_id.name or "",
+            } for t in tariffs]
+        except Exception:
+            return []
 
     def _tariff_catalogs(self):
         """Catálogos de navieras y forwarders CON TARIFA ACTIVA (el
@@ -518,6 +555,8 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                 "shipping_line": shipment.shipping_line or "",
                 "naviera_id": shipment.naviera_id.id if getattr(shipment, 'naviera_id', False) else False,
                 "forwarder_id": shipment.forwarder_id.id if getattr(shipment, 'forwarder_id', False) else False,
+                "pol_id": shipment.pol_id.id if getattr(shipment, 'pol_id', False) else False,
+                "pod_id": shipment.pod_id.id if getattr(shipment, 'pod_id', False) else False,
                 "vessel_name": shipment.vessel_name or "",
                 "etd": str(shipment.etd) if shipment.etd else "",
                 "eta": str(shipment.eta) if shipment.eta else "",
@@ -633,6 +672,7 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
             "proformas": proformas_payload,
             "navieras": self._tariff_catalogs()[0],
             "forwarders": self._tariff_catalogs()[1],
+            "tariff_routes": self._tariff_routes(access),
             "is_cargo": len(covered_pos) > 1,
             "token": token,
             "poName": " · ".join(covered_pos.mapped("name")) or (po.name or ""),
