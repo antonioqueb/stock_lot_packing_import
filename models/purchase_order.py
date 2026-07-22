@@ -30,6 +30,43 @@ class PurchaseOrderLine(models.Model):
     )
 
 
+class PurchaseOrderLineUnlink(models.Model):
+    """Permite ELIMINAR líneas de una OC confirmada (igual que el ajuste de
+    ventas): el candado nativo de Odoo bloquea cualquier borrado en estado
+    purchase/done; aquí solo se bloquea cuando la línea ya tiene material
+    EFECTIVAMENTE RECIBIDO — ahí ya no hay vuelta atrás."""
+    _inherit = 'purchase.order.line'
+
+    @api.ondelete(at_uninstall=False)
+    def _unlink_except_purchase_or_done(self):
+        # OVERRIDE del candado nativo (mismo nombre = lo reemplaza).
+        for line in self:
+            if (
+                line.state in ('purchase', 'done')
+                and (line.qty_received or 0.0) > 0
+            ):
+                raise UserError(_(
+                    'No se puede eliminar la línea de "%(product)s": ya tiene '
+                    '%(qty)s recibido(s). Las líneas con recepción efectiva '
+                    'son intocables.',
+                    product=line.product_id.display_name,
+                    qty=line.qty_received,
+                ))
+
+    def unlink(self):
+        # Al borrar una línea de OC confirmada, sus movimientos de recepción
+        # PENDIENTES se cancelan primero (sin esto quedarían huérfanos
+        # exigiendo material que ya nadie pidió).
+        pending_moves = self.env['stock.move']
+        for line in self:
+            if line.state in ('purchase', 'done'):
+                pending_moves |= line.move_ids.filtered(
+                    lambda m: m.state not in ('done', 'cancel'))
+        if pending_moves:
+            pending_moves.sudo()._action_cancel()
+        return super().unlink()
+
+
 class PurchaseOrderPI(models.Model):
     """Vínculo PO ↔ PI: la relación 'PO 46 ↔ PI 1500' existe en Odoo desde
     que el proveedor confirma su proforma, ANTES de tocar el portal.
