@@ -19,18 +19,19 @@
                     <t t-set="address" t-value="False"/>
                     <t t-set="information_block" t-value="False"/>
 
-                    <div class="page" style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 10px; color: #000; line-height: 1.25;">
+                    <div class="page" style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 10px; color: #222; line-height: 1.25;">
+                        <t t-call="stock_lot_dimensions.som_report_style"/>
 
                         <!-- ============ TÍTULO ============ -->
-                        <div class="row border-bottom pb-2 mb-2" style="border-color: #000 !important; align-items: center;">
+                        <div class="row border-bottom pb-2 mb-2" style="border-color: #2f2f2f !important; align-items: center;">
                             <div class="col-8">
-                                <h4 class="text-uppercase mb-0" style="font-weight: 800; letter-spacing: 1px;">
+                                <h4 class="som-doc-title mb-0">
                                     Discrepancia
-                                    <span t-field="doc.name" style="margin-left: 10px; color: #333;"/>
+                                    <span t-field="doc.name" style="margin-left: 10px; color: #555;"/>
                                 </h4>
                             </div>
                             <div class="col-4 text-end">
-                                <div style="font-size: 14px; color: #505050; margin-top: 4px;">
+                                <div class="som-doc-subtitle" style="margin: 4px 0 0 0;">
                                     Impreso: <span t-esc="context_timestamp(datetime.datetime.now()).strftime('%d/%m/%Y %H:%M')"/>
                                 </div>
                             </div>
@@ -46,9 +47,9 @@
                                 </colgroup>
                                 <thead>
                                     <tr>
-                                        <th style="padding: 6px 8px; text-align: left; font-weight: 800; font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.5px; background-color: #f2f2f2; color: #222; border: 1px solid #d8d8d8 !important;">Proveedor</th>
-                                        <th style="padding: 6px 8px; text-align: left; font-weight: 800; font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.5px; background-color: #f2f2f2; color: #222; border: 1px solid #d8d8d8 !important;">Recepción</th>
-                                        <th style="padding: 6px 8px; text-align: left; font-weight: 800; font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.5px; background-color: #f2f2f2; color: #222; border: 1px solid #d8d8d8 !important;">Discrepancia</th>
+                                        <th class="som-section-title">Proveedor</th>
+                                        <th class="som-section-title">Recepción</th>
+                                        <th class="som-section-title">Discrepancia</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -57,46 +58,46 @@
                                         <td style="vertical-align: top; padding: 0; border: 1px solid #d8d8d8 !important;">
                                             <div style="padding: 6px 8px; overflow-wrap: anywhere; word-break: break-word;">
                                                 <span style="font-weight: bold; font-size: 11px;" t-field="doc.partner_id.name"/>
-                                                <span t-if="doc.partner_id.vat" style="display: block; font-size: 8.5px; color: #555; margin-top: 2px;">RFC: <span t-field="doc.partner_id.vat"/></span>
+                                                <span t-if="doc.partner_id.vat" class="som-small som-muted" style="display: block; margin-top: 2px;">RFC: <span t-field="doc.partner_id.vat"/></span>
                                             </div>
                                         </td>
 
                                         <!-- RECEPCIÓN -->
                                         <td style="vertical-align: top; padding: 0; border: 1px solid #d8d8d8 !important;">
-                                            <div style="display: table; width: 100%; table-layout: fixed; border-bottom: 1px solid #d8d8d8 !important;">
-                                                <div style="display: table-cell; width: 42%; padding: 5px 8px; color: #555; text-transform: uppercase; font-size: 8.5px; letter-spacing: 0.3px; border-right: 1px solid #d8d8d8 !important;">Orden de Compra</div>
-                                                <div style="display: table-cell; padding: 5px 8px; font-weight: 600;"><t t-esc="doc.purchase_id.name or doc.origin or '-'"/></div>
+                                            <div class="som-info-row">
+                                                <div class="som-info-label">Orden de Compra</div>
+                                                <div class="som-info-value"><t t-esc="doc.purchase_id.name or doc.origin or '-'"/></div>
                                             </div>
-                                            <div style="display: table; width: 100%; table-layout: fixed; border-bottom: 1px solid #d8d8d8 !important;">
-                                                <div style="display: table-cell; width: 42%; padding: 5px 8px; color: #555; text-transform: uppercase; font-size: 8.5px; letter-spacing: 0.3px; border-right: 1px solid #d8d8d8 !important;">Contenedor</div>
-                                                <div style="display: table-cell; padding: 5px 8px; font-weight: 600;"><t t-esc="doc.container_no or '-'"/></div>
+                                            <div class="som-info-row">
+                                                <div class="som-info-label">Contenedor</div>
+                                                <div class="som-info-value"><t t-esc="doc.container_no or '-'"/></div>
                                             </div>
-                                            <div style="display: table; width: 100%; table-layout: fixed;">
-                                                <div style="display: table-cell; width: 42%; padding: 5px 8px; color: #555; text-transform: uppercase; font-size: 8.5px; letter-spacing: 0.3px; border-right: 1px solid #d8d8d8 !important;">Fecha Recepción</div>
-                                                <div style="display: table-cell; padding: 5px 8px; font-weight: 600;">
+                                            <div class="som-info-row">
+                                                <div class="som-info-label">Fecha Recepción</div>
+                                                <div class="som-info-value">
                                                     <span t-if="doc.scheduled_date" t-field="doc.scheduled_date" t-options='{"widget": "date"}'/>
-                                                    <span t-else="" style="color: #aaa;">-</span>
+                                                    <span t-else="" class="som-muted">-</span>
                                                 </div>
                                             </div>
                                         </td>
 
                                         <!-- DISCREPANCIA -->
                                         <td style="vertical-align: top; padding: 0; border: 1px solid #d8d8d8 !important;">
-                                            <div style="display: table; width: 100%; table-layout: fixed; border-bottom: 1px solid #d8d8d8 !important;">
-                                                <div style="display: table-cell; width: 45%; padding: 5px 8px; color: #555; text-transform: uppercase; font-size: 8.5px; letter-spacing: 0.3px; border-right: 1px solid #d8d8d8 !important;">Tipo</div>
-                                                <div style="display: table-cell; padding: 5px 8px; text-align: right; font-weight: 600;"><span t-field="doc.discrepancy_type"/></div>
+                                            <div class="som-info-row">
+                                                <div class="som-info-label" style="width: 45%;">Tipo</div>
+                                                <div class="som-info-value" style="text-align: right;"><span t-field="doc.discrepancy_type"/></div>
                                             </div>
-                                            <div style="display: table; width: 100%; table-layout: fixed; border-bottom: 1px solid #d8d8d8 !important;">
-                                                <div style="display: table-cell; width: 45%; padding: 5px 8px; color: #555; text-transform: uppercase; font-size: 8.5px; letter-spacing: 0.3px; border-right: 1px solid #d8d8d8 !important;">Estado</div>
-                                                <div style="display: table-cell; padding: 5px 8px; text-align: right; font-weight: 600;"><span t-field="doc.state"/></div>
+                                            <div class="som-info-row">
+                                                <div class="som-info-label" style="width: 45%;">Estado</div>
+                                                <div class="som-info-value" style="text-align: right;"><span t-field="doc.state"/></div>
                                             </div>
-                                            <div style="display: table; width: 100%; table-layout: fixed; border-bottom: 1px solid #d8d8d8 !important;">
-                                                <div style="display: table-cell; width: 45%; padding: 5px 8px; color: #555; text-transform: uppercase; font-size: 8.5px; letter-spacing: 0.3px; border-right: 1px solid #d8d8d8 !important;">Reportó</div>
-                                                <div style="display: table-cell; padding: 5px 8px; text-align: right; font-weight: 600;"><t t-esc="doc.reported_by.name or '-'"/></div>
+                                            <div class="som-info-row">
+                                                <div class="som-info-label" style="width: 45%;">Reportó</div>
+                                                <div class="som-info-value" style="text-align: right;"><t t-esc="doc.reported_by.name or '-'"/></div>
                                             </div>
-                                            <div style="display: table; width: 100%; table-layout: fixed;">
-                                                <div style="display: table-cell; width: 45%; padding: 5px 8px; color: #555; text-transform: uppercase; font-size: 8.5px; letter-spacing: 0.3px; border-right: 1px solid #d8d8d8 !important;">Fecha</div>
-                                                <div style="display: table-cell; padding: 5px 8px; text-align: right; font-weight: 600;"><span t-field="doc.date" t-options='{"widget": "datetime"}'/></div>
+                                            <div class="som-info-row">
+                                                <div class="som-info-label" style="width: 45%;">Fecha</div>
+                                                <div class="som-info-value" style="text-align: right;"><span t-field="doc.date" t-options='{"widget": "datetime"}'/></div>
                                             </div>
                                         </td>
                                     </tr>
@@ -105,72 +106,66 @@
                         </div>
 
                         <!-- ============ PRODUCTOS AFECTADOS (Comprado / Recibido / Afectada) ============ -->
-                        <div style="margin-top: 14px; margin-bottom: 5px; width: 100%; page-break-inside: avoid;">
-                            <span style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: #222;">Productos afectados</span>
-                        </div>
+                        <div class="som-section-title som-avoid-break" style="margin-top: 14px; margin-bottom: 5px;">Productos afectados</div>
                         <t t-set="alines" t-value="doc.line_ids.filtered(lambda l: l.qty_affected &gt; 0)"/>
                         <t t-if="alines">
-                            <table class="table table-sm" style="width: 100%; font-size: 9px; border-collapse: collapse; table-layout: fixed;">
+                            <table class="som-table">
                                 <thead>
-                                    <tr style="background-color: #2f2f2f; color: #fff;">
-                                        <th class="text-center" style="color: #fff; width: 4%; font-weight: bold;">#</th>
-                                        <th style="color: #fff; width: 28%; font-weight: bold;">Producto</th>
-                                        <th class="text-end" style="color: #fff; width: 13%; font-weight: bold;">Cant. comprada</th>
-                                        <th class="text-end" style="color: #fff; width: 15%; font-weight: bold;">Cant. con discrepancia</th>
-                                        <th class="text-center" style="color: #fff; width: 8%; font-weight: bold;">UDM</th>
-                                        <th class="text-end" style="color: #fff; width: 14%; font-weight: bold;">Costo de compra</th>
-                                        <th class="text-end" style="color: #fff; width: 18%; font-weight: bold;">Monto afectado</th>
+                                    <tr>
+                                        <th class="text-center" style="width: 4%;">#</th>
+                                        <th style="width: 28%;">Producto</th>
+                                        <th class="text-end" style="width: 13%;">Cant. comprada</th>
+                                        <th class="text-end" style="width: 15%;">Cant. con discrepancia</th>
+                                        <th class="text-center" style="width: 8%;">UDM</th>
+                                        <th class="text-end" style="width: 14%;">Costo de compra</th>
+                                        <th class="text-end" style="width: 18%;">Monto afectado</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <t t-set="lseq" t-value="1"/>
                                     <t t-foreach="alines" t-as="ln">
-                                        <tr style="page-break-inside: avoid;">
-                                            <td class="text-center align-middle"><span t-esc="lseq"/><t t-set="lseq" t-value="lseq + 1"/></td>
-                                            <td class="align-middle" style="overflow-wrap: anywhere; word-break: break-word;"><strong t-field="ln.product_id.display_name"/></td>
-                                            <td class="text-end align-middle" style="white-space: nowrap;"><span t-esc="'%.2f' % (ln.qty_purchased or 0.0)"/></td>
-                                            <td class="text-end align-middle" style="white-space: nowrap; font-weight: bold;"><span t-esc="'%.2f' % (ln.qty_affected or 0.0)"/></td>
-                                            <td class="text-center align-middle"><span t-esc="ln.product_uom_id.name or ''"/></td>
-                                            <td class="text-end align-middle" style="white-space: nowrap;"><span t-field="ln.unit_cost" t-options='{"widget": "monetary", "display_currency": doc.currency_id}'/></td>
-                                            <td class="text-end align-middle" style="white-space: nowrap; font-weight: bold;"><span t-field="ln.amount_affected" t-options='{"widget": "monetary", "display_currency": doc.currency_id}'/></td>
+                                        <tr>
+                                            <td class="text-center"><span t-esc="lseq"/><t t-set="lseq" t-value="lseq + 1"/></td>
+                                            <td><strong t-field="ln.product_id.display_name"/></td>
+                                            <td class="som-num"><span t-esc="'%.2f' % (ln.qty_purchased or 0.0)"/></td>
+                                            <td class="som-num" style="font-weight: bold;"><span t-esc="'%.2f' % (ln.qty_affected or 0.0)"/></td>
+                                            <td class="text-center"><span t-esc="ln.product_uom_id.name or ''"/></td>
+                                            <td class="som-num"><span t-field="ln.unit_cost" t-options='{"widget": "monetary", "display_currency": doc.currency_id}'/></td>
+                                            <td class="som-num" style="font-weight: bold;"><span t-field="ln.amount_affected" t-options='{"widget": "monetary", "display_currency": doc.currency_id}'/></td>
                                         </tr>
                                     </t>
                                 </tbody>
                                 <tfoot>
-                                    <tr style="background-color: #f2f2f2; color: #222;">
-                                        <td colspan="6" class="text-end" style="padding: 4px 8px; font-weight: 800; text-transform: uppercase; border: 1px solid #d8d8d8;">Monto afectado total</td>
-                                        <td class="text-end" style="padding: 4px 8px; font-weight: 800; border: 1px solid #d8d8d8; white-space: nowrap;"><span t-field="doc.amount_affected" t-options='{"widget": "monetary", "display_currency": doc.currency_id}'/></td>
+                                    <tr>
+                                        <td colspan="6" class="text-end" style="border-top: 2px solid #2f2f2f; font-weight: 800; text-transform: uppercase;">Monto afectado total</td>
+                                        <td class="som-num" style="border-top: 2px solid #2f2f2f; font-weight: 800;"><span t-field="doc.amount_affected" t-options='{"widget": "monetary", "display_currency": doc.currency_id}'/></td>
                                     </tr>
                                 </tfoot>
                             </table>
                         </t>
                         <t t-else="">
-                            <div style="font-size: 9px; color: #999; font-style: italic; padding: 6px 0;">No se marcó cantidad afectada en ningún producto.</div>
+                            <div class="som-muted" style="font-size: 9px; font-style: italic; padding: 6px 0;">No se marcó cantidad afectada en ningún producto.</div>
                         </t>
 
                         <!-- ============ DESCRIPCIÓN ============ -->
-                        <div style="margin-top: 14px; margin-bottom: 5px; width: 100%; page-break-inside: avoid;">
-                            <span style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: #222;">Descripción</span>
-                        </div>
-                        <div style="border: 1px solid #d8d8d8; padding: 8px; background-color: #fafafa; white-space: pre-line; font-size: 9.5px; line-height: 1.35;">
+                        <div class="som-section-title som-avoid-break" style="margin-top: 14px; margin-bottom: 5px;">Descripción</div>
+                        <div style="border: 1px solid #d8d8d8; padding: 8px; background-color: #f7f7f7; white-space: pre-line; font-size: 9.5px; line-height: 1.35;">
                             <t t-esc="doc.description or '-'"/>
                         </div>
 
                         <!-- ============ EVIDENCIAS ============ -->
                         <t t-if="doc.evidence_ids">
-                            <div style="margin-top: 14px; margin-bottom: 5px; width: 100%; page-break-inside: avoid;">
-                                <span style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: #222;">Evidencias (<t t-esc="len(doc.evidence_ids)"/>)</span>
-                            </div>
+                            <div class="som-section-title som-avoid-break" style="margin-top: 14px; margin-bottom: 5px;">Evidencias (<t t-esc="len(doc.evidence_ids)"/>)</div>
                             <div class="row">
                                 <t t-foreach="doc.evidence_ids" t-as="ev">
-                                    <div class="col-6" style="margin-bottom: 10px; page-break-inside: avoid;">
+                                    <div class="col-6 som-avoid-break" style="margin-bottom: 10px;">
                                         <div style="border: 1px solid #d8d8d8; border-radius: 3px; padding: 6px;">
                                             <div style="font-size: 9px; font-weight: 700; margin-bottom: 4px;"><t t-esc="ev.name or ev.filename or 'Evidencia'"/></div>
                                             <t t-if="ev.is_image and ev.attachment">
                                                 <img t-att-src="image_data_uri(ev.attachment)" style="max-width: 100%; max-height: 230px;"/>
                                             </t>
                                             <t t-else="">
-                                                <div style="font-size: 8.5px; color: #6b7280;">Archivo adjunto: <t t-esc="ev.filename or '-'"/></div>
+                                                <div class="som-small som-muted">Archivo adjunto: <t t-esc="ev.filename or '-'"/></div>
                                             </t>
                                         </div>
                                     </div>
@@ -180,16 +175,14 @@
 
                         <!-- ============ RESOLUCIÓN ============ -->
                         <t t-if="doc.resolution_note">
-                            <div style="margin-top: 14px; margin-bottom: 5px; width: 100%; page-break-inside: avoid;">
-                                <span style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: #222;">Resolución</span>
-                            </div>
-                            <div style="border: 1px solid #d8d8d8; padding: 8px; background-color: #fafafa; white-space: pre-line; font-size: 9.5px; line-height: 1.35;">
+                            <div class="som-section-title som-avoid-break" style="margin-top: 14px; margin-bottom: 5px;">Resolución</div>
+                            <div style="border: 1px solid #d8d8d8; padding: 8px; background-color: #f7f7f7; white-space: pre-line; font-size: 9.5px; line-height: 1.35;">
                                 <t t-esc="doc.resolution_note"/>
                             </div>
                         </t>
 
                         <!-- ============ FIRMAS ============ -->
-                        <div style="margin-top: 45px; width: 100%; page-break-inside: avoid;">
+                        <div class="som-avoid-break" style="margin-top: 45px; width: 100%;">
                             <div class="row">
                                 <div class="col-1"></div>
                                 <div class="col-4 text-center">
