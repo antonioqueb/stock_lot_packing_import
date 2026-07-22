@@ -3165,36 +3165,38 @@ const Step4Sheet = ({ proforma, draft, setDraft, rows, setRows, ship, pendingIma
         const idx = rows.findIndex(r => r.id === sourceId);
         if (idx < 0) return;
         const src = rows[idx];
-        const block = src.block;
+        // FRONTERAS DE PROPAGACIÓN: solo el segmento CONTIGUO hacia abajo con
+        // el MISMO bloque y el MISMO producto. En formato/pieza el "bloque"
+        // (fecha del PL) se repite entre productos, así que sin la frontera
+        // de producto la copia se desbordaba a toda la tabla.
+        const sameSegment = (r) => r.block === src.block
+            && String(r.product_id) === String(src.product_id);
         const isPlate = field === 'plate';
         if (mode === 'next') {
-            for (let i = idx + 1; i < rows.length; i++) {
-                if (rows[i].block === block) {
-                    const targetId = rows[i].id;
-                    const val = isPlate ? incPlate(src[field], 1) : src[field];
-                    setRows(prev => prev.map(r => r.id === targetId ? { ...r, [field]: val } : r));
-                    return;
-                }
+            const nxt = rows[idx + 1];
+            if (nxt && sameSegment(nxt)) {
+                const val = isPlate ? incPlate(src[field], 1) : src[field];
+                setRows(prev => prev.map(r => r.id === nxt.id ? { ...r, [field]: val } : r));
             }
         } else {
             const valById = {};
             let k = 0;
             for (let i = idx + 1; i < rows.length; i++) {
-                if (rows[i].block === block) {
-                    k += 1;
-                    valById[rows[i].id] = isPlate ? incPlate(src[field], k) : src[field];
-                }
+                if (!sameSegment(rows[i])) break;
+                k += 1;
+                valById[rows[i].id] = isPlate ? incPlate(src[field], k) : src[field];
             }
             setRows(prev => prev.map(r => Object.prototype.hasOwnProperty.call(valById, r.id) ? { ...r, [field]: valById[r.id] } : r));
         }
     };
     const canPropagate = (rowId) => {
+        // Los íconos de copiar solo aparecen si la fila INMEDIATA de abajo es
+        // del mismo bloque Y producto (misma frontera que la propagación).
         const idx = rows.findIndex(r => r.id === rowId);
         if (idx < 0) return false;
-        const block = rows[idx].block;
-        for (let i = idx + 1; i < rows.length; i++)
-            if (rows[i].block === block) return true;
-        return false;
+        const nxt = rows[idx + 1];
+        return !!(nxt && nxt.block === rows[idx].block
+            && String(nxt.product_id) === String(rows[idx].product_id));
     };
     // PropCell se INVOCA como función (no como componente) para que el input no
     // pierda el foco en cada pulsación.
