@@ -433,6 +433,40 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                         vals[sync_field] = partner.name
         return vals
 
+    def _propagate_route_to_purchase(self, shipment, changed_keys):
+        """Embarque → OC: la ruta capturada en el portal (forwarder/POL/POD)
+        se refleja en la(s) OC amparadas. Solo se propagan claves que
+        CAMBIARON en este guardado: el autosave con valores sin cambios no
+        pisa ajustes manuales hechos en la OC (el último actor que cambia
+        algo, gana)."""
+        if not changed_keys:
+            return
+        field_map = {
+            'forwarder_id': 'som_route_forwarder_id',
+            'pol_id': 'som_route_pol_id',
+            'pod_id': 'som_route_pod_id',
+        }
+        try:
+            pos = self.sync_service._covered_pos_for_shipment(shipment)
+        except Exception:
+            pos = shipment.proforma_id.purchase_id if shipment.proforma_id else False
+        if not pos:
+            return
+        for po in pos.sudo():
+            vals = {}
+            for ship_key, po_field in field_map.items():
+                if ship_key not in changed_keys or po_field not in po._fields:
+                    continue
+                new_val = getattr(shipment, ship_key, False)
+                if new_val and getattr(po, po_field) != new_val:
+                    vals[po_field] = new_val.id
+            if vals:
+                po.write(vals)
+                _logger.info(
+                    "[Portal] Ruta del embarque %s propagada a la OC %s: %s",
+                    shipment.name, po.name, vals,
+                )
+
     def _tariff_routes(self, access=None):
         """Rutas COMPLETAS del tarifario activo para la cascada del portal:
         forwarder → naviera → POL → POD. Si la OC del enlace ya tiene país de
@@ -805,6 +839,10 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
 
         shipment = request.env["supplier.shipment"].sudo().create(vals)
         proforma.write({"status": "partial"})
+        self._propagate_route_to_purchase(
+            shipment,
+            {k for k in ('forwarder_id', 'pol_id', 'pod_id') if vals.get(k)},
+        )
 
         picking = self.sync_service.get_or_create_picking_for_shipment(shipment)
         self.sync_service.sync_shipment_header_to_picking(shipment)
@@ -845,10 +883,19 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                 if key in shipment_data:
                     vals[key] = shipment_data[key] or False
 
-            vals.update(self._shipment_catalog_vals(shipment_data))
+            catalog_vals = self._shipment_catalog_vals(shipment_data)
+            vals.update(catalog_vals)
+            # Claves de ruta cuyo valor REALMENTE cambia en este guardado.
+            route_changed = {
+                k for k in ('forwarder_id', 'pol_id', 'pod_id')
+                if k in catalog_vals
+                and (getattr(shipment, k).id if getattr(shipment, k, False) else False)
+                != (catalog_vals[k] or False)
+            }
 
         if vals:
             shipment.write(vals)
+            self._propagate_route_to_purchase(shipment, route_changed)
 
         self.sync_service.sync_shipment(shipment)
         return {"success": True}
