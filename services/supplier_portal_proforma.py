@@ -415,6 +415,39 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
             limit=1,
         )
 
+    def _shipment_catalog_vals(self, shipment_data):
+        """Naviera/forwarder del CATÁLOGO del tarifario. Al elegir naviera,
+        el Char shipping_line se sincroniza con su nombre (reportes/vistas
+        existentes siguen funcionando)."""
+        vals = {}
+        for key in ("naviera_id", "forwarder_id"):
+            if key in (shipment_data or {}):
+                pid = self.safe_int(shipment_data.get(key), 0)
+                vals[key] = pid or False
+                if key == "naviera_id" and pid:
+                    partner = request.env["res.partner"].sudo().browse(pid)
+                    if partner.exists():
+                        vals["shipping_line"] = partner.name
+        return vals
+
+    def _tariff_catalogs(self):
+        """Catálogos de navieras y forwarders CON TARIFA ACTIVA (el
+        tarifario es la única fuente). Vacíos si el módulo no está."""
+        try:
+            tariffs = request.env["freight.tariff"].sudo().search(
+                [("state", "=", "active")])
+            navieras = [
+                {"id": p.id, "name": p.name}
+                for p in tariffs.mapped("naviera_id").sorted("name")
+            ]
+            forwarders = [
+                {"id": p.id, "name": p.name}
+                for p in tariffs.mapped("forwarder_id").sorted("name")
+            ]
+            return navieras, forwarders
+        except Exception:
+            return [], []
+
     def serialize_proforma(self, header):
         shipments = []
 
@@ -483,6 +516,8 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                 "sequence": shipment.sequence,
                 "shipment_type": shipment.shipment_type or "maritime",
                 "shipping_line": shipment.shipping_line or "",
+                "naviera_id": shipment.naviera_id.id if getattr(shipment, 'naviera_id', False) else False,
+                "forwarder_id": shipment.forwarder_id.id if getattr(shipment, 'forwarder_id', False) else False,
                 "vessel_name": shipment.vessel_name or "",
                 "etd": str(shipment.etd) if shipment.etd else "",
                 "eta": str(shipment.eta) if shipment.eta else "",
@@ -596,6 +631,8 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
             },
             "proforma": proforma_data,
             "proformas": proformas_payload,
+            "navieras": self._tariff_catalogs()[0],
+            "forwarders": self._tariff_catalogs()[1],
             "is_cargo": len(covered_pos) > 1,
             "token": token,
             "poName": " · ".join(covered_pos.mapped("name")) or (po.name or ""),
@@ -717,6 +754,7 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
             ]:
                 if key in shipment_data:
                     vals[key] = shipment_data[key] or ""
+            vals.update(self._shipment_catalog_vals(shipment_data))
 
             for key in ["etd", "eta", "bl_date"]:
                 if shipment_data.get(key):
@@ -766,6 +804,8 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
             for key in ["etd", "eta", "bl_date"]:
                 if key in shipment_data:
                     vals[key] = shipment_data[key] or False
+
+            vals.update(self._shipment_catalog_vals(shipment_data))
 
         if vals:
             shipment.write(vals)
@@ -1300,6 +1340,23 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
         can_complete, msg = self.can_complete(proforma)
         if not can_complete:
             return {"success": False, "message": msg}
+
+        # Naviera y forwarder son OBLIGATORIOS en embarques internacionales:
+        # sin ellos no se puede seleccionar la tarifa correcta del tarifario.
+        if not is_national:
+            for shipment in proforma.shipment_ids:
+                missing = []
+                if not getattr(shipment, 'naviera_id', False):
+                    missing.append('naviera')
+                if not getattr(shipment, 'forwarder_id', False):
+                    missing.append('forwarder')
+                if missing:
+                    return {
+                        "success": False,
+                        "message": "El embarque '%s' no tiene %s. Selecciónalo "
+                                   "en la pestaña de Logística (catálogo del "
+                                   "tarifario)." % (shipment.name, ' ni '.join(missing)),
+                    }
 
         for shipment in proforma.shipment_ids:
             for packing in self.sorted_packings(shipment.packing_ids):

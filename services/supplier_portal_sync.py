@@ -525,6 +525,12 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
                 origin=self._prepare_picking_origin(po, shipment),
                 supplier_proforma_number=po_header.proforma_number or "",
             )
+            # Naviera/forwarder del catálogo → recepción (si el módulo del
+            # tarifario agregó los campos al picking).
+            if 'som_naviera_id' in picking._fields and getattr(shipment, 'naviera_id', False):
+                vals['som_naviera_id'] = shipment.naviera_id.id
+            if 'som_forwarder_id' in picking._fields and getattr(shipment, 'forwarder_id', False):
+                vals['som_forwarder_id'] = shipment.forwarder_id.id
             try:
                 picking.sudo().write(vals)
             except Exception:

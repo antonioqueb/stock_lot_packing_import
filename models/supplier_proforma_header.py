@@ -201,6 +201,11 @@ class SupplierShipment(models.Model):
         required=True,
     )
     shipping_line = fields.Char(string='Naviera / Aerolínea')
+    # Catálogo del TARIFARIO (no texto libre): permite seleccionar la tarifa
+    # correcta del embarque. El Char shipping_line se conserva sincronizado
+    # para reportes/vistas existentes.
+    naviera_id = fields.Many2one('res.partner', string='Naviera (catálogo)')
+    forwarder_id = fields.Many2one('res.partner', string='Forwarder (catálogo)')
     vessel_name = fields.Char(string='Buque / viaje')
     etd = fields.Date(string='ETD')
     eta = fields.Date(string='ETA')
