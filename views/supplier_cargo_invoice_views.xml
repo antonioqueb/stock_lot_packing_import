@@ -148,6 +148,15 @@
             <xpath expr="//field[@name='partner_ref']" position="attributes">
                 <attribute name="string">Referencia / PI del proveedor</attribute>
             </xpath>
+            <xpath expr="//sheet" position="before">
+                <div class="alert alert-warning" role="alert"
+                     invisible="state not in ('purchase', 'done') or partner_ref">
+                    <i class="fa fa-exclamation-triangle me-2"/>
+                    <strong>Falta la Referencia / PI del proveedor.</strong>
+                    Captúrala para poder generar el enlace del portal: sin la PI,
+                    la operación no aparecerá correctamente en el portal del proveedor.
+                </div>
+            </xpath>
         </field>
     </record>
 

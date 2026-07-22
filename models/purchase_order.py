@@ -249,6 +249,16 @@ class PurchaseOrder(models.Model):
         if self.state not in ['purchase', 'done']:
             raise UserError(_("Debe confirmar la Orden de Compra antes de enviar el link al proveedor."))
 
+        # PI OBLIGATORIA antes del portal (regla de Pedro): sin la referencia
+        # de la proforma del proveedor, la operación no aparece correctamente
+        # en el portal. La orden debe regresar a Compras a capturarla.
+        if not (self.partner_ref or '').strip():
+            raise UserError(_(
+                "Captura la 'Referencia / PI del proveedor' antes de generar "
+                "el enlace del portal. Sin la PI, la operación no aparecerá "
+                "correctamente en el portal del proveedor."
+            ))
+
         self._get_or_create_supplier_access()
 
         return {

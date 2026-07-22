@@ -290,6 +290,16 @@ class SupplierCargoInvoice(models.Model):
                 'estar confirmada ANTES del embarque.'
             ) % ', '.join(unconfirmed.mapped('name')))
 
+        # PI OBLIGATORIA en TODAS las POs de la carga antes del enlace único.
+        without_pi = self.purchase_ids.filtered(
+            lambda po: not (po.partner_ref or '').strip())
+        if without_pi:
+            raise UserError(_(
+                'Estas órdenes no tienen la Referencia / PI del proveedor: '
+                '%s. Captúrala en cada OC antes de generar el enlace — sin '
+                'la PI, la operación no aparecerá correctamente en el portal.'
+            ) % ', '.join(without_pi.mapped('name')))
+
         Access = self.env['stock.picking.supplier.access'].sudo()
         access = self.access_ids[:1]
         if not access:
