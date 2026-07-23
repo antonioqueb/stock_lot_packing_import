@@ -30,28 +30,55 @@ class PurchaseOrderLine(models.Model):
     )
 
 
+def _som_unlink_except_purchase_or_done(self):
+    """REEMPLAZO del candado nativo de borrado de líneas de OC (regla de
+    negocio, espejo del ajuste de ventas): una línea de orden CONFIRMADA se
+    puede eliminar mientras NO tenga material efectivamente recibido."""
+    for line in self:
+        if (
+            line.state in ('purchase', 'done')
+            and (line.qty_received or 0.0) > 0
+        ):
+            raise UserError(_(
+                'No se puede eliminar la línea de "%(product)s": ya tiene '
+                '%(qty)s recibido(s). Las líneas con recepción efectiva '
+                'son intocables.',
+                product=line.product_id.display_name,
+                qty=line.qty_received,
+            ))
+
+
+# MONKEY-PATCH DELIBERADO: en Odoo 19 los métodos @api.ondelete se recolectan
+# como funciones por clase (no se deduplican por nombre en el MRO), así que un
+# override clásico CONVIVE con el candado nativo en lugar de reemplazarlo — el
+# nativo seguía bloqueando. Se sustituye la función EN la clase nativa de
+# purchase para que la recolección tome la nuestra.
+try:
+    from odoo.addons.purchase.models.purchase_order_line import (
+        PurchaseOrderLine as _NativePOL,
+    )
+    _NativePOL._unlink_except_purchase_or_done = api.ondelete(
+        at_uninstall=False
+    )(_som_unlink_except_purchase_or_done)
+    _logger.info(
+        "[PO_LINE_UNLINK] Candado nativo de borrado de líneas reemplazado: "
+        "solo bloquea líneas con recepción efectiva."
+    )
+except Exception:
+    _logger.exception(
+        "[PO_LINE_UNLINK] No se pudo reemplazar el candado nativo de borrado."
+    )
+
+
 class PurchaseOrderLineUnlink(models.Model):
-    """Permite ELIMINAR líneas de una OC confirmada (igual que el ajuste de
-    ventas): el candado nativo de Odoo bloquea cualquier borrado en estado
-    purchase/done; aquí solo se bloquea cuando la línea ya tiene material
-    EFECTIVAMENTE RECIBIDO — ahí ya no hay vuelta atrás."""
+    """Complemento del reemplazo de arriba: la misma regla vía herencia
+    clásica (por si la recolección deduplicara por nombre) y la limpieza de
+    movimientos pendientes al borrar."""
     _inherit = 'purchase.order.line'
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_purchase_or_done(self):
-        # OVERRIDE del candado nativo (mismo nombre = lo reemplaza).
-        for line in self:
-            if (
-                line.state in ('purchase', 'done')
-                and (line.qty_received or 0.0) > 0
-            ):
-                raise UserError(_(
-                    'No se puede eliminar la línea de "%(product)s": ya tiene '
-                    '%(qty)s recibido(s). Las líneas con recepción efectiva '
-                    'son intocables.',
-                    product=line.product_id.display_name,
-                    qty=line.qty_received,
-                ))
+        _som_unlink_except_purchase_or_done(self)
 
     def unlink(self):
         # Al borrar una línea de OC confirmada, sus movimientos de recepción
