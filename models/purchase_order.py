@@ -48,22 +48,38 @@ def _som_unlink_except_purchase_or_done(self):
             ))
 
 
-# MONKEY-PATCH DELIBERADO: en Odoo 19 los métodos @api.ondelete se recolectan
-# como funciones por clase (no se deduplican por nombre en el MRO), así que un
-# override clásico CONVIVE con el candado nativo en lugar de reemplazarlo — el
-# nativo seguía bloqueando. Se sustituye la función EN la clase nativa de
-# purchase para que la recolección tome la nuestra.
+# MONKEY-PATCH DELIBERADO Y A PRUEBA DE NOMBRES: el candado nativo de borrado
+# vive en la clase de purchase como método @api.ondelete, pero su NOMBRE varió
+# entre versiones (parchear un nombre supuesto solo CREA un atributo nuevo y
+# deja vivo al real). Aquí se localizan DINÁMICAMENTE todos los métodos
+# ondelete de la clase nativa cuyo nombre empiece con '_unlink' y se
+# sustituyen por nuestra regla. El log de arranque enumera lo reemplazado.
 try:
     from odoo.addons.purchase.models.purchase_order_line import (
         PurchaseOrderLine as _NativePOL,
     )
-    _NativePOL._unlink_except_purchase_or_done = api.ondelete(
-        at_uninstall=False
-    )(_som_unlink_except_purchase_or_done)
-    _logger.info(
-        "[PO_LINE_UNLINK] Candado nativo de borrado de líneas reemplazado: "
-        "solo bloquea líneas con recepción efectiva."
-    )
+    _replaced = []
+    for _attr, _func in list(vars(_NativePOL).items()):
+        if (
+            callable(_func)
+            and hasattr(_func, '_ondelete')
+            and _attr.startswith('_unlink')
+        ):
+            setattr(_NativePOL, _attr, api.ondelete(at_uninstall=False)(
+                _som_unlink_except_purchase_or_done))
+            _replaced.append(_attr)
+    if _replaced:
+        _logger.info(
+            "[PO_LINE_UNLINK] Candado(s) nativo(s) reemplazado(s): %s — solo "
+            "bloquean líneas con recepción efectiva.", _replaced,
+        )
+    else:
+        _logger.warning(
+            "[PO_LINE_UNLINK] Ningún método ondelete '_unlink*' encontrado en "
+            "la clase nativa; métodos ondelete presentes: %s",
+            [a for a, f in vars(_NativePOL).items()
+             if callable(f) and hasattr(f, '_ondelete')],
+        )
 except Exception:
     _logger.exception(
         "[PO_LINE_UNLINK] No se pudo reemplazar el candado nativo de borrado."
