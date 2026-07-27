@@ -799,6 +799,23 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
         for line in po_lines:
             total = declared_by_line.get(line.id, 0.0)
             if total <= 0:
+                # Packing/embarque borrado: RESTAURAR la cantidad comercial
+                # original. Antes el continue dejaba product_qty congelado en
+                # el valor de un PL que ya no existe (base de pago errónea).
+                if (
+                    line.x_qty_solicitada_original
+                    and abs((line.product_qty or 0.0) - line.x_qty_solicitada_original) > 1e-6
+                ):
+                    line.with_context(skip_date_sync=True).write({
+                        'x_qty_embarcada': 0.0,
+                        'product_qty': line.x_qty_solicitada_original,
+                    })
+                    _logger.info(
+                        "[PL_SYNC][PO] %s / %s: sin declarado en PL; cantidad "
+                        "comercial restaurada a la original %s.",
+                        line.order_id.name, line.product_id.display_name,
+                        line.x_qty_solicitada_original,
+                    )
                 continue
 
             vals = {'x_qty_embarcada': total}

@@ -239,10 +239,30 @@ class PurchaseDiscrepancyLine(models.Model):
             if picking and product:
                 moves = picking.move_ids.filtered(lambda m: m.product_id == product)
                 pls = moves.mapped('purchase_line_id') if 'purchase_line_id' in moves._fields else moves.browse()
+
+                # El merge por producto puede dejar los moves ligados a UNA
+                # sola línea de compra: ampliar a TODAS las líneas del
+                # producto en la(s) OC(s) para no omitir compradas ni tomar
+                # el precio de una sola línea arbitraria.
+                orders = pls.mapped('order_id')
+                if orders:
+                    all_pls = orders.mapped('order_line').filtered(
+                        lambda l: l.product_id == product and not l.display_type
+                    )
+                    if all_pls:
+                        pls = all_pls
+
                 for pl in pls:
                     purchased += pl.product_qty or 0.0
+
                 if pls:
-                    cost = pls[0].price_unit or 0.0
+                    # Precio PROMEDIO PONDERADO (antes: precio de la primera
+                    # línea sobreviviente del merge → monto afectado sesgado).
+                    total_amount = sum(
+                        (pl.product_qty or 0.0) * (pl.price_unit or 0.0)
+                        for pl in pls
+                    )
+                    cost = (total_amount / purchased) if purchased else (pls[0].price_unit or 0.0)
                 if not cost:
                     cost = product.standard_price or 0.0
                 for ml in picking.move_line_ids.filtered(lambda m: m.product_id == product):

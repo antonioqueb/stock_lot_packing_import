@@ -1021,6 +1021,7 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
 
         invoice_model = request.env["supplier.shipment.invoice"].sudo()
         existing_ids = set()
+        seen_numbers = set()
 
         po_currency_id = False
         if shipment.proforma_id and shipment.proforma_id.purchase_id and shipment.proforma_id.purchase_id.currency_id:
@@ -1067,6 +1068,21 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                 "container_ids": [(6, 0, result)],
                 "currency_id": currency_id or False,
             }
+
+            # DEDUP en la captura: dos filas con el mismo número de invoice
+            # registraban el cargo doble.
+            number_key = (vals["invoice_number"] or "").strip().lower()
+            if number_key:
+                if number_key in seen_numbers:
+                    return {
+                        "success": False,
+                        "message": (
+                            "El invoice '%s' está capturado dos veces. Cada "
+                            "cargo debe registrarse una sola vez."
+                            % vals["invoice_number"]
+                        ),
+                    }
+                seen_numbers.add(number_key)
 
             if invoice_id:
                 record = invoice_model.browse(invoice_id)
@@ -1251,10 +1267,14 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                     "container_id": row_container_id or False,
                     "tipo": row.get("tipo", "Placa"),
                     "grosor": row.get("grosor", ""),
-                    "alto": self.safe_float(row.get("alto", 0)),
-                    "ancho": self.safe_float(row.get("ancho", 0)),
-                    "peso": self.safe_float(row.get("peso", 0)),
-                    "quantity": self.safe_float(row.get("quantity", 0)),
+                    # max(0,…): un negativo del proveedor (typo "-2.8") restaba
+                    # del total declarado y de product_qty (lo que se PAGA), y
+                    # -2 × -3 fabricaba 6 m² fantasma. Dimensión inválida = 0
+                    # (las filas en cero ya las tratan los blindajes/import).
+                    "alto": max(0.0, self.safe_float(row.get("alto", 0))),
+                    "ancho": max(0.0, self.safe_float(row.get("ancho", 0))),
+                    "peso": max(0.0, self.safe_float(row.get("peso", 0))),
+                    "quantity": max(0.0, self.safe_float(row.get("quantity", 0))),
                     "bloque": row.get("bloque", ""),
                     "numero_placa": row.get("numero_placa", ""),
                     "atado": row.get("atado", ""),
@@ -1580,7 +1600,12 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                 continue
             try:
                 wizard = Wizard.create({"picking_id": picking.id})
-                wizard.action_import_excel()
+                # SAVEPOINT: si la importación truena a la mitad, TODO el
+                # import se revierte. Sin esto quedaba commiteado un estado
+                # mixto (lotes/quants viejos borrados + solo parte de los
+                # nuevos creados) reportado como "éxito con warning".
+                with self.env.cr.savepoint():
+                    wizard.action_import_excel()
                 processed.append(picking.name)
                 _logger.info(
                     "[Portal] PL procesado automáticamente al completar la "

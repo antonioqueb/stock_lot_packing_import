@@ -146,6 +146,19 @@ class PackingListImportWizard(models.TransientModel):
     excel_file = fields.Binary(string="Archivo Excel", required=False, attachment=False)
     excel_filename = fields.Char(string="Nombre del archivo")
 
+    def _pl_ml_qty_key(self):
+        """Campo de cantidad de stock.move.line.
+
+        Odoo 19 usa 'quantity' (qty_done desapareció en la 17): escribir
+        qty_done revienta con "campo inválido" o, con un campo compat, se
+        pierde en la nada. Se detecta el campo real una sola vez.
+        """
+        return (
+            'quantity'
+            if 'quantity' in self.env['stock.move.line']._fields
+            else 'qty_done'
+        )
+
     def action_import_excel(self):
         self.ensure_one()
         _logger.info("=== [PL_IMPORT] INICIO PROCESO DE CARGA ===")
@@ -175,12 +188,53 @@ class PackingListImportWizard(models.TransientModel):
         old_move_lines = self.picking_id.move_line_ids
         old_lots = old_move_lines.mapped("lot_id")
 
+        # GUARD: si los lotes previos ya están amarrados a la Torre de Control
+        # (líneas de tránsito) o tienen holds activos, reimportar destruiría
+        # la trazabilidad y las asignaciones (el material renacía como lotes
+        # nuevos sin relación). Se bloquea con instrucción clara.
+        if old_lots:
+            blockers = []
+            if 'stock.transit.line' in self.env:
+                transit_refs = self.env['stock.transit.line'].sudo().search(
+                    [('lot_id', 'in', old_lots.ids)], limit=5,
+                )
+                if transit_refs:
+                    blockers.append(
+                        "líneas de tránsito (%s)" % ', '.join(
+                            transit_refs.mapped('lot_id.name')
+                        )
+                    )
+            if 'stock.lot.hold' in self.env:
+                active_holds = self.env['stock.lot.hold'].sudo().search(
+                    [('lot_id', 'in', old_lots.ids), ('estado', '=', 'activo')],
+                    limit=5,
+                )
+                if active_holds:
+                    blockers.append(
+                        "holds activos (%s)" % ', '.join(
+                            active_holds.mapped('lot_id.name')
+                        )
+                    )
+            if blockers:
+                raise UserError(
+                    "No se puede reimportar el Packing List: los lotes previos ya "
+                    "están vinculados a " + " y ".join(blockers) +
+                    ". Libera esas referencias primero o corrige vía el PL físico."
+                )
+
+        qty_key = self._pl_ml_qty_key()
+
         if old_move_lines:
-            old_move_lines.write({"qty_done": 0})
+            old_move_lines.write({qty_key: 0})
             self.env.flush_all()
 
         if old_lots:
-            quants = self.env["stock.quant"].sudo().search([("lot_id", "in", old_lots.ids)])
+            # Solo los quants de ESTA recepción: el search global con sudo
+            # borraba quants de cualquier ubicación (tránsito incluido).
+            quants = self.env["stock.quant"].sudo().search([
+                ("lot_id", "in", old_lots.ids),
+                ("location_id", "child_of", self.picking_id.location_dest_id.id),
+            ])
             if quants:
                 quants.sudo().unlink()
 
@@ -299,7 +353,7 @@ class PackingListImportWizard(models.TransientModel):
                 "move_id": move.id,
                 "product_id": product.id,
                 "lot_id": lot.id,
-                "qty_done": qty_done,
+                self._pl_ml_qty_key(): qty_done,
                 "location_id": self.picking_id.location_id.id,
                 "location_dest_id": self.picking_id.location_dest_id.id,
                 "picking_id": self.picking_id.id,
@@ -508,7 +562,7 @@ class PackingListImportWizard(models.TransientModel):
             total_embarcado = sum(
                 incoming_pickings.move_line_ids.filtered(
                     lambda ml: ml.product_id.id == po_line.product_id.id
-                ).mapped("qty_done")
+                ).mapped(self._pl_ml_qty_key())
             )
 
             vals = {
@@ -1007,19 +1061,23 @@ class PackingListImportWizard(models.TransientModel):
         return (res[0] + 1) if res and res[0] else 1
 
     def _get_next_lot_number_for_prefix(self, prefix):
+        # Filtro por sufijo NUMÉRICO en el WHERE: un lote "12-ABC" matcheaba
+        # el LIKE, el ORDER BY lo ponía primero (NULL DESC) y el int() de
+        # abajo tumbaba TODA la importación con ValueError.
         self.env.cr.execute(
             """
             SELECT name
             FROM stock_lot
             WHERE name LIKE %s
               AND company_id = %s
+              AND SUBSTRING(name FROM '-([0-9]+)$') IS NOT NULL
             ORDER BY CAST(SUBSTRING(name FROM '-([0-9]+)$') AS INTEGER) DESC
             LIMIT 1
             """,
             (f"{prefix}-%", self.picking_id.company_id.id),
         )
         res = self.env.cr.fetchone()
-        return int(res[0].split("-")[1]) + 1 if res else 1
+        return int(res[0].rsplit("-", 1)[1]) + 1 if res else 1
 
     def _load_spreadsheet_json(self, doc):
         if not doc.spreadsheet_data:

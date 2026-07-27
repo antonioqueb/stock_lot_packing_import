@@ -10,6 +10,15 @@ _logger = logging.getLogger(__name__)
 
 class WorksheetImportWizard(models.TransientModel):
     _name = 'worksheet.import.wizard'
+
+    def _ws_ml_qty_key(self):
+        """Campo de cantidad de stock.move.line (Odoo 19 usa 'quantity';
+        qty_done desapareció en la 17 y escribirlo revienta o se pierde)."""
+        return (
+            'quantity'
+            if 'quantity' in self.env['stock.move.line']._fields
+            else 'qty_done'
+        )
     _description = 'Importar Worksheet (Spreadsheet WS o Excel)'
     
     picking_id = fields.Many2one('stock.picking', string='Recepción', required=True, readonly=True)
@@ -268,7 +277,7 @@ class WorksheetImportWizard(models.TransientModel):
                     move_lines_to_delete.append(move_line)
                     lots_to_delete.append(lot)
                 else:
-                    move_line.write({'qty_done': qty_real})
+                    move_line.write({self._ws_ml_qty_key(): qty_real})
                     lines_updated += 1
                 continue
 
@@ -289,7 +298,7 @@ class WorksheetImportWizard(models.TransientModel):
                 })
                 new_qty = round(alto_real * ancho_real, 3)
                 move_line.write({
-                    'qty_done': new_qty,
+                    self._ws_ml_qty_key(): new_qty,
                     'x_alto_temp': alto_real,
                     'x_ancho_temp': ancho_real,
                 })
@@ -305,7 +314,7 @@ class WorksheetImportWizard(models.TransientModel):
                 lines_updated += 1
 
         for ml in move_lines_to_delete:
-            ml.write({'qty_done': 0})
+            ml.write({self._ws_ml_qty_key(): 0})
         
         for lot in lots_to_delete:
             quants = self.env['stock.quant'].sudo().search([('lot_id', '=', lot.id)])
@@ -324,18 +333,56 @@ class WorksheetImportWizard(models.TransientModel):
                     remaining_quants.sudo().unlink()
                 lot.unlink()
 
+        # Renumeración con verificación de unicidad ANTES de tocar nada:
+        # renombrar sin verificar reventaba al final con ValidationError de
+        # lote duplicado (restricción name+product+company) y rollback total
+        # del worksheet, con un error críptico para el usuario.
+        rename_plan = []
+        own_lot_ids = set()
+        for lot_data_list in container_lots.values():
+            own_lot_ids.update(ld['lot'].id for ld in lot_data_list)
+
         for cont, lot_data_list in container_lots.items():
             if not lot_data_list:
                 continue
-            
+
             lot_data_list.sort(key=lambda x: x['original_name'])
-            
+
             first_name = lot_data_list[0]['original_name']
             prefix = first_name.split('-')[0] if '-' in first_name else "1"
-            
+
             for idx, lot_data in enumerate(lot_data_list, start=1):
-                new_name = f"{prefix}-{idx:02d}"
-                lot_data['lot'].write({'name': new_name})
+                rename_plan.append((lot_data['lot'], f"{prefix}-{idx:02d}"))
+
+        conflicts = []
+        for lot, new_name in rename_plan:
+            if lot.name == new_name:
+                continue
+            existing = self.env['stock.lot'].sudo().search([
+                ('name', '=', new_name),
+                ('product_id', '=', lot.product_id.id),
+                ('id', 'not in', list(own_lot_ids)),
+                '|',
+                ('company_id', '=', lot.company_id.id),
+                ('company_id', '=', False),
+            ], limit=1)
+            if existing:
+                conflicts.append(new_name)
+
+        if conflicts:
+            raise UserError(
+                'No se puede renumerar: estos nombres de lote ya existen en el '
+                'sistema para el mismo producto (otra recepción): %s.\n\n'
+                'Revisa los prefijos del Packing List antes de confirmar el '
+                'Worksheet.' % ', '.join(sorted(set(conflicts)))
+            )
+
+        # Dos fases (nombre temporal primero) para evitar colisiones ENTRE los
+        # propios lotes durante el reacomodo (p. ej. 12-02 → 12-01 con 12-01 vivo).
+        for index, (lot, _new_name) in enumerate(rename_plan):
+            lot.write({'name': f"__WSTMP{index}__{lot.id}"})
+        for lot, new_name in rename_plan:
+            lot.write({'name': new_name})
 
         self.picking_id.write({'worksheet_imported': True})
 

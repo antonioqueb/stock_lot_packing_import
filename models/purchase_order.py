@@ -47,6 +47,25 @@ def _som_unlink_except_purchase_or_done(self):
                 qty=line.qty_received,
             ))
 
+        # El merge de recepciones agrupa por PRODUCTO: todo lo recibido puede
+        # quedar acumulado en la línea hermana y esta quedar con
+        # qty_received=0 aunque su material SÍ llegó. Si el producto ya fue
+        # recibido en la OC, ninguna de sus líneas se puede eliminar.
+        if line.state in ('purchase', 'done') and line.product_id:
+            received_same_product = line.order_id.picking_ids.filtered(
+                lambda p: p.state == 'done'
+            ).move_line_ids.filtered(
+                lambda ml: ml.product_id == line.product_id
+                and (ml.quantity or 0.0) > 0
+            )
+            if received_same_product:
+                raise UserError(_(
+                    'No se puede eliminar la línea de "%(product)s": la OC ya '
+                    'tiene recepciones de ese producto (la cantidad pudo '
+                    'quedar fusionada en otra línea del mismo producto).',
+                    product=line.product_id.display_name,
+                ))
+
 
 # MONKEY-PATCH DELIBERADO Y A PRUEBA DE NOMBRES: el candado nativo de borrado
 # vive en la clase de purchase como método @api.ondelete, pero su NOMBRE varió
