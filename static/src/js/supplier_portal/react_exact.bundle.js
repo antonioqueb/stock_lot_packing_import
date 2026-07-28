@@ -3636,18 +3636,18 @@ const Confirm = ({ proforma, status, setRoute, onComplete }) => {
                     padding: '12px 14px',
                     borderRadius: 10,
                     border: '1px solid',
-                    borderColor: c.ok ? 'var(--ok-border)' : 'var(--warn-border)',
-                    background: c.ok ? 'var(--ok-soft)' : 'var(--warn-soft)',
+                    borderColor: c.ok ? 'var(--ok-border)' : 'var(--accent-border)',
+                    background: c.ok ? 'var(--ok-soft)' : 'var(--accent-soft)',
                 } },
                 React.createElement("div", { style: {
                         width: 28, height: 28, borderRadius: 50, display: 'grid', placeItems: 'center',
-                        background: c.ok ? 'var(--ok)' : 'var(--warn)', color: 'white'
+                        background: c.ok ? 'var(--ok)' : 'var(--accent)', color: 'white'
                     } },
                     React.createElement(Icon, { name: c.ok ? 'check' : 'minus', size: 14 })),
                 React.createElement("div", { style: { flex: 1 } },
                     React.createElement("strong", { style: { fontSize: 14 } }, c.label),
-                    React.createElement("div", { className: "text-muted", style: { fontSize: 12.5 } }, c.detail))))))),
-        !allDone && (React.createElement(Callout, { tone: "warn", icon: "alert", title: "A\u00FAn no puedes marcar como completa" }, "Termina los puntos pendientes del checklist. Puedes seguir trabajando \u2014 tus datos se guardan autom\u00E1ticamente.")),
+                    React.createElement("div", { className: "text-muted", style: { fontSize: 12.5, color: c.ok ? undefined : 'var(--ink-2)' } }, c.detail))))))),
+        !allDone && (React.createElement(Callout, { tone: "info", icon: "info", title: "A\u00FAn no puedes marcar como completa" }, "Termina los puntos pendientes del checklist. Puedes seguir trabajando \u2014 tus datos se guardan autom\u00E1ticamente.")),
         React.createElement("div", { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 24 } },
             React.createElement("span", { className: "text-muted text-small" }, "Al marcar como completa, SOM GROUP recibir\u00E1 un correo autom\u00E1tico."),
             React.createElement("div", { style: { display: 'flex', gap: 8 } },
