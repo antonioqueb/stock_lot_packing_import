@@ -1607,7 +1607,7 @@ const Globals = ({ proforma, setProforma, status, setRoute, validationStyle = 'i
             React.createElement("div", { className: "fld-row" },
                 (window.PORTAL_CARGO
                     ? React.createElement(Field, { label: "N\u00FAmero de Proforma", help: "Las PI de esta carga las asigna SOM GROUP por cada pedido." },
-                        React.createElement("div", { style: { fontFamily: 'ui-monospace, SFMono-Regular, monospace', fontSize: 13, padding: '9px 12px', background: '#f6f7f8', border: '1px solid #e5e7eb', borderRadius: 8 } }, window.PORTAL_PI_LABEL(g.proforma_number || '\u2014')))
+                        React.createElement("div", { style: { fontFamily: 'ui-monospace, SFMono-Regular, monospace', fontSize: 13, padding: '9px 12px', background: 'var(--surface-alt, #f8fcff)', border: '1px solid var(--border, #d7e8f2)', borderRadius: 8 } }, window.PORTAL_PI_LABEL(g.proforma_number || '\u2014')))
                     : React.createElement(Field, { label: "N\u00FAmero de Proforma", required: true, help: "Es el n\u00FAmero con el que tu sistema identifica esta venta (Proforma Invoice).", helpExample: "Ej: PI-9920-A", error: validationStyle !== 'block' && errors.proforma_number },
                         React.createElement(Input, { mono: true, placeholder: "PI-9920-A", value: g.proforma_number, onChange: (e) => update('proforma_number', e.target.value) }))),
                 React.createElement(Field, { label: "Factura global", optional: true, help: "Si emites una factura comercial que cubre toda la PO, escr\u00EDbela aqu\u00ED. Si tienes una por embarque, d\u00E9jalo vac\u00EDo y ll\u00E9nalo en cada embarque." },
@@ -2454,7 +2454,7 @@ const FORMATO_TERM = 'Tono';
 // Configuración de agrupación POR TIPO de producto (embarque combinado).
 const GROUP_MODES = {
     placa:   { term: 'Bloque',     icon: 'cube',  color: 'var(--accent)', photo: 'required', generatesRows: true,  explainer: 'full',  countLabel: 'Placas' },
-    formato: { term: FORMATO_TERM, icon: 'image', color: '#7c5cff',       photo: 'optional', generatesRows: false, explainer: 'brief', countLabel: 'Cantidad total de metros cuadrados' },
+    formato: { term: FORMATO_TERM, icon: 'image', color: '#8f6500',       photo: 'optional', generatesRows: false, explainer: 'brief', countLabel: 'Cantidad total de metros cuadrados' },
     pieza:   { term: 'Grupo',      icon: 'box',   color: '#0ea5a0',       photo: 'hidden',   generatesRows: false, explainer: 'none',  countLabel: 'Cantidad total' },
 };
 const groupMode = (draft, p) => (draft.typeOverride && draft.typeOverride[p.id]) || (p && p.kind) || 'placa';
@@ -3568,7 +3568,7 @@ const Step4Sheet = ({ proforma, draft, setDraft, rows, setRows, ship, pendingIma
                             " fila(s) detectada(s) \u00B7 ",
                             pastePreview.hasHeaders ? 'headers reconocidos \u2713' : 'sin headers (mapeo por posici\u00F3n)'),
                         React.createElement("div", { style: { color: 'var(--ink-3)' } }, "Columnas que se aplicar\u00E1n: " + (pastePreview.mapping.filter(m => m && m.field).map(m => m.header).join(', ') || '\u2014'))),
-                    pasteText && pastePreview && pastePreview.dataRows.length === 0 && React.createElement("div", { style: { fontSize: 12, color: 'var(--danger)', padding: '10px 12px', background: 'var(--danger-soft, #fff0f0)', border: '1px solid var(--danger)', borderRadius: 8 } }, "No se detectaron filas v\u00E1lidas. Verifica que pegaste el contenido de Excel (celdas separadas por tab).")),
+                    pasteText && pastePreview && pastePreview.dataRows.length === 0 && React.createElement("div", { style: { fontSize: 12, color: 'var(--danger)', padding: '10px 12px', background: 'var(--danger-soft, #fef2f2)', border: '1px solid var(--danger)', borderRadius: 8 } }, "No se detectaron filas v\u00E1lidas. Verifica que pegaste el contenido de Excel (celdas separadas por tab).")),
                 React.createElement("div", { style: { padding: '14px 22px', borderTop: '1px solid var(--border-soft)', display: 'flex', justifyContent: 'flex-end', gap: 8, flex: '0 0 auto' } },
                     React.createElement(Btn, { variant: "ghost", onClick: () => setPasteOpen(false) }, "Cancelar"),
                     React.createElement(Btn, { variant: "primary", icon: "check", disabled: !pastePreview || pastePreview.dataRows.length === 0, onClick: applyPaste }, "Aplicar a " + (pastePreview ? pastePreview.dataRows.length : 0) + " fila(s)")))) ));
@@ -3728,14 +3728,21 @@ window.Onboarding = Onboarding;
    useTweaks, TweaksPanel, TweakSection, TweakRadio, TweakToggle, TweakColor, TweakSelect */
 const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/ {
     "lang": "es",
-    "accent": "#59473d",
+    "accent": "#247fbd",
     "validation_style": "inline",
     "show_onboarding": false,
     "show_guide_panel": true,
     "density": "comfortable",
     "show_completed_route": false
 } /*EDITMODE-END*/;
-const ACCENT_OPTIONS = ['#59473d', '#3F7CD8', '#4F8B6E', '#C56A2F'];
+const ACCENT_OPTIONS = ['#247fbd', '#155f94', '#4BA4F2', '#047a31'];
+// Escala canónica (Transit Allocation) para los acentos de marca; el resto
+// cae al cálculo por alpha.
+const ACCENT_SCALES = {
+    '#247fbd': { dark: '#155f94', soft: '#dceaf2', border: '#bdd7e8' },
+    '#155f94': { dark: '#0e4670', soft: '#dceaf2', border: '#bdd7e8' },
+    '#4ba4f2': { dark: '#247fbd', soft: '#e6f4fc', border: '#bdd7e8' },
+};
 const PORTAL_RAW_PAYLOAD = (window.SupplierReactExactData && window.SupplierReactExactData.raw) || {};
 const PORTAL_TOKEN = PORTAL_RAW_PAYLOAD.token || '';
 // ── Respaldo local (anti-pérdida) ────────────────────────────────────────────
@@ -4290,10 +4297,11 @@ function App() {
     React.useEffect(() => {
         // convert hex to oklch-ish accent — use raw hex; lighter soft is computed via mix
         const root = document.documentElement;
+        const sc = ACCENT_SCALES[String(t.accent).toLowerCase()];
         root.style.setProperty('--accent', t.accent);
-        root.style.setProperty('--accent-2', t.accent);
-        root.style.setProperty('--accent-soft', t.accent + '14'); // 8% alpha
-        root.style.setProperty('--accent-border', t.accent + '40');
+        root.style.setProperty('--accent-2', sc ? sc.dark : t.accent);
+        root.style.setProperty('--accent-soft', sc ? sc.soft : t.accent + '14'); // 8% alpha
+        root.style.setProperty('--accent-border', sc ? sc.border : t.accent + '40');
     }, [t.accent]);
     // density
     React.useEffect(() => {
@@ -4501,7 +4509,7 @@ class PortalErrorBoundary extends React.Component {
     }
     render() {
         if (this.state.error) {
-            return React.createElement('div', { style: { padding: 24, maxWidth: 520, margin: '48px auto', textAlign: 'center', fontFamily: 'inherit' } }, React.createElement('h2', { style: { marginBottom: 8 } }, 'Ocurrió un problema al mostrar el portal'), React.createElement('p', { style: { color: '#666', lineHeight: 1.5, marginBottom: 16 } }, 'Tus datos capturados están a salvo. Recarga la página para continuar desde donde te quedaste.'), React.createElement('button', { onClick: () => window.location.reload(), style: { padding: '10px 20px', cursor: 'pointer', borderRadius: 8, border: 'none', background: 'var(--accent, #59473d)', color: '#fff', fontWeight: 600 } }, 'Recargar'));
+            return React.createElement('div', { style: { padding: 24, maxWidth: 520, margin: '48px auto', textAlign: 'center', fontFamily: 'inherit' } }, React.createElement('h2', { style: { marginBottom: 8 } }, 'Ocurrió un problema al mostrar el portal'), React.createElement('p', { style: { color: '#666', lineHeight: 1.5, marginBottom: 16 } }, 'Tus datos capturados están a salvo. Recarga la página para continuar desde donde te quedaste.'), React.createElement('button', { onClick: () => window.location.reload(), style: { padding: '10px 20px', cursor: 'pointer', borderRadius: 8, border: 'none', background: 'var(--accent, #247fbd)', color: '#fff', fontWeight: 600 } }, 'Recargar'));
         }
         return this.props.children;
     }

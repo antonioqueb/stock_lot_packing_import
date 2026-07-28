@@ -4,42 +4,48 @@
    ================================================================= */
 
 :root {
-  /* Backgrounds — warm cream, low chroma (matches SOM logo paper) */
-  --bg:           oklch(0.985 0.005 75);
-  --bg-tint:     oklch(0.975 0.006 75);
+  /* Backgrounds — azul cielo suave (paleta canónica Transit Allocation) */
+  --bg:          #eef8fe;
+  --bg-tint:     #edf7fd;
   --surface:     #ffffff;
-  --surface-alt: oklch(0.98 0.005 75);
-  --surface-2:   oklch(0.965 0.007 75);
+  --surface-alt: #f8fcff;
+  --surface-2:   #e6f4fc;
 
   /* Borders */
-  --border:        oklch(0.92 0.006 65);
-  --border-strong: oklch(0.86 0.008 65);
-  --border-soft:   oklch(0.95 0.005 65);
+  --border:        #d7e8f2;
+  --border-strong: #bdd7e8;
+  --border-soft:   #e6f4fc;
 
-  /* Text — warm browns matching brand */
-  --ink:        oklch(0.27 0.018 55);   /* deep brand brown */
-  --ink-2:      oklch(0.40 0.018 55);
-  --ink-3:      oklch(0.54 0.014 55);
-  --ink-4:      oklch(0.68 0.012 55);
+  /* Text — slate azulado */
+  --ink:        #0f172a;
+  --ink-2:      #284256;
+  --ink-3:      #60798c;
+  --ink-4:      #91a9b8;
 
-  /* Brand accent — SOM brown #59473d */
-  --accent:        oklch(0.40 0.022 55);
-  --accent-2:      oklch(0.34 0.022 55);
-  --accent-soft:   oklch(0.94 0.012 65);
-  --accent-border: oklch(0.82 0.018 60);
+  /* Brand accent — azul cielo SOM. --accent se usa como fondo (texto blanco)
+     y como color de texto sobre fondos claros: por eso es el tono medio-oscuro. */
+  --accent:        #247fbd;
+  --accent-2:      #155f94;
+  --accent-soft:   #dceaf2;
+  --accent-border: #bdd7e8;
+
+  /* Azul cielo puro — gradientes, rings y realces (no usar como texto) */
+  --accent-sky:    #5cb9f2;
+  --accent-sky-2:  #4ba4f2;
+  --accent-glass:  rgba(92, 185, 242, 0.20);
 
   /* Semantic */
-  --ok:        oklch(0.55 0.11 145);
-  --ok-soft:   oklch(0.95 0.035 145);
-  --ok-border: oklch(0.82 0.07 145);
+  --ok:        #047a31;
+  --ok-soft:   #f9fffb;
+  --ok-border: rgba(4, 217, 79, 0.35);
 
-  --warn:        oklch(0.65 0.13 65);
-  --warn-soft:   oklch(0.96 0.04 70);
-  --warn-border: oklch(0.84 0.08 65);
+  --warn:        #8f6500;
+  --warn-soft:   #fffdf3;
+  --warn-border: rgba(242, 183, 5, 0.40);
 
-  --danger:        oklch(0.55 0.17 25);
-  --danger-soft:   oklch(0.96 0.035 25);
-  --danger-border: oklch(0.84 0.09 25);
+  --danger:        #dc2626;
+  --danger-soft:   #fef2f2;
+  --danger-border: #fecaca;
 
   /* Type */
   --font-sans: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -51,10 +57,10 @@
   --r-md:  14px;
   --r-lg:  20px;
 
-  /* Shadow */
-  --shadow-sm: 0 1px 2px oklch(0.2 0.01 60 / 0.05);
-  --shadow:    0 1px 3px oklch(0.2 0.01 60 / 0.06), 0 4px 12px oklch(0.2 0.01 60 / 0.04);
-  --shadow-lg: 0 10px 30px oklch(0.2 0.01 60 / 0.08), 0 2px 6px oklch(0.2 0.01 60 / 0.06);
+  /* Shadow — teñidas de azul, como en Transit Allocation */
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow:    0 4px 14px rgba(75, 164, 242, 0.09), 0 1px 3px rgba(15, 23, 42, 0.04);
+  --shadow-lg: 0 12px 34px rgba(75, 164, 242, 0.14), 0 2px 6px rgba(15, 23, 42, 0.05);
 
   --header-h: 64px;
   --sidebar-w: 296px;
@@ -283,7 +289,7 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
   position: relative;
   transition: background .12s;
 }
-.nav-item:hover { background: oklch(0.95 0.008 60); color: var(--ink); }
+.nav-item:hover { background: #edf7fd; color: var(--ink); }
 .nav-item.active { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: var(--shadow-sm); border: 1px solid var(--border); }
 .nav-item .status-dot {
   width: 18px; height: 18px;
@@ -412,7 +418,7 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
   color: var(--surface);
   border-color: var(--ink);
 }
-.btn-primary:hover { background: oklch(0.32 0.01 60); border-color: oklch(0.32 0.01 60); color: var(--surface); }
+.btn-primary:hover { background: #155f94; border-color: #155f94; color: var(--surface); }
 .btn-secondary { border-color: var(--border-strong); background: var(--surface); color: var(--ink); }
 .btn-secondary:hover { background: var(--surface-alt); color: var(--ink); }
 .btn-ghost { background: transparent; border-color: transparent; color: var(--ink-2); }
@@ -462,7 +468,7 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
   outline: none;
 }
 .input::placeholder, .textarea::placeholder { color: var(--ink-4); }
-.input:hover, .select:hover, .textarea:hover { border-color: oklch(0.78 0.01 60); }
+.input:hover, .select:hover, .textarea:hover { border-color: #bdd7e8; }
 .input:focus, .select:focus, .textarea:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);
@@ -487,7 +493,7 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
 .fld.is-error .input:focus,
 .fld.is-error .select:focus,
 .fld.is-error .textarea:focus {
-  box-shadow: 0 0 0 3px oklch(0.92 0.04 25);
+  box-shadow: 0 0 0 3px #fecaca;
 }
 .fld.is-warn .input,
 .fld.is-warn .select,
@@ -498,7 +504,7 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
 .fld.is-ok .input,
 .fld.is-ok .select,
 .fld.is-ok .textarea {
-  border-color: oklch(0.78 0.06 155);
+  border-color: rgba(4, 217, 79, 0.45);
 }
 
 .fld-msg {
@@ -508,7 +514,7 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
   line-height: 1.4;
 }
 .fld-msg.error { color: var(--danger); }
-.fld-msg.warn  { color: oklch(0.5 0.13 70); }
+.fld-msg.warn  { color: #8f6500; }
 .fld-msg.ok    { color: var(--ok); }
 .fld-msg.hint  { color: var(--ink-4); }
 .fld-msg .icon { flex-shrink: 0; margin-top: 1px; }
@@ -549,11 +555,11 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
   display: block;
   margin-top: 8px;
   padding: 8px 10px;
-  background: oklch(0.32 0.01 60);
+  background: #155f94;
   border-radius: 4px;
   font-family: var(--font-mono);
   font-size: 11px;
-  color: oklch(0.85 0.02 80);
+  color: #dceaf2;
 }
 
 /* Badge */
@@ -572,8 +578,8 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
 }
 .badge.draft   { background: var(--surface-2); color: var(--ink-3); border-color: var(--border); }
 .badge.todo    { background: var(--surface-alt); color: var(--ink-3); border-color: var(--border); border-style: dashed; }
-.badge.partial { background: var(--warn-soft); color: oklch(0.45 0.14 70); border-color: var(--warn-border); }
-.badge.done    { background: var(--ok-soft); color: oklch(0.42 0.13 155); border-color: var(--ok-border); }
+.badge.partial { background: var(--warn-soft); color: #8f6500; border-color: var(--warn-border); }
+.badge.done    { background: var(--ok-soft); color: #047a31; border-color: var(--ok-border); }
 .badge.error   { background: var(--danger-soft); color: var(--danger); border-color: var(--danger-border); }
 .badge.accent  { background: var(--accent-soft); color: var(--accent); border-color: var(--accent-border); }
 .badge .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
@@ -602,13 +608,13 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
 .callout.info { background: var(--accent-soft); border-color: var(--accent-border); }
 .callout.info .ico { background: white; color: var(--accent); }
 .callout.warn { background: var(--warn-soft); border-color: var(--warn-border); }
-.callout.warn .ico { background: white; color: oklch(0.5 0.14 70); }
+.callout.warn .ico { background: white; color: #8f6500; }
 .callout.ok   { background: var(--ok-soft); border-color: var(--ok-border); }
 .callout.ok .ico { background: white; color: var(--ok); }
 .callout.error { background: var(--danger-soft); border-color: var(--danger-border); }
 .callout.error .ico { background: white; color: var(--danger); }
 .callout .close { background: transparent; border: 0; color: var(--ink-3); padding: 4px; border-radius: 6px; }
-.callout .close:hover { background: oklch(0.97 0.01 60); color: var(--ink); }
+.callout .close:hover { background: #edf7fd; color: var(--ink); }
 
 /* Empty state */
 .empty {
@@ -634,10 +640,10 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
 .imgph {
   background:
     repeating-linear-gradient(45deg,
-      oklch(0.95 0.005 80) 0,
-      oklch(0.95 0.005 80) 8px,
-      oklch(0.92 0.006 80) 8px,
-      oklch(0.92 0.006 80) 16px);
+      #edf7fd 0,
+      #edf7fd 8px,
+      #dceaf2 8px,
+      #dceaf2 16px);
   border: 1px solid var(--border);
   border-radius: var(--r);
   display: grid; place-items: center;
@@ -811,7 +817,7 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
   margin-bottom: 18px;
   display: flex; align-items: center; gap: 12px;
   font-size: 13px;
-  color: oklch(0.4 0.16 25);
+  color: #991b1b;
 }
 
 /* Pill toggle */
@@ -927,7 +933,7 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
   display: grid; place-items: center;
   color: var(--ink-3);
 }
-.stepper .step.done { background: var(--ok-soft); border-color: var(--ok-border); color: oklch(0.4 0.13 155); }
+.stepper .step.done { background: var(--ok-soft); border-color: var(--ok-border); color: #047a31; }
 .stepper .step.done .n { background: var(--ok); color: white; border-color: var(--ok); }
 .stepper .step.active { background: var(--ink); color: var(--surface); border-color: var(--ink); }
 .stepper .step.active .n { background: var(--surface); color: var(--ink); border-color: var(--surface); }
@@ -952,7 +958,7 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
   height: 100dvh !important;
 
   padding: 24px !important;
-  background: oklch(0.2 0.01 60 / 0.42) !important;
+  background: rgba(15, 23, 42, 0.42) !important;
   backdrop-filter: blur(4px) !important;
   -webkit-backdrop-filter: blur(4px) !important;
 
@@ -1259,7 +1265,7 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
   background: var(--surface);
   border: 1px solid var(--border-strong);
   border-radius: 6px;
-  box-shadow: 0 2px 6px oklch(0.2 0.02 60 / 0.08);
+  box-shadow: 0 2px 6px rgba(75, 164, 242, 0.12);
   padding: 2px;
   z-index: 5;
 }
@@ -1316,9 +1322,9 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
 /* En celda con error, el placeholder también avisa en rojo. */
 .sheet-table tbody td.is-error input::placeholder { color: var(--danger); opacity: 0.75; }
 .sheet-table tbody td.cell-computed input { color: var(--ink-3); background: var(--surface-alt); pointer-events: none; }
-.sheet-table tbody tr.is-active td { background: oklch(0.985 0.014 230); }
-.sheet-table tbody tr:hover td { background: oklch(0.99 0.005 60); }
-.sheet-table tbody tr.is-active:hover td { background: oklch(0.97 0.018 230); }
+.sheet-table tbody tr.is-active td { background: #f8fcff; }
+.sheet-table tbody tr:hover td { background: #f8fcff; }
+.sheet-table tbody tr.is-active:hover td { background: #e6f4fc; }
 
 .row-mini-photo {
   width: 28px; height: 28px;
@@ -1330,12 +1336,12 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
   margin: 0 auto;
   cursor: pointer;
 }
-.row-mini-photo.has { background: oklch(0.85 0.04 155); border-style: solid; border-color: var(--ok); color: var(--ok); }
+.row-mini-photo.has { background: rgba(4, 217, 79, 0.25); border-style: solid; border-color: var(--ok); color: var(--ok); }
 
 /* Onboarding overlay */
 .onboard-scrim {
   position: fixed; inset: 0;
-  background: oklch(0.2 0.01 60 / 0.55);
+  background: rgba(15, 23, 42, 0.55);
   backdrop-filter: blur(3px);
   display: grid; place-items: center;
   z-index: 300;
@@ -1409,7 +1415,7 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
 .text-small { font-size: 12.5px; }
 .mono { font-family: var(--font-mono); }
 .shimmer {
-  background: linear-gradient(90deg, transparent, oklch(0.95 0.01 80 / 0.6), transparent);
+  background: linear-gradient(90deg, transparent, rgba(92, 185, 242, 0.25), transparent);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
 }
@@ -1454,21 +1460,21 @@ body:has(#root) .navbar { display: none !important; }
   min-height: 100vh;
   display: grid;
   place-items: center;
-  background: var(--bg, #fbfaf8);
+  background: var(--bg, #eef8fe);
   padding: 24px;
 }
 .spm-public-card {
   width: min(520px, 100%);
   background: var(--surface, #fff);
-  border: 1px solid var(--border, #e6e0d8);
+  border: 1px solid var(--border, #d7e8f2);
   border-radius: var(--r-lg, 20px);
   box-shadow: var(--shadow-lg, 0 10px 30px rgba(0,0,0,.08));
   padding: 32px;
   text-align: center;
-  color: var(--ink, #3a2e27);
+  color: var(--ink, #0f172a);
 }
 .spm-public-card h1 { margin: 0 0 8px; font-size: 24px; }
-.spm-public-card p { margin: 0; color: var(--ink-3, #7a6d64); }
+.spm-public-card p { margin: 0; color: var(--ink-3, #60798c); }
 
 /* ===== Notice modal (reemplaza window.alert) ===== */
 .notice-overlay {
@@ -1509,10 +1515,10 @@ body:has(#root) .navbar { display: none !important; }
 }
 .notice-warn .notice-icon { background: var(--warn-soft); color: var(--warn); }
 .notice-ok .notice-icon { background: var(--ok-soft); color: var(--ok); }
-.notice-error .notice-icon { background: var(--warn-soft); color: #c0392b; }
+.notice-error .notice-icon { background: var(--danger-soft); color: var(--danger); }
 .notice-x {
   border: none; background: transparent; cursor: pointer;
-  color: var(--ink-4, #9a8c82);
+  color: var(--ink-4, #91a9b8);
   width: 28px; height: 28px; border-radius: 8px;
   display: grid; place-items: center;
 }

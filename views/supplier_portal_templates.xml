@@ -22,7 +22,7 @@
             <script id="portal-data-store" type="application/json" data-noncommentable="1"><t t-out="portal_json"/></script>
 
             <div id="root" data-noncommentable="1">
-                <div style="display:grid;place-items:center;min-height:100vh;font-family:'Geist',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#69645f;">
+                <div style="display:grid;place-items:center;min-height:100vh;font-family:'Geist',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#60798c;">
                     <div style="text-align:center;">
                         <div style="width:48px;height:48px;border-radius:14px;background:#222;color:white;display:grid;place-items:center;font-weight:700;margin:0 auto 14px;">SG</div>
                         <div style="font-size:14px;font-weight:500;letter-spacing:0.02em;">Cargando portal del proveedor…</div>
