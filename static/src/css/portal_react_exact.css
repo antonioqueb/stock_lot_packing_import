@@ -578,7 +578,7 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
 }
 .badge.draft   { background: var(--surface-2); color: var(--ink-3); border-color: var(--border); }
 .badge.todo    { background: var(--surface-alt); color: var(--ink-3); border-color: var(--border); border-style: dashed; }
-.badge.partial { background: var(--warn-soft); color: #8f6500; border-color: var(--warn-border); }
+.badge.partial { background: var(--accent-soft); color: var(--accent-2); border-color: var(--accent-border); }
 .badge.done    { background: var(--ok-soft); color: #047a31; border-color: var(--ok-border); }
 .badge.error   { background: var(--danger-soft); color: var(--danger); border-color: var(--danger-border); }
 .badge.accent  { background: var(--accent-soft); color: var(--accent); border-color: var(--accent-border); }
@@ -1480,7 +1480,7 @@ body:has(#root) .navbar { display: none !important; }
 .notice-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(20, 14, 10, 0.45);
+  background: rgba(15, 23, 42, 0.45);
   backdrop-filter: blur(2px);
   display: grid;
   place-items: center;
