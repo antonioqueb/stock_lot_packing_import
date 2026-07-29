@@ -1549,3 +1549,10 @@ body:has(#root) .navbar { display: none !important; }
 }
 @keyframes notice-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes notice-pop { from { opacity: 0; transform: translateY(8px) scale(0.98); } to { opacity: 1; transform: none; } }
+
+/* Fila de filtros por columna (estilo Excel) en las tablas del PL */
+.modal-scrim .sheet-table thead tr.sheet-colfilters th {
+  padding: 4px 6px !important;
+  background: var(--bg) !important;
+  border-bottom: 1px solid var(--border) !important;
+}

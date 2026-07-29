@@ -3285,6 +3285,42 @@ const Step4Sheet = ({ proforma, draft, setDraft, rows, setRows, ship, pendingIma
     const [activeRow, setActiveRow] = React.useState(null);
     // Filtro de filas del grid: todas / pendientes / con errores.
     const [rowFilter, setRowFilter] = React.useState('all');
+    // ── FILTROS POR COLUMNA (estilo Excel) ─────────────────────────────────
+    // Inputs en la cabecera: la tabla se filtra al instante por Bloque, Atado,
+    // No. Placa, Grosor, Contenedor y PI; se combinan (Y) con los botones
+    // Todas/Completas/Pendientes/Errores.
+    const [colFilters, setColFilters] = React.useState({ block: '', atado: '', plate: '', thickness: '', container: '', pi: '' });
+    const anyColFilter = Object.values(colFilters).some(v => v);
+    const clearColFilters = () => setColFilters({ block: '', atado: '', plate: '', thickness: '', container: '', pi: '' });
+    const cfNorm = (v) => String(v == null ? '' : v).toLowerCase();
+    const matchesColFilters = (r) => {
+        const f = colFilters;
+        if (f.block && cfNorm(r.block).indexOf(cfNorm(f.block)) < 0) return false;
+        if (f.atado && cfNorm(r.atado).indexOf(cfNorm(f.atado)) < 0) return false;
+        if (f.plate && cfNorm(r.plate).indexOf(cfNorm(f.plate)) < 0) return false;
+        if (f.thickness && cfNorm(r.thickness).indexOf(cfNorm(f.thickness)) < 0) return false;
+        if (f.container && cfNorm(r.container).indexOf(cfNorm(f.container)) < 0) return false;
+        if (f.pi && String(r.pi_header_id || '') !== String(f.pi)) return false;
+        return true;
+    };
+    const colFilterStyle = { width: '100%', fontSize: 11, padding: '2px 6px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--surface)', fontWeight: 400 };
+    const colFilterInput = (key) => React.createElement("input", {
+        value: colFilters[key],
+        placeholder: "⌕",
+        onClick: (ev) => ev.stopPropagation(),
+        onChange: (e) => setColFilters({ ...colFilters, [key]: e.target.value }),
+        style: colFilterStyle,
+    });
+    const colFilterPi = () => React.createElement("select", {
+        value: colFilters.pi,
+        onClick: (ev) => ev.stopPropagation(),
+        onChange: (e) => setColFilters({ ...colFilters, pi: e.target.value }),
+        style: colFilterStyle,
+    },
+        React.createElement("option", { value: "" }, "—"),
+        (((typeof window !== 'undefined' && window.PORTAL_PROFORMAS) || []).map(q => React.createElement("option", { key: q.id, value: q.id }, q.number || q.po_name || ''))));
+    const colFilterClear = () => React.createElement("th", { style: { textAlign: 'center' } },
+        anyColFilter ? React.createElement("button", { title: "Limpiar filtros", onClick: clearColFilters, style: { border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--danger)', fontWeight: 700 } }, "✕") : null);
     // Si el embarque tiene EXACTAMENTE un contenedor, se asigna a las filas sin él.
     const soleContainer = (() => {
         const nums = (ship && ship.containers ? ship.containers : []).map(c => c.number).filter(Boolean);
@@ -3315,11 +3351,11 @@ const Step4Sheet = ({ proforma, draft, setDraft, rows, setRows, ship, pendingIma
     };
     const pendingCount = allRows.filter(r => PL_STATE(r).tone !== 'done').length;
     const errorCount = allRows.filter(rowHasError).length;
-    const rowMatchesFilter = (r) => rowFilter === 'all'
+    const rowMatchesFilter = (r) => matchesColFilters(r) && (rowFilter === 'all'
         ? true
         : rowFilter === 'errors' ? rowHasError(r)
         : rowFilter === 'done' ? PL_STATE(r).tone === 'done'
-        : PL_STATE(r).tone !== 'done';
+        : PL_STATE(r).tone !== 'done');
     const updRow = (id, patch) => setRows(prev => prev.map(r => r.id === id ? { ...r, ...patch } : r));
     const portalRowImageId = (r) => {
         const v = r._odoo_id || r.id;
@@ -3717,7 +3753,7 @@ const Step4Sheet = ({ proforma, draft, setDraft, rows, setRows, ship, pendingIma
             React.createElement("div", { className: "sheet-scroll" },
                 productGroups.map(group => {
                     const gRows = group.rows;
-                    if (rowFilter !== 'all' && !gRows.some(rowMatchesFilter))
+                    if ((rowFilter !== 'all' || anyColFilter) && !gRows.some(rowMatchesFilter))
                         return null;
                     const prod = productById[group.key] || {};
                     const kind = PL_KIND(gRows[0]);
@@ -3743,7 +3779,22 @@ const Step4Sheet = ({ proforma, draft, setDraft, rows, setRows, ship, pendingIma
                                 React.createElement("th", { style: { minWidth: 140 } }, NATIONAL ? 'Plataforma' : 'Contenedor'),
                                 (CARGO && React.createElement("th", { style: { minWidth: 140 } }, "PI / Pedido")),
                                 (!NATIONAL && React.createElement("th", { style: { width: 60 } }, "Foto")),
-                                React.createElement("th", { style: { width: 34 } }, ""))),
+                                React.createElement("th", { style: { width: 34 } }, "")),
+                            // Fila de filtros estilo Excel (se combinan con los
+                            // botones Todas/Completas/Pendientes/Errores).
+                            React.createElement("tr", { className: "sheet-colfilters" },
+                                colFilterClear(),
+                                (!NATIONAL && React.createElement("th", null, colFilterInput('block'))),
+                                (!NATIONAL && React.createElement("th", null, colFilterInput('atado'))),
+                                React.createElement("th", null, colFilterInput('plate')),
+                                React.createElement("th", null, colFilterInput('thickness')),
+                                React.createElement("th", null),
+                                React.createElement("th", null),
+                                React.createElement("th", null),
+                                React.createElement("th", null, colFilterInput('container')),
+                                (CARGO && React.createElement("th", null, colFilterPi())),
+                                (!NATIONAL && React.createElement("th", null)),
+                                React.createElement("th", null))),
                             React.createElement("tbody", null, gRows.filter(rowMatchesFilter).map((r) => {
                                 const gi = gRows.indexOf(r);
                                 const hNum = parseFloat(r.h) || 0;
@@ -3783,7 +3834,16 @@ const Step4Sheet = ({ proforma, draft, setDraft, rows, setRows, ship, pendingIma
                                 React.createElement("th", { style: { width: 120 } }, NATIONAL ? 'Plataforma' : 'Contenedor'),
                                 (CARGO && React.createElement("th", { style: { minWidth: 150 } }, "PI / Pedido")),
                                 (!NATIONAL && React.createElement("th", { style: { width: 60 } }, "Foto")),
-                                React.createElement("th", { style: { width: 34 } }, ""))),
+                                React.createElement("th", { style: { width: 34 } }, "")),
+                            React.createElement("tr", { className: "sheet-colfilters" },
+                                colFilterClear(),
+                                React.createElement("th", null),
+                                React.createElement("th", null, colFilterInput('plate')),
+                                React.createElement("th", null),
+                                React.createElement("th", null, colFilterInput('container')),
+                                (CARGO && React.createElement("th", null, colFilterPi())),
+                                (!NATIONAL && React.createElement("th", null)),
+                                React.createElement("th", null))),
                             React.createElement("tbody", null, gRows.filter(rowMatchesFilter).map((r) => {
                                 const gi = gRows.indexOf(r);
                                 const pkg = PL_PKG(r.grupo);
@@ -3811,7 +3871,15 @@ const Step4Sheet = ({ proforma, draft, setDraft, rows, setRows, ship, pendingIma
                                 React.createElement("th", { style: { width: 160 } }, "Cantidad"),
                                 React.createElement("th", { style: { width: 120 } }, NATIONAL ? 'Plataforma' : 'Contenedor'),
                                 (CARGO && React.createElement("th", { style: { minWidth: 150 } }, "PI / Pedido")),
-                                React.createElement("th", { style: { width: 34 } }, ""))),
+                                React.createElement("th", { style: { width: 34 } }, "")),
+                            React.createElement("tr", { className: "sheet-colfilters" },
+                                colFilterClear(),
+                                React.createElement("th", null),
+                                React.createElement("th", null, colFilterInput('plate')),
+                                React.createElement("th", null),
+                                React.createElement("th", null, colFilterInput('container')),
+                                (CARGO && React.createElement("th", null, colFilterPi())),
+                                React.createElement("th", null))),
                             React.createElement("tbody", null, gRows.filter(rowMatchesFilter).map((r) => {
                                 const gi = gRows.indexOf(r);
                                 const pkg = PL_PKG(r.grupo);
