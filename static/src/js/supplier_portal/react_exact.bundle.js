@@ -3441,17 +3441,16 @@ const Step4Sheet = ({ proforma, draft, setDraft, rows, setRows, ship, pendingIma
                         table = React.createElement("table", { className: "sheet-table" },
                             React.createElement("thead", null, React.createElement("tr", null,
                                 React.createElement("th", { style: { width: 30 } }, "#"),
-                                (!NATIONAL && React.createElement("th", { style: { minWidth: 130 } }, "Bloque")),
-                                (!NATIONAL && React.createElement("th", { style: { minWidth: 110 } }, "Atado")),
-                                React.createElement("th", { style: { minWidth: 110 } }, "No. Placa"),
-                                React.createElement("th", { style: { width: 110 } }, "Grosor cm"),
-                                React.createElement("th", { style: { width: 110 } }, "Largo m"),
-                                React.createElement("th", { style: { width: 110 } }, "Alto m"),
+                                (!NATIONAL && React.createElement("th", { style: { minWidth: 150 } }, "Bloque")),
+                                (!NATIONAL && React.createElement("th", { style: { width: 70 } }, "Atado")),
+                                React.createElement("th", { style: { width: 80 } }, "No. Placa"),
+                                React.createElement("th", { style: { width: 70 } }, "Grosor cm"),
+                                React.createElement("th", { style: { minWidth: 150 } }, "Largo m"),
+                                React.createElement("th", { style: { minWidth: 150 } }, "Alto m"),
                                 React.createElement("th", { style: { width: 80 } }, "Área m²"),
-                                React.createElement("th", { style: { minWidth: 180 } }, NATIONAL ? 'Plataforma' : 'Contenedor'),
+                                React.createElement("th", { style: { width: 120 } }, NATIONAL ? 'Plataforma' : 'Contenedor'),
                                 (CARGO && React.createElement("th", { style: { minWidth: 150 } }, "PI / Pedido")),
                                 (!NATIONAL && React.createElement("th", { style: { width: 60 } }, "Foto")),
-                                React.createElement("th", { style: { minWidth: 170 } }, "Notas"),
                                 React.createElement("th", { style: { width: 34 } }, ""))),
                             React.createElement("tbody", null, gRows.filter(rowMatchesFilter).map((r) => {
                                 const gi = gRows.indexOf(r);
@@ -3478,7 +3477,6 @@ const Step4Sheet = ({ proforma, draft, setDraft, rows, setRows, ship, pendingIma
                                     containerCell(r),
                                     (CARGO && piCell(r)),
                                     (!NATIONAL && photoCell(r)),
-                                    notesCell(r),
                                     delCell(r));
                             })), addRowFooter(gRows));
                     } else if (kind === 'formato') {
@@ -3490,10 +3488,9 @@ const Step4Sheet = ({ proforma, draft, setDraft, rows, setRows, ship, pendingIma
                                 React.createElement("th", { style: { minWidth: 140 } }, "Empaque"),
                                 React.createElement("th", { style: { minWidth: 110 } }, PL_PKG_NUM_LABEL(gRows)),
                                 React.createElement("th", { style: { width: 160 } }, "m² (por capturar)"),
-                                React.createElement("th", { style: { minWidth: 180 } }, NATIONAL ? 'Plataforma' : 'Contenedor'),
+                                React.createElement("th", { style: { width: 120 } }, NATIONAL ? 'Plataforma' : 'Contenedor'),
                                 (CARGO && React.createElement("th", { style: { minWidth: 150 } }, "PI / Pedido")),
                                 (!NATIONAL && React.createElement("th", { style: { width: 60 } }, "Foto")),
-                                React.createElement("th", { style: { minWidth: 170 } }, "Notas"),
                                 React.createElement("th", { style: { width: 34 } }, ""))),
                             React.createElement("tbody", null, gRows.filter(rowMatchesFilter).map((r) => {
                                 const gi = gRows.indexOf(r);
@@ -3509,7 +3506,6 @@ const Step4Sheet = ({ proforma, draft, setDraft, rows, setRows, ship, pendingIma
                                     containerCell(r),
                                     (CARGO && piCell(r)),
                                     (!NATIONAL && photoCell(r)),
-                                    notesCell(r),
                                     delCell(r));
                             })), addRowFooter(gRows));
                     } else {
@@ -3521,9 +3517,8 @@ const Step4Sheet = ({ proforma, draft, setDraft, rows, setRows, ship, pendingIma
                                 React.createElement("th", { style: { minWidth: 140 } }, "Empaque"),
                                 React.createElement("th", { style: { minWidth: 110 } }, PL_PKG_NUM_LABEL(gRows)),
                                 React.createElement("th", { style: { width: 160 } }, "Cantidad"),
-                                React.createElement("th", { style: { minWidth: 180 } }, NATIONAL ? 'Plataforma' : 'Contenedor'),
+                                React.createElement("th", { style: { width: 120 } }, NATIONAL ? 'Plataforma' : 'Contenedor'),
                                 (CARGO && React.createElement("th", { style: { minWidth: 150 } }, "PI / Pedido")),
-                                React.createElement("th", { style: { minWidth: 170 } }, "Notas"),
                                 React.createElement("th", { style: { width: 34 } }, ""))),
                             React.createElement("tbody", null, gRows.filter(rowMatchesFilter).map((r) => {
                                 const gi = gRows.indexOf(r);
@@ -3538,7 +3533,6 @@ const Step4Sheet = ({ proforma, draft, setDraft, rows, setRows, ship, pendingIma
                                         React.createElement("input", { type: "text", inputMode: "decimal", value: r.quantity || '', placeholder: "0", onChange: (e) => updRow(r.id, { quantity: e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.') }) })),
                                     containerCell(r),
                                     (CARGO && piCell(r)),
-                                    notesCell(r),
                                     delCell(r));
                             })), addRowFooter(gRows));
                     }
