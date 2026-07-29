@@ -3594,9 +3594,9 @@ const Step4Sheet = ({ proforma, draft, setDraft, rows, setRows, ship, pendingIma
                 f.label,
                 f.count,
                 ")"))),
-            React.createElement("div", { style: { marginLeft: 'auto', display: 'flex', gap: 8 } },
-                React.createElement(Btn, { variant: "secondary", icon: "download", size: "sm", onClick: exportCSV, disabled: placaRows.length === 0 }, "Exportar CSV"),
-                React.createElement(Btn, { variant: "secondary", icon: "upload", size: "sm", disabled: placaRows.length === 0, onClick: () => { setPasteText(''); setPasteOpen(true); } }, "Pegar de Excel"))),
+            // Botones "Exportar CSV" / "Pegar de Excel" retirados: el pegado
+            // tipo Excel directo en las celdas los sustituye (onCellPaste).
+            null),
         allRows.length === 0 && React.createElement("div", { className: "text-muted", style: { padding: '24px 4px', textAlign: 'center' } }, "No hay filas que detallar todavía."),
         React.createElement("div", { className: "sheet" },
             React.createElement("div", { className: "sheet-scroll" },
