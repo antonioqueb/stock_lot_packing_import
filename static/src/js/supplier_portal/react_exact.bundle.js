@@ -3250,7 +3250,9 @@ const Step4Sheet = ({ proforma, draft, setDraft, rows, setRows, ship, pendingIma
     const piCell = (r) => PropCell({ rowId: r.id, field: "pi_header_id" },
         React.createElement("select", { value: r.pi_header_id || '', onChange: (e) => updRow(r.id, { pi_header_id: e.target.value ? parseInt(e.target.value, 10) : false }) },
             React.createElement("option", { value: "" }, "— automático —"),
-            piOptionsForRow(r).map(q => React.createElement("option", { key: q.id, value: q.id }, (q.number || q.po_name || '') + (q.number && q.po_name ? ' (' + q.po_name + ')' : '')))));
+            // Solo el folio de la PI (sin el pedido de Odoo); el po_name queda
+            // únicamente como respaldo cuando la PI no tiene folio capturado.
+            piOptionsForRow(r).map(q => React.createElement("option", { key: q.id, value: q.id }, q.number || q.po_name || ''))));
     // Celda de foto reutilizable (placa y formato).
     const photoCell = (r) => React.createElement("td", { style: { textAlign: 'center' } },
         React.createElement("label", { className: `row-mini-photo ${r.photo ? 'has' : ''}`, style: { cursor: 'pointer', overflow: 'hidden' }, title: "Subir/Reemplazar foto", onClick: (e) => e.stopPropagation() },
