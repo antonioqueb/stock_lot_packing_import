@@ -2032,7 +2032,10 @@ const TabInvoices = ({ ship, updateShip }) => {
    Containers tab
    ============================================================ */
 const TabContainers = ({ ship, updateShip }) => {
-    const addC = () => updateShip({ containers: [...ship.containers, { id: 'c' + Date.now(), number: '', seal: '', type: '40', weight: 0, volume: 0, packages: 0 }] });
+    // El contenedor NUEVO se inserta AL PRINCIPIO: el formulario vacío queda
+    // arriba, a la vista, sin obligar a hacer scroll hasta el fondo (mismo
+    // criterio que "Agregar bloque" en el packing list).
+    const addC = () => updateShip({ containers: [{ id: 'c' + Date.now(), number: '', seal: '', type: '40', weight: 0, volume: 0, packages: 0 }, ...ship.containers] });
     const updC = (id, patch) => updateShip({ containers: ship.containers.map(c => c.id === id ? { ...c, ...patch } : c) });
     const delC = (id) => updateShip({ containers: ship.containers.filter(c => c.id !== id) });
     return (React.createElement("div", { className: "card" },
