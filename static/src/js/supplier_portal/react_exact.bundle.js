@@ -3427,6 +3427,51 @@ const Step4Sheet = ({ proforma, draft, setDraft, rows, setRows, ship, pendingIma
             return { ...b, packaging: { ...pk2, qty: Math.max((+pk2.qty || 0) - 1, 0) } };
         }) }));
     };
+    // ── PEGADO TIPO EXCEL EN CELDAS ─────────────────────────────────────────
+    // Copias N filas (una o varias columnas) en Excel, te paras en una celda y
+    // pegas: se llenan las N filas hacia abajo desde ahí, columna por columna
+    // en el orden visual de la tabla. Los selectores (Contenedor, PI) quedan
+    // fuera: el pegado se detiene antes de tocarlos.
+    const PASTE_SEQ_PLACA = ['block', 'atado', 'plate', 'thickness', 'w', 'h'];
+    const PASTE_SEQ_PACK = ['plate', 'quantity'];
+    const PASTE_NUMERIC = { thickness: 1, w: 1, h: 1, quantity: 1 };
+    const PASTE_UPPER = { block: 1, atado: 1, plate: 1 };
+    const sanitizePasteVal = (field, raw) => {
+        let v = String(raw == null ? '' : raw).trim();
+        if (PASTE_NUMERIC[field]) return v.replace(/[^0-9.,-]/g, '').replace(/,/g, '.');
+        if (PASTE_UPPER[field]) return v.toUpperCase();
+        return v;
+    };
+    const onCellPaste = (r, field, gRows) => (ev) => {
+        const text = ev.clipboardData && ev.clipboardData.getData
+            ? ev.clipboardData.getData('text/plain') : '';
+        if (!text) return;
+        const lines = String(text).replace(/\r/g, '').split('\n');
+        while (lines.length && lines[lines.length - 1] === '') lines.pop();
+        const grid = lines.map(l => l.split('\t'));
+        // Un solo valor sin tabuladores: pegado normal dentro de la celda.
+        if (grid.length <= 1 && (!grid[0] || grid[0].length <= 1)) return;
+        const seq = String(r.tipo || 'Placa').toLowerCase().indexOf('placa') >= 0
+            ? PASTE_SEQ_PLACA : PASTE_SEQ_PACK;
+        const startCol = seq.indexOf(field);
+        const startIdx = gRows.findIndex(x => x.id === r.id);
+        if (startCol < 0 || startIdx < 0) return;
+        ev.preventDefault();
+        const updates = {};
+        for (let li = 0; li < grid.length; li++) {
+            const row = gRows[startIdx + li];
+            if (!row) break; // tope: fin de la tabla — no se crean filas nuevas
+            const patch = {};
+            for (let ci = 0; ci < grid[li].length; ci++) {
+                const f = seq[startCol + ci];
+                if (!f) break; // columnas de más (o selectores): se ignoran
+                patch[f] = sanitizePasteVal(f, grid[li][ci]);
+            }
+            if (Object.keys(patch).length) updates[row.id] = patch;
+        }
+        if (!Object.keys(updates).length) return;
+        setRows(prev => prev.map(x => updates[x.id] ? { ...x, ...updates[x.id] } : x));
+    };
     const delCell = (r) => React.createElement("td", { style: { textAlign: 'center', width: 34 } },
         plCanEditRows(r) ? React.createElement("button", { title: "Quitar fila", style: { border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--ink-4)', padding: 2 }, onClick: (e) => { e.stopPropagation(); delRow(r); } },
             React.createElement(Icon, { name: "trash", size: 12 })) : null);
@@ -3593,17 +3638,17 @@ const Step4Sheet = ({ proforma, draft, setDraft, rows, setRows, ship, pendingIma
                                 return React.createElement("tr", { key: r.id, className: `${isBlockStart ? 'block-start' : ''} ${activeRow === r.id ? 'is-active' : ''}`, onClick: () => setActiveRow(r.id) },
                                     React.createElement("td", { style: { textAlign: 'center', color: 'var(--ink-4)', fontSize: 11 } }, gi + 1),
                                     (!NATIONAL && React.createElement("td", { className: "cell-block" },
-                                        React.createElement("input", { value: r.block || '', style: { textTransform: 'uppercase' }, onChange: forceUpper((e) => updRow(r.id, { block: e.target.value })) }))),
+                                        React.createElement("input", { value: r.block || '', style: { textTransform: 'uppercase' }, onPaste: onCellPaste(r, 'block', gRows), onChange: forceUpper((e) => updRow(r.id, { block: e.target.value })) }))),
                                     (!NATIONAL && PropCell({ rowId: r.id, field: "atado", errClass: !(r.atado || '').trim() ? 'is-error' : '' },
-                                        React.createElement("input", { value: r.atado || '', placeholder: "capturar", style: { textTransform: 'uppercase' }, onChange: forceUpper((e) => updRow(r.id, { atado: e.target.value })) }))),
+                                        React.createElement("input", { value: r.atado || '', placeholder: "capturar", style: { textTransform: 'uppercase' }, onPaste: onCellPaste(r, 'atado', gRows), onChange: forceUpper((e) => updRow(r.id, { atado: e.target.value })) }))),
                                     PropCell({ rowId: r.id, field: "plate", errClass: !(r.plate || '').trim() ? 'is-error' : '' },
-                                        React.createElement("input", { value: r.plate || '', placeholder: "capturar", style: { textTransform: 'uppercase' }, onChange: forceUpper((e) => updRow(r.id, { plate: e.target.value })) })),
+                                        React.createElement("input", { value: r.plate || '', placeholder: "capturar", style: { textTransform: 'uppercase' }, onPaste: onCellPaste(r, 'plate', gRows), onChange: forceUpper((e) => updRow(r.id, { plate: e.target.value })) })),
                                     PropCell({ rowId: r.id, field: "thickness" },
-                                        React.createElement("input", { type: "text", inputMode: "decimal", value: r.thickness || '', onChange: (e) => updRow(r.id, { thickness: e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.') }) })),
+                                        React.createElement("input", { type: "text", inputMode: "decimal", value: r.thickness || '', onPaste: onCellPaste(r, 'thickness', gRows), onChange: (e) => updRow(r.id, { thickness: e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.') }) })),
                                     PropCell({ rowId: r.id, field: "w", errClass: !wNum ? 'is-error' : '' },
-                                        React.createElement("input", { type: "text", inputMode: "decimal", value: r.w || '', placeholder: "0.00", onChange: (e) => updRow(r.id, { w: e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.') }) })),
+                                        React.createElement("input", { type: "text", inputMode: "decimal", value: r.w || '', placeholder: "0.00", onPaste: onCellPaste(r, 'w', gRows), onChange: (e) => updRow(r.id, { w: e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.') }) })),
                                     PropCell({ rowId: r.id, field: "h", errClass: !hNum ? 'is-error' : '' },
-                                        React.createElement("input", { type: "text", inputMode: "decimal", value: r.h || '', placeholder: "0.00", onChange: (e) => updRow(r.id, { h: e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.') }) })),
+                                        React.createElement("input", { type: "text", inputMode: "decimal", value: r.h || '', placeholder: "0.00", onPaste: onCellPaste(r, 'h', gRows), onChange: (e) => updRow(r.id, { h: e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.') }) })),
                                     React.createElement("td", { className: "cell-computed" },
                                         React.createElement("input", { readOnly: true, value: area })),
                                     containerCell(r),
@@ -3632,9 +3677,9 @@ const Step4Sheet = ({ proforma, draft, setDraft, rows, setRows, ship, pendingIma
                                     React.createElement("td", { style: { textAlign: 'center', color: 'var(--ink-4)', fontSize: 11 } }, gi + 1),
                                     React.createElement("td", null, pkg.label),
                                     PropCell({ rowId: r.id, field: "plate", errClass: !(r.plate || '').trim() ? 'is-error' : '' },
-                                        React.createElement("input", { value: r.plate || '', placeholder: "capturar", style: { textTransform: 'uppercase' }, onChange: forceUpper((e) => updRow(r.id, { plate: e.target.value })) })),
+                                        React.createElement("input", { value: r.plate || '', placeholder: "capturar", style: { textTransform: 'uppercase' }, onPaste: onCellPaste(r, 'plate', gRows), onChange: forceUpper((e) => updRow(r.id, { plate: e.target.value })) })),
                                     PropCell({ rowId: r.id, field: "quantity", errClass: noQ ? 'is-error' : '' },
-                                        React.createElement("input", { type: "text", inputMode: "decimal", value: r.quantity || '', placeholder: "0.00", onChange: (e) => updRow(r.id, { quantity: e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.') }) })),
+                                        React.createElement("input", { type: "text", inputMode: "decimal", value: r.quantity || '', placeholder: "0.00", onPaste: onCellPaste(r, 'quantity', gRows), onChange: (e) => updRow(r.id, { quantity: e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.') }) })),
                                     containerCell(r),
                                     (CARGO && piCell(r)),
                                     (!NATIONAL && photoCell(r)),
@@ -3660,9 +3705,9 @@ const Step4Sheet = ({ proforma, draft, setDraft, rows, setRows, ship, pendingIma
                                     React.createElement("td", { style: { textAlign: 'center', color: 'var(--ink-4)', fontSize: 11 } }, gi + 1),
                                     React.createElement("td", null, pkg.label),
                                     PropCell({ rowId: r.id, field: "plate", errClass: !(r.plate || '').trim() ? 'is-error' : '' },
-                                        React.createElement("input", { value: r.plate || '', placeholder: "capturar", style: { textTransform: 'uppercase' }, onChange: forceUpper((e) => updRow(r.id, { plate: e.target.value })) })),
+                                        React.createElement("input", { value: r.plate || '', placeholder: "capturar", style: { textTransform: 'uppercase' }, onPaste: onCellPaste(r, 'plate', gRows), onChange: forceUpper((e) => updRow(r.id, { plate: e.target.value })) })),
                                     PropCell({ rowId: r.id, field: "quantity", errClass: noQ ? 'is-error' : '' },
-                                        React.createElement("input", { type: "text", inputMode: "decimal", value: r.quantity || '', placeholder: "0", onChange: (e) => updRow(r.id, { quantity: e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.') }) })),
+                                        React.createElement("input", { type: "text", inputMode: "decimal", value: r.quantity || '', placeholder: "0", onPaste: onCellPaste(r, 'quantity', gRows), onChange: (e) => updRow(r.id, { quantity: e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.') }) })),
                                     containerCell(r),
                                     (CARGO && piCell(r)),
                                     delCell(r));
