@@ -3174,7 +3174,7 @@ const Step4Sheet = ({ proforma, draft, setDraft, rows, setRows, ship, pendingIma
         const isPlate = field === 'plate';
         if (mode === 'next') {
             const nxt = rows[idx + 1];
-            if (nxt && sameSegment(nxt) && !plateStopRow(nxt)) {
+            if (nxt && sameSegment(nxt) && !plateStopRow(nxt, field)) {
                 const val = isPlate ? incPlate(src[field], 1) : src[field];
                 setRows(prev => prev.map(r => r.id === nxt.id ? { ...r, [field]: val } : r));
             }
@@ -3182,35 +3182,41 @@ const Step4Sheet = ({ proforma, draft, setDraft, rows, setRows, ship, pendingIma
             const valById = {};
             let k = 0;
             for (let i = idx + 1; i < rows.length; i++) {
-                // TOPE MANUAL: una fila con No. Placa = "0" corta la
-                // propagación (se detiene ANTES del 0). Permite trabajar la
-                // tabla por tramos manejables: el 0 marca dónde termina el
-                // tramo y se reemplaza a mano cuando toque.
-                if (!sameSegment(rows[i]) || plateStopRow(rows[i])) break;
+                // TOPE MANUAL: la propagación avanza solo hasta donde hay
+                // No. Placa capturado. Un "0" corta SIEMPRE (separador de
+                // tramos); un No. Placa vacío corta la copia de los demás
+                // campos — pero NO la numeración de placas, que llena
+                // precisamente las filas vacías.
+                if (!sameSegment(rows[i]) || plateStopRow(rows[i], field)) break;
                 k += 1;
                 valById[rows[i].id] = isPlate ? incPlate(src[field], k) : src[field];
             }
             setRows(prev => prev.map(r => Object.prototype.hasOwnProperty.call(valById, r.id) ? { ...r, [field]: valById[r.id] } : r));
         }
     };
-    // Fila-tope: No. Placa capturado exactamente como "0".
-    const plateStopRow = (r) => String(r.plate == null ? '' : r.plate).trim() === '0';
-    const canPropagate = (rowId) => {
+    // Fila-tope según el campo que se propaga: "0" detiene todo; vacío
+    // detiene todo EXCEPTO la propagación del propio No. Placa.
+    const plateStopRow = (r, field) => {
+        const plate = String(r.plate == null ? '' : r.plate).trim();
+        if (plate === '0') return true;
+        return field !== 'plate' && plate === '';
+    };
+    const canPropagate = (rowId, field) => {
         // Los íconos de copiar solo aparecen si la fila INMEDIATA de abajo es
         // del mismo bloque Y producto (misma frontera que la propagación) y
-        // no es una fila-tope (No. Placa = 0).
+        // no es una fila-tope para ESTE campo (No. Placa 0 o vacío).
         const idx = rows.findIndex(r => r.id === rowId);
         if (idx < 0) return false;
         const nxt = rows[idx + 1];
         return !!(nxt && nxt.block === rows[idx].block
             && String(nxt.product_id) === String(rows[idx].product_id)
-            && !plateStopRow(nxt));
+            && !plateStopRow(nxt, field));
     };
     // PropCell se INVOCA como función (no como componente) para que el input no
     // pierda el foco en cada pulsación.
     const PropCell = (props, children) => {
         const { rowId, field, extra, errClass } = props;
-        const propable = canPropagate(rowId);
+        const propable = canPropagate(rowId, field);
         return (React.createElement("td", { className: `${propable ? 'propable' : ''} ${errClass || ''} ${extra || ''}` },
             children,
             propable && (React.createElement("div", { className: "prop-actions", onClick: (e) => e.stopPropagation() },
