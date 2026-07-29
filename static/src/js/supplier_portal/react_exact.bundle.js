@@ -3061,7 +3061,9 @@ const Step2Blocks = ({ proforma, draft, setDraft, pendingImages, typeTab, ship }
             (S2_CARGO && React.createElement(Field, { label: "Proforma (PI)", required: true },
                 React.createElement(Select, { value: b.pi_header_id || '', onChange: (e) => updBlock(b.id, { pi_header_id: parseInt(e.target.value, 10) || false }) },
                     React.createElement("option", { value: "" }, "— elige —"),
-                    s2PisForProduct(pid).map(q => React.createElement("option", { key: q.id, value: q.id }, q.number || q.po_name || ''))))),
+                    // Folio + pedido: los folios de PI suelen diferir en un
+                    // solo dígito y a la vista parecen "la misma" proforma.
+                    s2PisForProduct(pid).map(q => React.createElement("option", { key: q.id, value: q.id }, (q.number || '') + (q.po_name ? ' · ' + q.po_name : '') || q.po_name || ''))))),
             (s2Containers.length > 0 && React.createElement(Field, { label: "Contenedor" },
                 React.createElement(Select, { value: b.container || '', onChange: (e) => updBlock(b.id, { container: e.target.value || '' }) },
                     React.createElement("option", { value: "" }, "— sin asignar —"),
