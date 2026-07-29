@@ -2632,8 +2632,15 @@ const PL_PRODUCT_SUMMARY = (prows) => {
 const PackingWizard = ({ proforma, shipmentId, packingId, startAtStructure, onClose, onSave, sampleRows, pendingImages }) => {
     const ship = proforma.shipments.find(s => s.id === shipmentId);
     const existing = packingId ? ship.packings.find(p => p.id === packingId) : null;
-    // determine starting step: if editing and already has rows, jump to step 4
-    const initialStep = existing ? (startAtStructure ? 2 : (existing.rows_filled > 0 ? 4 : 3)) : 1;
+    // Paso inicial al editar: si el packing YA TIENE FILAS generadas (aunque
+    // ninguna esté completa todavía — p. ej. tras un refresh a media captura),
+    // "Editar" abre DIRECTO el grid de llenado. La revisión (paso 3) solo
+    // aparece cuando aún no existen filas.
+    const initialStep = existing
+        ? (startAtStructure
+            ? 2
+            : (((existing.rows && existing.rows.length > 0) || existing.rows_filled > 0) ? 4 : 3))
+        : 1;
     const [step, setStep] = React.useState(initialStep);
     const [draft, setDraft] = React.useState(() => existing ? {
         number: existing.number,
