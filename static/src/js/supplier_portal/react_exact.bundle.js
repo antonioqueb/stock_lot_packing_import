@@ -2964,6 +2964,21 @@ const Step2Blocks = ({ proforma, draft, setDraft, pendingImages, typeTab, ship }
     const s2PiBreakdown = (p) => S2_CARGO
         ? s2PisForProduct(p.id).map(q => ({ id: q.id, number: q.number || q.po_name || '', qty: s2PiQty(q, p.id) })).filter(x => x.qty > 0)
         : [];
+    // AUTO-SELECCIÓN: si el producto del bloque existe en UNA SOLA proforma,
+    // esa PI se asigna sola al bloque (no hay nada que elegir). Con varias
+    // PIs posibles, el selector queda abierto y la validación exige elegir.
+    React.useEffect(() => {
+        if (!S2_CARGO) return;
+        const fixes = {};
+        (draft.blocks || []).forEach(b => {
+            if (b.pi_header_id) return;
+            const opts = s2PisForProduct(b.product);
+            if (opts.length === 1) fixes[b.id] = opts[0].id;
+        });
+        if (Object.keys(fixes).length) {
+            setDraft(d => ({ ...d, blocks: (d.blocks || []).map(b => fixes[b.id] ? { ...b, pi_header_id: fixes[b.id] } : b) }));
+        }
+    }, [draft.blocks, draft.products]);
     const products = proforma.products.filter(p => draft.products.includes(p.id));
     // El TIPO activo lo controlan las pestañas del pie del wizard (junto a Avanzar).
     const activeType = typeTab || 'placa';
