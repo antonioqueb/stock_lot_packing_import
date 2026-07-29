@@ -68,6 +68,11 @@
         function rowToUi(r, idx) {
             var product = fallbackProducts.find(function (p) { return String(p.id) === String(r.product_id); }) || fallbackProducts[0] || {};
             var tipo = s(r.tipo || product.kind || 'Placa');
+            // Las PLACAS no llevan empaque: un grupo_name heredado ('palet' de
+            // versiones viejas) rompía la reconciliación de filas al recargar
+            // (cubeta producto|bloque|grupo desalineada → filas regeneradas
+            // sin _odoo_id → borrado en el siguiente guardado).
+            var esPlaca = tipo.toLowerCase().indexOf('placa') >= 0;
             return {
                 id: r.id || r._client_id || ('row-' + idx),
                 _odoo_id: r.id || false,
@@ -83,7 +88,7 @@
                 quantity: n(r.quantity || r.qty, 0),
                 weight: n(r.peso || r.weight, 0),
                 notes: s(r.color || r.notes || '', ''),
-                grupo: s(r.grupo_name || r.grupo || '', ''),
+                grupo: esPlaca ? '' : s(r.grupo_name || r.grupo || '', ''),
                 pedimento: s(r.pedimento || '', ''),
                 container: s(r.container_number || r.container || '', ''),
                 container_id: r.container_id || false,
@@ -138,6 +143,28 @@
             productIds = pk.products;
         if (!productIds.length && fallbackProducts.length)
             productIds = [fallbackProducts[0].id];
+        // ESTRUCTURA PERSISTIDA (structure_json): si el servidor guarda la
+        // definición del asistente, ESA es la fuente de verdad de bloques y
+        // productos — ya no se inventa agrupando filas. La derivación por
+        // filas queda solo como respaldo para packings anteriores al campo.
+        if (pk.structure_json) {
+            try {
+                var st = typeof pk.structure_json === 'string' ? JSON.parse(pk.structure_json) : pk.structure_json;
+                if (st && Array.isArray(st.blocks) && st.blocks.length) {
+                    blocks = st.blocks.map(function (b) {
+                        var copy = {};
+                        for (var kk in b) copy[kk] = b[kk];
+                        // El flag de foto de bloque se refresca contra las
+                        // imágenes reales del embarque (no se congela).
+                        copy.photo = !!copy.photo || hasBlockImage(copy.product, copy.name);
+                        copy.block_image_id = blockImageIdFor(copy.product, copy.name);
+                        return copy;
+                    });
+                    if (Array.isArray(st.products) && st.products.length)
+                        productIds = st.products;
+                }
+            } catch (e) { /* estructura ilegible: se usa la derivada de filas */ }
+        }
         var total = n(pk.row_count || pk.rows_total || uiRows.length || blocks.reduce(function (a, b) { return a + n(b.count); }, 0), 0);
         var filled = uiRows.filter(function (r) {
             var tipo = s(r.tipo || 'Placa').toLowerCase();
@@ -2479,13 +2506,20 @@ const genPackingRows = (draft, proforma, ship, prevRows) => {
         const bk = `${r.product_id}|${r.block || ''}|${r.grupo || ''}`;
         (prevBuckets[bk] = prevBuckets[bk] || []).push(r);
     });
+    // `consumed` evita el doble consumo: una fila previa asignada por id ya
+    // no puede volver a repartirse por cubeta (duplicaba datos al agregar o
+    // quitar filas en medio de un bloque).
+    const consumed = new Set();
     const takePrev = (id, pid, block, grupo) => {
-        if (prevById[id]) return prevById[id];
+        const direct = prevById[id];
+        if (direct && !consumed.has(direct)) { consumed.add(direct); return direct; }
         const bk = `${pid}|${block || ''}|${grupo || ''}`;
         const arr = prevBuckets[bk];
         if (!arr) return null;
-        const i = bucketCursor[bk] || 0;
-        if (i < arr.length) { bucketCursor[bk] = i + 1; return arr[i]; }
+        let i = bucketCursor[bk] || 0;
+        while (i < arr.length && consumed.has(arr[i])) i++;
+        bucketCursor[bk] = i + 1;
+        if (i < arr.length) { consumed.add(arr[i]); return arr[i]; }
         return null;
     };
     const shipContainerNumbers = (ship && ship.containers ? ship.containers : []).map(c => c.number).filter(Boolean);
@@ -2507,12 +2541,14 @@ const genPackingRows = (draft, proforma, ship, prevRows) => {
         if (mode === 'placa') {
             for (let i = 0; i < (+b.count || 0); i++) {
                 const id = `r-${b.id}-${i}`;
-                const base = { id, product_id: b.product || product.id, tipo, block: b.name, atado: '', plate: '', ref: product.ref || '', thickness: 2, h: 0, w: 0, quantity: 0, weight: 0, notes: '', grupo: pkg, pedimento: '', container: defaultContainer, container_id: false, pi_header_id: false, photo: false, errors: [], blockStart: i === 0 };
+                // Las placas NO llevan empaque: grupo siempre vacío (un 'palet'
+                // heredado desalineaba las cubetas de reconciliación al recargar).
+                const base = { id, product_id: b.product || product.id, tipo, block: b.name, atado: '', plate: '', ref: product.ref || '', thickness: 2, h: 0, w: 0, quantity: 0, weight: 0, notes: '', grupo: '', pedimento: '', container: defaultContainer, container_id: false, pi_header_id: false, photo: false, errors: [], blockStart: i === 0 };
                 const prev = takePrev(id, base.product_id, base.block, base.grupo);
                 if (prev) PL_ROW_KEEP.forEach(k => { if (prev[k] !== undefined) base[k] = prev[k]; });
                 // El bloque y el empaque SIEMPRE reflejan la config actual (prellenado).
                 base.block = b.name;
-                base.grupo = pkg;
+                base.grupo = '';
                 generated.push(base);
             }
         } else {
@@ -2628,10 +2664,40 @@ const PackingWizard = ({ proforma, shipmentId, packingId, startAtStructure, onCl
             genSigRef.current = blocksSig;
         }
         if (typeof onSave === 'function') {
-            onSave(shipmentId, packingId, draft, finalRows);
+            const savedId = onSave(shipmentId, packingIdRef.current, draft, finalRows);
+            if (savedId && !packingIdRef.current) packingIdRef.current = savedId;
         }
         onClose();
     };
+    // ── AUTOGUARDADO REAL DEL ASISTENTE ─────────────────────────────────────
+    // La ESTRUCTURA y las filas se persisten solas (debounce) desde el paso 2:
+    // un refresh, cierre de pestaña o reinicio ya no pierde ni la estructura
+    // definida ni la captura. Antes del paso 4 las filas aún no existen en el
+    // estado: se materializan aquí para que TODAS (llenas o vacías) queden
+    // guardadas desde que se define la estructura. packingIdRef mantiene un id
+    // estable para que los autosaves de un packing nuevo no dupliquen.
+    const packingIdRef = React.useRef(packingId || null);
+    React.useEffect(() => { if (packingId) packingIdRef.current = packingId; }, [packingId]);
+    const autosaveHashRef = React.useRef('');
+    React.useEffect(() => {
+        if (typeof onSave !== 'function' || step < 2 || !(draft.blocks || []).length)
+            return;
+        const snapshot = JSON.stringify({ d: draft, r: rows });
+        if (snapshot === autosaveHashRef.current)
+            return;
+        const timer = setTimeout(() => {
+            autosaveHashRef.current = snapshot;
+            const finalRows = rows.length ? rows : genPackingRows(draft, proforma, ship, rows);
+            const savedId = onSave(shipmentId, packingIdRef.current, draft, finalRows);
+            if (savedId && !packingIdRef.current) packingIdRef.current = savedId;
+        }, 1500);
+        return () => clearTimeout(timer);
+    }, [draft, rows, step]);
+    // Supresor de regeneración: las altas/bajas quirúrgicas de filas ya
+    // actualizan filas Y estructura a la vez; regenerar encima re-barajaría
+    // los datos capturados.
+    const suppressRegenRef = React.useRef(false);
+    const suppressNextRegen = () => { suppressRegenRef.current = true; };
     // Firma de la estructura de bloques. Si cambia (el usuario corrigió la
     // selección de productos o ajustó bloques), hay que REGENERAR las filas.
     const blocksSig = draft.blocks.map(b => `${b.id}:${b.product}:${b.count}:${b.name}:${(b.packaging && b.packaging.kind) || ''}:${(b.packaging && b.packaging.qty) || ''}`).join('|');
@@ -2643,6 +2709,13 @@ const PackingWizard = ({ proforma, shipmentId, packingId, startAtStructure, onCl
     React.useEffect(() => {
         if (step !== 4 || draft.blocks.length === 0)
             return;
+        // Alta/baja quirúrgica de filas: la estructura ya quedó en espejo con
+        // las filas; solo se sella la firma para no regenerar encima.
+        if (suppressRegenRef.current) {
+            suppressRegenRef.current = false;
+            genSigRef.current = blocksSig;
+            return;
+        }
         // Reconcilia SIEMPRE las filas con la config actual al entrar al paso 4 (una
         // vez por firma de bloques). genPackingRows conserva lo capturado por id y,
         // si no coincide, por cubeta (producto|bloque|empaque). Así, al editar un
@@ -2764,7 +2837,7 @@ const PackingWizard = ({ proforma, shipmentId, packingId, startAtStructure, onCl
                 step === 1 && React.createElement(Step1Products, { proforma: proforma, draft: draft, setDraft: setDraft }),
                 step === 2 && React.createElement(Step2Blocks, { proforma: proforma, draft: draft, setDraft: setDraft, pendingImages: pendingImages, typeTab: s2Active }),
                 step === 3 && React.createElement(Step3Review, { proforma: proforma, draft: draft, ship: ship }),
-                step === 4 && React.createElement(Step4Sheet, { proforma: proforma, draft: draft, setDraft: setDraft, rows: rows, setRows: setRows, ship: ship, pendingImages: pendingImages })),
+                step === 4 && React.createElement(Step4Sheet, { proforma: proforma, draft: draft, setDraft: setDraft, rows: rows, setRows: setRows, ship: ship, pendingImages: pendingImages, suppressNextRegen: suppressNextRegen })),
             step === 4 && React.createElement("div", { className: "wizard-prop-tip" },
                 React.createElement(Icon, { name: "sparkles", size: 14 }),
                 React.createElement("span", null,
@@ -2887,16 +2960,20 @@ const Step2Blocks = ({ proforma, draft, setDraft, pendingImages, typeTab }) => {
                 product: p.id, name: '',
                 count: m === 'pieza' ? (+p.requested_qty || 0) : 0,
                 photo: false,
-                packaging: { kind: m === 'formato' ? 'tarima' : 'palet', qty: '' },
+                // PLACA no lleva empaque (grupo vacío en sus filas).
+                packaging: { kind: m === 'placa' ? '' : (m === 'formato' ? 'tarima' : 'palet'), qty: '' },
             };
         });
         setDraft({ ...draft, blocks: [...pruned, ...adds] });
     }, [draft.products]);
-    const addGroup = (pid) => setDraft({ ...draft, blocks: [...draft.blocks, {
+    const addGroup = (pid) => {
+        const m = groupModeById(draft, proforma.products, pid);
+        return setDraft({ ...draft, blocks: [...draft.blocks, {
                 id: 'b' + Date.now() + Math.random().toString(36).slice(2, 6), product: pid, name: '',
                 count: 0, photo: false,
-                packaging: { kind: groupModeById(draft, proforma.products, pid) === 'formato' ? 'tarima' : 'palet', qty: '' },
+                packaging: { kind: m === 'placa' ? '' : (m === 'formato' ? 'tarima' : 'palet'), qty: '' },
             }] });
+    };
     const updBlock = (id, patch) => setDraft({ ...draft, blocks: draft.blocks.map(b => b.id === id ? { ...b, ...patch } : b) });
     const updPack = (id, patch) => setDraft({ ...draft, blocks: draft.blocks.map(b => b.id === id ? { ...b, packaging: { ...(b.packaging || {}), ...patch } } : b) });
     const delBlock = (id) => setDraft({ ...draft, blocks: draft.blocks.filter(b => b.id !== id) });
@@ -3099,7 +3176,7 @@ const Step3Review = ({ proforma, draft, ship }) => {
             })))));
 };
 /* ====================== Step 4: Spreadsheet ====================== */
-const Step4Sheet = ({ proforma, draft, setDraft, rows, setRows, ship, pendingImages }) => {
+const Step4Sheet = ({ proforma, draft, setDraft, rows, setRows, ship, pendingImages, suppressNextRegen }) => {
     const [activeRow, setActiveRow] = React.useState(null);
     // Filtro de filas del grid: todas / pendientes / con errores.
     const [rowFilter, setRowFilter] = React.useState('all');
@@ -3274,11 +3351,18 @@ const Step4Sheet = ({ proforma, draft, setDraft, rows, setRows, ship, pendingIma
     // capturado. Así Revisión, contadores y estructura siempre cuadran.
     const rowBlockOf = (r) => {
         const blocks = draft.blocks || [];
-        if (String(r.tipo || 'Placa').toLowerCase().indexOf('placa') >= 0)
-            return blocks.find(b => String(b.product) === String(r.product_id) && (b.name || '') === (r.block || ''));
-        const g = PL_PKG(r.grupo).kind;
-        return blocks.find(b => String(b.product) === String(r.product_id)
-            && ((b.packaging && b.packaging.kind) || '') === g);
+        const norm = (v) => String(v || '').trim().toLowerCase();
+        const sameProduct = blocks.filter(b => String(b.product) === String(r.product_id));
+        let found = null;
+        if (String(r.tipo || 'Placa').toLowerCase().indexOf('placa') >= 0) {
+            found = sameProduct.find(b => norm(b.name) === norm(r.block));
+        } else {
+            const g = PL_PKG(r.grupo).kind;
+            found = sameProduct.find(b => ((b.packaging && b.packaging.kind) || '') === g);
+        }
+        // Respaldo: si el match exacto falla (datos hidratados con nombres
+        // normalizados distinto), el único bloque del producto es el bloque.
+        return found || (sameProduct.length === 1 ? sameProduct[0] : null);
     };
     const plCanEditRows = (r) => {
         if (String(r.tipo || 'Placa').toLowerCase().indexOf('placa') >= 0)
@@ -3289,6 +3373,35 @@ const Step4Sheet = ({ proforma, draft, setDraft, rows, setRows, ship, pendingIma
         if (!setDraft || !r) return;
         const target = rowBlockOf(r);
         if (!target) return;
+        // ALTA QUIRÚRGICA: la fila nueva se inserta AQUÍ MISMO (después de la
+        // fila pulsada) y la estructura se incrementa a la par — filas y
+        // estructura siempre en espejo, sin esperar una regeneración que
+        // además re-barajaría lo capturado.
+        const isPlacaRow = String(r.tipo || 'Placa').toLowerCase().indexOf('placa') >= 0;
+        const stub = {
+            ...r,
+            id: 'r-' + target.id + '-x' + Date.now(),
+            _odoo_id: false,
+            _client_id: undefined,
+            plate: '',
+            atado: isPlacaRow ? '' : r.atado,
+            h: 0, w: 0,
+            quantity: 0,
+            weight: 0,
+            notes: '',
+            pedimento: '',
+            photo: false,
+            image_preview: undefined,
+            errors: [],
+            blockStart: false,
+        };
+        if (typeof suppressNextRegen === 'function') suppressNextRegen();
+        setRows(prev => {
+            const i = prev.findIndex(x => x.id === r.id);
+            const copy = [...prev];
+            copy.splice(i < 0 ? copy.length : i + 1, 0, stub);
+            return copy;
+        });
         setDraft(d => ({ ...d, blocks: (d.blocks || []).map(b => {
             if (b.id !== target.id) return b;
             if (groupModeById(d, proforma.products, b.product) === 'placa')
@@ -3301,6 +3414,9 @@ const Step4Sheet = ({ proforma, draft, setDraft, rows, setRows, ship, pendingIma
     const delRow = (r) => {
         if (!setDraft || !plCanEditRows(r)) return;
         const target = rowBlockOf(r);
+        // BAJA QUIRÚRGICA: se quita la fila y la estructura se decrementa a la
+        // par, suprimiendo la regeneración (que movería datos entre filas).
+        if (typeof suppressNextRegen === 'function') suppressNextRegen();
         setRows(prev => prev.filter(x => x.id !== r.id));
         if (!target) return;
         setDraft(d => ({ ...d, blocks: (d.blocks || []).map(b => {
@@ -4063,7 +4179,20 @@ function App() {
                 const packingResult = await portalRpc('/supplier/api/v2/save_packing', {
                     token: PORTAL_TOKEN,
                     shipment_id: shipmentId,
-                    packing_data: { id: packingId || false, packing_number: packing.number || '', packing_date: packing.date || false, scope: 'full_shipment', container_ids: [] },
+                    packing_data: {
+                        id: packingId || false,
+                        packing_number: packing.number || '',
+                        packing_date: packing.date || false,
+                        scope: 'full_shipment',
+                        container_ids: [],
+                        // ESTRUCTURA COMPLETA del asistente: se persiste tal
+                        // cual (bloques + productos) para reconstruirla al
+                        // recargar aunque las filas sigan vacías.
+                        structure: JSON.stringify({
+                            products: packing.products || [],
+                            blocks: packing.blocks || [],
+                        }),
+                    },
                     rows: buildPackingRows(snapshot, shipmentId, ship, packing, packing.rows || []),
                 });
                 if (!packingResult || !packingResult.success)
@@ -4348,7 +4477,10 @@ function App() {
     const closePackingWizard = () => setPackingWiz(null);
     const savePacking = (shipmentId, packingId, draftSnap, rowsSnap) => {
         if (!shipmentId)
-            return;
+            return null;
+        // Id estable: los autosaves de un packing NUEVO reutilizan el mismo id
+        // local (se regresa al wizard) para no crear un packing por autosave.
+        const effectiveId = packingId || ('pk-' + Date.now());
         setProformaRaw(prev => {
             const next = {
                 ...prev,
@@ -4370,10 +4502,10 @@ function App() {
                         rows_filled: filled,
                         rows_total: rowsSnap.length,
                     };
-                    const existing = packingId ? s.packings.find(p => p.id === packingId) : null;
+                    const existing = s.packings.find(p => p.id === effectiveId);
                     const newPackings = existing
-                        ? s.packings.map(p => p.id === packingId ? { ...p, ...updated } : p)
-                        : [...s.packings, { id: 'pk-' + Date.now(), ...updated }];
+                        ? s.packings.map(p => p.id === effectiveId ? { ...p, ...updated } : p)
+                        : [...s.packings, { id: effectiveId, ...updated }];
                     return { ...s, packings: newPackings };
                 }),
             };
@@ -4399,6 +4531,7 @@ function App() {
 
             return next;
         });
+        return effectiveId;
     };
     // Eliminar un embarque completo: lo quita del estado y, si ya existe en
     // Odoo, llama al endpoint de borrado. Vuelve al listado de embarques.

@@ -396,6 +396,7 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
             "packing_date": str(packing.packing_date) if packing.packing_date else "",
             "scope": packing.scope or "full_shipment",
             "container_ids": packing.container_ids.ids,
+            "structure_json": packing.structure_json or "",
             "row_count": packing.row_count,
             "rows": rows_payload,
             "container_count_derived": derived["container_count_derived"],
@@ -1257,6 +1258,14 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
             "scope": scope,
             "container_ids": [(6, 0, normalized_container_ids)],
         }
+
+        # ESTRUCTURA del asistente (bloques + productos): se persiste COMPLETA
+        # e independiente de las filas — un refresh reconstruye exactamente lo
+        # que el proveedor definió, esté llenado o no.
+        structure_json = packing_data.get("structure")
+        if isinstance(structure_json, str) and structure_json.strip() \
+                and len(structure_json) < 400000:
+            vals["structure_json"] = structure_json
 
         if packing:
             packing.write(vals)

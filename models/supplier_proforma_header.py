@@ -408,6 +408,12 @@ class SupplierShipmentPacking(models.Model):
         string='Filas',
         copy=False,
     )
+    structure_json = fields.Text(
+        string='Estructura del portal (JSON)',
+        help='Definición de bloques y productos del asistente del portal '
+             '(fuente de verdad de la estructura del packing list, '
+             'independiente de si las filas ya se llenaron o no).',
+    )
     row_count = fields.Integer(
         string='Filas',
         compute='_compute_row_count',
