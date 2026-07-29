@@ -441,10 +441,14 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
         algo, gana)."""
         if not changed_keys:
             return
+        # (campo del embarque) -> (campo de la OC, es_many2one)
         field_map = {
-            'forwarder_id': 'som_route_forwarder_id',
-            'pol_id': 'som_route_pol_id',
-            'pod_id': 'som_route_pod_id',
+            'forwarder_id': ('som_route_forwarder_id', True),
+            'naviera_id': ('som_route_naviera_id', True),
+            'pol_id': ('som_route_pol_id', True),
+            'pod_id': ('som_route_pod_id', True),
+            'etd': ('som_route_etd', False),
+            'shipment_type': ('som_transport_type', False),
         }
         try:
             pos = self.sync_service._covered_pos_for_shipment(shipment)
@@ -454,14 +458,22 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
             return
         for po in pos.sudo():
             vals = {}
-            for ship_key, po_field in field_map.items():
+            for ship_key, (po_field, is_m2o) in field_map.items():
                 if ship_key not in changed_keys or po_field not in po._fields:
                     continue
                 new_val = getattr(shipment, ship_key, False)
-                if new_val and getattr(po, po_field) != new_val:
-                    vals[po_field] = new_val.id
+                if not new_val:
+                    continue
+                current = getattr(po, po_field)
+                if is_m2o:
+                    if current != new_val:
+                        vals[po_field] = new_val.id
+                elif current != new_val:
+                    vals[po_field] = new_val
             if vals:
-                po.write(vals)
+                # Guard anti-rebote: la OC no debe re-propagar a los embarques
+                # lo que acaba de llegar DESDE un embarque.
+                po.with_context(som_carrier_sync=True).write(vals)
                 _logger.info(
                     "[Portal] Ruta del embarque %s propagada a la OC %s: %s",
                     shipment.name, po.name, vals,
@@ -839,9 +851,30 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
 
         shipment = request.env["supplier.shipment"].sudo().create(vals)
         proforma.write({"status": "partial"})
+
+        # VAIVÉN OC → embarque al nacer: lo ya capturado en la ruta de la OC
+        # (forwarder, naviera, POL, POD, ETD, tipo) precarga el embarque —
+        # sin pisar lo que el proveedor haya mandado explícitamente.
+        route_defaults = {}
+        po = proforma.purchase_id
+        if po and hasattr(po, '_som_shipment_vals_from_route'):
+            route_defaults = {
+                key: value
+                for key, value in po.sudo()._som_shipment_vals_from_route(shipment).items()
+                if not shipment[key]
+            }
+            if route_defaults:
+                shipment.with_context(
+                    som_carrier_sync=True, skip_date_sync=True,
+                ).write(route_defaults)
+
         self._propagate_route_to_purchase(
             shipment,
-            {k for k in ('forwarder_id', 'pol_id', 'pod_id') if vals.get(k)},
+            {
+                k for k in ('forwarder_id', 'naviera_id', 'pol_id', 'pod_id',
+                            'etd', 'shipment_type')
+                if vals.get(k)
+            },
         )
 
         picking = self.sync_service.get_or_create_picking_for_shipment(shipment)
@@ -852,6 +885,17 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
             "shipment_id": shipment.id,
             "name": shipment.name,
             "picking_id": picking.id if picking else False,
+            # Ruta heredada de la OC: el portal la fusiona en su estado local
+            # para que el proveedor la vea sin recargar.
+            "route_defaults": {
+                "shipment_type": shipment.shipment_type or "",
+                "shipping_line": shipment.shipping_line or "",
+                "naviera_id": shipment.naviera_id.id or False,
+                "forwarder_id": shipment.forwarder_id.id or False,
+                "pol_id": shipment.pol_id.id or False,
+                "pod_id": shipment.pod_id.id or False,
+                "etd": str(shipment.etd) if shipment.etd else "",
+            } if route_defaults else {},
         }
 
     def update_shipment(self, token, shipment_id, shipment_data):
@@ -887,11 +931,16 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
             vals.update(catalog_vals)
             # Claves de ruta cuyo valor REALMENTE cambia en este guardado.
             route_changed = {
-                k for k in ('forwarder_id', 'pol_id', 'pod_id')
+                k for k in ('forwarder_id', 'naviera_id', 'pol_id', 'pod_id')
                 if k in catalog_vals
                 and (getattr(shipment, k).id if getattr(shipment, k, False) else False)
                 != (catalog_vals[k] or False)
             }
+            if vals.get('etd') and str(shipment.etd or '') != str(vals['etd']):
+                route_changed.add('etd')
+            if vals.get('shipment_type') \
+                    and (shipment.shipment_type or '') != vals['shipment_type']:
+                route_changed.add('shipment_type')
 
         if vals:
             shipment.write(vals)

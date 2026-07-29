@@ -4010,6 +4010,24 @@ function App() {
                     throw new Error((created && created.message) || 'No se pudo crear el embarque.');
                 shipmentId = created.shipment_id;
                 idMapRef.current.shipments[String(ship.id)] = shipmentId;
+                // VAIVÉN OC → embarque: la ruta ya capturada en la Orden de
+                // Compra llega como route_defaults; se fusiona al estado local
+                // (solo huecos) para que el proveedor la vea sin recargar.
+                const rd = created.route_defaults;
+                if (rd && Object.keys(rd).length) {
+                    setProformaRaw(prev => ({
+                        ...prev,
+                        shipments: prev.shipments.map(sh => sh.id !== ship.id ? sh : {
+                            ...sh,
+                            shipping_line: sh.shipping_line || rd.shipping_line || '',
+                            naviera_id: sh.naviera_id || rd.naviera_id || false,
+                            forwarder_id: sh.forwarder_id || rd.forwarder_id || false,
+                            pol_id: sh.pol_id || rd.pol_id || false,
+                            pod_id: sh.pod_id || rd.pod_id || false,
+                            etd: sh.etd || rd.etd || '',
+                        }),
+                    }));
+                }
             }
             const containerResult = await portalRpc('/supplier/api/v2/save_containers', { token: PORTAL_TOKEN, shipment_id: shipmentId, containers: buildContainerPayload(shipmentId, ship.containers) });
             if (containerResult && containerResult.success && Array.isArray(containerResult.containers)) {
