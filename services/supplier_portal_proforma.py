@@ -690,6 +690,16 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                 if not line.display_type and line.product_id
                 and not self._is_service_product(line.product_id)
             ))
+            # Cantidad pedida POR PRODUCTO en esta PI: alimenta el desglose
+            # por proforma del editor de estructura del packing list.
+            pi_product_qtys = {}
+            for line in po_it.order_line:
+                if line.display_type or not line.product_id \
+                        or self._is_service_product(line.product_id):
+                    continue
+                pid = str(line.product_id.id)
+                pi_product_qtys[pid] = pi_product_qtys.get(pid, 0.0) \
+                    + (line.product_uom_qty or 0.0)
             proformas_payload.append({
                 "id": header.id,
                 "number": header.proforma_number
@@ -700,6 +710,7 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                 # Productos que ampara esta PI: el selector por fila del PL
                 # solo ofrece PIs que CONTIENEN el material de la fila.
                 "product_ids": pi_product_ids,
+                "product_qtys": pi_product_qtys,
             })
 
         full_data = {
