@@ -2121,6 +2121,16 @@ const PL_PKG_NUM_LABEL = (rows) => {
     return (rows || []).some(r => PL_KIND(r) === 'pieza') ? 'No. Pieza' : 'No.';
 };
 // Estado de la fila según su tipo: Completo / Pendiente / Falta foto.
+// Placa real: ninguna dimensión supera ~4.5 m. Un valor >= 100 capturado en
+// Largo/Alto solo puede venir en CENTÍMETROS (copiado tal cual de un Excel):
+// se convierte a metros (227 → 2.27). NO aplica a "cantidad".
+const PL_MAX_DIM_M = 4.5;
+const plNormalizeDim = (value) => {
+    const n = parseFloat(value);
+    if (!Number.isFinite(n)) return value;
+    if (n >= 100) return String(+(n / 100).toFixed(3));
+    return value;
+};
 const PL_STATE = (r) => {
     const kind = PL_KIND(r);
     const pkg = PL_PKG(r.grupo);
@@ -3294,7 +3304,9 @@ const Step4Sheet = ({ proforma, draft, setDraft, rows, setRows, ship, pendingIma
         if (PL_KIND(r) === 'placa') {
             const h = parseFloat(r.h) || 0;
             const w = parseFloat(r.w) || 0;
-            return (h > 0) !== (w > 0);
+            // Inconsistente (una dimensión sí y la otra no) o dimensión
+            // imposible (> 4.5 m no existe en placa): rojo, sin bloquear.
+            return (h > 0) !== (w > 0) || h > PL_MAX_DIM_M || w > PL_MAX_DIM_M;
         }
         return false;
     };
@@ -3532,7 +3544,12 @@ const Step4Sheet = ({ proforma, draft, setDraft, rows, setRows, ship, pendingIma
     const PASTE_UPPER = { block: 1, atado: 1, plate: 1 };
     const sanitizePasteVal = (field, raw) => {
         let v = String(raw == null ? '' : raw).trim();
-        if (PASTE_NUMERIC[field]) return v.replace(/[^0-9.,-]/g, '').replace(/,/g, '.');
+        if (PASTE_NUMERIC[field]) {
+            v = v.replace(/[^0-9.,-]/g, '').replace(/,/g, '.');
+            // Largo/Alto pegados desde Excel en CENTÍMETROS → metros.
+            if (field === 'w' || field === 'h') v = plNormalizeDim(v);
+            return v;
+        }
         if (PASTE_UPPER[field]) return v.toUpperCase();
         return v;
     };
@@ -3740,10 +3757,10 @@ const Step4Sheet = ({ proforma, draft, setDraft, rows, setRows, ship, pendingIma
                                         React.createElement("input", { value: r.plate || '', placeholder: "capturar", style: { textTransform: 'uppercase' }, onPaste: onCellPaste(r, 'plate', gRows), onChange: forceUpper((e) => updRow(r.id, { plate: e.target.value })) })),
                                     PropCell({ rowId: r.id, field: "thickness" },
                                         React.createElement("input", { type: "text", inputMode: "decimal", value: r.thickness || '', onPaste: onCellPaste(r, 'thickness', gRows), onChange: (e) => updRow(r.id, { thickness: e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.') }) })),
-                                    PropCell({ rowId: r.id, field: "w", errClass: !wNum ? 'is-error' : '' },
-                                        React.createElement("input", { type: "text", inputMode: "decimal", value: r.w || '', placeholder: "0.00", onPaste: onCellPaste(r, 'w', gRows), onChange: (e) => updRow(r.id, { w: e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.') }) })),
-                                    PropCell({ rowId: r.id, field: "h", errClass: !hNum ? 'is-error' : '' },
-                                        React.createElement("input", { type: "text", inputMode: "decimal", value: r.h || '', placeholder: "0.00", onPaste: onCellPaste(r, 'h', gRows), onChange: (e) => updRow(r.id, { h: e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.') }) })),
+                                    PropCell({ rowId: r.id, field: "w", errClass: (!wNum || wNum > PL_MAX_DIM_M) ? 'is-error' : '' },
+                                        React.createElement("input", { type: "text", inputMode: "decimal", value: r.w || '', placeholder: "0.00", onPaste: onCellPaste(r, 'w', gRows), onBlur: (e) => { const v = plNormalizeDim(e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.')); if (v !== r.w) updRow(r.id, { w: v }); }, onChange: (e) => updRow(r.id, { w: e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.') }) })),
+                                    PropCell({ rowId: r.id, field: "h", errClass: (!hNum || hNum > PL_MAX_DIM_M) ? 'is-error' : '' },
+                                        React.createElement("input", { type: "text", inputMode: "decimal", value: r.h || '', placeholder: "0.00", onPaste: onCellPaste(r, 'h', gRows), onBlur: (e) => { const v = plNormalizeDim(e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.')); if (v !== r.h) updRow(r.id, { h: v }); }, onChange: (e) => updRow(r.id, { h: e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.') }) })),
                                     React.createElement("td", { className: "cell-computed" },
                                         React.createElement("input", { readOnly: true, value: area })),
                                     containerCell(r),
