@@ -1005,8 +1005,18 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
 /* Paso 4: tabla placa por placa, ancho amplio */
 .modal-scrim > .modal.modal-wide,
 .modal-scrim > .modal[style*="1280"] {
-  width: min(1280px, calc(100vw - 48px)) !important;
-  max-width: min(1280px, calc(100vw - 48px)) !important;
+  /* Asistente del packing list: 98% del ancho de pantalla — la tabla de
+     placas necesita todo el espacio posible. */
+  width: min(98vw, calc(100vw - 16px)) !important;
+  max-width: min(98vw, calc(100vw - 16px)) !important;
+  max-height: calc(100vh - 16px) !important;
+  max-height: calc(100dvh - 16px) !important;
+}
+
+/* El scrim afloja su padding cuando aloja el asistente ancho, para que el
+   98vw no se recorte contra los 24px del fondo. */
+.modal-scrim:has(> .modal.modal-wide) {
+  padding: 8px !important;
 }
 
 .modal-scrim > .modal > .modal-head {
