@@ -1559,7 +1559,7 @@ const Overview = ({ proforma, status, setRoute }) => {
                 React.createElement("div", null,
                     React.createElement("h2", null, "Lo que te falta para terminar"),
                     React.createElement("p", { className: "sub" }, "Ordenados de lo m\u00E1s f\u00E1cil a lo m\u00E1s detallado. Comienza por el primero.")),
-                React.createElement(Btn, { variant: "accent", icon: "play", onClick: () => { var _a; return (_a = pending[0]) === null || _a === void 0 ? void 0 : _a.action(); } }, status.overall > 0 ? "Continuar donde qued\u00E9" : "Comenzar")),
+                React.createElement(Btn, { variant: "accent", icon: "play", onClick: () => { var _a; return (_a = pending[0]) === null || _a === void 0 ? void 0 : _a.action(); } }, "Comenzar")),
             React.createElement("div", { className: "chk-list" }, pending.map(p => (React.createElement("div", { key: p.id, className: "chk-item", onClick: p.action },
                 React.createElement("span", { className: `chk-icon ${p.tone}` },
                     React.createElement(Icon, { name: p.tone === 'done' ? 'check' : p.tone === 'partial' ? 'minus' : 'plus', size: 14 })),
