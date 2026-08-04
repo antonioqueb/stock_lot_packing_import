@@ -2836,7 +2836,7 @@ const PackingWizard = ({ proforma, shipmentId, packingId, startAtStructure, onCl
     return (React.createElement("div", { className: "modal-scrim", onClick: (e) => e.target === e.currentTarget && commitAndClose() },
         // TODOS los pasos del asistente al 98% del ancho (misma estética que
         // el paso de llenado): la clase modal-wide activa la regla CSS de 98vw.
-        React.createElement("div", { className: "modal modal-wide", style: { maxWidth: 1280 } },
+        React.createElement("div", { className: "modal modal-wide" + (step === 4 ? " modal-step4" : ""), style: { maxWidth: 1280 } },
             React.createElement("div", { className: "modal-head" },
                 React.createElement("div", null,
                     React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: 'var(--ink-4)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 } },
@@ -3751,14 +3751,12 @@ const Step4Sheet = ({ proforma, draft, setDraft, rows, setRows, ship, pendingIma
     };
     const NATIONAL = !!window.PORTAL_NATIONAL;
     return (React.createElement("div", null,
-        React.createElement("div", { style: { display: 'flex', alignItems: 'center', gap: 18, marginBottom: 14, flexWrap: 'wrap' } },
-            React.createElement("div", { style: { display: 'flex', alignItems: 'center', gap: 14, padding: '10px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10 } },
-                React.createElement("div", { style: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 } },
-                    React.createElement("span", { className: "mono", style: { fontWeight: 700, fontSize: 18 } }, doneCount),
-                    React.createElement("span", { className: "text-muted" }, "/ ", allRows.length, " filas completas")),
-                React.createElement("div", { style: { width: 1, height: 16, background: 'var(--border)' } }),
-                React.createElement("span", { className: "text-muted text-small" }, "Cada placa y cada empaque (palet/caja) es una fila editable.")),
-            React.createElement("div", { style: { display: 'flex', gap: 6 } }, [
+        React.createElement("div", { style: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6, flexWrap: 'wrap' } },
+            React.createElement("div", { style: { display: 'flex', alignItems: 'center', gap: 10, padding: '3px 10px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8 } },
+                React.createElement("div", { style: { display: 'flex', alignItems: 'center', gap: 5, fontSize: 12.5 } },
+                    React.createElement("span", { className: "mono", style: { fontWeight: 700, fontSize: 14 } }, doneCount),
+                    React.createElement("span", { className: "text-muted" }, "/ ", allRows.length, " filas completas"))),
+            React.createElement("div", { style: { display: 'flex', gap: 5 } }, [
                 { key: 'all', label: 'Todas (', count: allRows.length },
                 { key: 'done', label: 'Completas (', count: doneCount },
                 { key: 'pending', label: 'Pendientes (', count: pendingCount },
@@ -3767,7 +3765,7 @@ const Step4Sheet = ({ proforma, draft, setDraft, rows, setRows, ship, pendingIma
                 key: f.key,
                 type: "button",
                 onClick: () => setRowFilter(rowFilter === f.key ? 'all' : f.key),
-                style: { display: 'flex', alignItems: 'center', gap: 2, padding: '6px 12px', borderRadius: 9, cursor: 'pointer', fontSize: 12.5, fontWeight: rowFilter === f.key ? 700 : 500, border: rowFilter === f.key ? '1.5px solid var(--accent)' : '1px solid var(--border)', background: rowFilter === f.key ? 'var(--accent-soft)' : 'var(--surface)', color: (f.key === 'errors' && f.count > 0) ? 'var(--danger)' : ((f.key === 'done' && f.count > 0) ? 'var(--ok)' : 'inherit') },
+                style: { display: 'flex', alignItems: 'center', gap: 2, padding: '3px 9px', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: rowFilter === f.key ? 700 : 500, border: rowFilter === f.key ? '1.5px solid var(--accent)' : '1px solid var(--border)', background: rowFilter === f.key ? 'var(--accent-soft)' : 'var(--surface)', color: (f.key === 'errors' && f.count > 0) ? 'var(--danger)' : ((f.key === 'done' && f.count > 0) ? 'var(--ok)' : 'inherit') },
             },
                 f.label,
                 f.count,

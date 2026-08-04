@@ -1149,6 +1149,74 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
   padding: 12px 18px 10px !important;
 }
 
+/* ══════ Paso 4 (Completar detalles): compactación máxima ══════
+   Todo el cromo (cabecera, stepper, tip, footer) cede alto a las filas. */
+
+.modal-scrim > .modal.modal-step4 > .modal-head {
+  padding: 8px 16px 6px !important;
+}
+
+/* Eyebrow "Embarque #1 · Editar packing list" pegado al título. */
+.modal-scrim > .modal.modal-step4 > .modal-head > div > div[style] {
+  margin-bottom: 2px !important;
+  font-size: 10px !important;
+}
+
+.modal-scrim > .modal.modal-step4 > .modal-head h2 {
+  font-size: 15px !important;
+}
+
+/* La descripción larga del paso no aporta al capturar: fuera. */
+.modal-scrim > .modal.modal-step4 > .modal-head .sub {
+  display: none !important;
+}
+
+.modal-scrim > .modal.modal-step4 > .modal-body {
+  padding: 8px 14px 6px !important;
+}
+
+/* Stepper en una franja mínima. */
+.modal-scrim > .modal.modal-step4 .stepper {
+  margin-bottom: 8px !important;
+}
+.modal-scrim > .modal.modal-step4 .stepper .step {
+  padding: 3px 9px !important;
+  font-size: 11.5px !important;
+  gap: 6px !important;
+}
+.modal-scrim > .modal.modal-step4 .stepper .step .n {
+  width: 17px !important;
+  height: 17px !important;
+  font-size: 10px !important;
+}
+
+/* Tip de propagación en una línea delgada. */
+.modal-scrim > .modal.modal-step4 > .wizard-prop-tip {
+  padding: 4px 16px !important;
+  font-size: 11px !important;
+}
+
+.modal-scrim > .modal.modal-step4 > .modal-foot {
+  padding: 8px 16px !important;
+}
+
+/* Filas aún más delgadas en el paso 4. */
+.modal-scrim > .modal.modal-step4 .sheet-table thead th {
+  padding: 4px 9px !important;
+}
+.modal-scrim > .modal.modal-step4 .sheet-table tbody td input,
+.modal-scrim > .modal.modal-step4 .sheet-table tbody td select {
+  padding: 3px 9px !important;
+  font-size: 12px !important;
+}
+.modal-scrim > .modal.modal-step4 .sheet-table tbody td.propable input,
+.modal-scrim > .modal.modal-step4 .sheet-table tbody td.propable select {
+  padding-right: 46px !important;
+}
+.modal-scrim > .modal.modal-step4 .sheet-head {
+  padding: 6px 12px !important;
+}
+
 /* Filas delgadas dentro del asistente: más renglones visibles. */
 .modal-scrim > .modal.modal-wide .sheet-table thead th {
   padding: 6px 10px;
