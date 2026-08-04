@@ -3,7 +3,7 @@
 import json
 import logging
 
-from markupsafe import Markup
+from markupsafe import Markup, escape
 from odoo import fields
 from odoo.http import request
 
@@ -1605,14 +1605,15 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
         # respaldo y se avisa en la respuesta.
         processed_pls, process_errors = self._auto_process_packing_lists(proforma)
 
-        result = {"success": True}
-        if processed_pls:
-            result["processed_pl"] = processed_pls
+        # Los avisos (sobreasignación, PLs sin procesar) son asunto INTERNO:
+        # se asientan en el chatter de la OC para SOM y NO se devuelven al
+        # proveedor — a él solo le corresponde ver la confirmación.
+        internal_notes = []
         if process_errors:
-            result["warning"] = (
-                "La operación se finalizó, pero el procesamiento automático del "
-                "PL falló en estas recepciones (procésalas con el botón "
-                "'Procesar PL'):\n\n" + "\n".join(process_errors)
+            internal_notes.append(
+                "El procesamiento automático del PL falló en estas recepciones "
+                "(procesarlas con el botón 'Procesar PL'):\n"
+                + "\n".join(process_errors)
             )
         if over_items:
             detail_lines = []
@@ -1632,12 +1633,26 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                         pct,
                     )
                 )
-            result["warning"] = (
-                "La operación se finalizó correctamente. Aviso: hay sobreasignación "
-                "mayor al 3% (embarcaste más de lo que pidió la OC) en estos productos:\n\n"
+            internal_notes.append(
+                "Sobreasignación mayor al 3% (el proveedor embarcó más de lo "
+                "que pidió la OC) en estos productos:\n"
                 + "\n".join(detail_lines)
             )
-            result["over_items"] = over_items
+        if internal_notes:
+            po = proforma.purchase_id
+            if po:
+                html_notes = [
+                    escape(note).replace("\n", Markup("<br/>"))
+                    for note in internal_notes
+                ]
+                po.sudo().message_post(body=(
+                    Markup("<b>Portal proveedor — proforma completada con avisos:</b><br/><br/>")
+                    + Markup("<br/><br/>").join(html_notes)
+                ))
+
+        result = {"success": True}
+        if processed_pls:
+            result["processed_pl"] = processed_pls
         return result
 
     def _auto_process_packing_lists(self, proforma):
