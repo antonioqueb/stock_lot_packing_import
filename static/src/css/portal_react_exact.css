@@ -1009,6 +1009,10 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
      placas necesita todo el espacio posible. */
   width: min(98vw, calc(100vw - 16px)) !important;
   max-width: min(98vw, calc(100vw - 16px)) !important;
+  /* Alto FIJO a pantalla completa: el asistente siempre ocupa todo el
+     alto disponible (con cualquier zoom), y la tabla estira a llenarlo. */
+  height: calc(100vh - 16px) !important;
+  height: calc(100dvh - 16px) !important;
   max-height: calc(100vh - 16px) !important;
   max-height: calc(100dvh - 16px) !important;
 }
@@ -1101,11 +1105,66 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
 }
 
 /* La tabla scrollea por dentro (horizontal y vertical) para que la cabecera
-   pueda quedar fija (sticky) mientras se recorren las filas. */
+   pueda quedar fija (sticky) mientras se recorren las filas.
+   Fallback sin :has — casi todo el alto de la pantalla (antes: tope de
+   58vh/560px que dejaba ver ~4 filas). */
 .modal-scrim .sheet-scroll {
   max-width: 100% !important;
   overflow: auto !important;
-  max-height: min(58vh, 560px) !important;
+  max-height: max(320px, calc(100vh - 360px)) !important;
+  max-height: max(320px, calc(100dvh - 360px)) !important;
+}
+
+/* Cadena flex: el cuerpo del asistente estira la tabla al alto que sobre
+   (cabecera sticky, scroll interno). Los pasos sin tabla no se ven
+   afectados: una columna flex apila igual que un bloque. */
+.modal-scrim > .modal.modal-wide > .modal-body {
+  display: flex !important;
+  flex-direction: column !important;
+  padding: 14px 18px 12px !important;
+}
+
+.modal-scrim > .modal.modal-wide > .modal-body > div:has(.sheet) {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.modal-scrim > .modal.modal-wide .sheet:has(> .sheet-scroll) {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.modal-scrim > .modal.modal-wide .sheet > .sheet-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none !important;
+}
+
+/* Cabecera del asistente más compacta: cede alto a las filas. */
+.modal-scrim > .modal.modal-wide > .modal-head {
+  padding: 12px 18px 10px !important;
+}
+
+/* Filas delgadas dentro del asistente: más renglones visibles. */
+.modal-scrim > .modal.modal-wide .sheet-table thead th {
+  padding: 6px 10px;
+}
+
+.modal-scrim > .modal.modal-wide .sheet-table tbody td input,
+.modal-scrim > .modal.modal-wide .sheet-table tbody td select {
+  padding: 4px 10px;
+  font-size: 12.5px;
+}
+
+/* Preservar el espacio de los botones de propagación (la regla compacta
+   de arriba es más específica que la original de .propable). */
+.modal-scrim > .modal.modal-wide .sheet-table tbody td.propable input,
+.modal-scrim > .modal.modal-wide .sheet-table tbody td.propable select {
+  padding-right: 46px;
 }
 
 /* Evita que la tabla de placas rompa el layout horizontal del popup */
