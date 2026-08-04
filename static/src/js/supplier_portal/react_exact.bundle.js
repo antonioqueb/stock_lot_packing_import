@@ -1465,7 +1465,10 @@ const Sidebar = ({ proforma, route, setRoute, status, mobileOpen }) => {
         if (id === 'shipments')
             return status.ship_overall;
         if (id === 'review')
-            return status.overall >= 100 ? 'todo' : 'todo';
+            // Verde cuando la proforma YA se marcó como completa; azul
+            // (en progreso) cuando todo está al 100% pero falta enviarla.
+            return proforma.status === 'complete' ? 'done'
+                : status.overall >= 100 ? 'partial' : 'todo';
         return 'todo';
     };
     return (React.createElement("aside", { className: `sidebar ${mobileOpen ? 'is-mobile-open' : ''}` },
