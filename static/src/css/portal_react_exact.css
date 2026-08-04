@@ -35,9 +35,11 @@
   --accent-glass:  rgba(92, 185, 242, 0.20);
 
   /* Semantic */
-  --ok:        #047a31;
-  --ok-soft:   #f9fffb;
-  --ok-border: rgba(4, 217, 79, 0.35);
+  /* Verde "dólar": el verde suave anterior (var(--ok) sobre #f9fffb casi
+     blanco) se camuflaba con el branding azul cielo. Este contrasta. */
+  --ok:        #0b9e4c;
+  --ok-soft:   #e2f7eb;
+  --ok-border: rgba(11, 158, 76, 0.55);
 
   --warn:        #8f6500;
   --warn-soft:   #fffdf3;
@@ -579,7 +581,7 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
 .badge.draft   { background: var(--surface-2); color: var(--ink-3); border-color: var(--border); }
 .badge.todo    { background: var(--surface-alt); color: var(--ink-3); border-color: var(--border); border-style: dashed; }
 .badge.partial { background: var(--accent-soft); color: var(--accent-2); border-color: var(--accent-border); }
-.badge.done    { background: var(--ok-soft); color: #047a31; border-color: var(--ok-border); }
+.badge.done    { background: var(--ok-soft); color: var(--ok); border-color: var(--ok-border); }
 .badge.error   { background: var(--danger-soft); color: var(--danger); border-color: var(--danger-border); }
 .badge.accent  { background: var(--accent-soft); color: var(--accent); border-color: var(--accent-border); }
 .badge .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
@@ -933,7 +935,7 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
   display: grid; place-items: center;
   color: var(--ink-3);
 }
-.stepper .step.done { background: var(--ok-soft); border-color: var(--ok-border); color: #047a31; }
+.stepper .step.done { background: var(--ok-soft); border-color: var(--ok-border); color: var(--ok); }
 .stepper .step.done .n { background: var(--ok); color: white; border-color: var(--ok); }
 .stepper .step.active { background: var(--ink); color: var(--surface); border-color: var(--ink); }
 .stepper .step.active .n { background: var(--surface); color: var(--ink); border-color: var(--surface); }

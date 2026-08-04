@@ -1039,14 +1039,26 @@ function computeStatus(proforma) {
         const hasBL = !!s.bl_number;
         const hasInv = s.invoices.length > 0 && s.invoices.every(i => i.number && i.amount);
         const hasContainers = s.containers.length > 0 && s.containers.every(c => c.number);
-        const hasPacking = s.packings.length > 0 && s.packings.every(p => p.rows_filled >= p.rows_total);
-        const checks = isNational ? [hasPacking] : [hasLog, hasBL, hasInv, hasContainers, hasPacking];
-        const score = checks.filter(Boolean).length;
-        const total = checks.length;
+        // Packing GRADUAL: el trabajo pesado es llenar las filas. Sin packing
+        // o sin estructura generada (rows_total = 0) el avance de packing es
+        // CERO — antes "0 >= 0" contaba como completo y el % bajaba al
+        // generar la estructura (el famoso sube-y-baja).
+        const pkTotal = s.packings.reduce((a, p) => a + (p.rows_total || 0), 0);
+        const pkFilled = s.packings.reduce((a, p) => a + Math.min(p.rows_filled || 0, p.rows_total || 0), 0);
+        const packingProgress = pkTotal > 0 ? (pkFilled / pkTotal) : 0;
+        const hasPacking = pkTotal > 0 && pkFilled >= pkTotal;
+        // Ponderado: el packing manda (50%). Logística 10, B/L 10,
+        // invoices 15, contenedores 15. Nacional: solo packing.
+        const pct = isNational
+            ? Math.round(packingProgress * 100)
+            : Math.round(
+                (hasLog ? 10 : 0) + (hasBL ? 10 : 0) + (hasInv ? 15 : 0)
+                + (hasContainers ? 15 : 0) + (packingProgress * 50)
+            );
         return {
             id: s.id,
-            pct: Math.round(score / total * 100),
-            status: score === total ? 'done' : score > 0 ? 'partial' : 'todo',
+            pct,
+            status: pct >= 100 ? 'done' : pct > 0 ? 'partial' : 'todo',
             tabs: { hasLog, hasBL, hasInv, hasContainers, hasPacking },
         };
     });
@@ -1054,7 +1066,10 @@ function computeStatus(proforma) {
     const ship_pct = proforma.shipments.length === 0 ? 0
         : Math.round(shipments_status.reduce((a, b) => a + b.pct, 0) / shipments_status.length);
     const ship_overall = ship_pct === 100 ? 'done' : ship_pct > 0 ? 'partial' : 'todo';
-    const overall = isNational ? ship_pct : Math.round((globals_pct + ship_pct) / 2);
+    // Los datos generales pesan poco (10%): son un puñado de campos. El
+    // avance real vive en los embarques (90%) — sin embarques, el avance
+    // global arranca cerca de 0, no en 50%.
+    const overall = isNational ? ship_pct : Math.round(globals_pct * 0.10 + ship_pct * 0.90);
     return { globals_pct, globals_status, ship_pct, ship_overall, ship_done, shipments_status, overall };
 }
 window.MOCK_PROFORMA = MOCK_PROFORMA;
@@ -2449,7 +2464,10 @@ const TabDocuments = ({ ship, updateShip }) => {
                 React.createElement("h2", null, "Documentos del embarque"),
                 React.createElement("p", { className: "sub" }, "Sube los documentos legales y de calidad que acompa\u00F1an este embarque. Solo PDF, m\u00E1ximo 10 MB."))),
         React.createElement("div", { style: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14, marginBottom: 18 } }, (window.PORTAL_NATIONAL ? DOC_TYPES.filter(d => d.kind === 'INV' || d.kind === 'PACKING') : DOC_TYPES).map(dt => {
-            const doc = ship.documents.find(d => d.kind === dt.kind);
+            // Múltiples documentos por tipo: el proveedor puede mandar 3 PDFs
+            // de packing list o de invoice en un mismo embarque. El primero
+            // cumple el requisito; los demás son adicionales opcionales.
+            const docs = ship.documents.filter(d => d.kind === dt.kind);
             const isBusy = busy === dt.kind;
             return (React.createElement("div", { key: dt.kind, style: {
                     border: '1px solid var(--border)', borderRadius: 12, padding: 14, background: 'var(--surface)',
@@ -2459,10 +2477,11 @@ const TabDocuments = ({ ship, updateShip }) => {
                     React.createElement("div", null,
                         React.createElement("strong", { style: { fontSize: 13.5, display: 'block', marginBottom: 4 } }, dt.label),
                         React.createElement("div", { className: "text-muted", style: { fontSize: 12, lineHeight: 1.45 } }, dt.desc)),
-                    doc ? React.createElement(Badge, { tone: "done" },
-                        React.createElement(Icon, { name: "check", size: 10 }))
+                    docs.length > 0 ? React.createElement(Badge, { tone: "done" },
+                        React.createElement(Icon, { name: "check", size: 10 }),
+                        docs.length > 1 ? " " + docs.length : null)
                         : React.createElement(Badge, { tone: dt.required ? 'warn' : 'todo' }, dt.required ? 'Obligatorio' : 'Pendiente')),
-                doc ? (React.createElement("div", { className: "doc-row", style: { padding: '8px 10px' } },
+                docs.map(doc => (React.createElement("div", { key: doc.id, className: "doc-row", style: { padding: '8px 10px' } },
                     React.createElement("div", { className: "doc-icon", style: { width: 28, height: 28 } },
                         React.createElement(Icon, { name: "file", size: 14 })),
                     React.createElement("div", { className: "doc-meta" },
@@ -2471,10 +2490,11 @@ const TabDocuments = ({ ship, updateShip }) => {
                             (doc.size / 1024).toFixed(0),
                             " KB \u00B7 ",
                             doc.uploaded)),
-                    React.createElement(Btn, { variant: "ghost", size: "sm", icon: "trash", className: "btn-danger-ghost", disabled: isBusy, onClick: () => deleteDoc(dt, doc) }))) : (React.createElement("label", { className: `btn btn-secondary sm ${isBusy ? 'is-disabled' : ''}`, style: { cursor: isBusy ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, alignSelf: 'flex-start' } },
+                    React.createElement(Btn, { variant: "ghost", size: "sm", icon: "trash", className: "btn-danger-ghost", disabled: isBusy, onClick: () => deleteDoc(dt, doc) })))),
+                React.createElement("label", { className: `btn btn-secondary sm ${isBusy ? 'is-disabled' : ''}`, style: { cursor: isBusy ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, alignSelf: 'flex-start' } },
                     React.createElement("input", { type: "file", accept: dt.spreadsheet ? "application/pdf,.pdf,.xlsx,.xls,.csv" : "application/pdf,.pdf", style: { display: 'none' }, disabled: isBusy, onChange: (e) => { const f = e.target.files && e.target.files[0]; e.target.value = ''; pickDoc(dt, f); } }),
                     React.createElement(Icon, { name: "upload", size: 13 }),
-                    isBusy ? 'Subiendo…' : 'Subir'))));
+                    isBusy ? 'Subiendo…' : (docs.length > 0 ? 'Agregar otro' : 'Subir'))));
         }))));
 };
 window.ShipmentDetail = ShipmentDetail;
