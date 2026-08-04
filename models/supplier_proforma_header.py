@@ -345,6 +345,9 @@ class SupplierShipmentInvoice(models.Model):
         ondelete='cascade',
     )
     invoice_number = fields.Char(string='No. invoice', index=True)
+    # Duplicado intencional del campo de stock_transit_allocation (patrón
+    # _name duplicado: los campos deben vivir en AMBAS clases).
+    is_global = fields.Boolean(string='Factura global', copy=False)
     invoice_date = fields.Date(string='Fecha invoice')
     amount = fields.Float(string='Monto')
     currency_id = fields.Many2one(

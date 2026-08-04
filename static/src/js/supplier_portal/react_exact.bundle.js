@@ -2025,8 +2025,11 @@ const TabInvoices = ({ ship, updateShip }) => {
                 React.createElement("div", { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 8, borderTop: '1px solid var(--border-soft)' } },
                     React.createElement("span", { className: "text-muted text-small" }, "Total facturado en este embarque"),
                     React.createElement("strong", { className: "mono", style: { fontSize: 18 } },
-                        ship.invoices.reduce((a, i) => a + (i.amount || 0), 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-                        " " + (window.PORTAL_NATIONAL ? 'MXN' : 'USD'))))))));
+                        // Total POR DIVISA real de cada invoice (antes: USD fijo
+                        // aunque el invoice estuviera en EUR/CNY/MXN).
+                        Object.entries(ship.invoices.reduce((m, i) => { const c = window.PORTAL_NATIONAL ? 'MXN' : (i.currency || 'USD'); m[c] = (m[c] || 0) + (i.amount || 0); return m; }, {}))
+                            .map(([c, v]) => v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ' + c)
+                            .join(' · ') || '0.00')))))));
 };
 /* ============================================================
    Containers tab
@@ -4004,7 +4007,7 @@ const Confirm = ({ proforma, status, setRoute, onComplete }) => {
                 React.createElement(StatCard, { label: "Orden de compra", value: proforma.po_name, mono: true }),
                 React.createElement(StatCard, { label: "Destino", value: proforma.globals.port_destination || 'SOM GROUP' }),
                 React.createElement(StatCard, { label: "Embarques", value: proforma.shipments.length }),
-                React.createElement(StatCard, { label: "Total invoices", value: `${proforma.shipments.reduce((a, s) => a + s.invoices.reduce((b, i) => b + (i.amount || 0), 0), 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${window.PORTAL_NATIONAL ? 'MXN' : 'USD'}`, mono: true }))),
+                React.createElement(StatCard, { label: "Total invoices", value: Object.entries(proforma.shipments.reduce((m, s) => { s.invoices.forEach(i => { const c = window.PORTAL_NATIONAL ? 'MXN' : (i.currency || 'USD'); m[c] = (m[c] || 0) + (i.amount || 0); }); return m; }, {})).map(([c, v]) => `${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${c}`).join(' · ') || '0.00', mono: true }))),
         React.createElement("div", { className: "card" },
             React.createElement("div", { className: "card-head" },
                 React.createElement("div", null,
