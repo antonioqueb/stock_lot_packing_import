@@ -478,12 +478,13 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
             "supplier_cargo_po_id": po.id,
         }
 
-        # Ubicación de origen estándar de las compras: SOM/TRANSIT (misma
-        # regla que _prepare_picking de purchase.order en transit).
+        # La mercancía de compra LLEGA a SOM/TRANSIT: es el DESTINO de la
+        # recepción. El origen sigue siendo Proveedores; si origen y destino
+        # coinciden, la entrada y la salida se cancelan y el quant queda en 0.
         if hasattr(po, '_som_transit_source_location'):
             transit_loc = po._som_transit_source_location()
             if transit_loc:
-                vals["location_id"] = transit_loc.id
+                vals["location_dest_id"] = transit_loc.id
 
         if "move_type" in self.env["stock.picking"]._fields:
             vals["move_type"] = po.picking_ids[:1].move_type if po.picking_ids else "direct"
