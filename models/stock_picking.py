@@ -651,7 +651,11 @@ class StockPicking(models.Model):
                 sheets.append({
                     "id": f"ws_sheet_{product.id}", "name": sheet_name, "cells": cells,
                     "colNumber": 15, "rowNumber": max(row_idx+20, 100), "isProtected": True,
-                    "protectedRanges": [{"range": (f"N4:O{row_idx+100}" if is_placa else f"O4:O{row_idx+100}"), "isProtected": False}]
+                    "protectedRanges": [
+                        {"range": (f"N4:O{row_idx+100}" if is_placa else f"O4:O{row_idx+100}"), "isProtected": False},
+                        # Pedimento capturable/corregible desde el WS.
+                        {"range": f"K4:K{row_idx+100}", "isProtected": False},
+                    ]
                 })
             vals = {
                 'name': f'WS: {self.name}.osheet', 'type': 'binary', 'handler': 'spreadsheet',

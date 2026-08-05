@@ -267,6 +267,12 @@ class WorksheetImportWizard(models.TransientModel):
 
             lot = move_line.lot_id
 
+            # Pedimento capturado/corregido en el WS: se propaga al lote
+            # (aplica a placas y formatos, antes de cualquier borrado).
+            ws_pedimento = (data.get('pedimento') or '').strip()
+            if ws_pedimento and ws_pedimento != (lot.x_pedimento or ''):
+                lot.write({'x_pedimento': ws_pedimento})
+
             # Formatos: el WS solo corrobora cantidad real contra teórica.
             # No hay alto/largo real y no se renumeran lotes por contenedor.
             if not data.get('is_placa', True):
@@ -449,6 +455,7 @@ class WorksheetImportWizard(models.TransientModel):
                         'is_placa': True,
                         'alto_real': alto_r,
                         'ancho_real': ancho_r,
+                        'pedimento': str(idx.value(10, r) or '').strip(),
                     })
                 else:
                     # Formatos: col O (14) = CANT. REAL.
@@ -462,6 +469,7 @@ class WorksheetImportWizard(models.TransientModel):
                         'lot_name': lot_name,
                         'is_placa': False,
                         'qty_real': qty_r,
+                        'pedimento': str(idx.value(10, r) or '').strip(),
                     })
                     
         return all_rows
@@ -499,6 +507,7 @@ class WorksheetImportWizard(models.TransientModel):
                         'is_placa': True,
                         'ancho_real': self._to_float(sheet.cell(r, 15).value),
                         'alto_real': self._to_float(sheet.cell(r, 16).value),
+                        'pedimento': str(sheet.cell(r, 11).value or '').strip(),
                     })
                 else:
                     # Formatos: col 15 = CANT. REAL.
@@ -507,6 +516,7 @@ class WorksheetImportWizard(models.TransientModel):
                         'lot_name': lot_name,
                         'is_placa': False,
                         'qty_real': self._to_float(sheet.cell(r, 15).value),
+                        'pedimento': str(sheet.cell(r, 11).value or '').strip(),
                     })
         return all_rows
 
