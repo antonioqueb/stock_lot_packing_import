@@ -758,6 +758,46 @@ class StockPicking(models.Model):
         self.write({'worksheet_file': base64.b64encode(output.getvalue()), 'worksheet_filename': filename})
         return {'type': 'ir.actions.act_url', 'url': f'/web/content?model=stock.picking&id={self.id}&field=worksheet_file&filename={filename}&download=true', 'target': 'self'}
 
+    def action_som_release_shipment_link(self):
+        """Recepción equivocada (validada+devuelta, o cancelada): libera el
+        vínculo con el embarque del portal y re-sincroniza, para que las
+        placas capturadas en el PL se asignen a una recepción NUEVA.
+
+        La recepción liberada conserva su historia; el embarque crea/adopta
+        una recepción fresca con las filas del PL, lista para 'Procesar PL'
+        (o para el auto-proceso al volver a Marcar como completado)."""
+        for pick in self:
+            shipment = pick.supplier_shipment_id
+            if not shipment:
+                raise UserError(_(
+                    'Esta recepción no está vinculada a un embarque del portal.'))
+            if pick.state not in ('done', 'cancel'):
+                raise UserError(_(
+                    'Esta recepción sigue abierta: el PL puede reprocesarse '
+                    'aquí mismo. Liberar el embarque solo aplica a recepciones '
+                    'validadas (devueltas) o canceladas.'))
+
+            pick.sudo().write({'supplier_shipment_id': False})
+            pick.message_post(body=_(
+                'Se liberó el vínculo con el embarque %s: las placas del PL '
+                'del portal se reasignarán a una recepción nueva.'
+            ) % (shipment.display_name,))
+
+            # Re-sincronizar de inmediato: crea la recepción nueva con las
+            # filas del PL. Si falla (p. ej. sin contexto HTTP), el siguiente
+            # 'Marcar como completado' del portal la crea de todas formas.
+            try:
+                from ..services.supplier_portal_sync import SupplierPortalSyncService
+                new_picking = SupplierPortalSyncService().sync_shipment(shipment)
+                if new_picking:
+                    pick.message_post(body=_(
+                        'Recepción nueva del embarque: %s.') % new_picking.display_name)
+            except Exception:
+                _logger.exception(
+                    '[Portal] Resync tras liberar embarque %s falló; se creará '
+                    'al completar la proforma.', shipment.id)
+        return True
+
     def action_import_packing_list(self):
         self.ensure_one()
         if self.worksheet_imported: raise UserError('El Worksheet ya fue procesado.')

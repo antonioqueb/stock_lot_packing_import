@@ -42,8 +42,13 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
 
     def _find_picking_for_shipment_po(self, shipment, po, is_main=False):
         """Recepción de UNA PO dentro del embarque. El picking legado (sin
-        supplier_cargo_po_id, flujo clásico) lo adopta la PO principal."""
-        picks = self._find_pickings_for_shipment(shipment)
+        supplier_cargo_po_id, flujo clásico) lo adopta la PO principal.
+
+        Las recepciones CANCELADAS no cuentan: si la recepción del embarque
+        se canceló (error del capturista), el siguiente sync/completar crea
+        una recepción NUEVA para reasignar las placas del PL."""
+        picks = self._find_pickings_for_shipment(shipment).filtered(
+            lambda pk: pk.state != "cancel")
         exact = picks.filtered(lambda pk: pk.supplier_cargo_po_id.id == po.id)
         if exact:
             return exact[0]
@@ -74,9 +79,12 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
         return picking_type
 
     def _get_unlinked_po_pickings(self, po):
+        # 'done' excluido: adoptar una recepción ya validada (p. ej. una
+        # liberada tras devolución) sería un callejón sin salida — el PL
+        # jamás podría reprocesarse en ella.
         return po.picking_ids.filtered(
             lambda p: p.picking_type_code == "incoming"
-            and p.state not in ("cancel",)
+            and p.state not in ("cancel", "done")
             and not p.supplier_shipment_id
         ).sorted(lambda p: p.id)
 
