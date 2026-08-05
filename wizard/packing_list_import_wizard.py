@@ -302,9 +302,13 @@ class PackingListImportWizard(models.TransientModel):
             cont = (data.get("contenedor") or "SN").strip() or "SN"
 
             if cont not in containers:
+                # Serie "S": los lotes de recepciones nuevas nacen S1-01,
+                # S1-02… (S2-… el siguiente contenedor). La numeración S es
+                # independiente de la serie numérica histórica (15-01…).
+                prefix_str = "S%s" % next_prefix
                 containers[cont] = {
-                    "pre": str(next_prefix),
-                    "num": self._get_next_lot_number_for_prefix(str(next_prefix)),
+                    "pre": prefix_str,
+                    "num": self._get_next_lot_number_for_prefix(prefix_str),
                 }
                 next_prefix += 1
 
@@ -1046,11 +1050,13 @@ class PackingListImportWizard(models.TransientModel):
             return 0.0
 
     def _get_next_global_prefix(self):
+        # Serie "S" (S1-01, S2-01…): arranca en S1 y crece sobre los lotes S
+        # existentes. La serie numérica histórica (15-01…) no participa.
         self.env.cr.execute(
             """
-            SELECT CAST(SUBSTRING(name FROM '^([0-9]+)-') AS INTEGER) as prefix_num
+            SELECT CAST(SUBSTRING(name FROM '^S([0-9]+)-') AS INTEGER) as prefix_num
             FROM stock_lot
-            WHERE name ~ '^[0-9]+-[0-9]+$'
+            WHERE name ~ '^S[0-9]+-[0-9]+$'
               AND company_id = %s
             ORDER BY prefix_num DESC
             LIMIT 1
