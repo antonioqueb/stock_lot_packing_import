@@ -19,19 +19,11 @@
                 <field name="supplier_access_ids" invisible="1"/>
             </field>
             
+            <!-- NOTA: el botón 'Reasignar PL a nueva recepción' vive en la
+                 vista de stock_transit_allocation (dueño del campo
+                 supplier_shipment_id; aquí la validación de la vista corre
+                 antes de que ese campo exista en el registry incremental). -->
             <xpath expr="//header/button[@name='action_assign']" position="after">
-                <!-- Recepción equivocada (validada+devuelta o cancelada):
-                     libera el embarque para reasignar las placas del PL a
-                     una recepción NUEVA. -->
-                <field name="supplier_shipment_id" invisible="1"/>
-                <button name="action_som_release_shipment_link"
-                        string="Reasignar PL a nueva recepción"
-                        type="object"
-                        icon="fa-refresh"
-                        confirm="Esta recepción se desvinculará del embarque del portal y las placas del PL se reasignarán a una recepción NUEVA. ¿Continuar?"
-                        invisible="state not in ('done', 'cancel') or not supplier_shipment_id"
-                        groups="stock.group_stock_user"/>
-
                 <button name="action_open_packing_list_spreadsheet"
                         string="Abrir PL"
                         type="object"
