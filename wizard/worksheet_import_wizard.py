@@ -339,6 +339,13 @@ class WorksheetImportWizard(models.TransientModel):
                     remaining_quants.sudo().unlink()
                 lot.unlink()
 
+        # KPI faltantes: persistir el resumen del WS en la recepción.
+        if 'x_ws_missing_pieces' in self.picking_id._fields:
+            self.picking_id.sudo().write({
+                'x_ws_missing_pieces': total_missing_pieces,
+                'x_ws_missing_m2': total_missing_m2,
+            })
+
         # Renumeración con verificación de unicidad ANTES de tocar nada:
         # renombrar sin verificar reventaba al final con ValidationError de
         # lote duplicado (restricción name+product+company) y rollback total
