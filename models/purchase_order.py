@@ -47,24 +47,35 @@ def _som_unlink_except_purchase_or_done(self):
                 qty=line.qty_received,
             ))
 
-        # El merge de recepciones agrupa por PRODUCTO: todo lo recibido puede
-        # quedar acumulado en la línea hermana y esta quedar con
-        # qty_received=0 aunque su material SÍ llegó. Si el producto ya fue
-        # recibido en la OC, ninguna de sus líneas se puede eliminar.
+        # El merge de recepciones agrupa por PRODUCTO: lo recibido puede
+        # quedar acumulado en una línea hermana y esta quedar con
+        # qty_received=0 aunque su material SÍ llegó. La regla FINA: la
+        # línea se puede borrar mientras las líneas RESTANTES del producto
+        # sigan cubriendo todo lo ya recibido — así se pueden limpiar
+        # líneas sobrantes sin perder el rastro del material que llegó.
         if line.state in ('purchase', 'done') and line.product_id:
-            received_same_product = line.order_id.picking_ids.filtered(
-                lambda p: p.state == 'done'
-            ).move_line_ids.filtered(
-                lambda ml: ml.product_id == line.product_id
-                and (ml.quantity or 0.0) > 0
+            received_qty = sum(
+                (ml.quantity or 0.0)
+                for ml in line.order_id.picking_ids.filtered(
+                    lambda p: p.state == 'done').move_line_ids
+                if ml.product_id == line.product_id
             )
-            if received_same_product:
-                raise UserError(_(
-                    'No se puede eliminar la línea de "%(product)s": la OC ya '
-                    'tiene recepciones de ese producto (la cantidad pudo '
-                    'quedar fusionada en otra línea del mismo producto).',
-                    product=line.product_id.display_name,
-                ))
+            if received_qty > 0:
+                remaining = line.order_id.order_line.filtered(
+                    lambda l: l.product_id == line.product_id
+                    and l.id != line.id and l.id not in self.ids
+                )
+                remaining_qty = sum(remaining.mapped('product_qty'))
+                if received_qty > remaining_qty + 0.0001:
+                    raise UserError(_(
+                        'No se puede eliminar la línea de "%(product)s": la '
+                        'OC ya recibió %(recv)s de ese producto y las líneas '
+                        'restantes solo cubren %(rest)s. Lo recibido debe '
+                        'quedar respaldado por líneas de la orden.',
+                        product=line.product_id.display_name,
+                        recv=received_qty,
+                        rest=remaining_qty,
+                    ))
 
 
 # MONKEY-PATCH DELIBERADO Y A PRUEBA DE NOMBRES: el candado nativo de borrado
