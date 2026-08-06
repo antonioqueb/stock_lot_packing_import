@@ -1699,18 +1699,28 @@ body:has(#root) .navbar { display: none !important; }
 
 /* ============================================================
    DENSIDAD COMPACTA — laptops de pantalla chica.
-   El portal se encoge en escalones para que quepa mucha más
-   información sin scroll: zoom global + paddings apretados.
+   SIN zoom (encogía y centraba todo el lienzo): se compacta de
+   verdad — layout más angosto, tipografía y paddings apretados —
+   y el contenido sigue ocupando TODO el ancho disponible.
    ============================================================ */
 @media (max-width: 1512px), (max-height: 900px) {
-  body { zoom: 0.92; }
+  :root { --sidebar-w: 236px; --guide-w: 280px; --header-h: 54px; }
+  body { font-size: 13.5px; }
   .card { padding: 16px 18px; margin-bottom: 14px; }
+  .sheet-table { font-size: 12.5px; }
   .sheet-table thead th { padding: 7px 9px; font-size: 10.5px; }
   .sheet-table tbody td input,
   .sheet-table tbody td select { padding: 7px 9px; font-size: 12.5px; }
   .block-card { padding: 10px 12px; gap: 12px; }
   .block-card .block-photo { width: 52px; height: 52px; flex-basis: 52px; }
+  .sidebar { padding: 16px 12px; gap: 16px; }
 }
 @media (max-width: 1310px), (max-height: 800px) {
-  body { zoom: 0.85; }
+  :root { --sidebar-w: 210px; --guide-w: 0px; }
+  body { font-size: 13px; }
+  /* La guía lateral se colapsa sola en pantallas muy chicas: el
+     packing list necesita el ancho completo. */
+  .app-body { grid-template-columns: var(--sidebar-w) 1fr; }
+  .guide { display: none; }
+  .card { padding: 12px 14px; }
 }
