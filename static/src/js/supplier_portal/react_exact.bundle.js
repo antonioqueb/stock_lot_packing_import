@@ -2054,10 +2054,9 @@ const TabInvoices = ({ ship, updateShip }) => {
    Containers tab
    ============================================================ */
 const TabContainers = ({ ship, updateShip }) => {
-    // El contenedor NUEVO se inserta AL PRINCIPIO: el formulario vacío queda
-    // arriba, a la vista, sin obligar a hacer scroll hasta el fondo (mismo
-    // criterio que "Agregar bloque" en el packing list).
-    const addC = () => updateShip({ containers: [{ id: 'c' + Date.now(), number: '', seal: '', type: '40', weight: 0, volume: 0, packages: 0 }, ...ship.containers] });
+    // El contenedor NUEVO se agrega AL FINAL: el 1 queda arriba, el 2 abajo
+    // del 1, y así — el orden de captura es el orden visual.
+    const addC = () => updateShip({ containers: [...ship.containers, { id: 'c' + Date.now(), number: '', seal: '', type: '40', weight: 0, volume: 0, packages: 0 }] });
     const updC = (id, patch) => updateShip({ containers: ship.containers.map(c => c.id === id ? { ...c, ...patch } : c) });
     const delC = (id) => updateShip({ containers: ship.containers.filter(c => c.id !== id) });
     return (React.createElement("div", { className: "card" },
@@ -3205,10 +3204,11 @@ const Step2Blocks = ({ proforma, draft, setDraft, pendingImages, typeTab, ship }
                             React.createElement("div", { className: "block-fields-row" },
                                 React.createElement(Field, { label: "Placas enviadas", required: true },
                                     React.createElement(Input, { mono: true, type: "number", min: 1, value: b.count || '', placeholder: '0', onChange: (e) => updBlock(b.id, { count: Math.max(0, +e.target.value || 0) }) })),
-                                React.createElement(Field, { label: "Estado" },
+                                // Sin badges de foto: la miniatura (derecha) ya dice si hay
+                                // foto o no. Solo queda la acción de eliminar.
+                                (groups.length > 1 && React.createElement(Field, { label: " " },
                                     React.createElement("div", { style: { display: 'flex', gap: 6, alignItems: 'center', padding: '8px 0' } },
-                                        (b.photo ? React.createElement(Badge, { tone: "done" }, React.createElement(Icon, { name: "check", size: 10 }), " Foto OK") : React.createElement(Badge, { tone: "partial" }, React.createElement(Icon, { name: "camera", size: 10 }), " Falta foto")),
-                                        (groups.length > 1 && React.createElement(Btn, { variant: "ghost", size: "sm", icon: "trash", className: "btn-danger-ghost", onClick: () => delBlock(b.id) }))))),
+                                        React.createElement(Btn, { variant: "ghost", size: "sm", icon: "trash", className: "btn-danger-ghost", onClick: () => delBlock(b.id) }))))),
                             s2AssignRow(b, p.id))),
                         // ===== FORMATO / PIEZA: EMPAQUE primero, siempre desplegado =====
                         (caminoB && React.createElement(React.Fragment, null,
@@ -3302,9 +3302,7 @@ const Step3Review = ({ proforma, draft, ship }) => {
                                 bPi ? React.createElement("span", { style: { color: 'var(--accent)' } }, "PI: " + (bPi.number || bPi.po_name || '')) : null,
                                 b.container ? React.createElement("span", { className: "text-muted" }, "Cont: " + b.container) : null);
                         })),
-                    (blocksNoPhoto > 0 && React.createElement("div", { className: "text-small", style: { color: 'var(--warn)', marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 } },
-                        React.createElement(Icon, { name: "camera", size: 11 }),
-                        `${blocksNoPhoto} ${blocksNoPhoto === 1 ? 'bloque sin foto' : 'bloques sin foto'}`))));
+                    null));
             })))));
 };
 /* ====================== Step 4: Spreadsheet ====================== */
@@ -3828,7 +3826,7 @@ const Step4Sheet = ({ proforma, draft, setDraft, rows, setRows, ship, pendingIma
                                 React.createElement("th", { style: { minWidth: 130 } }, "Largo m"),
                                 React.createElement("th", { style: { minWidth: 130 } }, "Alto m"),
                                 React.createElement("th", { style: { width: 90 } }, "Área m²"),
-                                React.createElement("th", { style: { minWidth: 140 } }, NATIONAL ? 'Plataforma' : 'Contenedor'),
+                                React.createElement("th", { style: { minWidth: 180 } }, NATIONAL ? 'Plataforma' : 'Contenedor'),
                                 (CARGO && React.createElement("th", { style: { minWidth: 140 } }, "PI / Pedido")),
                                 (!NATIONAL && React.createElement("th", { style: { width: 60 } }, "Foto")),
                                 React.createElement("th", { style: { width: 34 } }, "")),
@@ -3880,11 +3878,11 @@ const Step4Sheet = ({ proforma, draft, setDraft, rows, setRows, ship, pendingIma
                         table = React.createElement("table", { className: "sheet-table" },
                             React.createElement("thead", null, React.createElement("tr", null,
                                 React.createElement("th", { style: { width: 30 } }, "#"),
-                                React.createElement("th", { style: { minWidth: 140 } }, "Empaque"),
-                                React.createElement("th", { style: { minWidth: 110 } }, PL_PKG_NUM_LABEL(gRows)),
-                                React.createElement("th", { style: { width: 160 } }, "m² (por capturar)"),
-                                React.createElement("th", { style: { width: 120 } }, NATIONAL ? 'Plataforma' : 'Contenedor'),
-                                (CARGO && React.createElement("th", { style: { minWidth: 150 } }, "PI / Pedido")),
+                                React.createElement("th", { style: { minWidth: 105 } }, "Empaque"),
+                                React.createElement("th", { style: { width: 90 } }, PL_PKG_NUM_LABEL(gRows)),
+                                React.createElement("th", { style: { width: 110 } }, "m² (por capturar)"),
+                                React.createElement("th", { style: { minWidth: 210 } }, NATIONAL ? 'Plataforma' : 'Contenedor'),
+                                (CARGO && React.createElement("th", { style: { minWidth: 230 } }, "PI / Pedido")),
                                 (!NATIONAL && React.createElement("th", { style: { width: 60 } }, "Foto")),
                                 React.createElement("th", { style: { width: 34 } }, "")),
                             React.createElement("tr", { className: "sheet-colfilters" },
@@ -3918,11 +3916,11 @@ const Step4Sheet = ({ proforma, draft, setDraft, rows, setRows, ship, pendingIma
                         table = React.createElement("table", { className: "sheet-table" },
                             React.createElement("thead", null, React.createElement("tr", null,
                                 React.createElement("th", { style: { width: 30 } }, "#"),
-                                React.createElement("th", { style: { minWidth: 140 } }, "Empaque"),
-                                React.createElement("th", { style: { minWidth: 110 } }, PL_PKG_NUM_LABEL(gRows)),
-                                React.createElement("th", { style: { width: 160 } }, "Cantidad"),
-                                React.createElement("th", { style: { width: 120 } }, NATIONAL ? 'Plataforma' : 'Contenedor'),
-                                (CARGO && React.createElement("th", { style: { minWidth: 150 } }, "PI / Pedido")),
+                                React.createElement("th", { style: { minWidth: 105 } }, "Empaque"),
+                                React.createElement("th", { style: { width: 90 } }, PL_PKG_NUM_LABEL(gRows)),
+                                React.createElement("th", { style: { width: 110 } }, "Cantidad"),
+                                React.createElement("th", { style: { minWidth: 210 } }, NATIONAL ? 'Plataforma' : 'Contenedor'),
+                                (CARGO && React.createElement("th", { style: { minWidth: 230 } }, "PI / Pedido")),
                                 React.createElement("th", { style: { width: 34 } }, "")),
                             React.createElement("tr", { className: "sheet-colfilters" },
                                 colFilterClear(),

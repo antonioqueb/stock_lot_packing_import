@@ -1300,6 +1300,8 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
   width: 64px;
   height: 64px;
   flex: 0 0 64px;
+  /* La foto va a la DERECHA de la tarjeta; los campos primero. */
+  order: 2;
   border-radius: var(--r);
   overflow: hidden;
   background: var(--surface-alt);
@@ -1310,19 +1312,8 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
 }
 .block-card .block-photo .icon { color: var(--ink-4); }
 .block-card .block-photo:hover { border-color: var(--accent); color: var(--accent); }
-.block-card .block-photo.has-photo { border-style: solid; border-color: var(--ok-border); }
-.block-card .block-photo.has-photo::after {
-  content: '✓';
-  position: absolute;
-  top: 6px; right: 6px;
-  width: 18px; height: 18px;
-  border-radius: 50%;
-  background: var(--ok);
-  color: white;
-  font-size: 11px;
-  display: grid; place-items: center;
-  font-weight: 700;
-}
+/* Sin palomitas ni bordes verdes: la miniatura visible ES el indicador. */
+.block-card .block-photo.has-photo { border-style: solid; border-color: var(--border-strong); }
 .block-card .block-fields { display: flex; flex-direction: row; align-items: flex-end; gap: 16px; flex: 1; min-width: 0; }
 .block-card .block-fields > :first-child { flex: 2; min-width: 140px; }
 .block-card .block-fields-row { display: flex; flex-direction: row; align-items: flex-end; gap: 16px; flex: 3; min-width: 0; }
@@ -1475,7 +1466,8 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
   margin: 0 auto;
   cursor: pointer;
 }
-.row-mini-photo.has { background: rgba(4, 217, 79, 0.25); border-style: solid; border-color: var(--ok); color: var(--ok); }
+/* Sin verde: si hay foto se ve la miniatura y punto. */
+.row-mini-photo.has { background: transparent; border-style: solid; border-color: var(--border-strong); color: var(--ink-4); }
 
 /* Onboarding overlay */
 .onboard-scrim {
@@ -1704,3 +1696,21 @@ body:has(#root) .navbar { display: none !important; }
 }
 .portal-complete-banner strong { font-weight: 700; }
 .portal-complete-banner span { opacity: 0.92; }
+
+/* ============================================================
+   DENSIDAD COMPACTA — laptops de pantalla chica.
+   El portal se encoge en escalones para que quepa mucha más
+   información sin scroll: zoom global + paddings apretados.
+   ============================================================ */
+@media (max-width: 1512px), (max-height: 900px) {
+  body { zoom: 0.92; }
+  .card { padding: 16px 18px; margin-bottom: 14px; }
+  .sheet-table thead th { padding: 7px 9px; font-size: 10.5px; }
+  .sheet-table tbody td input,
+  .sheet-table tbody td select { padding: 7px 9px; font-size: 12.5px; }
+  .block-card { padding: 10px 12px; gap: 12px; }
+  .block-card .block-photo { width: 52px; height: 52px; flex-basis: 52px; }
+}
+@media (max-width: 1310px), (max-height: 800px) {
+  body { zoom: 0.85; }
+}
