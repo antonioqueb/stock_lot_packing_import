@@ -1202,8 +1202,26 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
 
         if packing_id:
             packing = packing_model.browse(packing_id)
-            if not packing.exists() or not self.belongs_to_proforma(proforma, packing=packing):
+            if packing.exists() and not self.belongs_to_proforma(proforma, packing=packing):
                 return {"success": False, "message": "Packing no encontrado o no autorizado."}
+            if not packing.exists():
+                # Id de packing muerto (PL regenerado en Odoo / draft viejo del
+                # navegador): NO se aborta el guardado — se re-empareja por folio
+                # dentro del embarque o, en su defecto, se crea un packing nuevo.
+                # Las filas viajan en este mismo payload: la captura no se pierde.
+                incoming_number = (packing_data.get("packing_number") or "").strip()
+                fallback = shipment.packing_ids.filtered(
+                    lambda pk: incoming_number
+                    and (pk.packing_number or "").strip() == incoming_number
+                )[:1]
+                _logger.warning(
+                    "[Portal][GUARD] save_packing recibió el packing id %s que ya "
+                    "no existe (embarque %s): %s.",
+                    packing_id, shipment.id,
+                    ("se adopta el packing %s por folio" % fallback.id)
+                    if fallback else "se creará un packing nuevo",
+                )
+                packing = fallback or False
 
         # AUTO-PL-001:
         # El autosave puede enviar solo filas. Si no vienen metadatos explícitos,
@@ -1312,6 +1330,20 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
             # las POs amparadas por este enlace.
             allowed_header_ids = set(self.ensure_headers_for_access(access).ids)
 
+            # ATOMICIDAD (ANTI-WIPE 3): el guardado se hace en TRES pasadas.
+            #   1) Validar y resolver TODAS las filas SIN tocar la base de
+            #      datos: cualquier error aborta con el servidor intacto (antes
+            #      un error a media lista dejaba filas escritas y filas no,
+            #      y el frontend quedaba desincronizado).
+            #   2) Aplicar escrituras/altas.
+            #   3) Borrar faltantes SOLO si el cliente demostró estar en sync.
+            # Además, un id de fila que ya no existe en este packing (estado
+            # viejo del navegador, otra pestaña, PL regenerado en Odoo) YA NO
+            # aborta el guardado: si el registro vive en otro packing del mismo
+            # embarque se ADOPTA (conserva su foto); si ya no existe, se
+            # RECREA desde el payload. El proveedor nunca pierde su captura.
+            prepared = []
+            stale_ids_detected = False
             for idx, row in enumerate(rows, start=1):
                 row_id = self.safe_int(row.get("id"), 0)
                 row_container_id = self.safe_int(row.get("container_id"), 0)
@@ -1383,10 +1415,98 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                 if not row_vals["product_id"]:
                     return {"success": False, "message": "Todas las filas deben tener producto."}
 
+                # Resolución del registro destino (SIN escrituras todavía).
+                row_record = None
                 if row_id:
                     row_record = existing_rows.get(row_id)
                     if not row_record:
-                        return {"success": False, "message": "Una de las filas no pertenece al packing actual."}
+                        candidate = row_model.browse(row_id)
+                        if (
+                            candidate.exists()
+                            and candidate.packing_id.shipment_id.id == shipment.id
+                        ):
+                            # Fila viva en OTRO packing del mismo embarque:
+                            # se adopta (row_vals ya trae packing_id destino) y
+                            # se conserva todo lo que solo vive en el registro
+                            # (la fotografía, principalmente).
+                            row_record = candidate
+                            stale_ids_detected = True
+                            _logger.warning(
+                                "[Portal][GUARD] Fila %s llegó referida al packing %s "
+                                "pero vive en el packing %s del mismo embarque: se ADOPTA.",
+                                row_id, packing.id, candidate.packing_id.id,
+                            )
+                        else:
+                            # Id muerto (fila borrada / PL regenerado / estado
+                            # viejo del navegador): abajo se intenta re-emparejar
+                            # por CONTENIDO; si no hay pareja, se recrea desde el
+                            # payload en lugar de abortar todo el guardado.
+                            stale_ids_detected = True
+                            _logger.warning(
+                                "[Portal][GUARD] Fila con id %s ya no existe para el "
+                                "packing %s: se re-emparejará por contenido o se "
+                                "recreará desde el payload del portal.",
+                                row_id, packing.id,
+                            )
+                prepared.append([row_vals, row_record, client_id, row_id])
+                sequence += 10
+
+            # ---- PASADA 1b: re-emparejar por contenido las filas huérfanas ----
+            # Caso PL regenerado / draft viejo del navegador: las filas siguen
+            # existiendo en el servidor pero con OTROS ids. Sin este paso, cada
+            # autosave recrearía la fila (duplicados) o perdería su fotografía.
+            # Se empareja contra filas del packing aún no reclamadas usando la
+            # identidad estable de la fila (producto, contenedor, tipo, bloque,
+            # placa, atado, grosor, grupo) — las medidas NO forman parte de la
+            # huella porque son justo lo que el proveedor pudo haber editado.
+            claimed_ids = {entry[1].id for entry in prepared if entry[1]}
+
+            def _row_fingerprint(vals_or_rec, is_record=False):
+                if is_record:
+                    rec = vals_or_rec
+                    return (
+                        rec.product_id.id or 0,
+                        rec.container_id.id or 0,
+                        rec.tipo or "",
+                        (rec.grosor or "").strip(),
+                        (rec.bloque or "").strip(),
+                        (rec.numero_placa or "").strip(),
+                        (rec.atado or "").strip(),
+                        (rec.grupo_name or "").strip(),
+                    )
+                v = vals_or_rec
+                return (
+                    v.get("product_id") or 0,
+                    v.get("container_id") or 0,
+                    v.get("tipo") or "",
+                    (v.get("grosor") or "").strip(),
+                    (v.get("bloque") or "").strip(),
+                    (v.get("numero_placa") or "").strip(),
+                    (v.get("atado") or "").strip(),
+                    (v.get("grupo_name") or "").strip(),
+                )
+
+            unclaimed = [r for r in packing.row_ids if r.id not in claimed_ids]
+            if unclaimed:
+                pool = {}
+                for rec in unclaimed:
+                    pool.setdefault(_row_fingerprint(rec, is_record=True), []).append(rec)
+                for entry in prepared:
+                    if entry[1] is not None or not entry[3]:
+                        continue
+                    bucket = pool.get(_row_fingerprint(entry[0]))
+                    if bucket:
+                        entry[1] = bucket.pop(0)
+                        claimed_ids.add(entry[1].id)
+                        _logger.info(
+                            "[Portal][GUARD] Fila huérfana (id viejo %s) re-emparejada "
+                            "por contenido con la fila %s del packing %s.",
+                            entry[3], entry[1].id, packing.id,
+                        )
+
+            # ---- PASADA 2: aplicar (validación completa ya aprobada) ----
+            for row_vals, row_record, client_id, _stale_row_id in prepared:
+                if row_record:
                     # BLINDAJE ANTI-BORRADO (2): si la fila YA tiene medidas
                     # capturadas en el servidor y el guardado llega con TODO en
                     # cero (alto, ancho y cantidad), es el patrón de un autosave
@@ -1422,9 +1542,24 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                     "has_image": bool(row_record.image),
                 })
 
-                sequence += 10
-
+            # ---- PASADA 3: borrar faltantes, con freno ante desincronía ----
             rows_to_delete = packing.row_ids.filtered(lambda rec: rec.id not in incoming_ids)
+            if rows_to_delete and stale_ids_detected:
+                # El cliente demostró tener ids viejos: su lista NO es una foto
+                # confiable del packing, así que las filas con captura (medidas
+                # o fotografía) NO se borran en esta ronda. Solo se limpian las
+                # filas vacías. El siguiente reload reconcilia al portal con la
+                # verdad de Odoo y el borrado normal vuelve a operar.
+                protected = rows_to_delete.filtered(
+                    lambda rec: rec.alto or rec.ancho or rec.quantity or rec.image
+                )
+                if protected:
+                    _logger.warning(
+                        "[Portal][GUARD] Guardado con ids desincronizados en el "
+                        "packing %s: se PROTEGEN de borrado %s filas con datos (%s).",
+                        packing.id, len(protected), protected.ids,
+                    )
+                rows_to_delete -= protected
             if rows_to_delete:
                 rows_to_delete.unlink()
 

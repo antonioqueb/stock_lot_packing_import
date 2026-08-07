@@ -4361,7 +4361,10 @@ function App() {
             const tipo = kind.indexOf('placa') >= 0 ? 'Placa' : (kind.indexOf('formato') >= 0 ? 'Formato' : 'Pieza');
             const clientId = row._client_id || row.id || ('row-' + idx);
             const rowMapKey = (realPackingId || packing.id) + ':' + clientId;
-            const rowId = portalIsRealId(row._odoo_id || row.id) ? parseInt(row._odoo_id || row.id, 10) : (idMapRef.current.rows[rowMapKey] || 0);
+            // El idMap se refresca con CADA respuesta de guardado (client_id → id
+            // real), mientras que _odoo_id solo se fija al cargar: si el servidor
+            // recreó la fila, _odoo_id queda viejo para siempre. El mapa manda.
+            const rowId = idMapRef.current.rows[rowMapKey] || (portalIsRealId(row._odoo_id || row.id) ? parseInt(row._odoo_id || row.id, 10) : 0);
             return {
                 id: rowId,
                 _client_id: String(clientId),
@@ -4506,9 +4509,9 @@ function App() {
                     const pendR = pendingImagesRef.current.rows[row.id];
                     if (!pendR)
                         continue;
-                    const realRowId = portalIsRealId(row._odoo_id || row.id)
-                        ? parseInt(row._odoo_id || row.id, 10)
-                        : (idMapRef.current.rows[(realPackingId || packing.id) + ':' + row.id] || 0);
+                    const rowKeyForMap = (realPackingId || packing.id) + ':' + (row._client_id || row.id);
+                    const realRowId = idMapRef.current.rows[rowKeyForMap]
+                        || (portalIsRealId(row._odoo_id || row.id) ? parseInt(row._odoo_id || row.id, 10) : 0);
                     if (!realRowId)
                         continue;
                     try {
