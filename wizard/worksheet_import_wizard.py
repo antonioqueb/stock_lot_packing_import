@@ -271,7 +271,29 @@ class WorksheetImportWizard(models.TransientModel):
             # (aplica a placas y formatos, antes de cualquier borrado).
             ws_pedimento = (data.get('pedimento') or '').strip()
             if ws_pedimento and ws_pedimento != (lot.x_pedimento or ''):
+                _logger.info(
+                    "[WS_IMPORT] Lote %s: pedimento '%s' -> '%s'",
+                    lot.name, lot.x_pedimento or '', ws_pedimento)
                 lot.write({'x_pedimento': ws_pedimento})
+
+            # Grupo capturado/corregido en el WS: misma regla de propagación
+            # que el PL (buscar o crear el grupo por nombre).
+            ws_grupo = (data.get('grupo_name') or '').strip()
+            if ws_grupo:
+                current_names = set(lot.x_grupo.mapped('name')) if lot.x_grupo else set()
+                wanted = {g.strip() for g in ws_grupo.split(',') if g.strip()}
+                if wanted and wanted != current_names:
+                    Group = self.env['stock.lot.group']
+                    gids = []
+                    for gname in wanted:
+                        grp = Group.search([('name', '=', gname)], limit=1)
+                        if not grp:
+                            grp = Group.create({'name': gname})
+                        gids.append(grp.id)
+                    _logger.info(
+                        "[WS_IMPORT] Lote %s: grupo %s -> %s",
+                        lot.name, sorted(current_names), sorted(wanted))
+                    lot.write({'x_grupo': [(6, 0, gids)]})
 
             # Formatos: el WS solo corrobora cantidad real contra teórica.
             # No hay alto/largo real y no se renumeran lotes por contenedor.
@@ -417,28 +439,24 @@ class WorksheetImportWizard(models.TransientModel):
 
     def _get_data_from_spreadsheet(self):
         pl_wizard = self.env['packing.list.import.wizard'].create({'picking_id': self.picking_id.id})
-        doc = self.ws_spreadsheet_id 
-        
-        data = pl_wizard._load_spreadsheet_json(doc)
+        doc = self.ws_spreadsheet_id
+
+        # ESTADO ACTUAL del spreadsheet: snapshot (si existe) + revisiones,
+        # vía el mismo helper que usa el PL. El lector viejo partía del JSON
+        # ORIGINAL y re-aplicaba revisiones: tras un snapshot de
+        # o-spreadsheet, las revisiones archivadas se purgan y lo capturado
+        # (pedimento/grupo/medidas) desaparecía del import en silencio.
+        data = self.picking_id._get_current_spreadsheet_state(doc)
+        if not data:
+            data = pl_wizard._load_spreadsheet_json(doc)
         if not data: return []
 
-        revisions = self.env['spreadsheet.revision'].sudo().with_context(active_test=False).search([
-            ('res_model', '=', 'documents.document'), ('res_id', '=', doc.id)
-        ], order='id asc')
-
         from .packing_list_import_wizard import _PLCellsIndex
-        
+
         all_rows = []
         for sheet in data.get('sheets', []):
             idx = _PLCellsIndex()
             idx.ingest_cells(sheet.get('cells', {}))
-            
-            for rev in revisions:
-                try:
-                    cmds = json.loads(rev.commands) if isinstance(rev.commands, str) else rev.commands
-                    if isinstance(cmds, dict) and cmds.get('type') == 'REMOTE_REVISION':
-                        idx.apply_revision_commands(cmds.get('commands', []), sheet.get('id'))
-                except: continue
             
             product = pl_wizard._resolve_product_from_sheet_id(sheet) or pl_wizard._identify_product_from_sheet(idx)
             if not product: continue
@@ -463,6 +481,7 @@ class WorksheetImportWizard(models.TransientModel):
                         'alto_real': alto_r,
                         'ancho_real': ancho_r,
                         'pedimento': str(idx.value(10, r) or '').strip(),
+                        'grupo_name': str(idx.value(9, r) or '').strip(),
                     })
                 else:
                     # Formatos: col O (14) = CANT. REAL.
@@ -477,6 +496,7 @@ class WorksheetImportWizard(models.TransientModel):
                         'is_placa': False,
                         'qty_real': qty_r,
                         'pedimento': str(idx.value(10, r) or '').strip(),
+                        'grupo_name': str(idx.value(9, r) or '').strip(),
                     })
                     
         return all_rows
@@ -515,6 +535,7 @@ class WorksheetImportWizard(models.TransientModel):
                         'ancho_real': self._to_float(sheet.cell(r, 15).value),
                         'alto_real': self._to_float(sheet.cell(r, 16).value),
                         'pedimento': str(sheet.cell(r, 11).value or '').strip(),
+                        'grupo_name': str(sheet.cell(r, 10).value or '').strip(),
                     })
                 else:
                     # Formatos: col 15 = CANT. REAL.
@@ -524,6 +545,7 @@ class WorksheetImportWizard(models.TransientModel):
                         'is_placa': False,
                         'qty_real': self._to_float(sheet.cell(r, 15).value),
                         'pedimento': str(sheet.cell(r, 11).value or '').strip(),
+                        'grupo_name': str(sheet.cell(r, 10).value or '').strip(),
                     })
         return all_rows
 
