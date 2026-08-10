@@ -500,6 +500,44 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
     #  CABECERA / SPREADSHEET
     # =====================================================================
 
+    def _containers_by_po(self, shipment):
+        """{po_id: contenedores} según las FILAS de los packing lists: cada
+        PO se queda SOLO con los contenedores que traen su material. Sin
+        este reparto, la cabecera de todas las recepciones de una carga
+        multi-proforma heredaba la lista completa del embarque (en la
+        práctica, el contenedor de la primera proforma repetido en todas)."""
+        pos = self._covered_pos_for_shipment(shipment)
+        default_po_id = pos[:1].id if pos else 0
+        allowed = set(pos.ids)
+        Container = self.env['supplier.shipment.container'].sudo()
+        result = {}
+        for packing in shipment.packing_ids:
+            pk_containers = packing.container_ids
+            for row in packing.row_ids:
+                cont = row.container_id
+                if not cont and packing.scope == 'specific_containers' \
+                        and len(pk_containers) == 1:
+                    cont = pk_containers
+                if not cont:
+                    continue
+                po_id = self._row_po_id(row, default_po_id, allowed)
+                result[po_id] = result.get(po_id, Container.browse()) | cont
+        return result
+
+    @staticmethod
+    def _container_header_vals(containers, prefix):
+        nums = [x for x in containers.mapped('container_number') if x]
+        seals = [x for x in containers.mapped('seal_number') if x]
+        types = [x for x in containers.mapped('container_type') if x]
+        return {
+            prefix + 'container_no': ', '.join(dict.fromkeys(nums)),
+            prefix + 'seal_no': ', '.join(dict.fromkeys(seals)),
+            prefix + 'container_type': ', '.join(dict.fromkeys(types)),
+            prefix + 'total_packages': int(sum(containers.mapped('packages')) or 0),
+            prefix + 'gross_weight': float(sum(containers.mapped('weight')) or 0.0),
+            prefix + 'volume': float(sum(containers.mapped('volume')) or 0.0),
+        }
+
     def sync_shipment_header_to_picking(self, shipment):
         main_picking = self.get_or_create_picking_for_shipment(shipment)
         if not main_picking:
@@ -532,6 +570,7 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
         }
 
         ok = True
+        containers_by_po = self._containers_by_po(shipment)
         for picking in self._find_pickings_for_shipment(shipment):
             po = picking.supplier_cargo_po_id or header.purchase_id
             po_header = Header.search(
@@ -541,6 +580,12 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
                 origin=self._prepare_picking_origin(po, shipment),
                 supplier_proforma_number=po_header.proforma_number or "",
             )
+            # Contenedores DE ESTA PO (según sus filas del PL); si las filas
+            # aún no reparten contenedor, se queda la lista global.
+            own_containers = containers_by_po.get(po.id)
+            if own_containers:
+                vals.update(self._container_header_vals(
+                    own_containers, 'supplier_'))
             # Naviera/forwarder del catálogo → recepción (si el módulo del
             # tarifario agregó los campos al picking).
             if 'som_naviera_id' in picking._fields and getattr(shipment, 'naviera_id', False):
@@ -627,6 +672,7 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
         }
 
         ok = True
+        containers_by_po = self._containers_by_po(shipment)
         for picking in self._find_pickings_for_shipment(shipment):
             po = picking.supplier_cargo_po_id
             po_id = po.id if po else default_po_id
@@ -636,6 +682,10 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
                 base_header_data,
                 proforma_number=po_header.proforma_number or "",
             )
+            own_containers = containers_by_po.get(po_id)
+            if own_containers:
+                header_data.update(self._container_header_vals(
+                    own_containers, ''))
             try:
                 picking.sudo().update_packing_list_from_portal(
                     rows_by_po.get(po_id, []), header_data=header_data)
