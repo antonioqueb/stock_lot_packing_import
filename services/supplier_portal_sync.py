@@ -524,6 +524,25 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
                 result[po_id] = result.get(po_id, Container.browse()) | cont
         return result
 
+    def _invoice_number_for_po(self, shipment, po_header, containers):
+        """No. de factura de UNA proforma: 1) el capturado en SU PI;
+        2) los invoices del portal ligados a SUS contenedores; 3) los
+        invoices globales del embarque."""
+        if po_header and po_header.invoice_global_number:
+            return po_header.invoice_global_number
+        invs = shipment.invoice_ids
+        if containers:
+            own = invs.filtered(
+                lambda i: i.scope == 'specific_containers'
+                and (i.container_ids & containers))
+            if own:
+                invs = own
+            else:
+                invs = invs.filtered(
+                    lambda i: i.scope != 'specific_containers')
+        nums = [n for n in invs.mapped('invoice_number') if n]
+        return ', '.join(dict.fromkeys(nums))
+
     @staticmethod
     def _container_header_vals(containers, prefix):
         nums = [x for x in containers.mapped('container_number') if x]
@@ -586,6 +605,20 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
             if own_containers:
                 vals.update(self._container_header_vals(
                     own_containers, 'supplier_'))
+            # DATOS DE LA PI PROPIA: factura, términos, origen, incoterm y
+            # observaciones viajan por proforma — la cabecera de cada
+            # recepción usa los de SU PI, jamás los de la primera proforma
+            # de la carga. (BL, buque, puertos, ETD y estatus sí son del
+            # embarque completo y se comparten.)
+            if po_header:
+                vals.update({
+                    'supplier_invoice_number': self._invoice_number_for_po(
+                        shipment, po_header, own_containers),
+                    'supplier_payment_terms': po_header.payment_terms or '',
+                    'supplier_country_origin': po_header.country_origin or '',
+                    'supplier_incoterm_payment': po_header.incoterm or '',
+                    'supplier_merchandise_desc': po_header.general_notes or '',
+                })
             # Naviera/forwarder del catálogo → recepción (si el módulo del
             # tarifario agregó los campos al picking).
             if 'som_naviera_id' in picking._fields and getattr(shipment, 'naviera_id', False):
@@ -686,6 +719,15 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
             if own_containers:
                 header_data.update(self._container_header_vals(
                     own_containers, ''))
+            if po_header:
+                header_data.update({
+                    'invoice_number': self._invoice_number_for_po(
+                        shipment, po_header, own_containers),
+                    'payment_terms': po_header.payment_terms or '',
+                    'country_origin': po_header.country_origin or '',
+                    'incoterm': po_header.incoterm or '',
+                    'merchandise_desc': po_header.general_notes or '',
+                })
             try:
                 picking.sudo().update_packing_list_from_portal(
                     rows_by_po.get(po_id, []), header_data=header_data)
