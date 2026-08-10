@@ -76,7 +76,7 @@
                     </field>
                 </page>
 
-                <page string="Pagos Proveedor">
+                <page string="Pagos VUCEM">
                     <group>
                         <group>
                             <field name="payment_document_count" readonly="1"/>
