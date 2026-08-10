@@ -86,23 +86,42 @@
 
                     <div class="alert alert-info" role="alert">
                         <strong><i class="fa fa-money"/> Documentos de Pago</strong>
-                        <p>Los anticipos, pagos por invoice y otros comprobantes se gestionan desde aquí.</p>
-                        <p>Estos documentos se incluirán automáticamente en la descarga VUCEM.</p>
+                        <p>Elige el tipo, sube el archivo y listo: la orden de compra se
+                           liga sola y el nombre se toma del archivo subido. Estos
+                           comprobantes aplican a toda la OC (no a un embarque o
+                           proforma) y entran automáticamente en la descarga VUCEM.</p>
                     </div>
 
+                    <!-- Captura en 2 pasos: Tipo → Archivo. El nombre se llena
+                         solo al subir (filename); la OC la pone la relación y
+                         embarque/proforma no aplican a pagos (el modelo los
+                         limpia). Form embebido limpio para que el expandir la
+                         línea no muestre el form autogenerado con IDs crudos. -->
                     <field name="payment_document_ids" context="{'default_purchase_id': id, 'default_document_type': 'advance_payment'}">
                         <list editable="bottom">
-                            <field name="purchase_id" invisible="1"/>
-                            <field name="shipment_id" invisible="1"/>
-                            <field name="proforma_id" invisible="1"/>
-                            <field name="document_type"/>
-                            <field name="name"/>
-                            <field name="file_data" filename="name"/>
-                            <field name="file_size" readonly="1"/>
-                            <field name="mime_type" invisible="1"/>
-                            <field name="notes"/>
+                            <field name="purchase_id" column_invisible="1"/>
+                            <field name="mime_type" column_invisible="1"/>
+                            <field name="document_type" string="Tipo de Pago"/>
+                            <field name="file_data" string="Archivo (clic para subir)" filename="name"/>
+                            <field name="name" string="Nombre" placeholder="Se llena solo al subir el archivo"/>
+                            <field name="notes" optional="show"/>
+                            <field name="file_size" string="Tamaño" readonly="1" optional="hide"/>
                             <field name="create_date" string="Subido" readonly="1"/>
                         </list>
+                        <form string="Documento de Pago">
+                            <group>
+                                <group>
+                                    <field name="document_type" string="Tipo de Pago"/>
+                                    <field name="file_data" string="Archivo" filename="name"/>
+                                    <field name="name" string="Nombre"/>
+                                </group>
+                                <group>
+                                    <field name="notes"/>
+                                    <field name="create_date" string="Subido" readonly="1"/>
+                                </group>
+                            </group>
+                            <field name="purchase_id" invisible="1"/>
+                        </form>
                     </field>
                 </page>
             </xpath>
