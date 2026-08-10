@@ -163,6 +163,12 @@ class PackingListImportWizard(models.TransientModel):
         self.ensure_one()
         _logger.info("=== [PL_IMPORT] INICIO PROCESO DE CARGA ===")
 
+        # Saneo previo: la demanda de la recepción a tránsito se UNIFICA por
+        # producto (OCs con producto repetido y recepciones acumuladas por
+        # múltiples proformas dejaban renglones duplicados consecutivos).
+        if hasattr(self.picking_id, '_som_unify_transit_demand'):
+            self.picking_id.sudo()._som_unify_transit_demand()
+
         rows = []
         if self.excel_file:
             _logger.info("[PL_IMPORT] Fuente seleccionada: archivo Excel")
@@ -562,21 +568,40 @@ class PackingListImportWizard(models.TransientModel):
             lambda p: p.picking_type_code == "incoming" and p.state != "cancel"
         )
 
+        # Con el producto repetido en varias líneas de la OC, escribir el
+        # embarcado COMPLETO en cada línea lo inflaba N veces: se prorratea
+        # por producto en proporción a lo solicitado de cada línea.
+        lines_by_product = {}
         for po_line in po.order_line.filtered(lambda l: not l.display_type and l.product_id):
+            lines_by_product.setdefault(po_line.product_id.id, []).append(po_line)
+
+        for product_id, po_lines in lines_by_product.items():
             total_embarcado = sum(
                 incoming_pickings.move_line_ids.filtered(
-                    lambda ml: ml.product_id.id == po_line.product_id.id
+                    lambda ml: ml.product_id.id == product_id
                 ).mapped(self._pl_ml_qty_key())
             )
+            total_solicitado = sum(l.product_qty for l in po_lines)
+            remaining = total_embarcado
 
-            vals = {
-                "x_qty_embarcada": total_embarcado,
-            }
+            for idx, po_line in enumerate(po_lines):
+                if len(po_lines) == 1:
+                    share = total_embarcado
+                elif idx == len(po_lines) - 1:
+                    share = round(remaining, 3)
+                else:
+                    ratio = (po_line.product_qty / total_solicitado) if total_solicitado else 1.0 / len(po_lines)
+                    share = round(total_embarcado * ratio, 3)
+                    remaining -= share
 
-            if not po_line.x_qty_solicitada_original:
-                vals["x_qty_solicitada_original"] = po_line.product_qty
+                vals = {
+                    "x_qty_embarcada": share,
+                }
 
-            po_line.write(vals)
+                if not po_line.x_qty_solicitada_original:
+                    vals["x_qty_solicitada_original"] = po_line.product_qty
+
+                po_line.write(vals)
 
         _logger.info("[PL_SYNC] Cantidades informativas sincronizadas a la OC %s.", po.name)
 
