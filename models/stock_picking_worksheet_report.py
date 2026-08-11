@@ -272,7 +272,9 @@ class StockPicking(models.Model):
         )
 
         picking = self
-        po = self.env['purchase.order'].search([('picking_ids', 'in', picking.id)], limit=1)
+        # Cargas multi-PO: la OC de origen del picking es supplier_cargo_po_id
+        po = getattr(picking, 'supplier_cargo_po_id', False) or \
+            self.env['purchase.order'].search([('picking_ids', 'in', picking.id)], limit=1)
         company = picking.company_id or self.env.company
         partner = picking.partner_id
         po_name = po.name if po else (picking.origin or '-')

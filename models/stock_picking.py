@@ -602,6 +602,17 @@ class StockPicking(models.Model):
         unit = product.product_tmpl_id.x_unidad_del_producto or 'Placa'
         return str(unit).strip().lower() == 'placa'
 
+    def _ws_get_source_po_name(self):
+        """Folio de la OC de ORIGEN de esta recepción: en cargas multi-PO
+        cada picking trae su supplier_cargo_po_id; fallback al search
+        clásico por picking_ids y al origin."""
+        self.ensure_one()
+        po = getattr(self, 'supplier_cargo_po_id', False)
+        if not po:
+            po = self.env['purchase.order'].search(
+                [('picking_ids', 'in', self.id)], limit=1)
+        return po.name if po else (self.origin or '')
+
     def action_open_worksheet_spreadsheet(self):
         self.ensure_one()
         if not self.packing_list_imported: raise UserError('Primero debe importar (o heredar) el Packing List.')
@@ -622,6 +633,8 @@ class StockPicking(models.Model):
                 cells["A1"] = self._make_cell("PRODUCTO:")
                 p_str = f"{product.name} ({product.default_code or ''})"
                 cells["B1"] = self._make_cell(p_str)
+                cells["D1"] = self._make_cell("ORDEN DE COMPRA:")
+                cells["E1"] = self._make_cell(self._ws_get_source_po_name())
                 for i, header in enumerate(headers):
                     col_letter = self._get_col_letter(i)
                     cells[f"{col_letter}3"] = self._make_cell(header, style=2)
@@ -738,6 +751,7 @@ class StockPicking(models.Model):
         for product in self.move_line_ids.mapped('product_id'):
             ws = wb.create_sheet(title=(product.default_code or product.name)[:31])
             ws['A1'] = 'PRODUCTO:'; ws['B1'] = f'{product.name} ({product.default_code or ""})'
+            ws['D1'] = 'ORDEN DE COMPRA:'; ws['E1'] = self._ws_get_source_po_name()
             is_placa = self._ws_product_is_placa(product)
             if is_placa:
                 headers = ['Lote', 'Largo Teo.', 'Alto Teo.', 'Grosor', 'Color', 'Bloque', 'No. Placa', 'Atado', 'Tipo', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Prov', 'Cantidad', 'Largo Real', 'Alto Real']
