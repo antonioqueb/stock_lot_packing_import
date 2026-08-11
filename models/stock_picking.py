@@ -816,6 +816,53 @@ class StockPicking(models.Model):
                     'al completar la proforma.', shipment.id)
         return True
 
+    def button_validate(self):
+        """COSECHA DE PEDIMENTO al validar la recepción: lo capturado en el
+        spreadsheet del Worksheet (columna Pedimento, editable) se estampa a
+        los lotes AUNQUE no se haya corrido 'Procesar Worksheet'. Sin esto,
+        capturar el pedimento en la hoja y validar directo lo dejaba fuera
+        del inventario (quant.x_pedimento es related del lote)."""
+        res = super().button_validate()
+        for picking in self:
+            if picking.state == 'done':
+                try:
+                    picking._som_apply_ws_pedimentos()
+                except Exception:
+                    _logger.exception(
+                        '[WS_PEDIMENTO] Falló la cosecha de pedimentos al '
+                        'validar %s.', picking.name)
+        return res
+
+    def _som_apply_ws_pedimentos(self):
+        self.ensure_one()
+        if not self.ws_spreadsheet_id:
+            return
+        wizard = self.env['worksheet.import.wizard'].create({
+            'picking_id': self.id,
+        })
+        rows = wizard._get_data_from_spreadsheet() or []
+        ped_by_lot = {}
+        for row in rows:
+            name = (row.get('lot_name') or '').strip()
+            ped = (row.get('pedimento') or '').strip()
+            if name and ped:
+                ped_by_lot[name] = ped
+        if not ped_by_lot:
+            return
+        updated = []
+        for lot in self.move_line_ids.mapped('lot_id'):
+            ped = ped_by_lot.get((lot.name or '').strip())
+            if ped and ped != (lot.x_pedimento or ''):
+                lot.sudo().write({'x_pedimento': ped})
+                updated.append('%s → %s' % (lot.name, ped))
+        if updated:
+            self.message_post(body=(
+                'Pedimentos aplicados desde el Worksheet al validar: %s'
+            ) % ', '.join(updated))
+            _logger.info(
+                '[WS_PEDIMENTO] %s: %d lote(s) actualizados.',
+                self.name, len(updated))
+
     def action_import_packing_list(self):
         self.ensure_one()
         if self.worksheet_imported: raise UserError('El Worksheet ya fue procesado.')
