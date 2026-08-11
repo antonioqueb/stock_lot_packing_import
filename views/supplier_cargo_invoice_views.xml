@@ -7,6 +7,9 @@
         <field name="arch" type="xml">
             <form string="Factura de Carga">
                 <header>
+                    <button name="action_send_whatsapp" type="object"
+                            string="Enviar liga por WhatsApp" icon="fa-whatsapp"
+                            invisible="not portal_url"/>
                     <button name="action_generate_link" type="object"
                             string="Generar enlace del portal" class="btn-primary"
                             icon="fa-link"

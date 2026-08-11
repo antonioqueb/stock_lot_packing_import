@@ -2,6 +2,10 @@
 import uuid
 from datetime import timedelta
 
+import re
+from urllib.parse import quote
+
+from odoo.exceptions import UserError
 from odoo import models, fields, api
 
 
@@ -85,6 +89,52 @@ class SupplierAccess(models.Model):
         'UNIQUE(purchase_id, cargo_invoice_id)',
         'Ya existe un link para esta Orden de Compra en esta factura de carga.',
     )
+
+    # ── Envío de la liga por WhatsApp (sin documento: saludo + liga +
+    #    instrucciones). Mismo espíritu que el compartir de OV/holds. ──
+    @staticmethod
+    def _som_wa_phone(phone):
+        digits = re.sub(r'\D', '', phone or '')
+        if len(digits) == 10:
+            digits = '52' + digits
+        return digits if len(digits) >= 11 else ''
+
+    def _som_wa_message(self):
+        self.ensure_one()
+        pos = self.purchase_ids
+        pis = ', '.join(p.partner_ref or p.name for p in pos) or ''
+        vigencia = ''
+        if self.expiration_date:
+            vigencia = '\n\nEl enlace está vigente hasta el %s.' % (
+                fields.Datetime.context_timestamp(
+                    self, self.expiration_date).strftime('%d/%m/%Y'))
+        return (
+            'Buen día:\n\n'
+            'Le compartimos el enlace del portal para capturar su embarque '
+            '(%s):\n\n%s\n\n'
+            'Instrucciones:\n'
+            '1. Abra el enlace desde su computadora o celular.\n'
+            '2. Capture los datos del embarque: proforma, contenedores, '
+            'packing list y documentos.\n'
+            '3. Guarde cada sección — su avance se conserva y puede volver '
+            'a entrar con el mismo enlace las veces que necesite.%s\n\n'
+            'Quedamos atentos a cualquier duda. Saludos cordiales.'
+        ) % (pis, self.portal_url, vigencia)
+
+    def action_send_whatsapp(self):
+        self.ensure_one()
+        if not self.portal_url:
+            raise UserError('Este acceso aún no tiene enlace de portal.')
+        partner = self.purchase_ids[:1].partner_id
+        phone = self._som_wa_phone(partner.phone if partner else '')
+        wa = 'https://wa.me/%s?text=%s' % (phone, quote(self._som_wa_message()))
+        # El acceso no hereda mail.thread: el registro queda en la carga
+        # (si existe) que sí tiene chatter.
+        if self.cargo_invoice_id:
+            self.cargo_invoice_id.message_post(
+                body='Enlace del portal enviado por WhatsApp%s.' % (
+                    ' al %s' % phone if phone else ''))
+        return {'type': 'ir.actions.act_url', 'url': wa, 'target': 'new'}
 
     @api.depends('expiration_date')
     def _compute_expired(self):

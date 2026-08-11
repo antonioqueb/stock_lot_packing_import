@@ -222,6 +222,16 @@ class SupplierCargoInvoice(models.Model):
             return progress.get('percent', 0)
         return round(done / total * 100)
 
+    def action_send_whatsapp(self):
+        """Envía la liga ÚNICA de la carga por WhatsApp (saludo + liga +
+        instrucciones). Requiere que el enlace ya esté generado."""
+        self.ensure_one()
+        access = self.access_ids[:1]
+        if not access:
+            raise UserError(_(
+                'Primero genera el enlace del portal (botón Generar enlace).'))
+        return access.action_send_whatsapp()
+
     def action_view_purchases(self):
         self.ensure_one()
         return {
