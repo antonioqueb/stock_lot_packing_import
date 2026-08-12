@@ -1544,6 +1544,17 @@ const Overview = ({ proforma, status, setRoute }) => {
             action: () => setRoute({ section: 'shipment', shipmentId: s.id }),
         });
     });
+    // SIN EMBARQUES el checklist quedaba VACÍO aunque el avance fuera < 100
+    // (datos generales completos ⇒ ni ítem de globals ni de embarques) y el
+    // botón "Comenzar" (pending[0]) moría sin llevar a ningún lado. El
+    // pendiente real en ese estado es crear el primer embarque.
+    if (proforma.shipments.length === 0)
+        pending.push({
+            id: 'first-shipment', icon: 'ship', tone: 'todo',
+            title: 'Crear el primer embarque',
+            desc: 'Cuando sepas la fecha aproximada del envío, agrega un embarque y empieza a capturar logística y packing list.',
+            action: () => setRoute({ section: 'shipments' }),
+        });
     const greetName = (proforma.vendor || '').split(' ')[0];
     return (React.createElement("div", null,
         React.createElement("div", { className: "crumb" },
@@ -1578,7 +1589,15 @@ const Overview = ({ proforma, status, setRoute }) => {
                 React.createElement("div", null,
                     React.createElement("h2", null, "Lo que te falta para terminar"),
                     React.createElement("p", { className: "sub" }, "Ordenados de lo m\u00E1s f\u00E1cil a lo m\u00E1s detallado. Comienza por el primero.")),
-                React.createElement(Btn, { variant: "accent", icon: "play", onClick: () => { var _a; return (_a = pending[0]) === null || _a === void 0 ? void 0 : _a.action(); } }, "Comenzar")),
+                React.createElement(Btn, { variant: "accent", icon: "play", onClick: () => {
+                        // Nunca un click muerto: sin pendientes concretos,
+                        // "Comenzar" lleva a la sección de embarques.
+                        const first = pending[0];
+                        if (first)
+                            first.action();
+                        else
+                            setRoute({ section: 'shipments' });
+                    } }, "Comenzar")),
             React.createElement("div", { className: "chk-list" }, pending.map(p => (React.createElement("div", { key: p.id, className: "chk-item", onClick: p.action },
                 React.createElement("span", { className: `chk-icon ${p.tone}` },
                     React.createElement(Icon, { name: p.tone === 'done' ? 'check' : p.tone === 'partial' ? 'minus' : 'plus', size: 14 })),
