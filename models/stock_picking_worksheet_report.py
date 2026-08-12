@@ -382,12 +382,16 @@ class StockPicking(models.Model):
         story.append(Spacer(1, 4))
 
         # === TABLA POR PRODUCTO ===
+        # CONTENEDOR POR FILA: los embarques multi-contenedor mezclan lotes de
+        # varios contenedores en la misma recepción; el de la cabecera no
+        # basta para el piso.
         headers_placa = [
             Paragraph('#', style_th),
             Paragraph('LOTE', style_th),
             Paragraph('BLOQUE', style_th),
             Paragraph('PLACA', style_th),
             Paragraph('ATADO', style_th),
+            Paragraph('CONTENEDOR', style_th),
             Paragraph('DUEÑO', style_th),
             Paragraph('LARGO TEO.', style_th),
             Paragraph('ALTO TEO.', style_th),
@@ -396,16 +400,17 @@ class StockPicking(models.Model):
         ]
 
         col_widths_placa = [
-            avail_w * 0.035,
-            avail_w * 0.095,
-            avail_w * 0.130,
-            avail_w * 0.085,
+            avail_w * 0.032,
+            avail_w * 0.088,
             avail_w * 0.105,
-            avail_w * 0.160,
+            avail_w * 0.070,
+            avail_w * 0.090,
+            avail_w * 0.100,
+            avail_w * 0.145,
+            avail_w * 0.090,
+            avail_w * 0.090,
             avail_w * 0.095,
             avail_w * 0.095,
-            avail_w * 0.100,
-            avail_w * 0.100,
         ]
 
         # Formatos/piezas: sin dimensiones ni ATADO (solo aplica a placas);
@@ -415,19 +420,21 @@ class StockPicking(models.Model):
             Paragraph('LOTE', style_th),
             Paragraph('BLOQUE', style_th),
             Paragraph('PLACA', style_th),
+            Paragraph('CONTENEDOR', style_th),
             Paragraph('DUEÑO', style_th),
             Paragraph('CANT. TEÓRICA', style_th),
             Paragraph('CANT. REAL', style_th),
         ]
 
         col_widths_formato = [
-            avail_w * 0.040,
-            avail_w * 0.140,
-            avail_w * 0.190,
+            avail_w * 0.038,
             avail_w * 0.120,
-            avail_w * 0.210,
             avail_w * 0.150,
-            avail_w * 0.150,
+            avail_w * 0.100,
+            avail_w * 0.120,
+            avail_w * 0.182,
+            avail_w * 0.145,
+            avail_w * 0.145,
         ]
 
         for pid, pdata in products_data.items():
@@ -471,6 +478,8 @@ class StockPicking(models.Model):
                 owner_key = (ml.product_id.id, lot.id)
                 owner_name = owner_map.get(owner_key) or ''
 
+                lot_container = getattr(lot, 'x_contenedor', '') or ''
+
                 if is_placa:
                     table_data.append([
                         Paragraph(str(row_num), style_td),
@@ -478,6 +487,7 @@ class StockPicking(models.Model):
                         Paragraph(self._ws_safe_text(lot.x_bloque), style_td),
                         Paragraph(self._ws_safe_text(lot.x_numero_placa), style_td),
                         Paragraph(self._ws_safe_text(lot.x_atado), style_td),
+                        Paragraph(self._ws_safe_text(lot_container), style_td),
                         Paragraph(self._ws_safe_text(owner_name), style_td_owner),
                         Paragraph(f'{ancho:.3f}' if ancho else '', style_td),
                         Paragraph(f'{alto:.3f}' if alto else '', style_td),
@@ -491,12 +501,13 @@ class StockPicking(models.Model):
                         Paragraph(self._ws_safe_text(lot.name), style_td_bold),
                         Paragraph(self._ws_safe_text(lot.x_bloque), style_td),
                         Paragraph(self._ws_safe_text(lot.x_numero_placa), style_td),
+                        Paragraph(self._ws_safe_text(lot_container), style_td),
                         Paragraph(self._ws_safe_text(owner_name), style_td_owner),
                         Paragraph(f'{qty_teo:.2f}', style_td),
                         Paragraph('', style_editable),
                     ])
 
-            total_row = [Paragraph('', style_td)] * (10 if is_placa else 7)
+            total_row = [Paragraph('', style_td)] * (11 if is_placa else 8)
             total_row[0] = Paragraph(
                 '<b>TOTAL: %s lotes</b>' % row_num,
                 ParagraphStyle(
@@ -511,11 +522,12 @@ class StockPicking(models.Model):
 
             data_table = Table(table_data, colWidths=col_widths, repeatRows=1)
 
-            edit_first = 8 if is_placa else 6
-            edit_last = 9 if is_placa else 6
-            teo_last = 7 if is_placa else 5
-            ident_last = 4 if is_placa else 3
-            owner_col = 5 if is_placa else 4
+            # Índices +1 por la columna CONTENEDOR (dentro de identificación).
+            edit_first = 9 if is_placa else 7
+            edit_last = 10 if is_placa else 7
+            teo_last = 8 if is_placa else 6
+            ident_last = 5 if is_placa else 4
+            owner_col = 6 if is_placa else 5
 
             tbl_styles = [
                 ('BACKGROUND', (0, 0), (-1, 0), HEADER_BG),
