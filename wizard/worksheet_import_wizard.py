@@ -462,7 +462,10 @@ class WorksheetImportWizard(models.TransientModel):
             if not product: continue
             is_placa = self.picking_id._ws_product_is_placa(product)
 
-            for r in range(3, 250):
+            # HASTA LA ÚLTIMA FILA REAL: el tope fijo de 250 filas cortaba
+            # los Worksheets grandes en silencio (mismo defecto que el PL,
+            # que topaba en 300 — PLs de 500+ placas por hoja son reales).
+            for r in range(3, idx.max_row() + 1):
                 lot_name = str(idx.value(0, r) or '').strip()
                 if not lot_name or lot_name == 'Nº Lote': continue
 

@@ -130,6 +130,10 @@ class _PLCellsIndex:
     def value(self, col, row):
         return self._cells.get((int(col), int(row)))
 
+    def max_row(self):
+        """Última fila (0-based) con contenido real en la hoja."""
+        return max((r for (_c, r) in self._cells), default=-1)
+
 
 class PackingListImportWizard(models.TransientModel):
     _name = "packing.list.import.wizard"
@@ -1007,7 +1011,19 @@ class PackingListImportWizard(models.TransientModel):
         filas_validas = 0
         filas_invalidas = 0
 
-        for r in range(3, 300):
+        # HASTA LA ÚLTIMA FILA REAL de la hoja: el tope fijo de 300 filas
+        # (297 útiles) CORTABA los PL grandes en silencio — un PL de 524
+        # placas procesaba 297 y las restantes jamás se importaban. El
+        # límite ahora lo dicta el contenido ingerido de la hoja.
+        last_row = idx.max_row()
+        if last_row >= 300:
+            _logger.info(
+                "[PL_DEBUG] Hoja con %s filas de contenido: extracción "
+                "extendida más allá del tope histórico de 300.",
+                last_row + 1,
+            )
+
+        for r in range(3, last_row + 1):
             raw_a = idx.value(0, r)
             raw_b = idx.value(1, r)
             raw_c = idx.value(2, r)
