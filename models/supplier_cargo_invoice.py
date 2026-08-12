@@ -186,14 +186,18 @@ class SupplierCargoInvoice(models.Model):
     @api.model
     def _header_capture_percent(self, header):
         """Avance de UNA proforma con precedencia clara:
-        1) el % reportado por el PROPIO portal (idéntico a lo que ve el
-           proveedor), 2) 100 si ya está marcada como completa, 3) cálculo
-        interno como último recurso (enlaces nunca abiertos tras el deploy)."""
+        1) 100 si ya está marcada como COMPLETA — el estado terminal manda
+           sobre cualquier snapshot: el % guardado del portal puede haberse
+           quedado viejo (el proveedor terminó sin regenerar el snapshot, o
+           Compras completó la PI) y congelaba ligas terminadas en <100,
+        2) el % reportado por el PROPIO portal (idéntico a lo que ve el
+           proveedor), 3) cálculo interno como último recurso (enlaces nunca
+        abiertos tras el deploy)."""
+        if (header.status or '') == 'complete':
+            return 100
         stored = getattr(header, 'portal_overall_pct', 0) or 0
         if stored > 0:
             return stored
-        if (header.status or '') == 'complete':
-            return 100
         try:
             return self._progress_percent_capture(header._portal_progress())
         except Exception:
