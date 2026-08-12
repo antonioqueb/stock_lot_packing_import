@@ -801,6 +801,35 @@ class StockPicking(models.Model):
                 'del portal se reasignarán a una recepción nueva.'
             ) % (shipment.display_name,))
 
+            # La recepción liberada deja de COMPONER el viaje de Torre de
+            # Control (embarque compartido multi-proforma): la recepción
+            # nueva tomará su lugar y alimentará el mismo viaje.
+            if 'stock.transit.voyage' in self.env.registry.models:
+                Voyage = self.env['stock.transit.voyage'].sudo()
+                voyages = Voyage.search([
+                    ('custom_status', '!=', 'cancel'),
+                    '|',
+                    ('picking_id', '=', pick.id),
+                    ('picking_ids', 'in', pick.id),
+                ])
+                for voyage in voyages:
+                    vals = {}
+                    if 'picking_ids' in voyage._fields \
+                            and pick.id in voyage.picking_ids.ids:
+                        vals['picking_ids'] = [(3, pick.id)]
+                    if voyage.picking_id.id == pick.id:
+                        others = voyage.picking_ids - pick \
+                            if 'picking_ids' in voyage._fields \
+                            else voyage.picking_id.browse()
+                        vals['picking_id'] = others[:1].id if others else False
+                    if vals:
+                        voyage.write(vals)
+                        voyage.message_post(body=_(
+                            'La recepción %s se liberó del embarque del '
+                            'portal: deja de componer este viaje; la '
+                            'recepción nueva lo alimentará.'
+                        ) % pick.name)
+
             # Re-sincronizar de inmediato: crea la recepción nueva con las
             # filas del PL. Si falla (p. ej. sin contexto HTTP), el siguiente
             # 'Marcar como completado' del portal la crea de todas formas.
