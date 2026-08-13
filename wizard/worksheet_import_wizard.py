@@ -341,25 +341,16 @@ class WorksheetImportWizard(models.TransientModel):
                 })
                 lines_updated += 1
 
-        for ml in move_lines_to_delete:
-            ml.write({self._ws_ml_qty_key(): 0})
-        
-        for lot in lots_to_delete:
-            quants = self.env['stock.quant'].sudo().search([('lot_id', '=', lot.id)])
-            if quants:
-                quants.sudo().write({'quantity': 0, 'reserved_quantity': 0})
-                quants.sudo().unlink()
-        
+        # PARCIALIDAD, NO DESTRUCCIÓN: una fila en 0 significa "no llegó
+        # EN ESTA recepción". Antes este bloque borraba move lines, PONÍA
+        # EN CERO Y ELIMINABA los quants de tránsito y hasta los lotes —
+        # el material 'pendiente' se evaporaba del sistema y la recepción
+        # validaba completa sin generar la siguiente parcialidad. Ahora
+        # solo se retira la move line de ESTA recepción: el lote y su
+        # quant de tránsito quedan intactos y la demanda del move sigue
+        # viva, así la validación genera sola la recepción del resto.
         for ml in move_lines_to_delete:
             ml.unlink()
-        
-        for lot in lots_to_delete:
-            other_ops = self.env['stock.move.line'].search([('lot_id', '=', lot.id)])
-            if not other_ops:
-                remaining_quants = self.env['stock.quant'].sudo().search([('lot_id', '=', lot.id)])
-                if remaining_quants:
-                    remaining_quants.sudo().unlink()
-                lot.unlink()
 
         # KPI faltantes: persistir el resumen del WS en la recepción.
         if 'x_ws_missing_pieces' in self.picking_id._fields:
@@ -423,7 +414,13 @@ class WorksheetImportWizard(models.TransientModel):
 
         message = f'✓ Se actualizaron {lines_updated} lotes con medidas reales.'
         if total_missing_pieces > 0:
-            message += f'\n⚠️ MATERIAL FALTANTE:\n• Piezas eliminadas: {total_missing_pieces}\n• Total m² reducidos: {total_missing_m2:.2f} m²'
+            message += (
+                f'\n📦 NO RECIBIDO EN ESTA PARCIALIDAD:'
+                f'\n• Piezas pendientes: {total_missing_pieces}'
+                f'\n• m² pendientes: {total_missing_m2:.2f}'
+                f'\nAl validar, el sistema generará automáticamente la '
+                f'siguiente recepción con este material.'
+            )
 
         return {
             'type': 'ir.actions.client',
