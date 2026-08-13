@@ -385,12 +385,13 @@ class StockPicking(models.Model):
         # CONTENEDOR POR FILA: los embarques multi-contenedor mezclan lotes de
         # varios contenedores en la misma recepción; el de la cabecera no
         # basta para el piso.
+        # Orden de identificación pedido: BLOQUE · ATADO · PLACA.
         headers_placa = [
             Paragraph('#', style_th),
             Paragraph('LOTE', style_th),
             Paragraph('BLOQUE', style_th),
-            Paragraph('PLACA', style_th),
             Paragraph('ATADO', style_th),
+            Paragraph('PLACA', style_th),
             Paragraph('CONTENEDOR', style_th),
             Paragraph('DUEÑO', style_th),
             Paragraph('LARGO TEO.', style_th),
@@ -403,8 +404,8 @@ class StockPicking(models.Model):
             avail_w * 0.032,
             avail_w * 0.088,
             avail_w * 0.105,
-            avail_w * 0.070,
             avail_w * 0.090,
+            avail_w * 0.070,
             avail_w * 0.100,
             avail_w * 0.145,
             avail_w * 0.090,
@@ -485,8 +486,8 @@ class StockPicking(models.Model):
                         Paragraph(str(row_num), style_td),
                         Paragraph(self._ws_safe_text(lot.name), style_td_bold),
                         Paragraph(self._ws_safe_text(lot.x_bloque), style_td),
-                        Paragraph(self._ws_safe_text(lot.x_numero_placa), style_td),
                         Paragraph(self._ws_safe_text(lot.x_atado), style_td),
+                        Paragraph(self._ws_safe_text(lot.x_numero_placa), style_td),
                         Paragraph(self._ws_safe_text(lot_container), style_td),
                         Paragraph(self._ws_safe_text(owner_name), style_td_owner),
                         Paragraph(f'{ancho:.3f}' if ancho else '', style_td),
