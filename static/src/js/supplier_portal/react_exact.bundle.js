@@ -3491,12 +3491,13 @@ const Step4Sheet = ({ proforma, draft, setDraft, rows, setRows, ship, pendingIma
         // el MISMO bloque y el MISMO producto. En formato/pieza el "bloque"
         // (fecha del PL) se repite entre productos, así que sin la frontera
         // de producto la copia se desbordaba a toda la tabla.
-        const sameSegment = (r) => r.block === src.block
-            && String(r.product_id) === String(src.product_id);
+        const productOnly = (field === 'block' || field === 'grupo');
+        const sameSegment = (r) => String(r.product_id) === String(src.product_id)
+            && (productOnly || r.block === src.block);
         const isPlate = field === 'plate';
         if (mode === 'next') {
             const nxt = rows[idx + 1];
-            if (nxt && sameSegment(nxt) && !plateStopRow(nxt, field)) {
+            if (nxt && sameSegment(nxt) && (productOnly || !plateStopRow(nxt, field))) {
                 const val = isPlate ? incPlate(src[field], 1) : src[field];
                 setRows(prev => prev.map(r => r.id === nxt.id ? { ...r, [field]: val } : r));
             }
@@ -3509,7 +3510,7 @@ const Step4Sheet = ({ proforma, draft, setDraft, rows, setRows, ship, pendingIma
                 // tramos); un No. Placa vacío corta la copia de los demás
                 // campos — pero NO la numeración de placas, que llena
                 // precisamente las filas vacías.
-                if (!sameSegment(rows[i]) || plateStopRow(rows[i], field)) break;
+                if (!sameSegment(rows[i]) || (!productOnly && plateStopRow(rows[i], field))) break;
                 k += 1;
                 valById[rows[i].id] = isPlate ? incPlate(src[field], k) : src[field];
             }
@@ -3532,12 +3533,16 @@ const Step4Sheet = ({ proforma, draft, setDraft, rows, setRows, ship, pendingIma
         // Los íconos de copiar solo aparecen si la fila INMEDIATA de abajo es
         // del mismo bloque Y producto (misma frontera que la propagación) y
         // no es una fila-tope para ESTE campo (No. Placa 0 o vacío).
+        // EXCEPCIÓN: 'block' (Bloque/Tono) y 'grupo' (Empaque) propagan por
+        // PRODUCTO — exigir mismo bloque para copiar el bloque era inútil, y
+        // el tope de No. Placa no aplica a estos campos de agrupación.
         const idx = rows.findIndex(r => r.id === rowId);
         if (idx < 0) return false;
         const nxt = rows[idx + 1];
-        return !!(nxt && nxt.block === rows[idx].block
-            && String(nxt.product_id) === String(rows[idx].product_id)
-            && !plateStopRow(nxt, field));
+        const productOnly = (field === 'block' || field === 'grupo');
+        return !!(nxt && String(nxt.product_id) === String(rows[idx].product_id)
+            && (productOnly || nxt.block === rows[idx].block)
+            && (productOnly || !plateStopRow(nxt, field)));
     };
     // PropCell se INVOCA como función (no como componente) para que el input no
     // pierda el foco en cada pulsación.
@@ -3955,9 +3960,15 @@ const Step4Sheet = ({ proforma, draft, setDraft, rows, setRows, ship, pendingIma
                                 const noQ = !(parseFloat(r.quantity) > 0);
                                 return React.createElement("tr", { key: r.id, className: activeRow === r.id ? 'is-active' : '', onClick: () => setActiveRow(r.id) },
                                     React.createElement("td", { style: { textAlign: 'center', color: 'var(--ink-4)', fontSize: 11 } }, gi + 1),
-                                    React.createElement("td", { className: "cell-block" },
+                                    PropCell({ rowId: r.id, field: "block", extra: "cell-block" },
                                         React.createElement("input", { value: r.block || '', placeholder: "Bloque/Tono", style: { textTransform: 'uppercase' }, onChange: (e) => updRow(r.id, { block: (e.target.value || '').toUpperCase() }) })),
-                                    React.createElement("td", null, pkg.label),
+                                    PropCell({ rowId: r.id, field: "grupo" },
+                                        React.createElement("select", { value: r.grupo || '', onChange: (e) => updRow(r.id, { grupo: e.target.value }) },
+                                            React.createElement("option", { value: "" }, "—"),
+                                            React.createElement("option", { value: "suelto" }, "Suelto"),
+                                            React.createElement("option", { value: "caja" }, "Caja"),
+                                            React.createElement("option", { value: "palet" }, "Palet"),
+                                            React.createElement("option", { value: "tarima" }, "Tarima"))),
                                     PropCell({ rowId: r.id, field: "plate", errClass: !(r.plate || '').trim() ? 'is-error' : '' },
                                         React.createElement("input", { value: r.plate || '', placeholder: "capturar", style: { textTransform: 'uppercase' }, onPaste: onCellPaste(r, 'plate', gRows), onChange: forceUpper((e) => updRow(r.id, { plate: e.target.value })) })),
                                     PropCell({ rowId: r.id, field: "quantity", errClass: noQ ? 'is-error' : '' },
