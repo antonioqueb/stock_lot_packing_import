@@ -8,6 +8,8 @@ from html import escape
 from odoo import models, _
 from odoo.exceptions import UserError
 
+from .som_date_format import som_format_date
+
 _logger = logging.getLogger(__name__)
 
 
@@ -280,8 +282,8 @@ class StockPicking(models.Model):
         po_name = po.name if po else (picking.origin or '-')
         partner_name = partner.name if partner else '-'
         container_no = picking.supplier_container_no or '-'
-        fecha_recepcion = picking.scheduled_date.strftime('%d/%m/%Y') if picking.scheduled_date else '-'
-        fecha_impresion = date.today().strftime('%d/%m/%Y')
+        fecha_recepcion = som_format_date(picking.scheduled_date, empty='-')
+        fecha_impresion = som_format_date(date.today(), empty='-')
 
         owner_map = picking._ws_get_owner_map_for_report(move_lines)
 

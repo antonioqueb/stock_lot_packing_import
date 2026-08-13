@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from . import som_date_format
 from . import stock_picking
 from . import purchase_order
 from . import supplier_access

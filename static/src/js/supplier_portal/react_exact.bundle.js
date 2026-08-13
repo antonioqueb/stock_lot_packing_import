@@ -1,5 +1,35 @@
 (function(){
 'use strict';
+// ===== som_date.js — formato de fecha único del sistema: "13 ago 2026" =====
+// Solo para ETIQUETAS. Las fechas que viajan como DATO (value de <Input type="date">,
+// payloads al backend, comparaciones) se quedan en ISO.
+const SOM_MESES_ES = ["ene", "feb", "mar", "abr", "may", "jun",
+                      "jul", "ago", "sep", "oct", "nov", "dic"];
+
+function somFormatDate(value, options) {
+    const opts = options || {};
+    const empty = opts.empty !== undefined ? opts.empty : "\u2014";
+    if (!value) return empty;
+    let raw = "";
+    if (typeof value === "string") {
+        raw = value.trim();
+    } else if (value instanceof Date && !isNaN(value)) {
+        const p2 = (n) => String(n).padStart(2, "0");
+        raw = `${value.getFullYear()}-${p2(value.getMonth() + 1)}-${p2(value.getDate())}` +
+              ` ${p2(value.getHours())}:${p2(value.getMinutes())}`;
+    }
+    if (!raw) return empty;
+    const [datePart, timePart] = raw.split(/[ T]/);
+    const parts = datePart.split("-");
+    if (parts.length !== 3) return raw;
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10);
+    const day = parseInt(parts[2], 10);
+    if (!year || !month || !day || month < 1 || month > 12) return raw;
+    let out = `${String(day).padStart(2, "0")} ${SOM_MESES_ES[month - 1]} ${year}`;
+    if (opts.withTime && timePart) out += ` ${timePart.slice(0, 5)}`;
+    return out;
+}
 // portal_react_exact_bridge.js — maps Odoo portal_json into the JSX prototype data shape.
 (function () {
     function parsePayload() {
@@ -1773,7 +1803,7 @@ const ShipmentsList = ({ proforma, setProforma, status, setRoute }) => {
                         React.createElement("span", { className: "arrow" }, "\u00B7"),
                         React.createElement("span", null,
                             "ETD ",
-                            React.createElement("span", { className: "mono" }, s.etd || '—')))),
+                            React.createElement("span", { className: "mono" }, somFormatDate(s.etd))))),
                 React.createElement("div", { style: { display: 'flex', alignItems: 'center', gap: 16 } },
                     React.createElement("div", { style: { textAlign: 'right', fontSize: 12 } },
                         React.createElement("div", { className: "mono", style: { fontWeight: 700, fontSize: 16 } },
@@ -2511,7 +2541,7 @@ const TabDocuments = ({ ship, updateShip }) => {
                         React.createElement("div", { className: "meta" },
                             (doc.size / 1024).toFixed(0),
                             " KB \u00B7 ",
-                            doc.uploaded)),
+                            somFormatDate(doc.uploaded, { empty: '' }))),
                     React.createElement(Btn, { variant: "ghost", size: "sm", icon: "trash", className: "btn-danger-ghost", disabled: isBusy, onClick: () => deleteDoc(dt, doc) })))),
                 React.createElement("label", { className: `btn btn-secondary sm ${isBusy ? 'is-disabled' : ''}`, style: { cursor: isBusy ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, alignSelf: 'flex-start' } },
                     React.createElement("input", { type: "file", accept: dt.spreadsheet ? "application/pdf,.pdf,.xlsx,.xls,.csv" : "application/pdf,.pdf", style: { display: 'none' }, disabled: isBusy, onChange: (e) => { const f = e.target.files && e.target.files[0]; e.target.value = ''; pickDoc(dt, f); } }),

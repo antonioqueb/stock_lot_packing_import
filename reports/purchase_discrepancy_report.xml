@@ -32,7 +32,7 @@
                             </div>
                             <div class="col-4 text-end">
                                 <div class="som-doc-subtitle" style="margin: 4px 0 0 0;">
-                                    Impreso: <span t-esc="context_timestamp(datetime.datetime.now()).strftime('%d/%m/%Y %H:%M')"/>
+                                    Impreso: <span t-esc="context_timestamp(datetime.datetime.now())" t-options='{"widget": "datetime", "format": "dd MMM yyyy HH:mm"}'/>
                                 </div>
                             </div>
                         </div>
@@ -75,7 +75,7 @@
                                             <div class="som-info-row">
                                                 <div class="som-info-label">Fecha Recepción</div>
                                                 <div class="som-info-value">
-                                                    <span t-if="doc.scheduled_date" t-field="doc.scheduled_date" t-options='{"widget": "date"}'/>
+                                                    <span t-if="doc.scheduled_date" t-field="doc.scheduled_date" t-options='{"widget": "date", "format": "dd MMM yyyy"}'/>
                                                     <span t-else="" class="som-muted">-</span>
                                                 </div>
                                             </div>
@@ -97,7 +97,7 @@
                                             </div>
                                             <div class="som-info-row">
                                                 <div class="som-info-label" style="width: 45%;">Fecha</div>
-                                                <div class="som-info-value" style="text-align: right;"><span t-field="doc.date" t-options='{"widget": "datetime"}'/></div>
+                                                <div class="som-info-value" style="text-align: right;"><span t-field="doc.date" t-options='{"widget": "datetime", "format": "dd MMM yyyy HH:mm"}'/></div>
                                             </div>
                                         </td>
                                     </tr>

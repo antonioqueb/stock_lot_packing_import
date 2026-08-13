@@ -8,6 +8,8 @@ from urllib.parse import quote
 from odoo.exceptions import UserError
 from odoo import models, fields, api
 
+from .som_date_format import som_format_date
+
 
 class SupplierAccess(models.Model):
     _name = 'stock.picking.supplier.access'
@@ -106,8 +108,8 @@ class SupplierAccess(models.Model):
         vigencia = ''
         if self.expiration_date:
             vigencia = '\n\nEl enlace está vigente hasta el %s.' % (
-                fields.Datetime.context_timestamp(
-                    self, self.expiration_date).strftime('%d/%m/%Y'))
+                som_format_date(fields.Datetime.context_timestamp(
+                    self, self.expiration_date)))
         return (
             'Buen día:\n\n'
             'Le compartimos el enlace del portal para capturar su embarque '
