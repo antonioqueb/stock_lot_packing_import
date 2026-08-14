@@ -150,9 +150,11 @@ class WorksheetImportWizard(models.TransientModel):
 
         if tot_missing:
             html += (
-                '<div class="alert alert-danger"><b>⚠ %s lote(s) SIN captura</b>: '
-                'al confirmar se eliminarán como faltantes. Si en realidad sí '
-                'llegaron, captura sus medidas antes de confirmar.</div>'
+                '<div class="alert alert-warning"><b>📦 %s lote(s) SIN captura</b>: '
+                'quedarán PENDIENTES para la siguiente recepción (su material '
+                'sigue en tránsito). Al validar, el sistema generará solo la '
+                'recepción del resto. Si en realidad sí llegaron, captura sus '
+                'medidas antes de confirmar.</div>'
             ) % tot_missing
 
         if diffs:
