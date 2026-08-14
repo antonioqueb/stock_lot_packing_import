@@ -167,6 +167,19 @@ class PurchaseOrderPI(models.Model):
 class PurchaseOrder(models.Model):
     _inherit = 'purchase.order'
 
+    # La OC pertenece a una FACTURA DE CARGA (enlace único multi-OC):
+    # su liga de portal y el botón viven SOLO en la factura de carga —
+    # en la OC individual se ocultan para no duplicar accesos.
+    x_in_cargo_invoice = fields.Boolean(
+        string='En factura de carga',
+        compute='_compute_x_in_cargo_invoice')
+
+    def _compute_x_in_cargo_invoice(self):
+        Cargo = self.env['supplier.cargo.invoice'].sudo()
+        for po in self:
+            po.x_in_cargo_invoice = bool(po.id and Cargo.search_count(
+                [('purchase_ids', 'in', po.id)]))
+
     supplier_access_ids = fields.One2many(
         'stock.picking.supplier.access',
         'purchase_id',
