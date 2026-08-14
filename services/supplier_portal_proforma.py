@@ -3,6 +3,8 @@
 import json
 import logging
 
+from odoo.exceptions import UserError
+
 from markupsafe import Markup, escape
 from odoo import fields
 from odoo.http import request
@@ -1733,11 +1735,13 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
         proforma.write({"status": "complete", "portal_overall_pct": 100})
         self.sync_service.sync_all_shipments(proforma)
 
-        # Al terminar el proveedor, el PL de CADA recepción se procesa en
-        # automático (una recepción por PO en facturas de carga) — el mismo
-        # efecto que el botón "Procesar PL", sin acción manual. Si alguna
-        # falla, la finalización NO se revierte: el botón manual queda como
-        # respaldo y se avisa en la respuesta.
+        # Al terminar el proveedor: el PL de CADA recepción se procesa en
+        # automático Y la recepción a tránsito SE VALIDA sola (multi-
+        # proforma incluido: una recepción por PO) — el material queda en
+        # tránsito y la recepción física del embarque nace en ese momento
+        # (sin mover el estatus del viaje). Si algo falla, la finalización
+        # NO se revierte: los botones manuales quedan como respaldo y se
+        # avisa en el chatter de la OC.
         processed_pls, process_errors = self._auto_process_packing_lists(proforma)
 
         # Los avisos (sobreasignación, PLs sin procesar) son asunto INTERNO:
@@ -1836,6 +1840,71 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                     "[Portal] Falló el auto-proceso del PL en la recepción %s.",
                     picking.name,
                 )
+                continue
+
+            # ── VALIDACIÓN AUTOMÁTICA DEL TRÁNSITO ──
+            # Con el PL procesado OK, la recepción a tránsito se valida sola
+            # (multi-proforma: cada OC del embarque valida la suya) — el
+            # material queda visible en tránsito sin entrar picking por
+            # picking. Si la validación falla, el PL YA quedó procesado y el
+            # botón Validar manual sigue como respaldo (se avisa en chatter).
+            try:
+                with self.env.cr.savepoint():
+                    picking.move_ids.filtered(
+                        lambda m: m.state not in ("done", "cancel")
+                    ).write({"picked": True})
+                    res = picking.with_context(
+                        skip_backorder=True,
+                        skip_sms=True,
+                        skip_immediate_transfer=True,
+                        skip_stock_whole_lot_removal=True,
+                    ).button_validate()
+                    if res is not True and isinstance(res, dict):
+                        raise UserError(
+                            "La validación pidió intervención manual "
+                            "(%s)." % (res.get("res_model") or "wizard"))
+                _logger.info(
+                    "[Portal] Recepción %s VALIDADA automáticamente "
+                    "(material en tránsito).", picking.name)
+            except Exception as exc:
+                errors.append(
+                    "%s: PL procesado pero la validación automática falló "
+                    "(%s). Validar manualmente." % (picking.name, exc))
+                _logger.exception(
+                    "[Portal] Falló la validación automática de %s.",
+                    picking.name)
+                continue
+
+            # ── RECEPCIÓN FÍSICA DEL EMBARQUE, EN ESE PRECISO MOMENTO ──
+            # El documento de recepción del embarque nace ya (sin mover el
+            # estatus del viaje: a 'Listos para recibir' llega hasta
+            # Entrega en Sitio).
+            try:
+                Voyage = request.env["stock.transit.voyage"].sudo()
+            except KeyError:
+                Voyage = None
+            if Voyage is not None:
+                try:
+                    voyage = Voyage.search([
+                        "|",
+                        ("picking_ids", "in", picking.id),
+                        ("picking_id", "=", picking.id),
+                    ], limit=1)
+                    if voyage and not voyage.reception_picking_id:
+                        with self.env.cr.savepoint():
+                            voyage.with_context(
+                                tc_keep_status=True,
+                                tc_skip_auto_reception=True,
+                            ).action_generate_reception()
+                        _logger.info(
+                            "[Portal] Recepción física %s creada para el "
+                            "embarque %s al completar el portal.",
+                            voyage.reception_picking_id.name, voyage.name)
+                except Exception:
+                    _logger.exception(
+                        "[Portal] No se pudo crear la recepción física del "
+                        "embarque tras validar %s (se creará al pasar a "
+                        "Entrega en Sitio).", picking.name)
         return processed, errors
 
     def save_progress(self, token, percent):
