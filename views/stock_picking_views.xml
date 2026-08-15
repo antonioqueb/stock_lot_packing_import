@@ -43,49 +43,49 @@
 
             <xpath expr="//header/button[@name='action_assign']" position="after">
                 <button name="action_assign"
-                        string="0️⃣ Comenzar"
+                        string="⓿ Comenzar"
                         type="object"
                         class="oe_highlight"
                         invisible="not show_check_availability or picking_type_code != 'incoming'"/>
 
                 <button name="action_open_packing_list_spreadsheet"
-                        string="1️⃣ Abrir PL"
+                        string="❶ Abrir PL"
                         type="object"
                         class="btn-primary"
                         invisible="state in ('done', 'cancel', 'draft') or (picking_type_code != 'incoming' and not packing_list_imported) or packing_list_imported or worksheet_imported"/>
 
                 <button name="action_import_packing_list"
-                        string="2️⃣ Procesar PL"
+                        string="❷ Procesar PL"
                         type="object"
                         class="btn-secondary"
                         invisible="state in ('done', 'cancel', 'draft') or (picking_type_code != 'incoming' and not packing_list_imported) or packing_list_imported or not spreadsheet_id or worksheet_imported"/>
 
                 <button name="action_open_packing_list_spreadsheet"
-                        string="1️⃣ Corregir PL"
+                        string="❶ Corregir PL"
                         type="object"
                         class="btn-warning"
                         invisible="state in ('done', 'cancel', 'draft') or not packing_list_imported or worksheet_imported"/>
 
                 <button name="action_import_packing_list"
-                        string="2️⃣ Reprocesar PL"
+                        string="❷ Reprocesar PL"
                         type="object"
                         class="btn-warning"
                         invisible="state in ('done', 'cancel', 'draft') or not packing_list_imported or worksheet_imported"/>
 
                 <button name="action_print_worksheet_pdf"
-                        string="3️⃣ Imprimir Worksheet"
+                        string="❸ Imprimir Worksheet"
                         type="object"
                         class="btn-info"
                         invisible="state in ('done', 'cancel', 'draft') or not packing_list_imported"/>
 
                 <button name="action_open_worksheet_spreadsheet"
-                        string="4️⃣ Abrir WS"
+                        string="❹ Abrir WS"
                         type="object"
                         class="btn-info"
                         invisible="state in ('done', 'cancel', 'draft') or not packing_list_imported"/>
 
                 <button name="action_import_worksheet"
-                        string="5️⃣ Procesar WS"
+                        string="❺ Procesar WS"
                         type="object"
                         class="btn-success"
                         invisible="state in ('done', 'cancel', 'draft') or not packing_list_imported or not ws_spreadsheet_id or worksheet_imported"/>
@@ -94,13 +94,13 @@
                      corregir (reprocesa medidas/cantidades reales). Después de
                      validar, solo ajuste manual de inventario. -->
                 <button name="action_import_worksheet"
-                        string="5️⃣ Corregir WS"
+                        string="❺ Corregir WS"
                         type="object"
                         class="btn-warning"
                         invisible="state in ('done', 'cancel', 'draft') or not worksheet_imported or not ws_spreadsheet_id"/>
 
                 <button name="button_validate"
-                        string="6️⃣ Validar"
+                        string="❻ Validar"
                         type="object"
                         class="oe_highlight"
                         groups="stock.group_stock_user"
