@@ -649,6 +649,9 @@ class StockPicking(models.Model):
             'mimetype': 'application/pdf',
         })
 
+        # Paso 3 del flujo de recepción: la barra de estatus lee este flag.
+        picking.worksheet_printed = True
+
         return {
             'type': 'ir.actions.act_url',
             'url': '/web/content/%s?download=true' % attachment.id,

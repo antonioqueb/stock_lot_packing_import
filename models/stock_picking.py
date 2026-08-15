@@ -23,6 +23,7 @@ class StockPicking(models.Model):
     worksheet_file = fields.Binary(string='Worksheet Exportado', attachment=True, copy=False)
     worksheet_filename = fields.Char(string='Nombre del Worksheet', copy=False)
     worksheet_imported = fields.Boolean(string='Worksheet Importado', default=False, copy=False)
+    worksheet_printed = fields.Boolean(string='Worksheet Impreso', default=False, copy=False)
 
     supplier_access_ids = fields.One2many('stock.picking.supplier.access', 'picking_id', string="Links Proveedor")
 
