@@ -73,13 +73,13 @@
                         invisible="state in ('done', 'cancel', 'draft') or not packing_list_imported or worksheet_imported"/>
 
                 <button name="action_print_worksheet_pdf"
-                        string="3️⃣ Imprimir WS"
+                        string="3️⃣ Imprimir Worksheet"
                         type="object"
                         class="btn-info"
                         invisible="state in ('done', 'cancel', 'draft') or not packing_list_imported"/>
 
                 <button name="action_open_worksheet_spreadsheet"
-                        string="4️⃣ Editar WS"
+                        string="4️⃣ Abrir WS"
                         type="object"
                         class="btn-info"
                         invisible="state in ('done', 'cancel', 'draft') or not packing_list_imported"/>
