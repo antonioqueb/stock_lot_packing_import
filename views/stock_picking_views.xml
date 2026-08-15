@@ -24,8 +24,8 @@
                  supplier_shipment_id; aquí la validación de la vista corre
                  antes de que ese campo exista en el registry incremental). -->
             <!-- FLUJO NUMERADO 0-7: los números sustituyen a los íconos para
-                 que el orden del proceso sea inequívoco (solo Etiquetas, el
-                 paso 7 en stock_transit_allocation, conserva su ícono).
+                 que el orden del proceso sea inequívoco (sin emojis en ningún
+                 paso, incluido el 7 que vive en stock_transit_allocation).
                  0 Comenzar · 1 Abrir PL · 2 Procesar PL · 3 Imprimir WS ·
                  4 Editar WS · 5 Procesar WS · 6 Validar · 7 Etiquetas. -->
 
