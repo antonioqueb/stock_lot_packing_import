@@ -156,13 +156,16 @@
         </field>
     </record>
 
-    <!-- Bajo Inventario (visible para administradores/usuarios de inventario).
-         Antes estaba bajo Compras y no lo veían quienes no tienen esa app. -->
+    <!-- Bajo Inventario, pero NO para cualquiera que tenga inventario: el
+         vendedor trae stock.group_stock_user solo para ver existencias y
+         esto le aparecía. Una discrepancia es un reclamo al proveedor —
+         es de Compras y de quien manda en el almacén. -->
     <menuitem id="menu_purchase_discrepancy_root"
               name="Discrepancias de Proveedor"
               parent="stock.menu_stock_root"
               action="action_purchase_discrepancy"
-              sequence="95"/>
+              sequence="95"
+              groups="purchase.group_purchase_user,stock.group_stock_manager"/>
 
     <!-- ============== BOTÓN EN LA RECEPCIÓN (stock.picking) ============== -->
     <record id="view_picking_form_inherit_discrepancy" model="ir.ui.view">
