@@ -438,10 +438,11 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
 
     def _propagate_route_to_purchase(self, shipment, changed_keys):
         """Embarque → OC: la ruta capturada en el portal (forwarder/POL/POD)
-        se refleja en la(s) OC amparadas. Solo se propagan claves que
-        CAMBIARON en este guardado: el autosave con valores sin cambios no
-        pisa ajustes manuales hechos en la OC (el último actor que cambia
-        algo, gana)."""
+        se refleja en la(s) OC amparadas. LA OC MANDA: el portal solo LLENA
+        campos que la OC no tiene — si la OC ya trae su ruta, la captura del
+        proveedor jamás la pisa (misma regla que
+        supplier_shipment._som_sync_route_to_purchase; antes esta copia
+        aplicaba 'el último actor gana' y aplastaba POL/POD de la OC)."""
         if not changed_keys:
             return
         # (campo del embarque) -> (campo de la OC, es_many2one)
@@ -468,11 +469,10 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                 if not new_val:
                     continue
                 current = getattr(po, po_field)
-                if is_m2o:
-                    if current != new_val:
-                        vals[po_field] = new_val.id
-                elif current != new_val:
-                    vals[po_field] = new_val
+                # LA OC MANDA: si la OC ya tiene dato, no se pisa.
+                if current:
+                    continue
+                vals[po_field] = new_val.id if is_m2o else new_val
             if vals:
                 # Guard anti-rebote: la OC no debe re-propagar a los embarques
                 # lo que acaba de llegar DESDE un embarque.
