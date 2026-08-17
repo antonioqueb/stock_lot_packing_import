@@ -599,9 +599,25 @@ class StockPicking(models.Model):
     def _ws_product_is_placa(self, product):
         """True si el producto se captura por dimensiones (placas).
         Para formatos/piezas el worksheet solo corrobora la cantidad real
-        contra la teórica, igual que el PL de formatos."""
-        unit = product.product_tmpl_id.x_unidad_del_producto or 'Placa'
-        return str(unit).strip().lower() == 'placa'
+        contra la teórica, igual que el PL de formatos.
+
+        Si la ficha del producto no declara la unidad, manda el x_tipo de
+        los LOTES de esta recepción (mayoría): con la ficha vacía todo caía
+        al default 'Placa' y a los formatos el WS les pedía LARGO/ALTO real
+        en lugar de la cantidad."""
+        unit = str(product.product_tmpl_id.x_unidad_del_producto or '').strip()
+        if not unit:
+            tipos = {}
+            for ml in self.move_line_ids:
+                if ml.product_id != product or not ml.lot_id:
+                    continue
+                tipo = str(getattr(ml.lot_id, 'x_tipo', '') or '').strip().lower()
+                if tipo:
+                    tipos[tipo] = tipos.get(tipo, 0) + 1
+            if tipos:
+                return max(tipos, key=lambda k: tipos[k]) in ('placa', 'slab')
+            return True
+        return unit.lower() == 'placa'
 
     def _ws_get_source_po_name(self):
         """Folio de la OC de ORIGEN de esta recepción: en cargas multi-PO
