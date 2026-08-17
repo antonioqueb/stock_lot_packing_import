@@ -1827,7 +1827,7 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                 # import se revierte. Sin esto quedaba commiteado un estado
                 # mixto (lotes/quants viejos borrados + solo parte de los
                 # nuevos creados) reportado como "éxito con warning".
-                with self.env.cr.savepoint():
+                with request.env.cr.savepoint():
                     wizard.action_import_excel()
                 processed.append(picking.name)
                 _logger.info(
@@ -1849,7 +1849,7 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
             # picking. Si la validación falla, el PL YA quedó procesado y el
             # botón Validar manual sigue como respaldo (se avisa en chatter).
             try:
-                with self.env.cr.savepoint():
+                with request.env.cr.savepoint():
                     picking.move_ids.filtered(
                         lambda m: m.state not in ("done", "cancel")
                     ).write({"picked": True})
@@ -1891,7 +1891,7 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                         ("picking_id", "=", picking.id),
                     ], limit=1)
                     if voyage and not voyage.reception_picking_id:
-                        with self.env.cr.savepoint():
+                        with request.env.cr.savepoint():
                             voyage.with_context(
                                 tc_keep_status=True,
                                 tc_skip_auto_reception=True,
