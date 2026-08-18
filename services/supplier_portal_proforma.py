@@ -1810,6 +1810,18 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
         for picking in pickings:
             if picking.state in ("done", "cancel", "draft"):
                 continue
+            # UNA línea por producto SIEMPRE: el vaivén de cantidades de la
+            # captura deja moves-delta de purchase_stock; se consolidan aquí
+            # aunque el PL no llegue a procesarse (antes solo el import los
+            # unificaba y una recepción saltada quedaba con renglones
+            # repetidos del mismo producto — caso C51).
+            if hasattr(picking, '_som_unify_transit_demand'):
+                try:
+                    picking.sudo()._som_unify_transit_demand()
+                except Exception:
+                    _logger.exception(
+                        "[Portal] No se pudo unificar la demanda de %s.",
+                        picking.name)
             if picking.packing_list_imported or picking.worksheet_imported:
                 continue
             if not picking.spreadsheet_id:
@@ -1890,6 +1902,51 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                         ("picking_ids", "in", picking.id),
                         ("picking_id", "=", picking.id),
                     ], limit=1)
+
+                    # GARANTÍA DE EMBARQUE: si la recepción no está ligada a
+                    # ningún viaje, se resuelve por la OC; y si la OC tampoco
+                    # tiene viaje (nació sin allocations, o la creación falló
+                    # al confirmar), se CREA aquí. Toda operación completada
+                    # en el portal debe terminar con su embarque en Torre
+                    # (caso C51: material validado a tránsito sin viaje).
+                    po = getattr(picking, 'supplier_cargo_po_id', False) \
+                        or request.env['purchase.order'].sudo().search(
+                            [('picking_ids', 'in', picking.id)], limit=1)
+                    if not voyage and po:
+                        voyage = Voyage.search([
+                            ('purchase_id', '=', po.id),
+                            ('custom_status', '!=', 'cancel'),
+                        ], limit=1)
+                        if not voyage:
+                            with request.env.cr.savepoint():
+                                voyage = Voyage.create({
+                                    'purchase_id': po.id,
+                                    'custom_status': 'solicitud',
+                                    'vessel_name': 'Por Definir',
+                                    'bl_number': po.partner_ref or po.name,
+                                })
+                                try:
+                                    voyage.action_load_from_purchase()
+                                except Exception:
+                                    _logger.exception(
+                                        "[Portal] Viaje %s creado pero no se "
+                                        "pudieron cargar sus líneas.",
+                                        voyage.name)
+                            _logger.info(
+                                "[Portal] Embarque %s creado al completar el "
+                                "portal (la OC %s no tenía viaje).",
+                                voyage.name, po.name)
+
+                    # Liga viaje ↔ recepción (picking_id primaria + composición).
+                    if voyage:
+                        link_vals = {}
+                        if not voyage.picking_id:
+                            link_vals['picking_id'] = picking.id
+                        if picking.id not in voyage.picking_ids.ids:
+                            link_vals['picking_ids'] = [(4, picking.id)]
+                        if link_vals:
+                            voyage.write(link_vals)
+
                     if voyage and not voyage.reception_picking_id:
                         with request.env.cr.savepoint():
                             voyage.with_context(
