@@ -443,7 +443,7 @@ class StockPicking(models.Model):
         for pid, pdata in products_data.items():
             product = pdata['product']
             lines = pdata['lines']
-            unit_type = product.product_tmpl_id.x_unidad_del_producto or 'Placa'
+            unit_type = str(product.product_tmpl_id.x_unidad_del_producto or 'Placa').strip().capitalize()
             is_placa = str(unit_type).strip().lower() == 'placa'
             headers = headers_placa if is_placa else headers_formato
             col_widths = col_widths_placa if is_placa else col_widths_formato

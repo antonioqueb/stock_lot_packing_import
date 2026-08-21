@@ -282,7 +282,7 @@ class PackingListImportWizard(models.TransientModel):
                 )
                 continue
 
-            unit_type = data.get("tipo", "Placa")
+            unit_type = str(data.get("tipo") or "Placa").strip().capitalize()
 
             qty_done = 0.0
             final_alto = 0.0
@@ -484,7 +484,7 @@ class PackingListImportWizard(models.TransientModel):
                 if lot_data['product_id'] != portal_row.product_id.id:
                     continue
 
-                if portal_row.tipo == 'Placa':
+                if str(portal_row.tipo or '').strip().capitalize() == 'Placa':
                     grosor_ok = (
                         str(lot_data['grosor'] or '').strip()
                         == str(portal_row.grosor or '').strip()
@@ -982,7 +982,7 @@ class PackingListImportWizard(models.TransientModel):
 
     def _extract_rows_from_index(self, idx, product):
         rows = []
-        unit_type = product.product_tmpl_id.x_unidad_del_producto or "Placa"
+        unit_type = str(product.product_tmpl_id.x_unidad_del_producto or "Placa").strip().capitalize()
         _logger.info(
             "[PL_DEBUG] Extrayendo filas para '%s' | unit_type: %s",
             product.name,
@@ -1157,7 +1157,7 @@ class PackingListImportWizard(models.TransientModel):
                 )
                 continue
 
-            unit_type = product.product_tmpl_id.x_unidad_del_producto or "Placa"
+            unit_type = str(product.product_tmpl_id.x_unidad_del_producto or "Placa").strip().capitalize()
 
             if unit_type == "Placa":
                 col_notas = 5

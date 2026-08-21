@@ -282,7 +282,7 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
             qty_over_assigned = max(0.0, -qty_remaining_after)
 
             product = line.product_id
-            unit_type = product.product_tmpl_id.x_unidad_del_producto or "Placa"
+            unit_type = str(product.product_tmpl_id.x_unidad_del_producto or "Placa").strip().capitalize()
 
             products.append({
                 "id": product.id,

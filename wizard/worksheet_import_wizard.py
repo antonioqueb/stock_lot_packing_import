@@ -67,7 +67,7 @@ class WorksheetImportWizard(models.TransientModel):
         picking = self.picking_id
 
         def _tipo(product):
-            u = product.product_tmpl_id.x_unidad_del_producto or 'Placa'
+            u = str(product.product_tmpl_id.x_unidad_del_producto or 'Placa').strip().capitalize()
             u = str(u).strip().lower()
             return {'placa': 'Placas', 'formato': 'Formatos'}.get(u, 'Piezas / Adhesivos')
 

@@ -121,7 +121,7 @@ class StockPicking(models.Model):
             product = self._resolve_sheet_product(sheet)
             if not product: continue
 
-            unit_type = product.product_tmpl_id.x_unidad_del_producto or 'Placa'
+            unit_type = str(product.product_tmpl_id.x_unidad_del_producto or 'Placa').strip().capitalize()
 
             row_idx = 3
             while True:
@@ -373,7 +373,7 @@ class StockPicking(models.Model):
             if not sheet: continue
             
             product_obj = self.env['product.product'].browse(pid)
-            unit_type = product_obj.product_tmpl_id.x_unidad_del_producto or 'Placa'
+            unit_type = str(product_obj.product_tmpl_id.x_unidad_del_producto or 'Placa').strip().capitalize()
 
             current_row = 4
             for row in prod_rows:
@@ -476,7 +476,7 @@ class StockPicking(models.Model):
         cells["A1"] = self._make_cell("PRODUCTO:")
         cells["B1"] = self._make_cell(f"{product.name} ({product.default_code or ''})")
 
-        unit_type = product.product_tmpl_id.x_unidad_del_producto or 'Placa'
+        unit_type = str(product.product_tmpl_id.x_unidad_del_producto or 'Placa').strip().capitalize()
         if unit_type == 'Placa':
             headers = ['Largo (m)', 'Alto (m)', 'Grosor (cm)'] + common_headers_suffix
         else:
@@ -605,7 +605,7 @@ class StockPicking(models.Model):
         los LOTES de esta recepción (mayoría): con la ficha vacía todo caía
         al default 'Placa' y a los formatos el WS les pedía LARGO/ALTO real
         en lugar de la cantidad."""
-        unit = str(product.product_tmpl_id.x_unidad_del_producto or '').strip()
+        unit = str(product.product_tmpl_id.x_unidad_del_producto or '').strip().capitalize()
         if not unit:
             tipos = {}
             for ml in self.move_line_ids:
@@ -727,7 +727,7 @@ class StockPicking(models.Model):
             ws = wb.create_sheet(title=(product.default_code or product.name)[:31])
             ws['A1'] = 'PRODUCTO:'; ws['B1'] = f'{product.name} ({product.default_code or ""})'
             
-            unit_type = product.product_tmpl_id.x_unidad_del_producto or 'Placa'
+            unit_type = str(product.product_tmpl_id.x_unidad_del_producto or 'Placa').strip().capitalize()
             common_headers_suffix = ['Peso (kg)', 'Color', 'Bloque', 'No. Placa', 'Atado', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Proveedor', 'Notas']
             
             # --- HEADERS DINÁMICOS EXCEL SIN HUECOS ---

@@ -269,7 +269,7 @@ class SupplierPortalBaseService:
             if self._is_service_product(product):
                 continue
             if product.id not in bucket:
-                unit_type = product.product_tmpl_id.x_unidad_del_producto or "Placa"
+                unit_type = str(product.product_tmpl_id.x_unidad_del_producto or "Placa").strip().capitalize()
                 bucket[product.id] = {
                     "id": product.id,
                     "name": self.portal_product_name(line),
