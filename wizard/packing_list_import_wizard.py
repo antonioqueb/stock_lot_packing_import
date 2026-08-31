@@ -197,6 +197,10 @@ class PackingListImportWizard(models.TransientModel):
         _logger.info("[PL_CLEANUP] Borrando datos previos...")
         old_move_lines = self.picking_id.move_line_ids
         old_lots = old_move_lines.mapped("lot_id")
+        # Serie S por contenedor de los lotes previos de ESTA recepción: al
+        # reimportar se reutiliza la misma serie (antes cada reimportación
+        # estrenaba S nuevas para los mismos contenedores).
+        prev_series = self._pl_series_from_lots(old_lots)
 
         # GUARD: si los lotes previos ya están amarrados a la Torre de Control
         # (líneas de tránsito) o tienen holds activos, reimportar destruiría
@@ -310,19 +314,29 @@ class PackingListImportWizard(models.TransientModel):
                 continue
 
             cont = (data.get("contenedor") or "SN").strip() or "SN"
+            cont_key = self._pl_norm_container(cont)
 
-            if cont not in containers:
-                # Serie "S": los lotes de recepciones nuevas nacen S1-01,
-                # S1-02… (S2-… el siguiente contenedor). La numeración S es
-                # independiente de la serie numérica histórica (15-01…).
-                prefix_str = "S%s" % next_prefix
-                containers[cont] = {
+            if cont_key not in containers:
+                # Serie "S": lo que va después de la S CUENTA CONTENEDORES
+                # FÍSICOS (S1 = primer contenedor recibido, S2 el siguiente…)
+                # y los lotes van S1-01, S1-02… La serie es estable por
+                # contenedor: un mismo número de contenedor (reimportación,
+                # recepción parcial/backorder, otra proforma del mismo
+                # embarque) conserva su S; solo un contenedor nunca visto
+                # estrena una serie nueva. La numeración S es independiente
+                # de la serie numérica histórica (15-01…).
+                serie = self._pl_series_for_container(
+                    cont_key, prev_series, self.picking_id)
+                if not serie:
+                    serie = next_prefix
+                    next_prefix += 1
+                prefix_str = "S%s" % serie
+                containers[cont_key] = {
                     "pre": prefix_str,
                     "num": self._get_next_lot_number_for_prefix(prefix_str),
                 }
-                next_prefix += 1
 
-            l_name = f"{containers[cont]['pre']}-{containers[cont]['num']:02d}"
+            l_name = f"{containers[cont_key]['pre']}-{containers[cont_key]['num']:02d}"
 
             grupo_ids = []
             if data.get("grupo_name"):
@@ -384,7 +398,7 @@ class PackingListImportWizard(models.TransientModel):
                 "x_grupo_temp": [(6, 0, grupo_ids)],
             })
 
-            containers[cont]["num"] += 1
+            containers[cont_key]["num"] += 1
             move_lines_created += 1
 
         # --- SINCRONIZACIÓN WORKSHEET ---
@@ -1089,6 +1103,65 @@ class PackingListImportWizard(models.TransientModel):
             return float(txt)
         except Exception:
             return 0.0
+
+    @staticmethod
+    def _pl_norm_container(cont):
+        """Clave de contenedor físico: mayúsculas, sin espacios/guiones/puntos.
+        'msku 123-4' y 'MSKU1234' son el mismo contenedor. Vacío = 'SN'."""
+        key = re.sub(r'[^A-Z0-9]', '', (cont or '').upper())
+        return key or 'SN'
+
+    @staticmethod
+    def _pl_series_from_name(name):
+        m = re.match(r'^S(\d+)-\d+$', name or '')
+        return int(m.group(1)) if m else None
+
+    def _pl_series_from_lots(self, lots):
+        """{contenedor normalizado: serie S} a partir de lotes existentes
+        (la serie más alta si hubiera varias)."""
+        out = {}
+        for lot in lots:
+            serie = self._pl_series_from_name(lot.name)
+            if not serie:
+                continue
+            key = self._pl_norm_container(lot.x_contenedor)
+            out[key] = max(out.get(key, 0), serie)
+        return out
+
+    def _pl_series_for_container(self, cont_key, prev_series, picking):
+        """Serie S ya asignada a este contenedor físico, o None si es nuevo.
+        Orden de búsqueda: lotes previos de esta recepción (reimportación) →
+        cualquier lote de la compañía con el mismo número de contenedor →
+        para 'SN' (sin contenedor), los lotes SN de las recepciones hermanas
+        (mismo origen: backorders / proformas del mismo embarque)."""
+        if cont_key in prev_series:
+            return prev_series[cont_key]
+        company_id = picking.company_id.id
+        if cont_key != 'SN':
+            self.env.cr.execute(
+                """
+                SELECT MAX(CAST(SUBSTRING(name FROM '^S([0-9]+)-') AS INTEGER))
+                FROM stock_lot
+                WHERE name ~ '^S[0-9]+-[0-9]+$'
+                  AND company_id = %s
+                  AND UPPER(REGEXP_REPLACE(COALESCE(x_contenedor, ''), '[^A-Za-z0-9]', '', 'g')) = %s
+                """,
+                (company_id, cont_key),
+            )
+            res = self.env.cr.fetchone()
+            return res[0] if res and res[0] else None
+        # Sin contenedor: solo dentro de la misma cadena de recepción.
+        siblings = picking
+        if picking.origin:
+            siblings |= self.env['stock.picking'].sudo().search([
+                ('origin', '=', picking.origin),
+                ('company_id', '=', company_id),
+                ('picking_type_code', '=', 'incoming'),
+            ])
+        lots = siblings.sudo().mapped('move_line_ids.lot_id').filtered(
+            lambda l: self._pl_norm_container(l.x_contenedor) == 'SN')
+        found = self._pl_series_from_lots(lots)
+        return found.get('SN')
 
     def _get_next_global_prefix(self):
         # Serie "S" (S1-01, S2-01…): arranca en S1 y crece sobre los lotes S
