@@ -488,6 +488,7 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
         origen, solo rutas de ese país (el proveedor no elige país)."""
         try:
             domain = [("state", "=", "active")]
+            domain += self._tariff_company_domain(access)
             country = False
             if access:
                 pos = self.covered_purchase_orders(access)
@@ -516,12 +517,27 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
         except Exception:
             return []
 
-    def _tariff_catalogs(self):
+    def _tariff_company_domain(self, access=None):
+        """Filtro de compañía para el tarifario (sudo salta las reglas):
+        tarifas de la compañía del PO del enlace o compartidas. Vacío si
+        el modelo no lleva company_id."""
+        try:
+            Tariff = request.env["freight.tariff"]
+        except KeyError:
+            return []
+        if 'company_id' not in Tariff._fields or not access:
+            return []
+        company = access.purchase_id.company_id
+        if not company:
+            return []
+        return [("company_id", "in", [company.id, False])]
+
+    def _tariff_catalogs(self, access=None):
         """Catálogos de navieras y forwarders CON TARIFA ACTIVA (el
         tarifario es la única fuente). Vacíos si el módulo no está."""
         try:
             tariffs = request.env["freight.tariff"].sudo().search(
-                [("state", "=", "active")])
+                [("state", "=", "active")] + self._tariff_company_domain(access))
             navieras = [
                 {"id": p.id, "name": p.name}
                 for p in tariffs.mapped("naviera_id").sorted("name")
@@ -730,8 +746,8 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
             },
             "proforma": proforma_data,
             "proformas": proformas_payload,
-            "navieras": self._tariff_catalogs()[0],
-            "forwarders": self._tariff_catalogs()[1],
+            "navieras": self._tariff_catalogs(access)[0],
+            "forwarders": self._tariff_catalogs(access)[1],
             "tariff_routes": self._tariff_routes(access),
             "is_cargo": len(covered_pos) > 1,
             "token": token,
@@ -813,7 +829,10 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                 po_vals['partner_ref'] = globals_data['proforma_number']
                 
             if 'payment_terms' in globals_data and globals_data['payment_terms']:
-                term = request.env['account.payment.term'].sudo().search([('name', 'ilike', globals_data['payment_terms'])], limit=1)
+                term = request.env['account.payment.term'].sudo().search([
+                    ('name', 'ilike', globals_data['payment_terms']),
+                    ('company_id', 'in', [po.company_id.id, False]),
+                ], limit=1)
                 if term:
                     po_vals['payment_term_id'] = term.id
                     
@@ -1090,7 +1109,9 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
         if shipment.proforma_id and shipment.proforma_id.purchase_id and shipment.proforma_id.purchase_id.currency_id:
             po_currency_id = shipment.proforma_id.purchase_id.currency_id.id
 
-        company_currency_id = request.env.company.currency_id.id if request.env.company.currency_id else False
+        # request.env.company es la del usuario público, NO la del PO.
+        po_company = shipment.proforma_id.purchase_id.company_id if shipment.proforma_id else False
+        company_currency_id = po_company.currency_id.id if po_company and po_company.currency_id else False
 
         for invoice in (invoices or []):
             invoice_id = self.safe_int(invoice.get("id"), 0)
@@ -1834,7 +1855,10 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
             if not has_demand:
                 continue
             try:
-                wizard = Wizard.create({"picking_id": picking.id})
+                # Compañía de la recepción (el usuario público del portal no
+                # tiene la del PO como activa).
+                wizard = Wizard.with_company(picking.company_id).create(
+                    {"picking_id": picking.id})
                 # SAVEPOINT: si la importación truena a la mitad, TODO el
                 # import se revierte. Sin esto quedaba commiteado un estado
                 # mixto (lotes/quants viejos borrados + solo parte de los
@@ -1865,7 +1889,7 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                     picking.move_ids.filtered(
                         lambda m: m.state not in ("done", "cancel")
                     ).write({"picked": True})
-                    res = picking.with_context(
+                    res = picking.with_company(picking.company_id).with_context(
                         skip_backorder=True,
                         skip_sms=True,
                         skip_immediate_transfer=True,
@@ -1919,12 +1943,17 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                         ], limit=1)
                         if not voyage:
                             with request.env.cr.savepoint():
-                                voyage = Voyage.create({
+                                voyage_vals = {
                                     'purchase_id': po.id,
                                     'custom_status': 'solicitud',
                                     'vessel_name': 'Por Definir',
                                     'bl_number': po.partner_ref or po.name,
-                                })
+                                }
+                                # El viaje nace en la compañía de la OC.
+                                if 'company_id' in Voyage._fields:
+                                    voyage_vals['company_id'] = po.company_id.id
+                                voyage = Voyage.with_company(
+                                    po.company_id).create(voyage_vals)
                                 try:
                                     voyage.action_load_from_purchase()
                                 except Exception:

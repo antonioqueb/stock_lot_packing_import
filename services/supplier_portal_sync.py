@@ -430,7 +430,8 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
                         existing_move.sudo().write(vals)
                 else:
                     vals = self._prepare_move_vals_from_po_line(picking, po_line, target_qty)
-                    self.env["stock.move"].sudo().create(vals)
+                    self.env["stock.move"].sudo().with_company(
+                        picking.company_id).create(vals)
             else:
                 if existing_move:
                     self._cleanup_zero_move(existing_move)
@@ -489,7 +490,10 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
         if "move_type" in self.env["stock.picking"]._fields:
             vals["move_type"] = po.picking_ids[:1].move_type if po.picking_ids else "direct"
 
-        return self.env["stock.picking"].sudo().create(vals)
+        # with_company: los defaults del picking (tipo, ubicaciones) salen
+        # de la compañía de la OC, no de la del usuario público del portal.
+        return self.env["stock.picking"].sudo().with_company(
+            po.company_id).create(vals)
 
     def get_or_create_picking_for_shipment(self, shipment):
         """Garantiza las recepciones del embarque (una por PO) y devuelve la

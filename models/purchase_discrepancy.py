@@ -23,7 +23,8 @@ class PurchaseDiscrepancy(models.Model):
         related='picking_id.partner_id', store=True, readonly=True,
     )
     company_id = fields.Many2one(
-        'res.company', related='picking_id.company_id', store=True, readonly=True,
+        'res.company', string='Compañía',
+        related='picking_id.company_id', store=True, readonly=True, index=True,
     )
     currency_id = fields.Many2one(
         'res.currency', string='Moneda',
@@ -163,12 +164,36 @@ class PurchaseDiscrepancy(models.Model):
                 line.qty_affected = line.qty_purchased
         return True
 
+    @api.model
+    def _som_next_sequence(self, code, company=None):
+        """next_by_code con la compañía del documento; si la compañía no tiene
+        secuencia propia y la plantilla es de otra compañía, se clona para ella."""
+        company = company or self.env.company
+        Seq = self.env['ir.sequence'].sudo()
+        name = Seq.with_company(company).next_by_code(code)
+        if name:
+            return name
+        template = Seq.search([('code', '=', code)], order='company_id', limit=1)
+        if not template:
+            return False
+        template.copy({
+            'company_id': company.id,
+            'number_next': 1,
+            'name': '%s (%s)' % (template.name, company.name),
+        })
+        return Seq.with_company(company).next_by_code(code)
+
     @api.model_create_multi
     def create(self, vals_list):
         for vals in vals_list:
             if vals.get('name', _('Nuevo')) == _('Nuevo'):
-                vals['name'] = self.env['ir.sequence'].next_by_code(
-                    'purchase.discrepancy') or _('Nuevo')
+                # Folio con la compañía de la recepción (no la activa).
+                company = self.env.company
+                if vals.get('picking_id'):
+                    picking = self.env['stock.picking'].browse(vals['picking_id'])
+                    company = picking.company_id or company
+                vals['name'] = self._som_next_sequence(
+                    'purchase.discrepancy', company) or _('Nuevo')
         records = super().create(vals_list)
         for rec in records:
             if rec.picking_id and not rec.line_ids:
@@ -198,6 +223,10 @@ class PurchaseDiscrepancyLine(models.Model):
     discrepancy_id = fields.Many2one(
         'purchase.discrepancy', string='Discrepancia',
         required=True, ondelete='cascade',
+    )
+    company_id = fields.Many2one(
+        'res.company', string='Compañía',
+        related='discrepancy_id.company_id', store=True, readonly=True, index=True,
     )
     currency_id = fields.Many2one(
         'res.currency', related='discrepancy_id.currency_id', store=True, readonly=True,
@@ -281,6 +310,10 @@ class PurchaseDiscrepancyEvidence(models.Model):
     discrepancy_id = fields.Many2one(
         'purchase.discrepancy', string='Discrepancia',
         required=True, ondelete='cascade',
+    )
+    company_id = fields.Many2one(
+        'res.company', string='Compañía',
+        related='discrepancy_id.company_id', store=True, readonly=True, index=True,
     )
     sequence = fields.Integer(default=10)
     name = fields.Char(string='Descripción')

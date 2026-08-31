@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <!-- Reglas de registro multiempresa. Los modelos supplier.* se
+             declaran primero en ESTE módulo (stock_transit_allocation los
+             re-declara con _name), por eso las reglas viven aquí.
+             company_id vacío = registro histórico/compartido: visible. -->
+
+        <record id="rule_supplier_proforma_header_company" model="ir.rule">
+            <field name="name">Proforma de proveedor: multiempresa</field>
+            <field name="model_id" ref="model_supplier_proforma_header"/>
+            <field name="domain_force">['|', ('company_id', '=', False), ('company_id', 'in', company_ids)]</field>
+            <field name="global" eval="True"/>
+        </record>
+
+        <record id="rule_supplier_shipment_company" model="ir.rule">
+            <field name="name">Embarque de proveedor: multiempresa</field>
+            <field name="model_id" ref="model_supplier_shipment"/>
+            <field name="domain_force">['|', ('company_id', '=', False), ('company_id', 'in', company_ids)]</field>
+            <field name="global" eval="True"/>
+        </record>
+
+        <record id="rule_supplier_shipment_container_company" model="ir.rule">
+            <field name="name">Contenedor de embarque: multiempresa</field>
+            <field name="model_id" ref="model_supplier_shipment_container"/>
+            <field name="domain_force">['|', ('company_id', '=', False), ('company_id', 'in', company_ids)]</field>
+            <field name="global" eval="True"/>
+        </record>
+
+        <record id="rule_supplier_shipment_invoice_company" model="ir.rule">
+            <field name="name">Invoice de embarque: multiempresa</field>
+            <field name="model_id" ref="model_supplier_shipment_invoice"/>
+            <field name="domain_force">['|', ('company_id', '=', False), ('company_id', 'in', company_ids)]</field>
+            <field name="global" eval="True"/>
+        </record>
+
+        <record id="rule_supplier_shipment_packing_company" model="ir.rule">
+            <field name="name">Packing list de embarque: multiempresa</field>
+            <field name="model_id" ref="model_supplier_shipment_packing"/>
+            <field name="domain_force">['|', ('company_id', '=', False), ('company_id', 'in', company_ids)]</field>
+            <field name="global" eval="True"/>
+        </record>
+
+        <record id="rule_supplier_shipment_packing_row_company" model="ir.rule">
+            <field name="name">Fila de packing list: multiempresa</field>
+            <field name="model_id" ref="model_supplier_shipment_packing_row"/>
+            <field name="domain_force">['|', ('company_id', '=', False), ('company_id', 'in', company_ids)]</field>
+            <field name="global" eval="True"/>
+        </record>
+
+        <record id="rule_supplier_shipment_block_image_company" model="ir.rule">
+            <field name="name">Foto de bloque: multiempresa</field>
+            <field name="model_id" ref="model_supplier_shipment_block_image"/>
+            <field name="domain_force">['|', ('company_id', '=', False), ('company_id', 'in', company_ids)]</field>
+            <field name="global" eval="True"/>
+        </record>
+
+        <record id="rule_supplier_shipment_document_company" model="ir.rule">
+            <field name="name">Documento de embarque/pago: multiempresa</field>
+            <field name="model_id" ref="model_supplier_shipment_document"/>
+            <field name="domain_force">['|', ('company_id', '=', False), ('company_id', 'in', company_ids)]</field>
+            <field name="global" eval="True"/>
+        </record>
+
+        <record id="rule_stock_picking_supplier_access_company" model="ir.rule">
+            <field name="name">Acceso portal proveedor: multiempresa</field>
+            <field name="model_id" ref="model_stock_picking_supplier_access"/>
+            <field name="domain_force">['|', ('company_id', '=', False), ('company_id', 'in', company_ids)]</field>
+            <field name="global" eval="True"/>
+        </record>
+
+        <record id="rule_supplier_cargo_invoice_company" model="ir.rule">
+            <field name="name">Factura de carga: multiempresa</field>
+            <field name="model_id" ref="model_supplier_cargo_invoice"/>
+            <field name="domain_force">['|', ('company_id', '=', False), ('company_id', 'in', company_ids)]</field>
+            <field name="global" eval="True"/>
+        </record>
+
+        <record id="rule_purchase_discrepancy_company" model="ir.rule">
+            <field name="name">Discrepancia de proveedor: multiempresa</field>
+            <field name="model_id" ref="model_purchase_discrepancy"/>
+            <field name="domain_force">['|', ('company_id', '=', False), ('company_id', 'in', company_ids)]</field>
+            <field name="global" eval="True"/>
+        </record>
+
+        <record id="rule_purchase_discrepancy_line_company" model="ir.rule">
+            <field name="name">Línea de discrepancia: multiempresa</field>
+            <field name="model_id" ref="model_purchase_discrepancy_line"/>
+            <field name="domain_force">['|', ('company_id', '=', False), ('company_id', 'in', company_ids)]</field>
+            <field name="global" eval="True"/>
+        </record>
+
+        <record id="rule_purchase_discrepancy_evidence_company" model="ir.rule">
+            <field name="name">Evidencia de discrepancia: multiempresa</field>
+            <field name="model_id" ref="model_purchase_discrepancy_evidence"/>
+            <field name="domain_force">['|', ('company_id', '=', False), ('company_id', 'in', company_ids)]</field>
+            <field name="global" eval="True"/>
+        </record>
+    </data>
+</odoo>

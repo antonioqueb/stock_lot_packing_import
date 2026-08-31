@@ -558,7 +558,7 @@ class StockPicking(models.Model):
             raise UserError('Sin productos.')
 
         if not self.spreadsheet_id:
-            folder = self.env['documents.document'].search([('type', '=', 'folder')], limit=1)
+            folder = self._som_documents_folder()
             taken_names = set()
             sheets = [self._build_pl_sheet(product, taken_names) for product in products]
 
@@ -635,7 +635,7 @@ class StockPicking(models.Model):
         if not self.packing_list_imported: raise UserError('Primero debe importar (o heredar) el Packing List.')
         if not self.ws_spreadsheet_id:
             products = self.move_line_ids.mapped('product_id')
-            folder = self.env['documents.document'].search([('type', '=', 'folder')], limit=1)
+            folder = self._som_documents_folder()
             
             base_headers = ['Nº Lote', 'Largo Teo.', 'Alto Teo.', 'Grosor', 'Color', 'Bloque', 'No. Placa', 'Atado', 'Tipo', 'Grupo', 'Pedimento', 'Contenedor', 'Ref. Prov.']
             sheets = []
@@ -696,6 +696,15 @@ class StockPicking(models.Model):
             self.ws_spreadsheet_id = self.env['documents.document'].create(vals)
             
         return self._action_launch_spreadsheet(self.ws_spreadsheet_id)
+
+    def _som_documents_folder(self):
+        """Carpeta de Documentos para los spreadsheets: de la compañía de la
+        recepción (o compartida), nunca la primera que aparezca."""
+        Doc = self.env['documents.document']
+        domain = [('type', '=', 'folder')]
+        if 'company_id' in Doc._fields:
+            domain.append(('company_id', 'in', [self.company_id.id, False]))
+        return Doc.search(domain, limit=1)
 
     def _action_launch_spreadsheet(self, doc):
         doc_sudo = doc.sudo()

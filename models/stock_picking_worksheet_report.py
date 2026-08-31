@@ -65,10 +65,15 @@ class StockPicking(models.Model):
         if self.origin:
             origin_ref = (self.origin or '').split(' ')[0]
             if origin_ref:
-                voyage = Voyage.search([
+                domain = [
                     ('name', 'ilike', origin_ref),
                     ('custom_status', 'not in', ['delivered', 'cancel']),
-                ], order='id desc', limit=1)
+                ]
+                # sudo salta las reglas: acotar a la compañía de la recepción.
+                if 'company_id' in Voyage._fields:
+                    domain.append(
+                        ('company_id', 'in', [self.company_id.id, False]))
+                voyage = Voyage.search(domain, order='id desc', limit=1)
 
         return voyage
 

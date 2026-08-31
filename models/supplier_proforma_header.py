@@ -21,6 +21,12 @@ class SupplierProformaHeader(models.Model):
         index=True,
         ondelete='set null',
     )
+    # Multiempresa. DUPLICADO INTENCIONAL con stock_transit_allocation
+    # (patrón _name duplicado: la definición debe ser IDÉNTICA en ambas).
+    company_id = fields.Many2one(
+        'res.company', string='Compañía',
+        related='purchase_id.company_id', store=True, readonly=True, index=True,
+    )
 
     proforma_number = fields.Char(string='No. de Proforma', copy=False)
     portal_overall_pct = fields.Integer(
@@ -189,6 +195,12 @@ class SupplierShipment(models.Model):
         index=True,
         ondelete='cascade',
     )
+    # Multiempresa. DUPLICADO INTENCIONAL con stock_transit_allocation
+    # (patrón _name duplicado: la definición debe ser IDÉNTICA en ambas).
+    company_id = fields.Many2one(
+        'res.company', string='Compañía',
+        related='proforma_id.company_id', store=True, readonly=True, index=True,
+    )
 
     shipment_type = fields.Selection(
         [
@@ -314,6 +326,12 @@ class SupplierShipmentContainer(models.Model):
         index=True,
         ondelete='cascade',
     )
+    # Multiempresa. DUPLICADO INTENCIONAL con stock_transit_allocation
+    # (patrón _name duplicado: la definición debe ser IDÉNTICA en ambas).
+    company_id = fields.Many2one(
+        'res.company', string='Compañía',
+        related='shipment_id.company_id', store=True, readonly=True, index=True,
+    )
     container_number = fields.Char(string='No. contenedor', index=True)
     seal_number = fields.Char(string='No. sello')
     container_type = fields.Char(string='Tipo de contenedor')
@@ -343,6 +361,12 @@ class SupplierShipmentInvoice(models.Model):
         required=True,
         index=True,
         ondelete='cascade',
+    )
+    # Multiempresa. DUPLICADO INTENCIONAL con stock_transit_allocation
+    # (patrón _name duplicado: la definición debe ser IDÉNTICA en ambas).
+    company_id = fields.Many2one(
+        'res.company', string='Compañía',
+        related='shipment_id.company_id', store=True, readonly=True, index=True,
     )
     invoice_number = fields.Char(string='No. invoice', index=True)
     # Duplicado intencional del campo de stock_transit_allocation (patrón
@@ -385,6 +409,12 @@ class SupplierShipmentPacking(models.Model):
         required=True,
         index=True,
         ondelete='cascade',
+    )
+    # Multiempresa. DUPLICADO INTENCIONAL con stock_transit_allocation
+    # (patrón _name duplicado: la definición debe ser IDÉNTICA en ambas).
+    company_id = fields.Many2one(
+        'res.company', string='Compañía',
+        related='shipment_id.company_id', store=True, readonly=True, index=True,
     )
     packing_number = fields.Char(string='No. packing', index=True)
     packing_date = fields.Date(string='Fecha packing')
@@ -439,6 +469,12 @@ class SupplierShipmentPackingRow(models.Model):
         required=True,
         index=True,
         ondelete='cascade',
+    )
+    # Multiempresa. DUPLICADO INTENCIONAL con stock_transit_allocation
+    # (patrón _name duplicado: la definición debe ser IDÉNTICA en ambas).
+    company_id = fields.Many2one(
+        'res.company', string='Compañía',
+        related='packing_id.company_id', store=True, readonly=True, index=True,
     )
     sequence = fields.Integer(string='Secuencia', default=10)
     product_id = fields.Many2one(
@@ -534,6 +570,12 @@ class SupplierShipmentBlockImage(models.Model):
         required=True,
         index=True,
         ondelete='cascade',
+    )
+    # Multiempresa. DUPLICADO INTENCIONAL con stock_transit_allocation
+    # (patrón _name duplicado: la definición debe ser IDÉNTICA en ambas).
+    company_id = fields.Many2one(
+        'res.company', string='Compañía',
+        related='shipment_id.company_id', store=True, readonly=True, index=True,
     )
     block_name = fields.Char(string='Bloque', required=True, index=True)
     product_id = fields.Many2one(

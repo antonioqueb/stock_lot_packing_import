@@ -44,6 +44,7 @@
                         <group string="Datos de la carga">
                             <field name="date"/>
                             <field name="partner_id" readonly="1"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
                             <field name="currency_id" invisible="1"/>
                             <field name="amount_total"/>
                         </group>
@@ -109,6 +110,7 @@
                 <field name="amount_total" sum="Total" optional="show"/>
                 <field name="shipped_display" string="Embarcado" optional="show"/>
                 <field name="capture_progress" widget="progressbar" optional="show"/>
+                <field name="company_id" optional="hide" groups="base.group_multi_company"/>
                 <field name="state" widget="badge"
                        decoration-info="state == 'linked'"
                        decoration-success="state in ('shipped', 'closed')"/>

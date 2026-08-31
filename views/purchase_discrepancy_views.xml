@@ -34,6 +34,7 @@
                             <field name="origin" readonly="1"/>
                             <field name="container_no" readonly="1"/>
                             <field name="scheduled_date" readonly="1"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
                         </group>
                         <group string="Discrepancia">
                             <field name="discrepancy_type"/>
@@ -112,6 +113,7 @@
                 <field name="amount_affected" sum="Total" widget="monetary"/>
                 <field name="currency_id" column_invisible="1"/>
                 <field name="evidence_count" string="Evid."/>
+                <field name="company_id" optional="hide" groups="base.group_multi_company"/>
                 <field name="state" widget="badge"
                        decoration-success="state == 'resolved'"
                        decoration-warning="state == 'open'"
@@ -138,6 +140,7 @@
                 <filter name="group_type" string="Tipo" context="{'group_by': 'discrepancy_type'}"/>
                 <filter name="group_state" string="Estado" context="{'group_by': 'state'}"/>
                 <filter name="group_date" string="Fecha" context="{'group_by': 'date:month'}"/>
+                <filter name="group_company" string="Compañía" context="{'group_by': 'company_id'}" groups="base.group_multi_company"/>
             </search>
         </field>
     </record>

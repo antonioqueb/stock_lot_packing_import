@@ -25,6 +25,13 @@ class SupplierAccess(models.Model):
              'de las PO amparadas.',
     )
 
+    # Multiempresa: la del PO principal del enlace (con carga, todas las
+    # PO amparadas son del mismo proveedor y compañía).
+    company_id = fields.Many2one(
+        'res.company', string='Compañía',
+        related='purchase_id.company_id', store=True, readonly=True, index=True,
+    )
+
     cargo_invoice_id = fields.Many2one(
         'supplier.cargo.invoice',
         string='Factura de carga',

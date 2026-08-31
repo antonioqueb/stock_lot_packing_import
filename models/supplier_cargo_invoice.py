@@ -33,6 +33,11 @@ class SupplierCargoInvoice(models.Model):
         'res.partner', string='Proveedor',
         compute='_compute_partner_id', store=True,
     )
+    # Multiempresa: la de las OC amparadas; sin OC todavía, la activa.
+    company_id = fields.Many2one(
+        'res.company', string='Compañía',
+        compute='_compute_company_id', store=True, readonly=True, index=True,
+    )
     purchase_ids = fields.Many2many(
         'purchase.order',
         'supplier_cargo_invoice_po_rel', 'cargo_id', 'purchase_id',
@@ -256,6 +261,15 @@ class SupplierCargoInvoice(models.Model):
             'view_mode': 'list,form',
             'domain': [('id', 'in', shipments.ids)],
         }
+
+    @api.depends('purchase_ids.company_id')
+    def _compute_company_id(self):
+        for rec in self:
+            rec.company_id = (
+                rec.purchase_ids[:1].company_id
+                or rec.company_id
+                or self.env.company
+            )
 
     @api.depends('purchase_ids.partner_id')
     def _compute_partner_id(self):

@@ -27,6 +27,14 @@ class SupplierShipmentDocument(models.Model):
         help='Se usa para documentos de pago gestionados internamente desde la OC.',
     )
 
+    # Multiempresa: shipment_id/proforma_id son Integer (sin FK), así que
+    # la compañía se resuelve por cómputo almacenado: OC del documento de
+    # pago, proforma o embarque (en ese orden); sin liga, la activa.
+    company_id = fields.Many2one(
+        'res.company', string='Compañía',
+        compute='_compute_company_id', store=True, readonly=True, index=True,
+    )
+
     document_type = fields.Selection([
         ('bl', 'Bill of Lading (B/L)'),
         ('invoice', 'Invoice'),
@@ -81,6 +89,18 @@ class SupplierShipmentDocument(models.Model):
                     raise ValidationError('Los documentos generales deben quedar ligados a una Proforma.')
                 if rec.purchase_id or rec.shipment_id:
                     raise ValidationError('Los documentos generales aplican a toda la Proforma, no a un embarque o una Orden de Compra.')
+
+    @api.depends('purchase_id.company_id', 'shipment_id', 'proforma_id')
+    def _compute_company_id(self):
+        Header = self.env['supplier.proforma.header'].sudo()
+        Shipment = self.env['supplier.shipment'].sudo()
+        for rec in self:
+            company = rec.purchase_id.company_id
+            if not company and rec.proforma_id:
+                company = Header.browse(rec.proforma_id).exists().company_id
+            if not company and rec.shipment_id:
+                company = Shipment.browse(rec.shipment_id).exists().company_id
+            rec.company_id = company or rec.company_id or self.env.company
 
     @api.model
     def check_duplicate(self, shipment_id, proforma_id, purchase_id, document_type, upload_token):
