@@ -1189,7 +1189,7 @@ class PackingListImportWizard(models.TransientModel):
             SELECT name
             FROM stock_lot
             WHERE name LIKE %s
-              AND company_id = %s
+              AND (company_id = %s OR company_id IS NULL)
               AND SUBSTRING(name FROM '-([0-9]+)$') IS NOT NULL
             ORDER BY CAST(SUBSTRING(name FROM '-([0-9]+)$') AS INTEGER) DESC
             LIMIT 1
