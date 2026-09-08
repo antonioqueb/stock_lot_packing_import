@@ -821,6 +821,26 @@ class StockPicking(models.Model):
                     'aquí mismo. Liberar el embarque solo aplica a recepciones '
                     'validadas (devueltas) o canceladas.'))
 
+            # Recepción VALIDADA: solo se libera si su material ya salió del
+            # inventario (devolución al proveedor). Si sus lotes siguen con
+            # saldo, la recepción nueva DUPLICARÍA las placas (C116: 35
+            # registradas de 18 físicas). Se niega y se pide la devolución.
+            if pick.state == 'done' and not self.env.context.get('som_force_release'):
+                pending = pick._som_release_pending_stock()
+                if pending:
+                    detail = ', '.join(
+                        '%s (%.2f)' % (name, qty)
+                        for name, qty in pending[:10])
+                    if len(pending) > 10:
+                        detail += _(' y %d más') % (len(pending) - 10)
+                    raise UserError(_(
+                        'La recepción %(pick)s sigue con material en inventario: '
+                        '%(detail)s. Antes de reasignar el PL a una recepción '
+                        'nueva hay que devolver ese material al proveedor '
+                        '(Devolución) o darlo de baja; si no, las placas '
+                        'quedarían duplicadas en tránsito.'
+                    ) % {'pick': pick.name, 'detail': detail})
+
             pick.sudo().write({'supplier_shipment_id': False})
             pick.message_post(body=_(
                 'Se liberó el vínculo con el embarque %s: las placas del PL '
@@ -870,6 +890,25 @@ class StockPicking(models.Model):
                     '[Portal] Resync tras liberar embarque %s falló; se creará '
                     'al completar la proforma.', shipment.id)
         return True
+
+    def _som_release_pending_stock(self):
+        """[(lote, cantidad)] de los lotes que entraron con esta recepción y
+        siguen con saldo en ubicaciones internas o de tránsito (no en
+        Proveedor/Cliente/Desecho). Vacío = el material ya se devolvió."""
+        self.ensure_one()
+        lots = self.move_line_ids.mapped('lot_id')
+        if not lots:
+            return []
+        groups = self.env['stock.quant'].sudo()._read_group(
+            [('lot_id', 'in', lots.ids),
+             ('location_id.usage', 'in', ('internal', 'transit')),
+             ('quantity', '>', 0)],
+            groupby=['lot_id'], aggregates=['quantity:sum'])
+        result = []
+        for lot, qty in groups:
+            if lot and (qty or 0.0) > 1e-6:
+                result.append((lot.name, qty))
+        return result
 
     def button_validate(self):
         """COSECHA DE PEDIMENTO al validar la recepción: lo capturado en el

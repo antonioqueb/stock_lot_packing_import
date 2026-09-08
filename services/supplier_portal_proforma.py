@@ -418,6 +418,62 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
             limit=1,
         )
 
+    # =====================================================================
+    #  CANDADO DEL PACKING LIST
+    # =====================================================================
+
+    def _shipment_done_pickings(self, shipment):
+        """Recepciones VALIDADAS (material ya en tránsito) ligadas al
+        embarque. Una recepción liberada con 'Reasignar PL a nueva
+        recepción' ya no tiene supplier_shipment_id y deja de contar."""
+        return request.env["stock.picking"].sudo().search([
+            ("supplier_shipment_id", "=", shipment.id),
+            ("state", "=", "done"),
+        ], order="id asc")
+
+    def _shipment_lock_reason(self, shipment):
+        """Motivo por el que el PL del embarque NO admite cambios desde el
+        portal, o False si está abierto.
+
+        1) Recepción validada: el material YA está en tránsito. Editar el
+           PL aquí reescribía las cantidades de la OC y, al re-completar,
+           el módulo clonaba una recepción nueva encima de la validada
+           (C116: 35 placas registradas de 18 físicas). La corrección es
+           en Odoo: devolución de la recepción y 'Reasignar PL a nueva
+           recepción', que quita el vínculo y reabre este candado.
+        2) Proforma completada sin recepción validada aún: el proveedor
+           ya no edita (el portal se lo avisa al completar); los usuarios
+           internos sí, porque la recepción sigue abierta y el PL se
+           reprocesa ahí mismo."""
+        if not shipment:
+            return False
+        done = self._shipment_done_pickings(shipment)
+        if done:
+            return (
+                "El packing list del embarque %s ya fue recibido en tránsito "
+                "(%s) y no se puede modificar. Para corregirlo, SOM GROUP debe "
+                "reversar la recepción en Odoo."
+            ) % (shipment.name or shipment.id, ", ".join(done.mapped("name")))
+        proforma = shipment.proforma_id
+        if proforma and proforma.status == "complete" \
+                and not self.is_internal_user():
+            return (
+                "La proforma ya fue marcada como completa y el packing list "
+                "quedó cerrado. Si necesitas corregirlo, pídeselo a tu "
+                "contacto en SOM GROUP."
+            )
+        return False
+
+    def _locked_response(self, shipment):
+        reason = self._shipment_lock_reason(shipment)
+        if reason:
+            _logger.warning(
+                "[Portal][LOCK] Cambio rechazado sobre el embarque %s: %s",
+                shipment.id, reason,
+            )
+            return {"success": False, "locked": True, "message": reason}
+        return False
+
     def _shipment_catalog_vals(self, shipment_data):
         """Naviera/forwarder del CATÁLOGO del tarifario. Al elegir naviera,
         el Char shipping_line se sincroniza con su nombre (reportes/vistas
@@ -611,6 +667,8 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                 } for image in shipment.block_image_ids]
 
             shipment_documents = self.documents_service.serialize_documents_for_scope(shipment_id=shipment.id)
+            lock_reason = self._shipment_lock_reason(shipment)
+            done_pickings = self._shipment_done_pickings(shipment)
 
             shipments.append({
                 "id": shipment.id,
@@ -647,6 +705,9 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                 "picking_id": picking.id if picking else False,
                 "picking_name": picking.name if picking else "",
                 "picking_state": picking.state if picking else "",
+                "is_locked": bool(lock_reason),
+                "lock_reason": lock_reason or "",
+                "received_picking_names": done_pickings.mapped("name"),
                 "products": shipment_products,
             })
 
@@ -1214,6 +1275,10 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
         if not shipment.exists() or not self.belongs_to_proforma(proforma, shipment=shipment):
             return {"success": False, "message": "Embarque no encontrado o no autorizado."}
 
+        locked = self._locked_response(shipment)
+        if locked:
+            return locked
+
         if not packing_data:
             packing_data = {}
 
@@ -1639,6 +1704,9 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
             return {"success": False, "message": "Packing no encontrado o no autorizado."}
 
         shipment = packing.shipment_id
+        locked = self._locked_response(shipment)
+        if locked:
+            return locked
         packing.unlink()
         self.sync_service.sync_shipment(shipment)
         return {"success": True}
@@ -1674,6 +1742,33 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
         can_complete, msg = self.can_complete(proforma)
         if not can_complete:
             return {"success": False, "message": msg}
+
+        # CANDADO: proforma ya completada y TODAS sus recepciones validadas
+        # (material en tránsito). Re-completar aquí no tiene nada que
+        # procesar y solo re-sincronizaba el PL sobre recepciones cerradas.
+        # La corrección va por Odoo (devolución + 'Reasignar PL a nueva
+        # recepción'), que quita el vínculo y reabre el portal.
+        if proforma.status == "complete":
+            pickings = request.env["stock.picking"].sudo()
+            for shipment in proforma.shipment_ids:
+                pickings |= self.sync_service._find_pickings_for_shipment(
+                    shipment).filtered(lambda pk: pk.state != "cancel")
+            if pickings and all(pk.state == "done" for pk in pickings):
+                _logger.warning(
+                    "[Portal][LOCK] Re-completar rechazado: proforma %s ya "
+                    "recibida en tránsito (%s).",
+                    proforma.id, ", ".join(pickings.mapped("name")),
+                )
+                return {
+                    "success": False,
+                    "locked": True,
+                    "message": (
+                        "La proforma ya fue completada y su material ya fue "
+                        "recibido en tránsito (%s). Ya no se puede modificar "
+                        "desde el portal; cualquier corrección la hace SOM "
+                        "GROUP en Odoo."
+                    ) % ", ".join(pickings.mapped("name")),
+                }
 
         # Naviera y forwarder son OBLIGATORIOS en embarques internacionales:
         # sin ellos no se puede seleccionar la tarifa correcta del tarifario.
@@ -2035,6 +2130,10 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
         if not self.belongs_to_proforma(proforma, row=row):
             return {"success": False, "message": "Fila no pertenece a esta proforma."}
 
+        locked = self._locked_response(row.packing_id.shipment_id)
+        if locked:
+            return locked
+
         vals = {"image": image_data}
         if image_name:
             vals["image_filename"] = image_name
@@ -2055,6 +2154,10 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
         if not self.belongs_to_proforma(proforma, row=row):
             return {"success": False, "message": "Fila no pertenece a esta proforma."}
 
+        locked = self._locked_response(row.packing_id.shipment_id)
+        if locked:
+            return locked
+
         row.write({"image": False, "image_filename": False})
         return {"success": True}
 
@@ -2071,6 +2174,10 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
         shipment = request.env["supplier.shipment"].sudo().browse(self.safe_int(shipment_id))
         if not shipment.exists() or not self.belongs_to_proforma(proforma, shipment=shipment):
             return {"success": False, "message": "Embarque no encontrado o no autorizado."}
+
+        locked = self._locked_response(shipment)
+        if locked:
+            return locked
 
         if not block_name or not str(block_name).strip():
             return {"success": False, "message": "Nombre de bloque requerido."}
@@ -2120,6 +2227,10 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
 
         if not self.belongs_to_proforma(proforma, shipment=record.shipment_id):
             return {"success": False, "message": "No autorizado."}
+
+        locked = self._locked_response(record.shipment_id)
+        if locked:
+            return locked
 
         record.unlink()
         return {"success": True}
