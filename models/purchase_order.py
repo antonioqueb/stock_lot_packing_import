@@ -149,6 +149,45 @@ class PurchaseOrderLineUnlink(models.Model):
             return self.env['stock.move']
         return super()._create_stock_moves(picking)
 
+    def _get_qty_procurement(self):
+        """Delta de recepción a nivel PRODUCTO cuando la OC repite el
+        producto en varias líneas (precios distintos).
+
+        La recepción a tránsito se unifica en UN move por producto, ligado
+        a la primera línea. Las demás líneas quedan sin moves propios y el
+        core, que calcula por línea, cree que no se les ha pedido ni
+        recibido nada: cualquier write de product_qty regenera su cantidad
+        COMPLETA (C100: SOM/IN/00185 nació con 449.47 m² ya recibidos en
+        SOM/IN/00182). Aquí el delta se reparte así: la primera línea del
+        producto responde por (pedido del producto − ya en moves); las
+        demás reportan "cubiertas" y no generan nada."""
+        qty = super()._get_qty_procurement()
+        if not self.product_id or self.display_type:
+            return qty
+        siblings = self.order_id.order_line.filtered(
+            lambda l: not l.display_type and l.product_id == self.product_id)
+        if len(siblings) <= 1:
+            return qty
+        siblings = siblings.sorted('id')
+        if self != siblings[0]:
+            return self.product_qty
+        uom = self.product_uom_id
+        in_moves = 0.0
+        for move in siblings.move_ids.filtered(
+                lambda m: m.state != 'cancel' and not m.scrapped
+                and m.product_id == self.product_id):
+            q = move.product_uom._compute_quantity(
+                move.product_uom_qty, uom, rounding_method='HALF-UP')
+            if move.location_dest_id.usage in ('supplier',) \
+                    or move.to_refund:
+                in_moves -= q
+            else:
+                in_moves += q
+        product_ordered = sum(siblings.mapped('product_qty'))
+        # super calcula delta = product_qty - qty; se quiere
+        # delta = product_ordered - in_moves.
+        return in_moves - (product_ordered - self.product_qty)
+
     def unlink(self):
         # Al borrar una línea de OC confirmada, sus movimientos de recepción
         # PENDIENTES se cancelan primero (sin esto quedarían huérfanos
