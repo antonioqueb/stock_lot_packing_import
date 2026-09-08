@@ -409,6 +409,20 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
                     picking.name, len(pending_dups), pending_dups.ids,
                 )
                 pending_dups._action_cancel()
+                # Cancelados se BORRAN: si se quedan, la recepción sigue
+                # mostrando el producto N veces (un renglón cancelado por
+                # cada delta del core). Sin move lines no hay nada que
+                # perder; si alguno no se deja, se queda cancelado.
+                removable = pending_dups.filtered(
+                    lambda m: m.state == "cancel" and not m.move_line_ids)
+                if removable:
+                    try:
+                        removable.sudo().unlink()
+                    except Exception:
+                        _logger.warning(
+                            "[Portal] Recepción %s: no se pudieron borrar los "
+                            "moves cancelados %s.", picking.name, removable.ids,
+                            exc_info=True)
 
         valid_product_ids = set(product_line_map.keys())
 
@@ -918,7 +932,9 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
                     line.x_qty_solicitada_original
                     and abs((line.product_qty or 0.0) - line.x_qty_solicitada_original) > 1e-6
                 ):
-                    line.with_context(skip_date_sync=True).write({
+                    line.with_context(
+                        skip_date_sync=True, som_pl_qty_sync=True,
+                    ).write({
                         'x_qty_embarcada': 0.0,
                         'product_qty': line.x_qty_solicitada_original,
                     })
@@ -943,7 +959,10 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
                     line.product_qty, total,
                 )
 
-            line.with_context(skip_date_sync=True).write(vals)
+            # som_pl_qty_sync: la demanda de la recepción la fija el sync del
+            # portal; el core NO debe crear moves-delta por este write.
+            line.with_context(
+                skip_date_sync=True, som_pl_qty_sync=True).write(vals)
 
     def sync_shipment(self, shipment):
         # PRIMERO el reparto PI/PO por fila: las recepciones POR PO dependen

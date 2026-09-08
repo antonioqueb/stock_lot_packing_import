@@ -126,6 +126,29 @@ class PurchaseOrderLineUnlink(models.Model):
     def _unlink_except_purchase_or_done(self):
         _som_unlink_except_purchase_or_done(self)
 
+    # ------------------------------------------------------------------
+    # AJUSTE DE CANTIDAD DESDE EL PL DEL PORTAL: sin moves-delta del core
+    # ------------------------------------------------------------------
+    # purchase_stock reacciona a cada write de product_qty en una línea
+    # confirmada creando un stock.move por la DIFERENCIA en la recepción
+    # abierta (_create_or_update_picking → _create_stock_moves). El portal
+    # reescribe product_qty en cada autoguardado del PL (placa por placa),
+    # así que la recepción a tránsito acumulaba un move nuevo por placa;
+    # el sync del portal los cancelaba pero quedaban visibles: "el mismo
+    # producto N veces con cantidades cada vez más chicas" (SOM/IN/00156:
+    # 37 moves cancelados; SOM/IN/00165: 58). La demanda de esa recepción
+    # la administra el sync del portal (un move por producto), por lo que
+    # con el contexto som_pl_qty_sync el core no debe tocar los moves.
+    def _create_or_update_picking(self):
+        if self.env.context.get('som_pl_qty_sync'):
+            return
+        return super()._create_or_update_picking()
+
+    def _create_stock_moves(self, picking):
+        if self.env.context.get('som_pl_qty_sync'):
+            return self.env['stock.move']
+        return super()._create_stock_moves(picking)
+
     def unlink(self):
         # Al borrar una línea de OC confirmada, sus movimientos de recepción
         # PENDIENTES se cancelan primero (sin esto quedarían huérfanos
