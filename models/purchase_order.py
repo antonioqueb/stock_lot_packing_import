@@ -173,13 +173,19 @@ class PurchaseOrderLineUnlink(models.Model):
             return self.product_qty
         uom = self.product_uom_id
         in_moves = 0.0
+        # Odoo 19: stock.move ya no tiene 'scrapped' (la baja vive en
+        # scrap_id) — usarlo tumbaba To Be Purchased al agregar líneas a
+        # una OC confirmada. Mismo criterio que el core: hecho => cantidad
+        # real; abierto => demanda.
         for move in siblings.move_ids.filtered(
-                lambda m: m.state != 'cancel' and not m.scrapped
+                lambda m: m.state != 'cancel'
+                and not ('scrap_id' in m._fields and m.scrap_id)
                 and m.product_id == self.product_id):
+            qty_move = move.quantity if move.state == 'done' else move.product_uom_qty
             q = move.product_uom._compute_quantity(
-                move.product_uom_qty, uom, rounding_method='HALF-UP')
-            if move.location_dest_id.usage in ('supplier',) \
-                    or move.to_refund:
+                qty_move, uom, rounding_method='HALF-UP')
+            if move.location_dest_id.usage == 'supplier' \
+                    or ('to_refund' in move._fields and move.to_refund):
                 in_moves -= q
             else:
                 in_moves += q
