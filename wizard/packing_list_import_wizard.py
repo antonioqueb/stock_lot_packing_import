@@ -412,6 +412,27 @@ class PackingListImportWizard(models.TransientModel):
 
         self.picking_id.write({"packing_list_imported": True})
 
+        # ── AVISO: producto con demanda y SIN placas en el PL ───────────────
+        # (C142: PIEDRA GRIS con 317.72 de demanda quedó sin move lines y la
+        # validación lo canceló). No bloquea, pero deja constancia visible.
+        uncovered = []
+        for move in self.picking_id.move_ids.filtered(
+                lambda m: m.state not in ("done", "cancel")
+                and (m.product_uom_qty or 0.0) > 0):
+            if not move.move_line_ids:
+                uncovered.append("%s (demanda %.2f)" % (
+                    move.product_id.display_name, move.product_uom_qty))
+        if uncovered:
+            warn = (
+                "PL procesado con productos SIN placas: %s. Esos productos "
+                "tienen demanda en la recepción pero el PL no trajo filas para "
+                "ellos; si se valida así, el faltante se cancela." % "; ".join(uncovered))
+            _logger.warning("[PL_IMPORT] %s | picking=%s", warn, self.picking_id.name)
+            try:
+                self.picking_id.message_post(body=warn)
+            except Exception:  # noqa: BLE001
+                pass
+
         # ── SINCRONIZAR CANTIDADES EN LÍNEAS DE LA OC ─────────────────────────
         self._sync_quantities_to_po_lines()
 
@@ -435,8 +456,9 @@ class PackingListImportWizard(models.TransientModel):
                     f"Omitidos sin movimiento: {skipped_without_move}. "
                     f"Omitidos por cantidad 0: {skipped_qty_zero}. "
                     "El Worksheet ha sido reiniciado."
+                    + (" ATENCIÓN: productos sin placas en el PL: " + "; ".join(uncovered) if uncovered else "")
                 ),
-                "type": "success",
+                "type": "warning" if uncovered else "success",
                 "next": {"type": "ir.actions.act_window_close"},
             },
         }

@@ -1979,6 +1979,35 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
             # material queda visible en tránsito sin entrar picking por
             # picking. Si la validación falla, el PL YA quedó procesado y el
             # botón Validar manual sigue como respaldo (se avisa en chatter).
+            # CANDADO (C142, 9 sep 2026): jamás auto-validar con un producto
+            # cuya demanda no quedó cubierta por el PL. Validar con un move en
+            # cero bajo skip_backorder lo CANCELA (sin backorder) y el material
+            # desaparece del registro: en SOM/IN/00245 el contenedor 105
+            # (PIEDRA GRIS, 317.72 m²) quedó cancelado y la OC sin recibirlo.
+            # La recepción se deja abierta y se avisa en el chatter de la OC.
+            incomplete = []
+            for move in picking.move_ids.filtered(
+                    lambda m: m.state not in ("done", "cancel")):
+                demand = move.product_uom_qty or 0.0
+                done_qty = sum(move.move_line_ids.mapped(
+                    "quantity" if "quantity" in move.move_line_ids._fields else "qty_done"))
+                rounding = move.product_uom.rounding or 0.01
+                if demand > rounding and done_qty < demand - max(rounding, 0.01):
+                    incomplete.append("%s: demanda %.2f, en PL %.2f" % (
+                        move.product_id.display_name, demand, done_qty))
+            if incomplete:
+                msg = (
+                    "%s NO se validó automáticamente: el PL no cubre la demanda "
+                    "de %s. Revisa el PL del portal (filas/contenedores de ese "
+                    "producto) y reprocesa antes de validar; validar así "
+                    "cancelaría el faltante." % (picking.name, "; ".join(incomplete)))
+                _logger.warning("[Portal] %s", msg)
+                errors.append(msg)
+                try:
+                    picking.message_post(body=msg)
+                except Exception:  # noqa: BLE001
+                    pass
+                continue
             try:
                 with request.env.cr.savepoint():
                     picking.move_ids.filtered(
