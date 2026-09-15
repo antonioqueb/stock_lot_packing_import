@@ -9,7 +9,7 @@ class StockPicking(models.Model):
         'purchase.discrepancy', 'picking_id', string='Discrepancias',
     )
     discrepancy_count = fields.Integer(
-        string='Discrepancias', compute='_compute_discrepancy_count',
+        string='Núm. de discrepancias', compute='_compute_discrepancy_count',
     )
 
     @api.depends('discrepancy_ids')
