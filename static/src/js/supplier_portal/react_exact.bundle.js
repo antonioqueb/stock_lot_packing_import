@@ -2633,8 +2633,13 @@ const genPackingRows = (draft, proforma, ship, prevRows) => {
         if (i < arr.length) { consumed.add(arr[i]); return arr[i]; }
         return null;
     };
-    const shipContainerNumbers = (ship && ship.containers ? ship.containers : []).map(c => c.number).filter(Boolean);
-    const defaultContainer = shipContainerNumbers.length === 1 ? shipContainerNumbers[0] : '';
+    // CONTENEDOR 100% MANUAL (22 sep 2026): antes, si el embarque tenía UN
+    // solo contenedor, se estampaba en todas las filas. Al agregar después
+    // los demás contenedores, las filas ya traían el primero y todo el
+    // packing quedaba con el mismo número (caso C152/C153: 333 placas con
+    // TGBU3935760). Ahora la fila solo hereda el contenedor que el usuario
+    // eligió EN SU BLOQUE; sin esa elección, se captura a mano.
+    const defaultContainer = '';
     const generated = [];
     (draft.blocks || []).forEach((b, bIdx) => {
         const product = proforma.products.find(p => String(p.id) === String(b.product)) || proforma.products[0] || {};
@@ -3438,16 +3443,10 @@ const Step4Sheet = ({ proforma, draft, setDraft, rows, setRows, ship, pendingIma
         (((typeof window !== 'undefined' && window.PORTAL_PROFORMAS) || []).map(q => React.createElement("option", { key: q.id, value: q.id }, q.number || q.po_name || ''))));
     const colFilterClear = () => React.createElement("th", { style: { textAlign: 'center' } },
         anyColFilter ? React.createElement("button", { title: "Limpiar filtros", onClick: clearColFilters, style: { border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--danger)', fontWeight: 700 } }, "✕") : null);
-    // Si el embarque tiene EXACTAMENTE un contenedor, se asigna a las filas sin él.
-    const soleContainer = (() => {
-        const nums = (ship && ship.containers ? ship.containers : []).map(c => c.number).filter(Boolean);
-        return nums.length === 1 ? nums[0] : '';
-    })();
-    React.useEffect(() => {
-        if (!soleContainer) return;
-        if (rows.some(r => !r.container))
-            setRows(prev => prev.map(r => r.container ? r : { ...r, container: soleContainer }));
-    }, [soleContainer, rows, setRows]);
+    // AUTOLLENADO DE CONTENEDOR ELIMINADO (22 sep 2026): rellenaba con el
+    // único contenedor del embarque todas las filas vacías. Si después se
+    // daban de alta los demás contenedores, las filas ya estaban estampadas
+    // con el primero y nadie lo notaba. El contenedor se captura a mano.
     const rowIsPlaca = (r) => PL_KIND(r) === 'placa';
     // El paso 4 muestra y administra TODAS las filas (placa, pieza y formato) para
     // capturar su detalle: una placa o un empaque (palet/caja) por fila. Nada se
