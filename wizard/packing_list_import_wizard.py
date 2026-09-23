@@ -166,6 +166,20 @@ class PackingListImportWizard(models.TransientModel):
     def action_import_excel(self):
         self.ensure_one()
         _logger.info("=== [PL_IMPORT] INICIO PROCESO DE CARGA ===")
+        # CANDADO: jamás reimportar sobre una recepción YA VALIDADA (22 sep
+        # 2026). La limpieza de abajo pone en CERO las move lines previas y
+        # borra los quants bajo el destino; en una recepción hecha eso BORRA
+        # existencias reales y deja la compra como recibida sin material
+        # (C152/C153: 252 placas, 1,146 m² desaparecidos de SOM/TRANSIT).
+        # El portal ya lo bloquea; faltaba el candado aquí, del lado interno.
+        if self.picking_id.state == 'done':
+            raise UserError(_(
+                "La recepción %s YA ESTÁ VALIDADA: no se puede reimportar su "
+                "packing list.\n\nReimportar borraría las existencias que esa "
+                "recepción ya metió al almacén y la compra quedaría como "
+                "recibida sin material.\n\nPara corregirla: haz la DEVOLUCIÓN de "
+                "la recepción y luego usa 'Reasignar PL a nueva recepción'."
+            ) % self.picking_id.name)
 
         # Saneo previo: la demanda de la recepción a tránsito se UNIFICA por
         # producto (OCs con producto repetido y recepciones acumuladas por
