@@ -2659,6 +2659,8 @@ const genPackingRows = (draft, proforma, ship, prevRows) => {
                 const base = { id, product_id: b.product || product.id, tipo, block: b.name, atado: '', plate: '', ref: product.ref || '', thickness: 0, h: 0, w: 0, quantity: 0, weight: 0, notes: '', grupo: '', pedimento: '', container: b.container || defaultContainer, container_id: false, pi_header_id: b.pi_header_id || false, photo: false, errors: [], blockStart: i === 0 };
                 const prev = takePrev(id, base.product_id, base.block, base.grupo);
                 if (prev) PL_ROW_KEEP.forEach(k => { if (prev[k] !== undefined) base[k] = prev[k]; });
+                // Fila sin contenedor propio: toma el que se eligió en su bloque.
+                if (!base.container && b.container) { base.container = b.container; base.container_id = false; }
                 // El bloque y el empaque SIEMPRE reflejan la config actual (prellenado).
                 base.block = b.name;
                 base.grupo = '';
@@ -2681,6 +2683,8 @@ const genPackingRows = (draft, proforma, ship, prevRows) => {
                 const base = { id, product_id: b.product || product.id, tipo, block: lotName, atado: '', plate: '', ref: product.ref || '', thickness: 0, h: 0, w: 0, quantity: +b.count || 0, weight: 0, notes: '', grupo, pedimento: '', container: b.container || defaultContainer, container_id: false, pi_header_id: b.pi_header_id || false, photo: false, errors: [], blockStart: true };
                 const prev = takePrev(id, base.product_id, base.block, base.grupo);
                 if (prev) PL_ROW_KEEP.forEach(k => { if (prev[k] !== undefined) base[k] = prev[k]; });
+                // Fila sin contenedor propio: toma el que se eligió en su bloque.
+                if (!base.container && b.container) { base.container = b.container; base.container_id = false; }
                 base.block = lotName;
                 base.grupo = grupo;
                 base.quantity = (prev && parseFloat(prev.quantity) > 0) ? prev.quantity : (+b.count || 0);
@@ -2696,6 +2700,8 @@ const genPackingRows = (draft, proforma, ship, prevRows) => {
                     const base = { id, product_id: b.product || product.id, tipo, block: lotName, atado: '', plate: '', ref: product.ref || '', thickness: 0, h: 0, w: 0, quantity: 0, weight: 0, notes: '', grupo, pedimento: '', container: b.container || defaultContainer, container_id: false, pi_header_id: b.pi_header_id || false, photo: false, errors: [], blockStart: i === 0 };
                     const prev = takePrev(id, base.product_id, base.block, base.grupo);
                     if (prev) PL_ROW_KEEP.forEach(k => { if (prev[k] !== undefined) base[k] = prev[k]; });
+                    // Fila sin contenedor propio: toma el que se eligió en su bloque.
+                    if (!base.container && b.container) { base.container = b.container; base.container_id = false; }
                     base.block = lotName;
                     base.grupo = grupo;
                     generated.push(base);
@@ -4423,6 +4429,23 @@ function App() {
         }));
     }, [realMappedId]);
     const containerIdForRow = React.useCallback((shipmentId, ship, row) => {
+        // EL NÚMERO MANDA (24 sep 2026): el selector, "copiar al bloque" y el
+        // pegado desde Excel solo cambian `row.container`; el `container_id`
+        // de la carga anterior quedaba rancio y ganaba, así que el cambio se
+        // perdía al guardar y todo el PL acababa con el primer contenedor.
+        const num = String(row.container || '').trim().toUpperCase();
+        if (row.container !== undefined && !num)
+            return false;
+        const byNum = num
+            ? (ship.containers || []).find(c => String(c.number || '').trim().toUpperCase() === num)
+            : null;
+        if (byNum) {
+            if (portalIsRealId(byNum.id))
+                return parseInt(byNum.id, 10);
+            // Contenedor aún sin id real: el servidor lo resuelve por número.
+            return idMapRef.current.containers[shipmentId + ':' + byNum.id] || false;
+        }
+        // Número que ya no existe (contenedor renombrado): el id previo.
         if (portalIsRealId(row.container_id))
             return parseInt(row.container_id, 10);
         if (row.container_id && idMapRef.current.containers[shipmentId + ':' + row.container_id])
@@ -4454,6 +4477,9 @@ function App() {
                 _client_id: String(clientId),
                 product_id: portalToInt(productId),
                 container_id: containerIdForRow(shipmentId, ship, row) || false,
+                ...(row.container !== undefined
+                    ? { container_number: String(row.container || '').trim().toUpperCase() }
+                    : {}),
                 pi_header_id: row.pi_header_id ? (parseInt(row.pi_header_id, 10) || false) : false,
                 tipo,
                 grosor: row.thickness !== undefined ? String(row.thickness || '') : String(row.grosor || ''),

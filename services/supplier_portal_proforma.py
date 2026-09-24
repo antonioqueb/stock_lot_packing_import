@@ -1413,6 +1413,14 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
 
             shipment_container_ids = set(shipment.container_ids.ids)
             packing_container_ids = set(normalized_container_ids)
+            # CONTENEDOR POR NÚMERO (24 sep 2026): lo que el proveedor VE en la
+            # fila es el número; el container_id podía venir rancio (el de la
+            # carga anterior) y ganaba, así que cambiar el contenedor de una
+            # fila no se guardaba y todo el PL terminaba con el primero.
+            container_by_number = {
+                (c.container_number or '').strip().upper(): c.id
+                for c in shipment.container_ids if (c.container_number or '').strip()
+            }
 
             # PIs válidas para asignación manual por fila: las proformas de
             # las POs amparadas por este enlace.
@@ -1435,6 +1443,15 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
             for idx, row in enumerate(rows, start=1):
                 row_id = self.safe_int(row.get("id"), 0)
                 row_container_id = self.safe_int(row.get("container_id"), 0)
+                if "container_number" in row:
+                    number = (row.get("container_number") or "").strip().upper()
+                    if not number:
+                        # Vacío explícito = sin contenedor (el id viejo no revive).
+                        row_container_id = 0
+                    elif number in container_by_number:
+                        row_container_id = container_by_number[number]
+                    # Número que ya no existe (contenedor renombrado): se
+                    # conserva el id que mandó el portal.
                 client_id = row.get("_client_id") or row.get("client_id") or row.get("_id") or ""
 
                 if row_container_id and row_container_id not in shipment_container_ids:
