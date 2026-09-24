@@ -1775,6 +1775,11 @@ const ShipmentsList = ({ proforma, setProforma, status, setRoute }) => {
                         const newId = 's' + (proforma.shipments.length + 1);
                         setProforma({
                             ...proforma,
+                            // Embarque nuevo = la proforma deja de estar completa
+                            // (el servidor ya lo hace al crearlo): sin esto el
+                            // aviso verde seguía y parecía que no había que
+                            // volver a marcar como completado.
+                            status: proforma.status === 'complete' ? 'partial' : proforma.status,
                             shipments: [...proforma.shipments, {
                                     id: newId, number: proforma.shipments.length + 1, type: '',
                                     shipping_line: '', vessel: '', etd: '', eta: '', status: 'draft', notes: '',

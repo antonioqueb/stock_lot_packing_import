@@ -381,7 +381,12 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
         ordered_qty_map = self._po_ordered_qty_map(po)
 
         product_line_map = {}
-        for po_line in po.order_line.filtered(lambda l: not l.display_type and l.product_id):
+        # Servicios (p.ej. Gastos de importación) jamás van a la recepción: un
+        # move de servicio en borrador dejaba TODA la recepción en borrador y
+        # el completado del portal se la saltaba (C175, 24 sep 2026).
+        for po_line in po.order_line.filtered(
+                lambda l: not l.display_type and l.product_id
+                and l.product_id.type != 'service'):
             if po_line.product_id.id not in product_line_map:
                 product_line_map[po_line.product_id.id] = po_line
 
@@ -455,7 +460,56 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
             if move.product_id.id not in valid_product_ids:
                 self._cleanup_zero_move(move)
 
+        # Confirmar jamás tumba el guardado del PL: si falla, el completado
+        # lo reintenta y avisa.
+        try:
+            with self.env.cr.savepoint():
+                self.confirm_portal_picking(picking)
+        except Exception:
+            _logger.exception(
+                "[Portal] No se pudo confirmar la recepción %s al sincronizar.",
+                picking.name)
         return picking
+
+    def confirm_portal_picking(self, picking):
+        """La recepción del portal queda CONFIRMADA, igual que la que nace de
+        la OC (24 sep 2026).
+
+        La recepción del SEGUNDO embarque en adelante (la de la OC ya la usó
+        el primero) se creaba aquí con moves en borrador y nadie la
+        confirmaba; lo mismo pasaba con un move nuevo en una recepción ya
+        confirmada. El completado del portal se salta las recepciones en
+        borrador, así que ese embarque nunca pasaba a tránsito (C144-002).
+        Los moves de servicio se cancelan: no son mercancía. Devuelve True si
+        la recepción ya no está en borrador."""
+        if not picking or picking.state in ("done", "cancel"):
+            return bool(picking)
+        draft = picking.move_ids.filtered(lambda m: m.state == "draft")
+        if not draft:
+            return picking.state != "draft"
+        services = draft.filtered(lambda m: m.product_id.type == "service")
+        if services:
+            services._action_cancel()
+            removable = services.filtered(
+                lambda m: m.state == "cancel" and not m.move_line_ids)
+            if removable:
+                try:
+                    removable.sudo().unlink()
+                except Exception:
+                    _logger.warning(
+                        "[Portal] Recepción %s: no se pudieron borrar los "
+                        "moves de servicio cancelados %s.", picking.name,
+                        removable.ids, exc_info=True)
+        has_demand = any(
+            (m.product_uom_qty or 0.0) > 0
+            for m in picking.move_ids
+            if m.state not in ("done", "cancel"))
+        if has_demand and picking.move_ids.filtered(lambda m: m.state == "draft"):
+            picking.sudo().with_company(picking.company_id).action_confirm()
+            _logger.info(
+                "[Portal] Recepción %s confirmada (moves en borrador del "
+                "portal).", picking.name)
+        return picking.state != "draft"
 
     # =====================================================================
     #  PICKING POR SHIPMENT (uno por PO)

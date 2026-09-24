@@ -1941,7 +1941,7 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
         processed = []
         errors = []
         for picking in pickings:
-            if picking.state in ("done", "cancel", "draft"):
+            if picking.state in ("done", "cancel"):
                 continue
             # UNA línea por producto SIEMPRE: el vaivén de cantidades de la
             # captura deja moves-delta de purchase_stock; se consolidan aquí
@@ -1955,40 +1955,64 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                     _logger.exception(
                         "[Portal] No se pudo unificar la demanda de %s.",
                         picking.name)
-            if picking.packing_list_imported or picking.worksheet_imported:
-                continue
-            if not picking.spreadsheet_id:
-                continue
             has_demand = any(
                 move.state not in ("done", "cancel")
                 and (move.product_uom_qty or 0.0) > 0
                 for move in picking.move_ids
             )
             if not has_demand:
+                # PO de la carga sin material en este embarque: nada que hacer.
                 continue
+            # CONTINUIDAD (24 sep 2026): la recepción del 2º embarque en
+            # adelante nacía en BORRADOR y aquí se saltaba EN SILENCIO — el
+            # proveedor completaba y nada pasaba a tránsito (C144-002, C175).
+            # Se confirma; si no se puede, se AVISA (jamás silencio).
             try:
-                # Compañía de la recepción (el usuario público del portal no
-                # tiene la del PO como activa).
-                wizard = Wizard.with_company(picking.company_id).create(
-                    {"picking_id": picking.id})
-                # SAVEPOINT: si la importación truena a la mitad, TODO el
-                # import se revierte. Sin esto quedaba commiteado un estado
-                # mixto (lotes/quants viejos borrados + solo parte de los
-                # nuevos creados) reportado como "éxito con warning".
                 with request.env.cr.savepoint():
-                    wizard.action_import_excel()
-                processed.append(picking.name)
-                _logger.info(
-                    "[Portal] PL procesado automáticamente al completar la "
-                    "proforma %s: recepción %s.", proforma.id, picking.name,
-                )
-            except Exception as exc:
-                errors.append("%s: %s" % (picking.name, exc))
+                    confirmed = self.sync_service.confirm_portal_picking(picking)
+            except Exception:
+                confirmed = False
                 _logger.exception(
-                    "[Portal] Falló el auto-proceso del PL en la recepción %s.",
-                    picking.name,
-                )
+                    "[Portal] No se pudo confirmar la recepción %s.", picking.name)
+            if not confirmed:
+                errors.append(
+                    "%s: la recepción sigue en borrador y no se pudo confirmar. "
+                    "Confírmala y usa 'Procesar PL' / Validar." % picking.name)
                 continue
+            # PL ya procesado (completado anterior, o 'Procesar PL' a mano)
+            # pero recepción sin validar: se REINTENTA la validación. Antes
+            # se saltaba y volver a completar no hacía nada.
+            already_imported = bool(
+                picking.packing_list_imported or picking.worksheet_imported)
+            if not already_imported and not picking.spreadsheet_id:
+                errors.append(
+                    "%s: la recepción no tiene hoja de Packing List; no se pudo "
+                    "procesar ni validar." % picking.name)
+                continue
+            if not already_imported:
+                try:
+                    # Compañía de la recepción (el usuario público del portal no
+                    # tiene la del PO como activa).
+                    wizard = Wizard.with_company(picking.company_id).create(
+                        {"picking_id": picking.id})
+                    # SAVEPOINT: si la importación truena a la mitad, TODO el
+                    # import se revierte. Sin esto quedaba commiteado un estado
+                    # mixto (lotes/quants viejos borrados + solo parte de los
+                    # nuevos creados) reportado como "éxito con warning".
+                    with request.env.cr.savepoint():
+                        wizard.action_import_excel()
+                    processed.append(picking.name)
+                    _logger.info(
+                        "[Portal] PL procesado automáticamente al completar la "
+                        "proforma %s: recepción %s.", proforma.id, picking.name,
+                    )
+                except Exception as exc:
+                    errors.append("%s: %s" % (picking.name, exc))
+                    _logger.exception(
+                        "[Portal] Falló el auto-proceso del PL en la recepción %s.",
+                        picking.name,
+                    )
+                    continue
 
             # ── VALIDACIÓN AUTOMÁTICA DEL TRÁNSITO ──
             # Con el PL procesado OK, la recepción a tránsito se valida sola
