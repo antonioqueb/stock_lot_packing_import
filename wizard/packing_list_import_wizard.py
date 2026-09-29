@@ -1,6 +1,14 @@
 # -*- coding: utf-8 -*-
 from odoo import models, fields, _
 from odoo.exceptions import UserError
+try:
+    from odoo.addons.stock_lot_dimensions.models.product_template import som_normalize_unit
+except ImportError:  # stock_lot_dimensions aún sin actualizar en disco
+    def som_normalize_unit(value):
+        raw = str(value or '').strip()
+        return {'piezas': 'Pieza', 'pz': 'Pieza', 'pzs': 'Pieza', 'pza': 'Pieza',
+                'pzas': 'Pieza', 'placas': 'Placa', 'formatos': 'Formato'}.get(
+                    raw.lower().rstrip('.'), raw)
 import base64
 import io
 import json
@@ -300,7 +308,16 @@ class PackingListImportWizard(models.TransientModel):
                 )
                 continue
 
-            unit_type = str(data.get("tipo") or "Placa").strip().capitalize()
+            unit_type = som_normalize_unit(
+                str(data.get("tipo") or "Placa")).strip().capitalize()
+            if unit_type not in ("Placa", "Formato", "Pieza"):
+                raise UserError(_(
+                    'El producto "%(product)s" tiene la unidad "%(unit)s". '
+                    'Para procesar el PL debe ser Placa, Formato o Pieza: '
+                    'corríjala en la ficha del producto (campo Unidad del '
+                    'Producto) y vuelva a procesar.') % {
+                        'product': product.display_name,
+                        'unit': data.get("tipo")})
 
             qty_done = 0.0
             final_alto = 0.0
