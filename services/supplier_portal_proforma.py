@@ -2033,7 +2033,14 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                 done_qty = sum(move.move_line_ids.mapped(
                     "quantity" if "quantity" in move.move_line_ids._fields else "qty_done"))
                 rounding = move.product_uom.rounding or 0.01
-                if demand > rounding and done_qty < demand - max(rounding, 0.01):
+                # CENTÉSIMAS (C207, 1 oct 2026): la demanda es la suma exacta
+                # del PL y cada placa se redondea a la unidad por separado;
+                # el redondeo acumulado (hasta media unidad por placa) no es
+                # faltante. Con 130 placas "633.56 vs 633.52" detenía la
+                # validación y empujaba a validar a mano.
+                tolerance = max(rounding, 0.01) + (
+                    rounding / 2.0) * len(move.move_line_ids)
+                if demand > rounding and done_qty < demand - tolerance:
                     incomplete.append("%s: demanda %.2f, en PL %.2f" % (
                         move.product_id.display_name, demand, done_qty))
             if incomplete:
