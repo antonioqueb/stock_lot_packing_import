@@ -2767,11 +2767,19 @@ const PackingWizard = ({ proforma, shipmentId, packingId, startAtStructure, onCl
             : (((existing.rows && existing.rows.length > 0) || existing.rows_filled > 0) ? 4 : 3))
         : 1;
     const [step, setStep] = React.useState(initialStep);
+    // Producto FANTASMA: si la OC cambió de producto después de iniciada la
+    // captura (p. ej. formato → placa), la estructura guardada conserva el
+    // producto viejo con su grupo vacío. Ya no está en la OC, así que no se ve
+    // en ningún paso ni se puede quitar, y al no tener tipo caía como "placa"
+    // sin foto ("Falta la foto de bloque: —"). Se descarta al abrir, salvo que
+    // tenga filas capturadas (esas jamás se tiran en silencio).
+    const draftProductAlive = (pid) => (proforma.products || []).some(p => String(p.id) === String(pid))
+        || ((existing && existing.rows) || []).some(r => String(r.product_id) === String(pid));
     const [draft, setDraft] = React.useState(() => existing ? {
         number: existing.number,
         date: existing.date,
-        products: existing.products,
-        blocks: existing.blocks.map(b => ({ ...b })),
+        products: (existing.products || []).filter(draftProductAlive),
+        blocks: existing.blocks.filter(b => draftProductAlive(b.product)).map(b => ({ ...b })),
     } : {
         // El No. del Packing nace con el número del INVOICE ya capturado en
         // este embarque (mismo folio comercial); el proveedor puede cambiarlo.
