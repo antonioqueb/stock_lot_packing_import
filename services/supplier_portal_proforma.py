@@ -422,6 +422,17 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
     #  CANDADO DEL PACKING LIST
     # =====================================================================
 
+    @staticmethod
+    def _clean_block_name(value):
+        """Nombre de bloque real, o '' si la fila no tiene bloque. El portal
+        MUESTRA las filas sin bloque como 'SIN BLOQUE' y al volver a guardar
+        mandaba esa etiqueta como si fuera el nombre: la fila pasaba a
+        exigir fotografía de un bloque que no existe (C203, liga regenerada)."""
+        name = (value or "").strip()
+        if name.upper() == "SIN BLOQUE":
+            return ""
+        return name
+
     def _shipment_done_pickings(self, shipment):
         """Recepciones VALIDADAS (material ya en tránsito) ligadas al
         embarque. Una recepción liberada con 'Reasignar PL a nueva
@@ -1481,7 +1492,7 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                     "ancho": max(0.0, self.safe_float(row.get("ancho", 0))),
                     "peso": max(0.0, self.safe_float(row.get("peso", 0))),
                     "quantity": max(0.0, self.safe_float(row.get("quantity", 0))),
-                    "bloque": row.get("bloque", ""),
+                    "bloque": self._clean_block_name(row.get("bloque", "")),
                     "numero_placa": row.get("numero_placa", ""),
                     "atado": row.get("atado", ""),
                     "color": row.get("color", ""),
@@ -1834,7 +1845,7 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                     # tienen bloque de cantera, así que no se exige fotografía.
                     if (row.tipo or "").strip().lower() != "placa":
                         continue
-                    block_name = (row.bloque or "").strip()
+                    block_name = self._clean_block_name(row.bloque)
                     if block_name:
                         blocks_in_packing.add((block_name, row.product_id.id))
 
