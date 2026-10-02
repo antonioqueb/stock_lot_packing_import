@@ -8,6 +8,20 @@ from odoo.http import request
 _logger = logging.getLogger(__name__)
 
 
+# Choques de concurrencia de PostgreSQL (dos peticiones del portal tocando
+# la misma recepción a la vez: autoguardado + completar). Odoo REINTENTA
+# solo la petición completa si el error sube; tragárselo en un try/except
+# deja la transacción abortada y el portal responde "current transaction is
+# aborted" (QA, 1 oct 2026).
+_PG_CONCURRENCY_CODES = ('40001', '40P01', '55P03')
+
+
+def reraise_concurrency(exc):
+    """Vuelve a lanzar `exc` si es un choque de concurrencia de PostgreSQL."""
+    if getattr(exc, 'pgcode', None) in _PG_CONCURRENCY_CODES:
+        raise exc
+
+
 class SupplierPortalBaseService:
     """
     Helpers comunes reutilizables por los servicios del portal.

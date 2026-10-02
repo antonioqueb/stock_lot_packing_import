@@ -9,7 +9,7 @@ from markupsafe import Markup, escape
 from odoo import fields
 from odoo.http import request
 
-from .supplier_portal_base import SupplierPortalBaseService
+from .supplier_portal_base import SupplierPortalBaseService, reraise_concurrency
 from .supplier_portal_documents import SupplierPortalDocumentsService
 from .supplier_portal_sync import SupplierPortalSyncService
 
@@ -1951,7 +1951,8 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
             if hasattr(picking, '_som_unify_transit_demand'):
                 try:
                     picking.sudo()._som_unify_transit_demand()
-                except Exception:
+                except Exception as exc:
+                    reraise_concurrency(exc)
                     _logger.exception(
                         "[Portal] No se pudo unificar la demanda de %s.",
                         picking.name)
@@ -1970,7 +1971,8 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
             try:
                 with request.env.cr.savepoint():
                     confirmed = self.sync_service.confirm_portal_picking(picking)
-            except Exception:
+            except Exception as exc:
+                reraise_concurrency(exc)
                 confirmed = False
                 _logger.exception(
                     "[Portal] No se pudo confirmar la recepción %s.", picking.name)
@@ -2007,6 +2009,7 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                         "proforma %s: recepción %s.", proforma.id, picking.name,
                     )
                 except Exception as exc:
+                    reraise_concurrency(exc)
                     errors.append("%s: %s" % (picking.name, exc))
                     _logger.exception(
                         "[Portal] Falló el auto-proceso del PL en la recepción %s.",
@@ -2023,7 +2026,8 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                 try:
                     with request.env.cr.savepoint():
                         picking.sudo()._som_request_purchase_validation()
-                except Exception:
+                except Exception as exc:
+                    reraise_concurrency(exc)
                     _logger.exception(
                         "[Portal] No se pudo avisar a Compras de %s.",
                         picking.name)
@@ -2071,7 +2075,8 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                 errors.append(msg)
                 try:
                     picking.message_post(body=msg)
-                except Exception:  # noqa: BLE001
+                except Exception as exc:
+                    reraise_concurrency(exc)
                     pass
                 continue
             try:
@@ -2093,6 +2098,7 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                     "[Portal] Recepción %s VALIDADA automáticamente "
                     "(material en tránsito).", picking.name)
             except Exception as exc:
+                reraise_concurrency(exc)
                 errors.append(
                     "%s: PL procesado pero la validación automática falló "
                     "(%s). Validar manualmente." % (picking.name, exc))
@@ -2146,7 +2152,8 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                                     po.company_id).create(voyage_vals)
                                 try:
                                     voyage.action_load_from_purchase()
-                                except Exception:
+                                except Exception as exc:
+                                    reraise_concurrency(exc)
                                     _logger.exception(
                                         "[Portal] Viaje %s creado pero no se "
                                         "pudieron cargar sus líneas.",
@@ -2176,7 +2183,8 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                             "[Portal] Recepción física %s creada para el "
                             "embarque %s al completar el portal.",
                             voyage.reception_picking_id.name, voyage.name)
-                except Exception:
+                except Exception as exc:
+                    reraise_concurrency(exc)
                     _logger.exception(
                         "[Portal] No se pudo crear la recepción física del "
                         "embarque tras validar %s (se creará al pasar a "

@@ -4,7 +4,7 @@ import logging
 
 from odoo import fields
 
-from .supplier_portal_base import SupplierPortalBaseService
+from .supplier_portal_base import SupplierPortalBaseService, reraise_concurrency
 
 _logger = logging.getLogger(__name__)
 
@@ -465,7 +465,8 @@ class SupplierPortalSyncService(SupplierPortalBaseService):
         try:
             with self.env.cr.savepoint():
                 self.confirm_portal_picking(picking)
-        except Exception:
+        except Exception as exc:
+            reraise_concurrency(exc)
             _logger.exception(
                 "[Portal] No se pudo confirmar la recepción %s al sincronizar.",
                 picking.name)
