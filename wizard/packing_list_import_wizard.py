@@ -489,9 +489,10 @@ class PackingListImportWizard(models.TransientModel):
                     "PL (quedan sin existencia): %s." % ", ".join(leftover[:40]))
             _logger.info("[PL_IMPORT] %s | picking=%s", note, self.picking_id.name)
             try:
-                self.picking_id.message_post(body=note)
+                with self.env.cr.savepoint():
+                    self.picking_id.message_post(body=note)
             except Exception:  # noqa: BLE001
-                pass
+                _logger.exception("[PL_IMPORT] No se pudo anotar la reutilización de folios.")
 
         # --- SINCRONIZACIÓN WORKSHEET ---
         if self.picking_id.ws_spreadsheet_id:

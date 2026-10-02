@@ -2021,7 +2021,8 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
             shipment = picking.supplier_shipment_id
             if shipment and shipment.som_requires_purchase_validation:
                 try:
-                    picking.sudo()._som_request_purchase_validation()
+                    with request.env.cr.savepoint():
+                        picking.sudo()._som_request_purchase_validation()
                 except Exception:
                     _logger.exception(
                         "[Portal] No se pudo avisar a Compras de %s.",
