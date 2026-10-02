@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
+from markupsafe import Markup
 import io
 import base64
 import logging
@@ -925,7 +926,60 @@ class StockPicking(models.Model):
                     _logger.exception(
                         '[WS_PEDIMENTO] Falló la cosecha de pedimentos al '
                         'validar %s.', picking.name)
+                picking._som_close_purchase_validation()
         return res
+
+    _SOM_REGEN_ACTIVITY = 'Validar recepción del embarque corregido'
+
+    def _som_request_purchase_validation(self):
+        """Liga regenerada: el proveedor volvió a completar el portal y el PL
+        ya está procesado en esta recepción. Deja constancia y una actividad
+        para que Compras revise y valide el paso a tránsito."""
+        for picking in self:
+            po = picking.supplier_cargo_po_id or picking.purchase_id
+            body = Markup(
+                '🔎 <b>Embarque corregido por el proveedor.</b> El packing '
+                'list de %s ya está procesado, pero la recepción NO se validó '
+                'sola: Compras debe revisarla y pulsar <b>Validar</b> para '
+                'que el material pase a tránsito.') % picking.name
+            picking.message_post(body=body)
+            if po:
+                po.sudo().message_post(body=body)
+            user = (po.user_id if po else False) or picking.user_id
+            if not user:
+                continue
+            pending = picking.activity_ids.filtered(
+                lambda a: a.summary == self._SOM_REGEN_ACTIVITY)
+            if not pending:
+                picking.activity_schedule(
+                    'mail.mail_activity_data_todo',
+                    user_id=user.id,
+                    summary=self._SOM_REGEN_ACTIVITY,
+                    note=body,
+                )
+
+    def _som_close_purchase_validation(self):
+        """Recepción validada: cierra la actividad de Compras y, cuando ya
+        no queda ninguna recepción abierta del embarque, le quita la marca
+        de 'requiere validación de Compras'."""
+        self.ensure_one()
+        shipment = self.supplier_shipment_id
+        if not shipment or not shipment.som_requires_purchase_validation:
+            return
+        self.activity_ids.filtered(
+            lambda a: a.summary == self._SOM_REGEN_ACTIVITY
+        ).action_feedback(feedback=_('Recepción validada por %s.') % self.env.user.name)
+        # Recepciones sin demanda (OC de la carga sin material en este
+        # embarque) no cuentan: nunca se validan.
+        open_picks = self.sudo().search([
+            ('supplier_shipment_id', '=', shipment.id),
+            ('state', 'not in', ('done', 'cancel')),
+            ('id', '!=', self.id),
+        ]).filtered(lambda p: any(
+            (m.product_uom_qty or 0.0) > 0 and m.state != 'cancel'
+            for m in p.move_ids))
+        if not open_picks:
+            shipment.sudo().write({'som_requires_purchase_validation': False})
 
     def _som_apply_ws_pedimentos(self):
         self.ensure_one()

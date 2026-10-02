@@ -2014,6 +2014,23 @@ class SupplierPortalProformaService(SupplierPortalBaseService):
                     )
                     continue
 
+            # ── LIGA REGENERADA: LA VALIDA COMPRAS ──
+            # El embarque se echó atrás para que el proveedor corrigiera su
+            # captura: en esta segunda vuelta el PL queda procesado pero la
+            # recepción NO pasa sola a tránsito; Compras la revisa y valida.
+            shipment = picking.supplier_shipment_id
+            if shipment and shipment.som_requires_purchase_validation:
+                try:
+                    picking.sudo()._som_request_purchase_validation()
+                except Exception:
+                    _logger.exception(
+                        "[Portal] No se pudo avisar a Compras de %s.",
+                        picking.name)
+                _logger.info(
+                    "[Portal] %s: liga regenerada; queda en espera de la "
+                    "validación de Compras.", picking.name)
+                continue
+
             # ── VALIDACIÓN AUTOMÁTICA DEL TRÁNSITO ──
             # Con el PL procesado OK, la recepción a tránsito se valida sola
             # (multi-proforma: cada OC del embarque valida la suya) — el

@@ -228,11 +228,17 @@ class PackingListImportWizard(models.TransientModel):
         # (líneas de tránsito) o tienen holds activos, reimportar destruiría
         # la trazabilidad y las asignaciones (el material renacía como lotes
         # nuevos sin relación). Se bloquea con instrucción clara.
-        if old_lots:
+        # Liga regenerada: los lotes reutilizados conservan su identidad (y
+        # con ella sus líneas de tránsito/apartados), así que no bloquean.
+        guard_lots = old_lots
+        shipment = self.picking_id.supplier_shipment_id
+        if shipment and 'som_regen_lot_ids' in shipment._fields:
+            guard_lots = old_lots - shipment.sudo().som_regen_lot_ids
+        if guard_lots:
             blockers = []
             if 'stock.transit.line' in self.env:
                 transit_refs = self.env['stock.transit.line'].sudo().search(
-                    [('lot_id', 'in', old_lots.ids)], limit=5,
+                    [('lot_id', 'in', guard_lots.ids)], limit=5,
                 )
                 if transit_refs:
                     blockers.append(
@@ -242,7 +248,7 @@ class PackingListImportWizard(models.TransientModel):
                     )
             if 'stock.lot.hold' in self.env:
                 active_holds = self.env['stock.lot.hold'].sudo().search(
-                    [('lot_id', 'in', old_lots.ids), ('estado', '=', 'activo')],
+                    [('lot_id', 'in', guard_lots.ids), ('estado', '=', 'activo')],
                     limit=5,
                 )
                 if active_holds:
@@ -291,6 +297,28 @@ class PackingListImportWizard(models.TransientModel):
         skipped_qty_zero = 0
         next_prefix = self._get_next_global_prefix()
         containers = {}
+
+        # LIGA REGENERADA: los lotes de la recepción devuelta se REUTILIZAN
+        # (mismo folio). La serie S cuenta contenedores físicos y no debe
+        # saltarse aunque el proveedor corrija el número de contenedor.
+        regen_pool = self._pl_regen_lot_pool()
+        regen_series = self._pl_series_from_lots(regen_pool)
+        for key, serie in regen_series.items():
+            prev_series.setdefault(key, serie)
+        row_keys = {
+            self._pl_norm_container((d.get("contenedor") or "SN").strip() or "SN")
+            for d in rows
+        }
+        spare_series = sorted(
+            serie for key, serie in regen_series.items() if key not in row_keys)
+        regen_by_key = {}
+        for lot in regen_pool.sorted(
+                lambda l: (self._pl_series_from_name(l.name) or 0,
+                           int(l.name.rsplit("-", 1)[1]))):
+            regen_by_key.setdefault(
+                ("S%s" % self._pl_series_from_name(lot.name), lot.product_id.id),
+                []).append(lot)
+        reused_lots = 0
 
         # Mapa para vincular imágenes después: key=(product_id, grosor, alto, ancho) → lot
         lot_creation_map = []
@@ -358,6 +386,10 @@ class PackingListImportWizard(models.TransientModel):
                 # de la serie numérica histórica (15-01…).
                 serie = self._pl_series_for_container(
                     cont_key, prev_series, self.picking_id)
+                if not serie and spare_series:
+                    # Contenedor corregido por el proveedor: toma la serie
+                    # del contenedor que dejó de existir en el PL.
+                    serie = spare_series.pop(0)
                 if not serie:
                     serie = next_prefix
                     next_prefix += 1
@@ -367,7 +399,14 @@ class PackingListImportWizard(models.TransientModel):
                     "num": self._get_next_lot_number_for_prefix(prefix_str),
                 }
 
-            l_name = f"{containers[cont_key]['pre']}-{containers[cont_key]['num']:02d}"
+            regen_lot = False
+            regen_queue = regen_by_key.get(
+                (containers[cont_key]["pre"], product.id))
+            if regen_queue:
+                regen_lot = regen_queue.pop(0)
+            if not regen_lot:
+                l_name = f"{containers[cont_key]['pre']}-{containers[cont_key]['num']:02d}"
+                containers[cont_key]["num"] += 1
 
             grupo_ids = []
             if data.get("grupo_name"):
@@ -379,10 +418,7 @@ class PackingListImportWizard(models.TransientModel):
 
             lot_selection_value = str(unit_type).lower()
 
-            lot = self.env["stock.lot"].create({
-                "name": l_name,
-                "product_id": product.id,
-                "company_id": self.picking_id.company_id.id,
+            lot_vals = {
                 "x_grosor": data.get("grosor"),
                 "x_alto": final_alto,
                 "x_ancho": final_ancho,
@@ -395,7 +431,18 @@ class PackingListImportWizard(models.TransientModel):
                 "x_pedimento": data.get("pedimento"),
                 "x_contenedor": cont,
                 "x_referencia_proveedor": data.get("ref_proveedor"),
-            })
+            }
+            if regen_lot:
+                lot = regen_lot
+                lot.write(lot_vals)
+                reused_lots += 1
+            else:
+                lot = self.env["stock.lot"].create(dict(
+                    lot_vals,
+                    name=l_name,
+                    product_id=product.id,
+                    company_id=self.picking_id.company_id.id,
+                ))
 
             lot_creation_map.append({
                 'lot': lot,
@@ -429,8 +476,22 @@ class PackingListImportWizard(models.TransientModel):
                 "x_grupo_temp": [(6, 0, grupo_ids)],
             })
 
-            containers[cont_key]["num"] += 1
             move_lines_created += 1
+
+        if regen_pool:
+            leftover = [l.name for q in regen_by_key.values() for l in q]
+            note = (
+                "Liga regenerada: %s lote(s) conservaron su folio; %s lote(s) "
+                "nuevos." % (reused_lots, move_lines_created - reused_lots))
+            if leftover:
+                note += (
+                    " Folios de la captura anterior que ya no vienen en el "
+                    "PL (quedan sin existencia): %s." % ", ".join(leftover[:40]))
+            _logger.info("[PL_IMPORT] %s | picking=%s", note, self.picking_id.name)
+            try:
+                self.picking_id.message_post(body=note)
+            except Exception:  # noqa: BLE001
+                pass
 
         # --- SINCRONIZACIÓN WORKSHEET ---
         if self.picking_id.ws_spreadsheet_id:
@@ -1215,6 +1276,33 @@ class PackingListImportWizard(models.TransientModel):
             lambda l: self._pl_norm_container(l.x_contenedor) == 'SN')
         found = self._pl_series_from_lots(lots)
         return found.get('SN')
+
+    def _pl_regen_lot_pool(self):
+        """Lotes de la recepción devuelta al regenerar la liga del portal,
+        disponibles para reutilizar: serie S válida, sin existencia en
+        almacén/tránsito y sin estar ya tomados por otra recepción abierta
+        (hermanas del mismo embarque en multi-proforma)."""
+        Lot = self.env["stock.lot"]
+        shipment = self.picking_id.supplier_shipment_id
+        if not shipment or "som_regen_lot_ids" not in shipment._fields:
+            return Lot
+        pool = shipment.sudo().som_regen_lot_ids.filtered(
+            lambda l: self._pl_series_from_name(l.name)
+            and (not l.company_id or l.company_id == self.picking_id.company_id))
+        if not pool:
+            return Lot
+        stocked = self.env["stock.quant"].sudo()._read_group(
+            [("lot_id", "in", pool.ids),
+             ("location_id.usage", "in", ("internal", "transit")),
+             ("quantity", ">", 0)],
+            groupby=["lot_id"])
+        busy = self.env["stock.move.line"].sudo().search([
+            ("lot_id", "in", pool.ids),
+            ("state", "not in", ("done", "cancel")),
+            ("picking_id", "!=", self.picking_id.id),
+        ]).mapped("lot_id")
+        taken = Lot.browse([lot.id for (lot,) in stocked]) | busy
+        return (pool - taken).with_env(self.env)
 
     def _get_next_global_prefix(self):
         # Serie "S" (S1-01, S2-01…): arranca en S1 y crece sobre los lotes S
